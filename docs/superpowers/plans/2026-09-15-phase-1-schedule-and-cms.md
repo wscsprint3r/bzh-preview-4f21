@@ -1098,6 +1098,7 @@ Create `web/src/lib/schedule.ts`:
 
 ```typescript
 import type { Slujba, ZiSlujba } from './schema';
+import { adaugaZile } from './week';
 import { cheieSaptamana, inceputSaptamana, sfarsitSaptamana } from './week';
 
 export type Saptamana = {
@@ -1395,8 +1396,9 @@ Expected: FAIL — `Failed to resolve import "./ics"`.
 Create `web/src/lib/ics.ts`:
 
 ```typescript
-import { etichetaSlujba, minute } from './schedule';
+import { etichetaSlujba, inainte, minute } from './schedule';
 import type { Slujba, ZiSlujba } from './schema';
+import { adaugaZile } from './week';
 
 const CRLF = '\r\n';
 const DURATA_IMPLICITA = 90; // minutes, for the last service of a day
@@ -1422,15 +1424,13 @@ function impatureste(linie: string): string {
   const bucati: string[] = [];
   let curenta = '';
   let octeti = 0;
-  let limita = 75;
 
   for (const ch of linie) {
     const n = enc.encode(ch).length;
-    if (octeti + n > limita) {
+    if (octeti + n > 75) {
       bucati.push(curenta);
       curenta = ch;
       octeti = n + 1; // the leading space on a continuation line counts
-      limita = 75;
     } else {
       curenta += ch;
       octeti += n;
@@ -1443,6 +1443,12 @@ function impatureste(linie: string): string {
 /**
  * ASCII slug of the service name, for the UID. Romanian diacritics are folded
  * rather than stripped so that Sfânta and Sfanta cannot produce the same slug.
+ *
+ * COUPLING: Task 4's schema rejects two entries sharing `ora` AND `slujba`, which
+ * is what stops two `Altceva` services at one time from reaching this slug. If
+ * that refinement is ever relaxed to key on `detaliu` — it has been flagged as a
+ * narrow over-rejection — then this slug must become part of the same key, or
+ * two differently-punctuated `Altceva` names can slug identically and collide.
  */
 function slugSlujba(s: Slujba): string {
   const nume = s.slujba === 'Altceva' ? (s.detaliu ?? '') : s.slujba;
@@ -1471,9 +1477,10 @@ function adaugaMinute(data: string, ora: string, n: number): { data: string; ora
   const h = String(Math.floor(ramas / 60)).padStart(2, '0');
   const m = String(ramas % 60).padStart(2, '0');
   if (zileInPlus === 0) return { data, ora: `${h}:${m}` };
-  const d = new Date(`${data}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + zileInPlus);
-  return { data: d.toISOString().slice(0, 10), ora: `${h}:${m}` };
+  // adaugaZile, not a third hand-rolled Date path. partiData is the one parser
+  // and adaugaZile the one arithmetic; both are tested far harder than anything
+  // inlined here, and an unvalidated third path is how 30 February got through.
+  return { data: adaugaZile(data, zileInPlus), ora: `${h}:${m}` };
 }
 
 const VTIMEZONE = [
@@ -1511,13 +1518,22 @@ export function genereazaIcs(
     ...VTIMEZONE,
   ];
 
-  const sortate = [...zile].sort((a, b) => a.data.localeCompare(b.data));
+  // `inainte`, not localeCompare: ICU collation varies between Node builds and
+  // treats hyphens as variable-weight. schedule.ts exports one comparison
+  // semantics for these strings; this module uses it rather than a second.
+  const sortate = [...zile].sort(inainte);
 
   for (const z of sortate) {
     const slujbe = [...z.slujbe].sort((a, b) => minute(a.ora) - minute(b.ora));
 
     slujbe.forEach((s, i) => {
-      const urmatoarea = slujbe[i + 1];
+      // The next service that starts STRICTLY later — not simply the next by
+      // index. Two services can share a start time (17:00 Spovedanie during
+      // 17:00 Vecernie), and `slujbe[i + 1]` would give the first of them a
+      // DTEND equal to its DTSTART. RFC 5545 §3.6.1 requires DTEND to be later
+      // than DTSTART, and a zero-length VEVENT renders unpredictably — for a
+      // parish, as a service that looks like it is not happening.
+      const urmatoarea = slujbe.slice(i + 1).find((u) => minute(u.ora) > minute(s.ora));
       const sfarsit = urmatoarea
         ? { data: z.data, ora: urmatoarea.ora }
         : adaugaMinute(z.data, s.ora, DURATA_IMPLICITA);
