@@ -14,6 +14,14 @@ User-facing strings are Romanian with **comma-below** diacritics: ș is U+0219, 
 U+021B — never the Turkish cedilla forms ş U+015F, ţ U+0163. They are near-identical in
 most fonts, so verify by codepoint, never by eye.
 
+**"It rendered fine" is not evidence.** The self-hosted fonts contain the cedilla forms
+as well as the comma-below ones — verified by decoding the cmap of every latin-ext face
+shipped in Task 7: all four of U+015E, U+015F, U+0162, U+0163 are present in Cormorant
+Garamond (roman and italic) and in Spectral. A corrupted character therefore draws as a
+perfectly formed glyph: no box, no fallback, no visual clue at all. Screenshots, dev-server
+checks and "I looked at it" can never tell you anything about this class of bug, which is
+why the codepoint scan is the only check that counts.
+
 **Escape sequences of the form \u followed by four hex digits do not survive being
 written to disk.** Both the Bash heredoc (even quoted, `<<'EOF'`) and the file-writing
 tools decode them into the literal character first, silently. A guard written as
