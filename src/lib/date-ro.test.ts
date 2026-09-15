@@ -5,6 +5,7 @@ import {
   formatIntervalSaptamana,
   numeLuna,
   numeZi,
+  partiData,
   ziuaDinLuna,
 } from './date-ro';
 
@@ -65,5 +66,59 @@ describe('formatIntervalSaptamana', () => {
   it('scrie ambii ani când săptămâna traversează anul', () => {
     expect(formatIntervalSaptamana('2025-12-29', '2026-01-04'))
       .toBe('29 decembrie 2025 – 4 ianuarie 2026');
+  });
+});
+
+describe('partiData', () => {
+  it('desface o dată validă', () => {
+    expect(partiData('2026-09-14')).toEqual({ an: 2026, luna: 9, zi: 14 });
+  });
+
+  it('respinge un format greșit', () => {
+    expect(() => partiData('2026-9-14')).toThrow(/invalidă/);
+  });
+
+  it('respinge luna 00', () => {
+    expect(() => partiData('2026-00-01')).toThrow(/inexistentă/);
+  });
+
+  it('respinge luna 13', () => {
+    expect(() => partiData('2026-13-01')).toThrow(/inexistentă/);
+  });
+
+  it('respinge 30 februarie', () => {
+    expect(() => partiData('2026-02-30')).toThrow(/inexistentă/);
+  });
+
+  it('respinge ziua 32', () => {
+    expect(() => partiData('2026-01-32')).toThrow(/inexistentă/);
+  });
+
+  it('respinge 29 februarie într-un an obișnuit', () => {
+    expect(() => partiData('2026-02-29')).toThrow(/inexistentă/);
+  });
+
+  it('acceptă 29 februarie într-un an bisect', () => {
+    expect(partiData('2028-02-29')).toEqual({ an: 2028, luna: 2, zi: 29 });
+    expect(numeZi('2028-02-29')).toBe('Marți');
+  });
+
+  it('respinge un an sub 100, pe care Date.UTC l-ar muta în 1900+', () => {
+    expect(() => partiData('0026-01-01')).toThrow(/inexistentă/);
+  });
+});
+
+describe('validarea se aplică și funcțiilor publice', () => {
+  it('numeLuna nu mai întoarce undefined pentru luna 13', () => {
+    expect(() => numeLuna('2026-13-01')).toThrow(/inexistentă/);
+  });
+
+  it('numeZi nu mai raportează o zi pentru 30 februarie', () => {
+    expect(() => numeZi('2026-02-30')).toThrow(/inexistentă/);
+  });
+
+  it('formatIntervalSaptamana respinge o dată inexistentă', () => {
+    expect(() => formatIntervalSaptamana('2026-09-14', '2026-09-31'))
+      .toThrow(/inexistentă/);
   });
 });
