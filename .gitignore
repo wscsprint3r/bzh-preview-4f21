@@ -1,12 +1,17 @@
-# This directory holds forensic backups of a twice-compromised server:
-# compromised-bzh-backup-DANGER/, backup-*/, *.sql dumps, and credentials
-# (NEW-DB-PASSWORD.txt). None of it may ever reach a remote.
-#
-# Therefore: ignore everything at the top level by default, and opt in
-# explicitly. Do not replace this with a deny-list.
+# build output
+dist/
+.astro/
+node_modules/
 
-/*
+# Sveltia CMS bundle, copied from node_modules by scripts/copy-cms.mjs
+public/admin/sveltia-cms.mjs
 
-!/.gitignore
-!/docs/
-!/web/
+# superpowers scratch: brainstorm mockups and the SDD ledger
+.superpowers/
+
+# local
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
