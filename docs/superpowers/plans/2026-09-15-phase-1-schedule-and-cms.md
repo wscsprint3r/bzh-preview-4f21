@@ -2337,7 +2337,7 @@ const urmatoarea = urmatoareaSlujba(zile, azi, oraLaZurich());
   .hero-in { padding-block: clamp(2.5rem, 7vw, 4.5rem); }
   .hero-kick { font-size: 0.625rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold-lt); margin: 0 0 0.75rem; }
   .hero h1 { color: var(--parchment); font-size: clamp(1.875rem, 5vw, 2.75rem); font-weight: 500; }
-  .hero-verset { font-style: italic; color: #E4D7C4; max-width: var(--masura); margin: 0.75rem 0 0; }
+  .hero-verset { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
   .urm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; border: 1px solid var(--gold-lt); background: var(--raised); padding: 1rem 1.25rem; margin-block: 1.75rem 0; }
   .urm b { font-family: var(--display); font-size: 1.25rem; color: var(--oxblood); }
   .urm > span:last-child { color: var(--muted); }
