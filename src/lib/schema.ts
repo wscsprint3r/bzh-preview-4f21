@@ -151,8 +151,26 @@ export const ziSchema = z
     },
     cheiStricte,
   )
-  .refine((z_) => z_.anulat || z_.slujbe.length > 0, {
-    message: 'Ziua trebuie să aibă cel puțin o slujbă, sau să fie marcată ca anulată.',
+  /**
+   * At least one service, even on a cancelled day.
+   *
+   * The `anulat` exemption used to live here, and it quietly broke the promise
+   * in spec 8 that a cancelled day emits STATUS:CANCELLED rather than
+   * disappearing. `ics.ts` writes one VEVENT per service, so a cancelled day
+   * left with no times emits nothing at all: a subscriber who already has
+   * Sunday's Liturgy keeps it, never sees the cancellation, and drives to a
+   * locked church. The one group the feed exists to inform is the one group it
+   * fails.
+   *
+   * So the times stay and the flag carries the cancellation. The message says so
+   * rather than only refusing, because deleting the rows is exactly what a
+   * volunteer's instinct says to do when a service is called off.
+   */
+  .refine((z_) => z_.slujbe.length > 0, {
+    message:
+      'Ziua trebuie să aibă cel puțin o slujbă. Dacă slujbele nu mai au loc, ' +
+      'păstrați orele și bifați „anulat”: altfel, cei abonați la calendar rămân ' +
+      'cu vechiul program și nu află de anulare.',
     path: ['slujbe'],
   })
   .refine((z_) => !z_.praznic_mare || Boolean(z_.praznic?.trim()), {

@@ -43,7 +43,7 @@ describe('ziSchema', () => {
     expect(r.success).toBe(true);
   });
 
-  it('respinge o zi fără slujbe care nu este anulată', () => {
+  it('respinge o zi fără slujbe', () => {
     const r = ziSchema.safeParse({ slujbe: [] });
     expect(r.success).toBe(false);
     if (!r.success) {
@@ -51,9 +51,17 @@ describe('ziSchema', () => {
     }
   });
 
-  it('acceptă o zi fără slujbe dacă este anulată', () => {
+  it('respinge o zi anulată fără slujbe, ca anularea să ajungă la abonați', () => {
+    // Spec §8: o zi anulată emite STATUS:CANCELLED în loc să dispară. Dar
+    // feed-ul scrie câte un eveniment pe slujbă, așa că o zi anulată rămasă
+    // fără ore nu emite nimic: abonatul păstrează vechiul program în calendar,
+    // nu află de anulare și vine la o biserică încuiată. Orele rămân, steagul
+    // duce anularea.
     const r = ziSchema.safeParse({ slujbe: [], anulat: true, note: 'Părintele este plecat' });
-    expect(r.success).toBe(true);
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0].message).toContain('păstrați orele');
+    }
   });
 
   it('respinge praznic_mare fără praznic', () => {
