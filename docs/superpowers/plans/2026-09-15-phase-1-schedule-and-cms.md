@@ -389,7 +389,7 @@ export function formatIntervalSaptamana(luni: string, duminica: string): string 
 - [ ] **Step 4: Run tests**
 
 Run: `cd web && npx vitest run src/lib/date-ro.test.ts`
-Expected: PASS. (The plan's test block contains 11 cases, plus 5 more from the impossible-date validation below — 16 in total.)
+Expected: PASS. Do not hold the implementation to a predicted test count — the impossible-date validation and a full `toEqual` on `NUME_LUNI` push this well past the block shown here (23 as built).
 
 - [ ] **Step 5: Commit**
 
