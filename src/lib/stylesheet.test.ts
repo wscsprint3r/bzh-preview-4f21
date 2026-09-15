@@ -1,8 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { PALETA, cssTokens } from './tokens';
 
 /*
+ * Checks that span the token module and the stylesheet, which neither can make
+ * on its own.
+ *
  * tokens.test.ts proves the ornamental golds are not *listed* as text roles.
  * It cannot prove nobody used one as a `color` anyway — that lives in CSS, not
  * in the token table. This file closes that gap.
@@ -127,5 +131,28 @@ describe('aurul ornamental nu colorează text', () => {
     const sursa = readFileSync(RADACINA + fisier, 'utf8');
     expect(sursa.length).toBeGreaterThan(0);
     expect(auriDeText(sursa)).toEqual(EXCEPTII[fisier] ?? []);
+  });
+});
+
+describe('global.css folosește chiar valorile din tokens.ts', () => {
+  /*
+   * The whole point of tokens.test.ts is that --gold-text clears 4.5:1. That
+   * only means something if the hex it measures is the hex the browser gets.
+   * The two live in different files, so without this check someone could put
+   * --gold-text: #B08B3E in the stylesheet and every contrast assertion would
+   * keep passing against a value the site no longer ships.
+   */
+  const linii = cssTokens()
+    .split(String.fromCharCode(10))
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith('--'));
+
+  it('are ceva de verificat', () => {
+    expect(linii.length).toBe(Object.keys(PALETA).length);
+  });
+
+  it.each(linii)('%s', (linie) => {
+    const css = readFileSync(RADACINA + 'src/styles/global.css', 'utf8');
+    expect(css).toContain(linie);
   });
 });
