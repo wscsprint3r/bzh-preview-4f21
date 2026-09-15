@@ -26,7 +26,7 @@ Every task's requirements implicitly include this section.
 - **Fonts self-hosted**, `latin` + `latin-ext` subsets. `latin-ext` covers U+0100–U+024F, which includes U+0218–U+021B (Ș ș Ț ț with comma below). No Google Fonts CDN.
 - **Dates are plain `YYYY-MM-DD` strings. Times are plain `HH:MM` local strings.** Never store or compute a UTC instant for a service — a Liturgy at 10:00 is at 10:00 on both sides of a DST change. The single exception is `aziLaZurich()`, which converts the real clock into a Zürich calendar date.
 - **All user-facing copy is Romanian**, with correct comma-below diacritics (ș ț, not ş ţ).
-- **Performance budget** (spec §13), enforced in CI by Task 13: homepage HTML ≤ 30 KB, CSS ≤ 15 KB, JS ≤ 3 KB, ≤ 12 requests. Lighthouse accessibility 100.
+- **Performance budget** (spec §13), enforced in CI by Task 13: homepage HTML ≤ 30 KB, CSS ≤ 15 KB, JS ≤ 3 KB, ≤ 12 requests. Lighthouse accessibility 100. Because `inlineStylesheets: 'always'` puts the CSS inside the document, Task 13 enforces the first two as one combined **45 KB** limit on `dist/index.html`; the reasoning is in that task.
 - **Cloudflare Pages free tier:** 20,000 files/deploy, 25 MiB/file, 500 builds/month, 2,000 static redirects.
 - **Commits:** conventional-commit prefixes (`feat:`, `test:`, `chore:`, `docs:`). If an AI agent makes the commit, append `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
 
@@ -97,49 +97,41 @@ Why `lib/` holds everything: `.astro` components cannot be unit-tested without a
 ### Task 1: Site repository and toolchain
 
 **Files:**
-- Create: `web/package.json`, `web/astro.config.mjs`, `web/tsconfig.json`, `web/vitest.config.ts`, `web/.gitignore`, `web/src/pages/index.astro`, `web/src/lib/smoke.test.ts`
-- Move: `docs/` → `web/docs/`
-- Delete: `/Users/stefan/Work/stuff/site-bzh/.git`, `/Users/stefan/Work/stuff/site-bzh/.gitignore`
+- Create: `web/package.json`, `web/astro.config.mjs`, `web/tsconfig.json`, `web/vitest.config.ts`, `web/src/pages/index.astro`, `web/src/lib/smoke.ts`, `web/src/lib/smoke.test.ts`
 
 **Interfaces:**
 - Consumes: nothing.
 - Produces: a repo at `web/` where `npm run build` and `npm test` both succeed. Every later task runs its commands from `web/`.
 
-- [ ] **Step 1: Separate the site repo from the forensic-backup folder**
+- [ ] **Step 1: Confirm the repository layout (already done — verify only)**
 
-The enclosing folder currently has a git repo whose `.gitignore` is deny-by-default. Replace that arrangement: the site gets its own repo, the outer folder goes back to being a plain working directory.
+The repository restructure is complete. `web/` **is** the git repository root, on branch `phase-1`, holding `docs/` and `.gitignore`. The forensic backups, `NEW-DB-PASSWORD.txt` and the SQL dumps sit in the parent directory, outside the repository entirely.
 
-```bash
-cd /Users/stefan/Work/stuff/site-bzh
-mkdir -p web
-git mv docs web/docs 2>/dev/null || mv docs web/docs
-rm -rf .git .gitignore
-cd web
-git init -b main
-```
+**Do not run `git init`, and never run `rm -rf .git`** — the repository already carries the spec and plan history, which relocating rather than re-initialising preserved.
 
-- [ ] **Step 2: Verify the backups are outside the new repo**
+- [ ] **Step 2: Verify before you build on it**
 
-Run: `cd /Users/stefan/Work/stuff/site-bzh/web && git status --porcelain -uall | head -20 && ls ..`
+Run: `cd /Users/stefan/Work/stuff/site-bzh/web && git log --oneline && git ls-files && ls ..`
 
-Expected: `git status` lists only files under `web/` (at this point just `docs/`). The listing of `..` shows `compromised-bzh-backup-DANGER`, `backup-*`, `NEW-DB-PASSWORD.txt`, `localhost.sql` — none of which git can now see, because they are outside the repository root. This is the point of the restructure; confirm it before continuing.
+Expected: three commits ending in the relocation; `git ls-files` shows only `.gitignore` and the two files under `docs/`; the parent listing shows `compromised-bzh-backup-DANGER`, `backup-*`, `NEW-DB-PASSWORD.txt` and `localhost.sql`, none of which git can see. Confirm this before continuing.
 
 - [ ] **Step 3: Scaffold Astro**
 
+The directory is not empty (it holds `docs/`, `.gitignore` and `.git`), and `npm create astro` may refuse to scaffold into it. Scaffold into a temp directory and copy the files across — and **do not copy the scaffold's own `.gitignore` or `.git`** over the ones already here.
+
 ```bash
+npm create astro@latest /tmp/bzh-scaffold -- --template minimal --install --no-git --typescript strict --skip-houston
+cd /tmp/bzh-scaffold && rm -rf .git .gitignore
+cp -R /tmp/bzh-scaffold/. /Users/stefan/Work/stuff/site-bzh/web/
+rm -rf /tmp/bzh-scaffold
+
 cd /Users/stefan/Work/stuff/site-bzh/web
-npm create astro@latest . -- --template minimal --install --no-git --typescript strict --skip-houston
+npm install
 npm install --save-dev vitest
 npm install @fontsource/cormorant-garamond @fontsource/spectral
 ```
 
-If `npm create astro` refuses to run in a non-empty directory, scaffold into a temp dir and move the files in:
-
-```bash
-npm create astro@latest /tmp/bzh-scaffold -- --template minimal --install --no-git --typescript strict --skip-houston
-cp -R /tmp/bzh-scaffold/. /Users/stefan/Work/stuff/site-bzh/web/
-rm -rf /tmp/bzh-scaffold
-```
+Then confirm nothing was clobbered: `git status --porcelain .gitignore docs/` must be empty.
 
 - [ ] **Step 4: Write `web/astro.config.mjs`**
 
@@ -531,6 +523,12 @@ describe('oraLaZurich', () => {
   it('convertește UTC în ora locală de iarnă', () => {
     expect(oraLaZurich(new Date('2026-12-14T08:30:00Z'))).toBe('09:30');
   });
+
+  it('scrie miezul nopții ca 00:xx, nu 24:xx', () => {
+    // 22:30 UTC is 00:30 the next day in Zürich (CEST). Some ICU builds format
+    // this as "24:30" under hour12:false — which would break time comparison.
+    expect(oraLaZurich(new Date('2026-09-14T22:30:00Z'))).toBe('00:30');
+  });
 });
 ```
 
@@ -600,13 +598,20 @@ export function aziLaZurich(acum: Date = new Date()): string {
   }).format(acum);
 }
 
-/** The current HH:MM in Europe/Zurich, 24-hour. */
+/**
+ * The current HH:MM in Europe/Zurich, 24-hour.
+ *
+ * `hourCycle: 'h23'` rather than `hour12: false`: the latter selects the h24
+ * cycle in some ICU builds, which formats midnight as "24:30" instead of
+ * "00:30" — and urmatoareaSlujba compares that string, so a late-night visitor
+ * would be shown the wrong next service.
+ */
 export function oraLaZurich(acum: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Zurich',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   }).format(acum);
 }
 ```
@@ -2210,8 +2215,8 @@ Expected: the homepage shows the hero, the "Următoarea slujbă" card and the we
 
 Check the HTML budget now, before Task 13 automates it:
 
-Run: `cd web && gzip -c dist/index.html | wc -c && wc -c dist/index.html`
-Expected: uncompressed size well under 30,720 bytes.
+Run: `cd web && wc -c dist/index.html`
+Expected: under 46,080 bytes. The stylesheet is inlined into the document by `inlineStylesheets: 'always'`, so this one number covers both the HTML and CSS budgets from spec §13.
 
 - [ ] **Step 4: Commit**
 
@@ -2442,6 +2447,8 @@ even if every build fails."
 
 The test here reads `dist/`, so it runs only after a build. It is the one integration test in Phase 1: it proves the collection, the schema and the generator are wired together, which no unit test can.
 
+**Do not assert a specific week key in the HTML.** The homepage and `/program/` render only the current and future weeks, so `expect(html).toContain('data-saptamana="2026-W38"')` would pass today and start failing on 21 September 2026 — a test that fails for a reason unrelated to any change anyone made. Date-specific assertions belong on the `.ics`, which emits every seeded day regardless of the build date.
+
 - [ ] **Step 1: Write the endpoint**
 
 Create `web/src/pages/program.ics.ts`:
@@ -2487,11 +2494,21 @@ describe('ieșirea build-ului', () => {
     expect(existsSync(`${DIST}program.ics`)).toBe(true);
   });
 
+  // The .ics carries every service day regardless of the build date, so these
+  // assertions are safe to pin to the seeded content. The HTML pages show only
+  // current and future weeks, so asserting a specific week there would make the
+  // suite start failing on 21 September 2026 — see the note below.
   it('feed-ul conține slujbele din colecție', () => {
     const ics = readFileSync(`${DIST}program.ics`, 'utf8');
     expect(ics).toContain('BEGIN:VCALENDAR');
     expect(ics).toContain('DTSTART;TZID=Europe/Zurich:20260914T073000');
     expect(ics).toContain('SUMMARY:Sfânta Liturghie și Parastas');
+  });
+
+  it('feed-ul păstrează diacriticele cu virgulă dedesubt', () => {
+    const ics = readFileSync(`${DIST}program.ics`, 'utf8');
+    expect(ics).toContain('Înălțarea Sfintei Cruci');
+    expect(ics).not.toMatch(/[şţŞŢ]/); // cedilla forms
   });
 
   it('feed-ul respectă limita de 75 de octeți pe linie', () => {
@@ -2501,21 +2518,24 @@ describe('ieșirea build-ului', () => {
     }
   });
 
-  it('pagina de pornire conține banda săptămânii', () => {
+  it('pagina de pornire are secțiunea de program', () => {
     const html = readFileSync(`${DIST}index.html`, 'utf8');
-    expect(html).toContain('data-saptamana="2026-W38"');
     expect(html).toContain('Programul săptămânii');
+    expect(html).toContain('Bine ați venit în casa Domnului');
   });
 
-  it('paginile declară limba română', () => {
-    const html = readFileSync(`${DIST}index.html`, 'utf8');
-    expect(html).toContain('<html lang="ro"');
+  it('paginile declară limba română și diacritice corecte', () => {
+    for (const p of ['index.html', 'program/index.html']) {
+      const html = readFileSync(`${DIST}${p}`, 'utf8');
+      expect(html).toContain('<html lang="ro"');
+      expect(html).toContain('Sfântul Nicolae');
+      expect(html).not.toMatch(/[şţŞŢ]/);
+    }
   });
 
-  it('diacriticele sunt corecte în HTML', () => {
+  it('pagina de program oferă abonarea la calendar', () => {
     const html = readFileSync(`${DIST}program/index.html`, 'utf8');
-    expect(html).toContain('Înălțarea Sfintei Cruci');
-    expect(html).not.toMatch(/[şţ]/); // cedilla forms
+    expect(html).toContain('/program.ics');
   });
 });
 ```
@@ -2528,7 +2548,7 @@ Expected: FAIL — `dist/index.html` does not exist.
 - [ ] **Step 4: Build, then run it again**
 
 Run: `cd web && npm run build && npx vitest run --include 'src/**/*.itest.ts'`
-Expected: PASS, 7 tests.
+Expected: PASS, 8 tests.
 
 - [ ] **Step 5: Keep `npm test` honest**
 
@@ -2868,46 +2888,59 @@ Create `web/scripts/check-budget.mjs`:
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const BUGET = {
-  'index.html': 30 * 1024,
-  'program/index.html': 120 * 1024,
+/*
+ * Spec §13 budgets the homepage at 30 KB of HTML and 15 KB of CSS. Because
+ * astro.config.mjs sets `inlineStylesheets: 'always'`, the CSS is *inside* the
+ * HTML — so a separate CSS check would measure an empty set and always pass,
+ * while the HTML check would fail for carrying weight the spec had allotted to
+ * CSS. The honest translation of those two numbers under inlining is one
+ * combined 45 KB limit on the document.
+ */
+const BUGET_PAGINI = {
+  'index.html': 45 * 1024,
+  'program/index.html': 135 * 1024,
 };
 const BUGET_JS = 3 * 1024;
-const BUGET_CSS = 15 * 1024;
+
+// The Sveltia CMS bundle lives under dist/admin/. It is a few hundred KB of
+// third-party code that only a signed-in editor ever loads, and it is not part
+// of what a visitor downloads — so it is excluded from the visitor JS budget.
+const EXCLUSE = ['admin'];
 
 let esec = false;
 
-for (const [cale, limita] of Object.entries(BUGET)) {
-  const octeti = statSync(join('dist', cale)).size;
+function raporteaza(eticheta, octeti, limita) {
   const ok = octeti <= limita;
   if (!ok) esec = true;
-  console.log(`${ok ? 'OK  ' : 'PREA MARE'} ${cale}: ${octeti} / ${limita} octeți`);
+  console.log(`${ok ? 'OK       ' : 'PREA MARE'} ${eticheta}: ${octeti} / ${limita} octeți`);
 }
 
-function totalDupaExtensie(dir, ext) {
+for (const [cale, limita] of Object.entries(BUGET_PAGINI)) {
+  raporteaza(cale, statSync(join('dist', cale)).size, limita);
+}
+
+function totalJs(dir) {
   let total = 0;
   for (const nume of readdirSync(dir, { withFileTypes: true })) {
-    const cale = join(dir, nume.name);
-    if (nume.isDirectory()) total += totalDupaExtensie(cale, ext);
-    else if (nume.name.endsWith(ext)) total += statSync(cale).size;
+    if (nume.isDirectory()) {
+      if (dir === 'dist' && EXCLUSE.includes(nume.name)) continue;
+      total += totalJs(join(dir, nume.name));
+    } else if (/\.m?js$/.test(nume.name)) {
+      total += statSync(join(dir, nume.name)).size;
+    }
   }
   return total;
 }
 
-const js = totalDupaExtensie('dist', '.js');
-const css = totalDupaExtensie('dist', '.css');
-
-for (const [eticheta, octeti, limita] of [['JS', js, BUGET_JS], ['CSS', css, BUGET_CSS]]) {
-  const ok = octeti <= limita;
-  if (!ok) esec = true;
-  console.log(`${ok ? 'OK  ' : 'PREA MARE'} ${eticheta}: ${octeti} / ${limita} octeți`);
-}
+raporteaza('JS pentru vizitatori', totalJs('dist'), BUGET_JS);
 
 if (esec) {
   console.error('\nBugetul de performanță a fost depășit (specificație §13).');
   process.exit(1);
 }
 ```
+
+`/\.m?js$/` rather than `endsWith('.js')`: the CMS bundle is a `.mjs` file, and an extension test that misses it would leave the exclusion above looking effective while doing nothing.
 
 Add to `package.json` scripts: `"budget": "node scripts/check-budget.mjs"`.
 
