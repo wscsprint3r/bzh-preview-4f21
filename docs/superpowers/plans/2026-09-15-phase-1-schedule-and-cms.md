@@ -55,10 +55,15 @@ Every task's requirements implicitly include this section.
   had themselves decoded, so the evidence asserted the opposite of what it demonstrated. Run the
   codepoint scan on **every file that quotes Romanian**: source, content, tests, reports and
   reviews alike. Three agents and two reviewers have been bitten by this so far.
-- **Never trust a `\uXXXX` escape you typed into a file.** This harness has been observed
+- **Never trust a backslash sequence you typed into a file.** This harness has been observed
   converting escapes to the literal character before the bytes reach disk, through both a
   Bash heredoc and the Write tool — which silently rewrote a cedilla-rejecting guard into the
   very characters it rejects. Always read the file back and dump codepoints.
+  It is not limited to `\uXXXX`. A **doubled backslash has been silently halved on write**,
+  turning `/\\;/g` into `/\;/g` — which produces a *false test failure against correct code*,
+  sending someone to debug working code. That is a more expensive failure than a false pass,
+  and it has bitten the same agent twice in one task. Treat every backslash sequence as
+  suspect until you have read the bytes back.
 - **Predicted test counts in this plan are sketches, not contracts.** Each task's test block
   shows the cases that motivated the design; implementations have consistently needed more.
   Write the tests the code needs and report the real number. Where a stated count and a
@@ -2581,6 +2586,9 @@ export const GET: APIRoute = async () => {
   const intrari = await getCollection('slujbe');
   const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
 
+  // genereazaIcs does not validate dtstamp — it is a parameter precisely so output
+  // is deterministic in tests, which means this call site owns its correctness.
+  // Must be exactly YYYYMMDDTHHMMSSZ.
   const dtstamp = `${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`;
 
   return new Response(genereazaIcs(zile, { dtstamp, locatie: LOCATIE }), {
