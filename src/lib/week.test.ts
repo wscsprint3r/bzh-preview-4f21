@@ -91,6 +91,24 @@ describe('aziLaZurich', () => {
   it('întoarce data curentă în formatul așteptat', () => {
     expect(aziLaZurich()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
+
+  it('așază anul, luna și ziua în ordinea ISO, nu în ordinea localei', () => {
+    // Ziua este 15, deci mai mare decât orice număr de lună: o inversare
+    // zi/lună ar fi vizibilă aici, iar un regex de formă nu ar prinde-o.
+    // Pe o construcție small-icu care nu are en-CA, format() ar da
+    // "09/15/2026" (en-US) sau "15.09.2026" (de-CH). De aceea funcția
+    // asamblează din formatToParts, căutând fiecare câmp după tip.
+    const azi = aziLaZurich(new Date('2026-09-15T10:00:00Z'));
+    expect(azi).toBe('2026-09-15');
+    expect(azi.split('-')).toEqual(['2026', '09', '15']);
+  });
+
+  it('folosește cifre latine', () => {
+    // Locala de rezervă decide și sistemul de numerotație: fără
+    // numberingSystem 'latn', ar-EG ar scrie aceeași dată cu cifre
+    // arabo-indiene, pe care nicio comparație de mai jos nu le-ar supraviețui.
+    expect(aziLaZurich(new Date('2026-09-15T10:00:00Z'))).toMatch(/^[0-9-]+$/);
+  });
 });
 
 describe('oraLaZurich', () => {
@@ -102,6 +120,18 @@ describe('oraLaZurich', () => {
     expect(oraLaZurich(new Date('2026-12-14T08:30:00Z'))).toBe('09:30');
   });
 
+  it('separă ora de minut cu două puncte, în această ordine', () => {
+    // 14:05 - minutul sub 10 face vizibilă o inversare oră/minut, iar
+    // separatorul este el însuși dependent de locală: da-DK scrie "14.05".
+    const ora = oraLaZurich(new Date('2026-09-15T12:05:00Z'));
+    expect(ora).toBe('14:05');
+    expect(ora.split(':')).toEqual(['14', '05']);
+  });
+
+  it('folosește cifre latine', () => {
+    expect(oraLaZurich(new Date('2026-09-15T12:05:00Z'))).toMatch(/^[0-9:]+$/);
+  });
+
   it('scrie miezul nopții ca 00:xx, nu 24:xx', () => {
     // 22:30 UTC is 00:30 the next day in Zürich (CEST). Some ICU builds format
     // this as "24:30" under hour12:false - which would break time comparison.
@@ -111,8 +141,15 @@ describe('oraLaZurich', () => {
 
 describe('validarea datelor', () => {
   // laUtc parses through partiData from ./date-ro; there is no second parser in
-  // this module. Without these tests someone could "simplify" laUtc back to a
-  // bare regex and 30 February would sail through into a liturgical schedule.
+  // this module.
+  //
+  // Only the first test guards laUtc itself. adaugaZile is the one export that
+  // reaches laUtc without going through indiceZi, so if someone "simplified"
+  // laUtc back to a bare regex, that test is the only one here that would fail
+  // - and 30 February would otherwise sail through into a liturgical schedule.
+  // The other two enter through indiceZi, which calls partiData before laUtc is
+  // ever reached; they document the validation on those paths, and would keep
+  // passing against a bare-regex laUtc. Do not read them as a second guard.
   it('respinge o zi care nu există', () => {
     expect(() => adaugaZile('2026-02-30', 1)).toThrow(/inexistentă/);
   });
@@ -151,5 +188,43 @@ describe('contractul luni-duminică', () => {
     expect(sfarsitSaptamana('2026-01-01')).toBe('2026-01-04');
     expect(indiceZi(inceputSaptamana('2026-01-01'))).toBe(0);
     expect(indiceZi(sfarsitSaptamana('2026-01-01'))).toBe(6);
+  });
+});
+
+describe('independența de locala de rezervă', () => {
+  // The shape tests above run on a full-ICU machine, where en-CA and en-GB
+  // always resolve - so they can never see the failure they are meant to
+  // guard. A small-icu build drops the requested locale and falls back to the
+  // default one. Forcing that fallback is the only way to test it here, and
+  // this is the test that fails against a format()-based implementation.
+  function cuLocalaFortata<T>(locala: string, f: () => T): T {
+    const Original = Intl.DateTimeFormat;
+    const tinta = Intl as unknown as { DateTimeFormat: unknown };
+    tinta.DateTimeFormat = function (
+      _cerut?: unknown,
+      optiuni?: Intl.DateTimeFormatOptions,
+    ) {
+      return new Original(locala, optiuni);
+    };
+    try {
+      return f();
+    } finally {
+      tinta.DateTimeFormat = Original;
+    }
+  }
+
+  const instant = new Date('2026-09-15T12:05:00Z');
+
+  // en-US reorders to 09/15/2026, de-CH to 15.09.2026, da-DK writes the time
+  // as 14.05, and ar-EG uses Arabic-Indic digits for both.
+  for (const locala of ['en-US', 'de-CH', 'ja-JP', 'da-DK', 'ar-EG']) {
+    it(`întoarce ISO chiar dacă Intl cade pe ${locala}`, () => {
+      expect(cuLocalaFortata(locala, () => aziLaZurich(instant))).toBe('2026-09-15');
+      expect(cuLocalaFortata(locala, () => oraLaZurich(instant))).toBe('14:05');
+    });
+  }
+
+  it('restaurează Intl.DateTimeFormat după fiecare test', () => {
+    expect(aziLaZurich(instant)).toBe('2026-09-15');
   });
 });

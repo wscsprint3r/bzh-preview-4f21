@@ -70,16 +70,44 @@ export function cheieSaptamana(data: string): string {
 }
 
 /**
- * The current calendar date in Europe/Zurich. This and oraLaZurich are the only
- * timezone-aware functions in the codebase. en-CA formats as YYYY-MM-DD.
+ * Pulls one field out of a formatted date by type.
+ *
+ * The two functions below assemble their output from parts rather than from
+ * `format()`, because `format()` lays the fields out in the *locale's* order
+ * with the *locale's* separators. If a small-icu build cannot supply the
+ * requested locale it falls back to the default one, and en-US would then hand
+ * back "09/15/2026" and de-CH "15.09.2026". Downstream every one of these
+ * strings is compared - week keys lexically, times against a service time - so
+ * a locale-shaped string would not look wrong, it would compare wrong.
+ * Looking each field up by type is immune to order and separators alike.
+ *
+ * Throws rather than substituting an empty string: a missing field would yield
+ * "-09-15", which is precisely the silent garbage this indirection exists to
+ * prevent.
+ */
+function parte(parti: Intl.DateTimeFormatPart[], tip: Intl.DateTimeFormatPartTypes): string {
+  const gasit = parti.find((p) => p.type === tip);
+  if (!gasit) throw new Error(`Intl nu a produs campul ${tip}`);
+  return gasit.value;
+}
+
+/**
+ * The current calendar date in Europe/Zurich, as YYYY-MM-DD. This and
+ * oraLaZurich are the only timezone-aware functions in the codebase.
+ *
+ * `numberingSystem: 'latn'` because the fallback locale also decides the
+ * digits: ar-EG renders this as Arabic-Indic numerals, which no downstream
+ * comparison or Date parse would survive.
  */
 export function aziLaZurich(acum: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', {
+  const parti = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Zurich',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(acum);
+    numberingSystem: 'latn',
+  }).formatToParts(acum);
+  return `${parte(parti, 'year')}-${parte(parti, 'month')}-${parte(parti, 'day')}`;
 }
 
 /**
@@ -89,12 +117,17 @@ export function aziLaZurich(acum: Date = new Date()): string {
  * cycle in some ICU builds, which formats midnight as "24:30" instead of
  * "00:30" - and urmatoareaSlujba compares that string, so a late-night visitor
  * would be shown the wrong next service.
+ *
+ * h23 fixes the cycle but not the separator: da-DK writes the same instant as
+ * "00.30". Hence the same parts assembly and the same latn numbering as above.
  */
 export function oraLaZurich(acum: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-GB', {
+  const parti = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Zurich',
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).format(acum);
+    numberingSystem: 'latn',
+  }).formatToParts(acum);
+  return `${parte(parti, 'hour')}:${parte(parti, 'minute')}`;
 }
