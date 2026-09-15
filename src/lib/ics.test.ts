@@ -92,6 +92,32 @@ function intervale(out: string): Array<[string, string]> {
   return inceput.map((s, i) => [s, sfarsit[i]]);
 }
 
+/** Blocurile VEVENT ale feed-ului, ca text, fără antet și fără VTIMEZONE. */
+function evenimente(out: string): string[] {
+  return out.split('BEGIN:VEVENT').slice(1).map((b) => b.split('END:VEVENT')[0]);
+}
+
+/**
+ * Decalajul real al Zürichului la un moment dat, în minute, luat din baza de
+ * date de fusuri a lui Node - nu dintr-o constantă scrisă de noi. Asta e ce
+ * face din testul de mai jos o verificare, nu o repetare a codului.
+ */
+function decalajRealZurich(cand: Date): number {
+  const nume = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Zurich', timeZoneName: 'longOffset', year: 'numeric',
+  }).formatToParts(cand).find((p) => p.type === 'timeZoneName')!.value;
+  const m = /GMT([+-])(\d{2}):(\d{2})/.exec(nume);
+  if (!m) return 0;
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
+}
+
+/** Ora locală a Zürichului la un moment dat, ca HH:MM. */
+function oraRealaZurich(cand: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(cand);
+}
+
 describe('ora de început și de sfârșit', () => {
   it('scrie DTSTART cu fusul orar local', () => {
     const out = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
@@ -217,6 +243,24 @@ describe('conținut', () => {
     const z = zi('2026-09-16', [['18:30', 'Acatist']], { anulat: true });
     expect(ics([z])).toContain('STATUS:CANCELLED');
   });
+
+  it('scrie DTSTAMP și LOCATION pe fiecare eveniment', () => {
+    // Amândouă se puteau șterge fără ca vreun test să pice. DTSTAMP e cerut de
+    // RFC 5545 §3.6.1, iar LOCATION e un câmp numit în spec §8.
+    for (const e of evenimente(ics(saptamana()))) {
+      expect(e).toContain('DTSTAMP:20260915T060000Z');
+      expect(e).toContain('LOCATION:Wehntalerstrasse 451\\, 8046 Zürich');
+    }
+  });
+
+  it('escapează și un CR singur, nu doar CRLF și LF', () => {
+    // RFC 5545 §3.3.11: un CR rămas crud într-o linie de conținut e nepermis.
+    const z = zi('2026-09-20', [['10:00', 'Altceva']], { note: 'rândul unu\rrândul doi' });
+    const out = ics([z]);
+    expect(out).toContain('rândul unu\\nrândul doi');
+    // și niciun CR care să nu fie urmat de LF
+    expect(/\r(?!\n)/.test(out)).toBe(false);
+  });
 });
 
 describe('escaping și folding', () => {
@@ -336,5 +380,91 @@ describe('diacriticele feed-ului', () => {
     expect(tot).toContain(
       'X-WR-CALNAME:Program liturgic \u2014 Sf\u00E2ntul Nicolae Z\u00FCrich',
     );
+  });
+});
+
+
+describe('fusul orar', () => {
+  it('declară decalajele și regulile de trecere, nu doar blocul', () => {
+    // Blocul VTIMEZONE era verificat doar prin prezența lui BEGIN:VTIMEZONE.
+    // Trei mutații treceau: decalajul de vară pus pe +0100, regula de primăvară
+    // înlocuită cu cea americană (a doua duminică, nu ultima) și blocul golit.
+    // Fiecare pune toate slujbele cu o oră alături - cel mai rău lucru pe care
+    // acest feed îl poate face.
+    const out = ics([zi('2026-07-05', [['10:00', 'Sfânta Liturghie']])]);
+    expect(out).toContain('TZID:Europe/Zurich');
+    expect(out).toContain('TZOFFSETFROM:+0100');
+    expect(out).toContain('TZOFFSETTO:+0200');
+    expect(out).toContain('TZNAME:CEST');
+    expect(out).toContain('RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU');
+    expect(out).toContain('TZOFFSETFROM:+0200');
+    expect(out).toContain('TZOFFSETTO:+0100');
+    expect(out).toContain('TZNAME:CET');
+    expect(out).toContain('RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU');
+  });
+
+  it('o slujbă la 10:00 rămâne la 10:00 și vara, și iarna', () => {
+    // Proprietatea pentru care există blocul. Luăm decalajul pe care îl declară
+    // chiar feed-ul, scădem din ora locală scrisă în DTSTART ca să obținem
+    // momentul absolut, apoi îl citim înapoi cu baza de fusuri a lui Node. Dacă
+    // decalajul declarat e greșit, ora citită nu mai e 10:00.
+    for (const [data, decalajAsteptat] of [['2026-07-05', 120], ['2026-01-11', 60]] as const) {
+      const out = ics([zi(data, [['10:00', 'Sfânta Liturghie']])]);
+      const bloc = decalajAsteptat === 120 ? 'DAYLIGHT' : 'STANDARD';
+      const text = out.split('BEGIN:' + bloc)[1].split('END:' + bloc)[0];
+      const semnat = /TZOFFSETTO:([+-])(\d{2})(\d{2})/.exec(text)!;
+      const declarat = (semnat[1] === '-' ? -1 : 1)
+        * (Number(semnat[2]) * 60 + Number(semnat[3]));
+
+      expect(declarat, 'decalajul declarat pentru ' + data).toBe(decalajAsteptat);
+      // Și că e chiar decalajul real al Zürichului la acea dată.
+      expect(decalajRealZurich(new Date(data + 'T12:00:00Z'))).toBe(decalajAsteptat);
+
+      // 10:00 local, scris cu decalajul declarat, se citește înapoi tot 10:00.
+      const moment = new Date(Date.parse(data + 'T10:00:00Z') - declarat * 60_000);
+      expect(oraRealaZurich(moment), 'ora reală pentru ' + data).toBe('10:00');
+      expect(out).toContain('DTSTART;TZID=Europe/Zurich:' + data.replace(/-/g, '') + 'T100000');
+    }
+  });
+
+  it('nu scrie METHOD fără ORGANIZER', () => {
+    // RFC 5546 §3.2.1: METHOD face documentul un mesaj iTIP, care cere
+    // ORGANIZER. Un feed la care te abonezi nu are nevoie de niciunul.
+    expect(ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])])).not.toContain('METHOD');
+  });
+});
+
+describe('anulare', () => {
+  it('marchează doar ziua anulată, nu tot feed-ul', () => {
+    // STATUS:CANCELLED aplicat la tot feed-ul trecea neobservat: o singură
+    // duminică anulată ar fi marcat întreg programul parohiei ca anulat.
+    const out = ics(saptamana());
+    const anulate = evenimente(out).filter((e) => e.includes('STATUS:CANCELLED'));
+    const restul = evenimente(out).filter((e) => !e.includes('STATUS:CANCELLED'));
+
+    // 2026-09-23 e singura zi anulată din fixtură și are o singură slujbă.
+    expect(anulate).toHaveLength(1);
+    expect(anulate[0]).toContain('20260923');
+    expect(restul.length).toBeGreaterThan(5);
+    for (const e of restul) expect(e).not.toContain('20260923');
+  });
+
+  it('pune un marcaj de anulare în SUMMARY, și numai pe zilele anulate', () => {
+    // STATUS:CANCELLED singur nu ajunge: se raportează că Google ascunde
+    // evenimentele anulate din feed-urile la care ești abonat, ceea ce ar face
+    // ziua să se golească în tăcere - exact ce am vrut să evităm. Marcajul se
+    // vede și acolo unde evenimentul se afișează.
+    const out = ics(saptamana());
+    for (const e of evenimente(out)) {
+      const rezumat = /SUMMARY:([^\r\n]*)/.exec(e)![1];
+      if (e.includes('STATUS:CANCELLED')) expect(rezumat).toMatch(/^ANULAT: /);
+      else expect(rezumat).not.toContain('ANULAT');
+    }
+  });
+
+  it('păstrează numele slujbei după marcaj', () => {
+    const out = ics([zi('2026-09-23', [['18:30', 'Acatist']], { anulat: true })]);
+    expect(out).toContain('SUMMARY:ANULAT: Acatist');
+    expect(out).toContain('STATUS:CANCELLED');
   });
 });

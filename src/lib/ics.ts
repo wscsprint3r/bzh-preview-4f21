@@ -11,7 +11,7 @@ function escapeaza(text: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    .replace(/\r\n?|\n/g, '\\n');
 }
 
 /**
@@ -100,6 +100,31 @@ function adaugaMinute(data: string, ora: string, n: number): { data: string; ora
   return { data: adaugaZile(data, zileInPlus), ora: `${h}:${m}` };
 }
 
+/**
+ * Prefix written into a cancelled service's SUMMARY, on top of STATUS:CANCELLED.
+ *
+ * REPORTED, NOT VERIFIED BY US: Google Calendar is said to hide cancelled events
+ * from subscribed feeds. If that is so, STATUS:CANCELLED alone makes a cancelled
+ * day quietly empty on the most widely used client - which is the same failure
+ * as the day disappearing altogether, one layer out, and is what the schema rule
+ * requiring a cancelled day to keep its times exists to prevent.
+ *
+ * So both: the status for clients that honour it, and a marker in the text for
+ * clients that show the event anyway. A client that hides cancelled events at
+ * least does not show a service that is not happening; a client that shows them
+ * makes the cancellation unmissable. The case ruled out is the middle one, where
+ * the entry looks ordinary.
+ *
+ * Short and leading, because a phone's month view shows perhaps twenty
+ * characters. Invariable rather than agreeing with the service name: `slujbă` is
+ * feminine but `Acatist` and `Botez` are masculine, so an agreeing adjective
+ * would be wrong on most of NUME_SLUJBE.
+ *
+ * A real subscription test against Google after launch is the only thing that
+ * settles whether the hiding behaviour is real.
+ */
+const MARCAJ_ANULAT = 'ANULAT: ';
+
 const VTIMEZONE = [
   'BEGIN:VTIMEZONE',
   'TZID:Europe/Zurich',
@@ -129,7 +154,6 @@ export function genereazaIcs(
     'VERSION:2.0',
     'PRODID:-//Parohia Ortodoxa Romana Sfantul Nicolae Zurich//Program//RO',
     'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
     'X-WR-CALNAME:Program liturgic — Sfântul Nicolae Zürich',
     'X-WR-TIMEZONE:Europe/Zurich',
     ...VTIMEZONE,
@@ -171,7 +195,7 @@ export function genereazaIcs(
         `DTSTAMP:${opts.dtstamp}`,
         `DTSTART;TZID=Europe/Zurich:${laDataIcs(z.data)}T${laOraIcs(s.ora)}`,
         `DTEND;TZID=Europe/Zurich:${laDataIcs(sfarsit.data)}T${laOraIcs(sfarsit.ora)}`,
-        `SUMMARY:${escapeaza(etichetaSlujba(s))}`,
+        `SUMMARY:${escapeaza(z.anulat ? MARCAJ_ANULAT + etichetaSlujba(s) : etichetaSlujba(s))}`,
         `LOCATION:${escapeaza(z.locatie || opts.locatie)}`,
       );
       if (descriere) linii.push(`DESCRIPTION:${escapeaza(descriere)}`);
