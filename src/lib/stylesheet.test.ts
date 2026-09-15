@@ -60,10 +60,10 @@ const OBLIGATORII = [
 ];
 
 /**
- * The single sanctioned use of ornamental gold as a CSS `color`: the cross
+ * The single sanctioned use of ornamental gold as a CSS `color`: the dagger
  * glyph in the site header. It is aria-hidden="true" and carries no
  * information, so WCAG 1.4.3 exempts it as pure decoration, and the palette
- * names the cross glyph among the ornament roles beside hairlines and borders.
+ * names that glyph among the ornament roles beside hairlines and borders.
  * Anything else fails — including a *second* gold colour in this same file,
  * because the value below is an exact list, not a permission.
  */

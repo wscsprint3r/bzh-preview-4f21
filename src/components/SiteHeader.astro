@@ -9,7 +9,7 @@ const linkuri = [
 <header class="sh">
   <div class="container sh-in">
     <a class="sh-brand" href="/">
-      <span class="sh-cross" aria-hidden="true">✝</span>
+      <span class="sh-cross" aria-hidden="true">†</span>
       <span class="sh-wm">
         <b>Sfântul Nicolae</b>
         <span>Parohia Ortodoxă Română · Zürich</span>
@@ -31,8 +31,11 @@ const linkuri = [
   .sh { border-bottom: 1px solid var(--rule); }
   .sh-in { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 0.75rem; flex-wrap: wrap; }
   .sh-brand { display: flex; align-items: center; gap: 0.625rem; text-decoration: none; }
-  /* Ornament, not text: the cross is aria-hidden and carries no information. */
-  .sh-cross { color: var(--gold-lt); font-size: 1.5rem; line-height: 1; }
+  /* Ornament, not text: the dagger is aria-hidden and carries no information.
+     U+2020, not U+271D — the Latin cross is in none of the self-hosted faces and
+     fell back to an OS symbol font, while the dagger ships in our own latin-ext
+     and is the conventional feast mark in Romanian Orthodox calendars. */
+  .sh-cross { font-family: var(--display); color: var(--gold-lt); font-size: 1.75rem; line-height: 1; }
   .sh-wm b { display: block; font-family: var(--display); font-size: 1.125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--oxblood); line-height: 1.1; }
   .sh-wm > span { display: block; font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); margin-top: 0.15rem; }
   .sh-nav { display: flex; gap: 1.25rem; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }

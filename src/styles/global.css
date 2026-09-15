@@ -5,10 +5,14 @@
 @import '@fontsource/cormorant-garamond/latin-600.css';
 @import '@fontsource/cormorant-garamond/latin-ext-400.css';
 @import '@fontsource/cormorant-garamond/latin-ext-600.css';
-@import '@fontsource/spectral/latin-300.css';
 @import '@fontsource/spectral/latin-400.css';
-@import '@fontsource/spectral/latin-ext-300.css';
 @import '@fontsource/spectral/latin-ext-400.css';
+/* Italic Cormorant, not a synthesised slant: Tasks 8 and 9 set the feast name
+   in italic display type, and a sheared roman is the one thing that would make
+   this page look generated rather than printed. Spectral 300 used to sit here
+   and no rule in the site ever asked for weight 300. */
+@import '@fontsource/cormorant-garamond/latin-400-italic.css';
+@import '@fontsource/cormorant-garamond/latin-ext-400-italic.css';
 
 /* Transcribed from cssTokens() in src/lib/tokens.ts; tokens.test.ts asserts
    the two agree in value, and that every token used for text clears 4.5:1. */
@@ -53,9 +57,19 @@ h1, h2, h3, h4 {
   color: var(--oxblood);
 }
 
-/* --gold-text measures 4.67:1 on --parchment and 4.95:1 on --raised, the only
-   two grounds this layout uses. It is 2.26:1 on --oxblood, so any dark panel
-   that contains a link must override this rule with a light colour. */
+/*
+ * Link colour, and the trap that goes with it. The gold roles INVERT:
+ *
+ *                 on --parchment   on --oxblood
+ *   --gold-text       4.67:1          2.26:1   <- fails on dark
+ *   --gold-lt         2.18:1          4.82:1   <- fails on light
+ *
+ * --gold-text is right here (4.67:1 on the page, 4.95:1 on the --raised footer)
+ * and wrong inside a dark panel, where it ships 2.26:1 — worse than the 2.95:1
+ * mockup bug this palette was split to fix. A dark panel with a link in it MUST
+ * override this rule, choosing from ROLURI_TEXT_PE_OXBLOOD in src/lib/tokens.ts
+ * (--parchment, --raised, --rule, --gold-lt). Do not copy this line into it.
+ */
 a { color: var(--gold-text); }
 a:hover { color: var(--oxblood-dk); }
 

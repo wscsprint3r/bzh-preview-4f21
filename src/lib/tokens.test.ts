@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { raportContrast } from './contrast';
-import { PALETA, ROLURI_TEXT, cssTokens } from './tokens';
+import { PALETA, ROLURI_TEXT, ROLURI_TEXT_PE_OXBLOOD, cssTokens } from './tokens';
 
 describe('paleta', () => {
   it('folosește valorile din specificație', () => {
@@ -28,5 +28,34 @@ describe('cssTokens', () => {
     expect(css).toContain('--parchment: #FAF6EE;');
     expect(css).toContain('--gold-text: #8A6A28;');
     expect(css.startsWith(':root {')).toBe(true);
+  });
+});
+
+describe('contrast pe fundalul de oxblood', () => {
+  it.each(ROLURI_TEXT_PE_OXBLOOD)('%s trece WCAG AA pentru text normal', (rol) => {
+    expect(raportContrast(PALETA[rol], PALETA.oxblood)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+/*
+ * The two sets are asserted to be COMPLETE, not merely correct. Listing a
+ * legible token is easy; the failure mode is a list going stale — a palette
+ * nudge that quietly drops a role below 4.5:1, or a new token nobody added.
+ * Deriving the expected set from the measurement catches both directions.
+ */
+function roluriLizibilePe(fundal: string): string[] {
+  return Object.keys(PALETA)
+    .filter((rol) => rol !== fundal)
+    .filter((rol) => raportContrast(PALETA[rol], PALETA[fundal]) >= 4.5)
+    .sort();
+}
+
+describe('seturile de roluri sunt complete', () => {
+  it('ROLURI_TEXT enumeră exact tokenurile lizibile pe pergament', () => {
+    expect([...ROLURI_TEXT].sort()).toEqual(roluriLizibilePe('parchment'));
+  });
+
+  it('ROLURI_TEXT_PE_OXBLOOD enumeră exact tokenurile lizibile pe oxblood', () => {
+    expect([...ROLURI_TEXT_PE_OXBLOOD].sort()).toEqual(roluriLizibilePe('oxblood'));
   });
 });
