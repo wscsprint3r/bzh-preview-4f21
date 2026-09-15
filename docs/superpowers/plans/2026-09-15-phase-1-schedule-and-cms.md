@@ -35,6 +35,14 @@ Every task's requirements implicitly include this section.
   page and endpoint that reads the collection must therefore write
   `intrari.map((e) => ({ ...e.data, data: e.id }))` — spreading Astro's parsed object, then
   overwriting `data` with the entry id, which is the date from the filename.
+- **Assert the property, not an example — three green suites have hidden live bugs here.**
+  Task 2's diacritics guard passed with `august` corrupted to `aușust`. Task 6's feed passed
+  22/22 while emitting a zero-length calendar event. Task 6's day sort passed 25/25 while
+  being a literal no-op (a mistyped comparator coerced objects to `"[object Object]"`, so
+  every comparison returned 0). In each case the test block was complete in every respect
+  except asserting the thing that was broken. For any code whose job is ordering, uniqueness,
+  normalisation or a format invariant, assert the invariant across the whole input — not one
+  more example of it.
 - **A codepoint scan proves there are no cedillas. It cannot prove the Romanian is words.**
   Task 5's implementer verified a patch with `grep <sentinel>`, got zero matches, and the file
   was still wrong — part of the sentinel had itself been eaten, so the check was defeated by the
@@ -1553,7 +1561,7 @@ export function genereazaIcs(
   // `inainte`, not localeCompare: ICU collation varies between Node builds and
   // treats hyphens as variable-weight. schedule.ts exports one comparison
   // semantics for these strings; this module uses it rather than a second.
-  const sortate = [...zile].sort(inainte);
+  const sortate = [...zile].sort((a, b) => inainte(a.data, b.data));
 
   for (const z of sortate) {
     const slujbe = [...z.slujbe].sort((a, b) => minute(a.ora) - minute(b.ora));
