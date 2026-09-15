@@ -2541,37 +2541,56 @@ describe('ieșirea build-ului', () => {
 });
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [ ] **Step 3: Add a second Vitest config for integration tests**
 
-Run: `cd web && rm -rf dist && npx vitest run --include 'src/**/*.itest.ts'`
-Expected: FAIL — `dist/index.html` does not exist.
+`vitest.config.ts` includes only `src/**/*.test.ts`, and `build-output.itest.ts` does not match that glob (the character before `test.ts` is `i`, not `.`), so the integration test is invisible to the default suite. That is what we want — it needs `dist/` to exist — but it also means we need a way to run it deliberately.
 
-- [ ] **Step 4: Build, then run it again**
+**Do not reach for `vitest run --include <glob>`: Vitest 5 has no `--include` flag.** It has `--exclude` and `--dir`, and the only `--include`-prefixed option is the unrelated `--includeTaskLocation`. Use a second config instead, which is explicit and does not depend on CLI surface that moves between majors.
 
-Run: `cd web && npm run build && npx vitest run --include 'src/**/*.itest.ts'`
-Expected: PASS, 8 tests.
+Create `web/vitest.itest.config.ts`:
 
-- [ ] **Step 5: Keep `npm test` honest**
+```typescript
+/// <reference types="vitest/config" />
+import { getViteConfig } from 'astro/config';
 
-This file depends on `dist/`, so `npm test` on a clean checkout would fail confusingly. The `.itest.ts` extension keeps it out of the default suite, because `vitest.config.ts` includes only `src/**/*.test.ts`. Change the scripts in `package.json`:
+export default getViteConfig({
+  test: {
+    include: ['src/**/*.itest.ts'],
+  },
+});
+```
+
+- [ ] **Step 4: Wire up the scripts**
+
+Change the scripts in `package.json`:
 
 ```json
 {
   "scripts": {
     "test": "vitest run",
-    "test:build": "astro build && vitest run --include 'src/**/*.itest.ts'",
+    "test:build": "astro build && vitest run --config vitest.itest.config.ts",
     "test:all": "npm run test && npm run test:build"
   }
 }
 ```
 
-Run: `cd web && rm -rf dist && npm test && npm run test:all`
-Expected: `npm test` passes without a build; `npm run test:all` builds and passes everything.
+- [ ] **Step 5: Run it to verify it fails, then passes**
 
-- [ ] **Step 6: Commit**
+Run: `cd web && rm -rf dist && npx vitest run --config vitest.itest.config.ts`
+Expected: FAIL — `dist/index.html` does not exist.
+
+Run: `cd web && npm run test:build`
+Expected: the build runs, then PASS, 8 tests.
+
+- [ ] **Step 6: Confirm the split holds**
+
+Run: `cd web && rm -rf dist && npm test && npm run test:all`
+Expected: `npm test` passes on a clean checkout with no `dist/` present (proving the integration test really is out of the default suite); `npm run test:all` then builds and passes everything.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/pages/program.ics.ts src/lib/build-output.itest.ts package.json
+git add src/pages/program.ics.ts src/lib/build-output.itest.ts vitest.itest.config.ts package.json
 git commit -m "feat: /program.ics endpoint with build-output integration test"
 ```
 
