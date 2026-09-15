@@ -35,6 +35,13 @@ Every task's requirements implicitly include this section.
   page and endpoint that reads the collection must therefore write
   `intrari.map((e) => ({ ...e.data, data: e.id }))` — spreading Astro's parsed object, then
   overwriting `data` with the entry id, which is the date from the filename.
+- **Redirecting stdout can silently invert a mutation result.** This project writes the vitest
+  JSON report only when stdout is not redirected, so running a mutant with `> /dev/null`
+  leaves the *previous* green report in place — and the run reports SURVIVED for every mutant,
+  including ones that are actually killed. A Task 6 reviewer hit exactly this and its first
+  pass claimed all nine mutants survived; re-running without the redirect killed all nine.
+  Read mutation results off the test runner's own output, never off a report file you did not
+  watch it write, and sanity-check that the baseline is green before trusting any SURVIVED.
 - **Assert the property, not an example — three green suites have hidden live bugs here.**
   Task 2's diacritics guard passed with `august` corrupted to `aușust`. Task 6's feed passed
   22/22 while emitting a zero-length calendar event. Task 6's day sort passed 25/25 while
