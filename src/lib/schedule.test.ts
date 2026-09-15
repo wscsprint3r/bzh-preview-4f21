@@ -136,6 +136,11 @@ describe('grupeazaPeSaptamani', () => {
     expect(grupeazaPeSaptamani([])).toEqual([]);
   });
 
+  it('refuză o zi cu dată inexistentă', () => {
+    expect(() => grupeazaPeSaptamani([zi('2026-02-30', [['10:00', 'Utrenia']])]))
+      .toThrow(/inexistent/);
+  });
+
   it('păstrează două slujbe diferite care încep la aceeași oră', () => {
     // O seară obișnuită: spovedania se ține în timpul vecerniei. Gruparea nu
     // are voie nici să le contopească, nici să piardă ziua.
@@ -225,6 +230,16 @@ describe('urmatoareaSlujba', () => {
   it('întoarce null pentru date goale', () => {
     expect(urmatoareaSlujba([], '2026-09-14', '08:00')).toBeNull();
   });
+
+  it('refuză o dată invalidă în loc să întoarcă prima slujbă din program', () => {
+    // Fără gardă, '15/09/2026' se compară sub orice dată stocată: fiecare zi ar
+    // trece de filtru și funcția ar întoarce, sigură pe ea, slujba de la
+    // 2026-09-14 07:30. O oră greșită, spusă cu toată convingerea.
+    expect(() => urmatoareaSlujba(date, '15/09/2026', '08:00')).toThrow(/invalid/);
+    expect(() => urmatoareaSlujba(date, '2026-9-21', '08:00')).toThrow(/invalid/);
+    // Prins de verificarea existenței, nu de regex: 30 februarie trece de formă.
+    expect(() => urmatoareaSlujba(date, '2026-02-30', '08:00')).toThrow(/inexistent/);
+  });
 });
 
 describe('saptamaniViitoare', () => {
@@ -250,6 +265,13 @@ describe('saptamaniViitoare', () => {
 
   it('întoarce o listă goală când totul este în trecut', () => {
     expect(saptamaniViitoare(date, '2027-01-01', 3)).toEqual([]);
+  });
+
+  it('refuză o dată invalidă, la fel ca urmatoareaSlujba', () => {
+    // Cele trei funcții care primesc o dată o resping la fel, ca să nu existe
+    // o singură poartă prin care o dată stricată să intre tăcută în pagină.
+    expect(() => saptamaniViitoare(date, '15/09/2026', 3)).toThrow(/invalid/);
+    expect(() => saptamaniViitoare(date, '2026-02-30', 3)).toThrow(/inexistent/);
   });
 
   it('întoarce o listă goală pentru un număr de săptămâni nepozitiv', () => {

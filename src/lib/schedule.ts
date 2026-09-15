@@ -24,6 +24,7 @@
  * `schedule.test.ts` asserts that by codepoint.
  */
 
+import { partiData } from './date-ro';
 import type { Slujba, ZiSlujba } from './schema';
 import { cheieSaptamana, inceputSaptamana, sfarsitSaptamana } from './week';
 
@@ -125,12 +126,25 @@ export function grupeazaPeSaptamani(zile: ZiSlujba[]): Saptamana[] {
  * A cancelled day is skipped whole, not service by service: `ziSchema` lets an
  * `anulat` day keep its `slujbe` list - marking the day cancelled is one edit,
  * deleting the times is another - so the flag, not the list, is the truth.
+ *
+ * Throws on an `azi` that is not a real `YYYY-MM-DD` date. `ora` is not
+ * validated: a malformed one makes `acum` NaN, which skips the rest of today
+ * and moves on - wrong, but not confidently wrong in the way a bad `azi` is.
  */
 export function urmatoareaSlujba(
   zile: ZiSlujba[],
   azi: string,
   ora: string,
 ): (Slujba & { data: string }) | null {
+  // The other two functions here validate their date for free, by handing it to
+  // cheieSaptamana/inceputSaptamana. This one only ever string-compares, so
+  // without this call it would be the single unvalidated date path in the
+  // codebase - and it fails silently rather than loudly: '15/09/2026' sorts
+  // below every stored date, so every day clears `z.data >= azi` and the
+  // function returns the first service in the whole schedule. A wrong service
+  // time, stated confidently, is the worst answer this site can give.
+  partiData(azi);
+
   const acum = minute(ora);
   const candidate = [...zile]
     .filter((z) => !z.anulat && z.data >= azi)
