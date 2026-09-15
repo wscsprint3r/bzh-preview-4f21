@@ -35,6 +35,11 @@ Every task's requirements implicitly include this section.
   page and endpoint that reads the collection must therefore write
   `intrari.map((e) => ({ ...e.data, data: e.id }))` — spreading Astro's parsed object, then
   overwriting `data` with the entry id, which is the date from the filename.
+- **The escape hazard corrupts the record of the hazard.** Task 5's implementer found the decay
+  had hit the *evidence section of its own report* — the escapes proving escapes survive on disk
+  had themselves decoded, so the evidence asserted the opposite of what it demonstrated. Run the
+  codepoint scan on **every file that quotes Romanian**: source, content, tests, reports and
+  reviews alike. Three agents and two reviewers have been bitten by this so far.
 - **Never trust a `\uXXXX` escape you typed into a file.** This harness has been observed
   converting escapes to the literal character before the bytes reach disk, through both a
   Bash heredoc and the Write tool — which silently rewrote a cedilla-rejecting guard into the
@@ -929,7 +934,7 @@ A malformed entry fails the build instead of shipping."
 - Test: `web/src/lib/schedule.test.ts`
 
 **Interfaces:**
-- Consumes: `ZiSlujba` from `./schema`; `adaugaZile`, `cheieSaptamana`, `inceputSaptamana`, `sfarsitSaptamana` from `./week`.
+- Consumes: `ZiSlujba` and `Slujba` from `./schema`; `cheieSaptamana`, `inceputSaptamana`, `sfarsitSaptamana` and `partiData` from `./week` / `./date-ro`. (`adaugaZile` is **not** needed — an earlier draft listed it and importing it would fail `astro check` as unused.)
 - Produces:
   - `type Saptamana = { cheie: string; luni: string; duminica: string; zile: ZiSlujba[] }`
   - `minute(ora: string): number` — minutes since midnight; `ics.ts` imports this.
