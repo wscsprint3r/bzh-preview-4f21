@@ -42,6 +42,20 @@ Every task's requirements implicitly include this section.
   pass claimed all nine mutants survived; re-running without the redirect killed all nine.
   Read mutation results off the test runner's own output, never off a report file you did not
   watch it write, and sanity-check that the baseline is green before trusting any SURVIVED.
+- **Derive the forbidden set; never enumerate it.** A denylist can only list what someone
+  remembered. Task 7 shipped a derived *allowlist* of safe text colours beside a hardcoded
+  two-item denylist of forbidden golds — so footer text at `var(--rule)` (1.30:1) and a raw
+  `rgb(176,139,62)` both passed a green suite. Where a set can be derived from measurement,
+  derive it: a colour is legal for text if and only if it is in a text role set for that
+  surface. This codebase has been bitten three times by exactly this gap.
+- **Assert resolution, not presence.** `toContain` on a stylesheet line proves the line exists,
+  not that it means anything. Appending `--gold-text: var(--gold);` inside `:root` kept every
+  asserted line present, added no hex, was not a `color:` declaration — and shipped every link
+  at 2.95:1 with 60/60 green, because the minifier collapsed the duplicate and kept the alias.
+  Parse, resolve, and assert the resolved map `toEqual` the source of truth.
+- **"No boxes rendered" is never evidence about diacritics.** U+015F and U+0163 are present in
+  the shipped fonts, so a Turkish cedilla draws perfectly. Only a codepoint scan can tell you
+  which character you have.
 - **A guard that reads a file must prove it read something.** Task 7's first CSS guard passed
   while entirely inert: `import.meta.glob(…, { query: '?raw' })` returns an *empty string* for
   `.css` in this pipeline, so the guard scanned nothing and found nothing wrong. Only a
