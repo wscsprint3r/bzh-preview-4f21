@@ -35,6 +35,13 @@ Every task's requirements implicitly include this section.
   page and endpoint that reads the collection must therefore write
   `intrari.map((e) => ({ ...e.data, data: e.id }))` — spreading Astro's parsed object, then
   overwriting `data` with the entry id, which is the date from the filename.
+- **A codepoint scan proves there are no cedillas. It cannot prove the Romanian is words.**
+  Task 5's implementer verified a patch with `grep <sentinel>`, got zero matches, and the file
+  was still wrong — part of the sentinel had itself been eaten, so the check was defeated by the
+  very thing it checked for. A second defect in the same patch was plain bad grammar that no
+  scanner would ever catch. So after writing any file containing Romanian: print every
+  non-ASCII line and **read them**. It is about twenty lines and it catches the class that
+  greps structurally cannot.
 - **The escape hazard corrupts the record of the hazard.** Task 5's implementer found the decay
   had hit the *evidence section of its own report* — the escapes proving escapes survive on disk
   had themselves decoded, so the evidence asserted the opposite of what it demonstrated. Run the
