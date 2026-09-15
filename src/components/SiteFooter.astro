@@ -1,0 +1,32 @@
+---
+// Contact details are hardcoded in Phase 1 and move to a CMS-editable
+// settings singleton in Phase 2 (spec §6.7). The live site's footer currently
+// shows `info@website.com` and a French phone number, both Athos theme demo
+// leftovers — they are deliberately not carried over.
+---
+
+<footer class="sf">
+  <div class="container sf-in">
+    <div>
+      <p class="eyebrow">Unde ne găsiți</p>
+      <p>Capela Sf. Katharina<br />Wehntalerstrasse 451, 8046 Zürich</p>
+    </div>
+    <div>
+      <p class="eyebrow">Contact</p>
+      <p>
+        <a href="tel:+41765120452">076 512 04 52</a><br />
+        <a href="/program/">Program liturgic</a>
+      </p>
+    </div>
+    <div>
+      <p class="eyebrow">Calendar</p>
+      <p><a href="/program.ics">Abonare la program (.ics)</a></p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .sf { border-top: 1px solid var(--rule); background: var(--raised); margin-top: 3rem; }
+  .sf-in { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1.5rem; padding-block: 2rem; }
+  .sf p { margin: 0.35rem 0 0; font-size: 0.875rem; color: var(--muted); }
+</style>

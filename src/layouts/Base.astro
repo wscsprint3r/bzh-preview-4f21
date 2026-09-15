@@ -1,0 +1,34 @@
+---
+import '../styles/global.css';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+
+interface Props {
+  titlu: string;
+  descriere?: string;
+}
+
+const { titlu, descriere = 'Parohia Ortodoxă Română Sfântul Nicolae din Zürich — program liturgic, noutăți și informații parohiale.' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{titlu} · Parohia Sfântul Nicolae Zürich</title>
+    <meta name="description" content={descriere} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <link rel="alternate" type="text/calendar" href="/program.ics" title="Program liturgic" />
+  </head>
+  <body>
+    <a class="skip-link" href="#continut">Sari la conținut</a>
+    <SiteHeader />
+    <main id="continut">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>

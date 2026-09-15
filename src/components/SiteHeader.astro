@@ -1,0 +1,41 @@
+---
+const cale = Astro.url.pathname;
+const linkuri = [
+  { href: '/', text: 'Acasă' },
+  { href: '/program/', text: 'Program' },
+];
+---
+
+<header class="sh">
+  <div class="container sh-in">
+    <a class="sh-brand" href="/">
+      <span class="sh-cross" aria-hidden="true">✝</span>
+      <span class="sh-wm">
+        <b>Sfântul Nicolae</b>
+        <span>Parohia Ortodoxă Română · Zürich</span>
+      </span>
+    </a>
+    <nav aria-label="Navigare principală">
+      <ul class="sh-nav">
+        {linkuri.map((l) => (
+          <li>
+            <a href={l.href} aria-current={cale === l.href ? 'page' : undefined}>{l.text}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .sh { border-bottom: 1px solid var(--rule); }
+  .sh-in { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 0.75rem; flex-wrap: wrap; }
+  .sh-brand { display: flex; align-items: center; gap: 0.625rem; text-decoration: none; }
+  /* Ornament, not text: the cross is aria-hidden and carries no information. */
+  .sh-cross { color: var(--gold-lt); font-size: 1.5rem; line-height: 1; }
+  .sh-wm b { display: block; font-family: var(--display); font-size: 1.125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--oxblood); line-height: 1.1; }
+  .sh-wm > span { display: block; font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); margin-top: 0.15rem; }
+  .sh-nav { display: flex; gap: 1.25rem; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }
+  .sh-nav a { color: var(--muted); text-decoration: none; }
+  .sh-nav a[aria-current='page'] { color: var(--oxblood); border-bottom: 1.5px solid var(--gold-lt); padding-bottom: 2px; }
+</style>

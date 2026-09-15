@@ -1,0 +1,102 @@
+/* Self-hosted, latin + latin-ext. latin-ext covers U+0100-U+024F, which is
+   where the comma-below characters live (S,s,T,t with comma: U+0218-U+021B).
+   No Google Fonts CDN: privacy, and a font-src 'self' CSP in Task 13. */
+@import '@fontsource/cormorant-garamond/latin-400.css';
+@import '@fontsource/cormorant-garamond/latin-600.css';
+@import '@fontsource/cormorant-garamond/latin-ext-400.css';
+@import '@fontsource/cormorant-garamond/latin-ext-600.css';
+@import '@fontsource/spectral/latin-300.css';
+@import '@fontsource/spectral/latin-400.css';
+@import '@fontsource/spectral/latin-ext-300.css';
+@import '@fontsource/spectral/latin-ext-400.css';
+
+/* Transcribed from cssTokens() in src/lib/tokens.ts; tokens.test.ts asserts
+   the two agree in value, and that every token used for text clears 4.5:1. */
+:root {
+  --parchment: #FAF6EE;
+  --raised: #FFFDF8;
+  --rule: #E3D9C6;
+  --oxblood: #6B1F26;
+  --oxblood-dk: #54171D;
+  --gold-text: #8A6A28;
+  --gold: #B08B3E;
+  --gold-lt: #C8A45C;
+  --ink: #2A211C;
+  --muted: #6E5C4E;
+  --faint: #7E6C52;
+
+  --display: 'Cormorant Garamond', Georgia, serif;
+  --body: 'Spectral', Georgia, serif;
+  --gutter: clamp(1rem, 4vw, 2.25rem);
+  --masura: 68ch;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--parchment);
+  color: var(--ink);
+  font-family: var(--body);
+  font-weight: 400;
+  font-size: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem);
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--display);
+  font-weight: 600;
+  line-height: 1.12;
+  margin: 0 0 0.5rem;
+  color: var(--oxblood);
+}
+
+/* --gold-text measures 4.67:1 on --parchment and 4.95:1 on --raised, the only
+   two grounds this layout uses. It is 2.26:1 on --oxblood, so any dark panel
+   that contains a link must override this rule with a light colour. */
+a { color: var(--gold-text); }
+a:hover { color: var(--oxblood-dk); }
+
+img { max-width: 100%; height: auto; display: block; }
+
+.container {
+  max-width: 68rem;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.eyebrow {
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* The ornament hairline. It is a border, not text, so it is exempt from the
+   4.5:1 text rule; --rule measures 1.30:1 on --parchment and reads as a faint
+   separator, which is what the design asks of it. */
+.rule { border: 0; border-top: 1px solid var(--rule); margin: 1.5rem 0; }
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: var(--gutter);
+  top: 0.5rem;
+  background: var(--oxblood);
+  color: var(--parchment);
+  padding: 0.5rem 1rem;
+  z-index: 10;
+}
+
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--oxblood);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
