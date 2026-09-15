@@ -46,7 +46,7 @@ export type Saptamana = {
  * use (`z.data >= azi`, `s.luni >= lunea`). One comparison semantics per date
  * string, not two that happen to agree today.
  */
-function inainte(a: string, b: string): number {
+export function inainte(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
