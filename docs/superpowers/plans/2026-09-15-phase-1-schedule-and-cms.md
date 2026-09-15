@@ -25,6 +25,7 @@ Every task's requirements implicitly include this section.
   `--parchment:#FAF6EE` `--raised:#FFFDF8` `--rule:#E3D9C6` `--oxblood:#6B1F26` `--oxblood-dk:#54171D` `--gold-text:#8A6A28` `--gold:#B08B3E` `--gold-lt:#C8A45C` `--ink:#2A211C` `--muted:#6E5C4E` `--faint:#7E6C52`
 - **`#B08B3E` and `#C8A45C` are ornament only and MUST NEVER be used for text** at any size (2.95:1 and lower — fails WCAG AA entirely). Task 7 enforces this in CI.
 - **Fonts self-hosted**, `latin` + `latin-ext` subsets. `latin-ext` covers U+0100–U+024F, which includes U+0218–U+021B (Ș ș Ț ț with comma below). No Google Fonts CDN.
+- **Which words actually carry comma-below**, since it is easy to assert this of the wrong ones: `Marți`, `Ț`/`ț` and `Ș`/`ș` anywhere — and in this project's vocabulary that means `Marți`, `Sfântul Maslu` has none, `Spovedanie` has none. `Sâmbătă` carries **â** and **ă** only, not a comma-below character. `Duminică`, `Înălțarea` and `Sfânta` likewise carry only â/ă/Î. Check codepoints, not appearance: ș U+0219 vs ş U+015F are near-identical in most fonts.
 - **Dates are plain `YYYY-MM-DD` strings. Times are plain `HH:MM` local strings.** Never store or compute a UTC instant for a service — a Liturgy at 10:00 is at 10:00 on both sides of a DST change. The single exception is `aziLaZurich()`, which converts the real clock into a Zürich calendar date.
 - **All user-facing copy is Romanian**, with correct comma-below diacritics (ș ț, not ş ţ).
 - **Performance budget** (spec §13), enforced in CI by Task 13: homepage HTML ≤ 30 KB, CSS ≤ 15 KB, JS ≤ 3 KB, ≤ 12 requests. Lighthouse accessibility 100. Because `inlineStylesheets: 'always'` puts the CSS inside the document, Task 13 enforces the first two as one combined **45 KB** limit on `dist/index.html`; the reasoning is in that task.
@@ -388,7 +389,7 @@ export function formatIntervalSaptamana(luni: string, duminica: string): string 
 - [ ] **Step 4: Run tests**
 
 Run: `cd web && npx vitest run src/lib/date-ro.test.ts`
-Expected: PASS, 9 tests.
+Expected: PASS. (The plan's test block contains 11 cases, plus 5 more from the impossible-date validation below — 16 in total.)
 
 - [ ] **Step 5: Commit**
 
@@ -406,7 +407,7 @@ git commit -m "feat: Romanian day and month names with comma-below diacritics"
 - Test: `web/src/lib/week.test.ts`
 
 **Interfaces:**
-- Consumes: `indiceZi` from `./date-ro`.
+- Consumes: `indiceZi` and **`partiData`** from `./date-ro`. `partiData` parses *and validates* a `YYYY-MM-DD` string, rejecting dates that do not exist (month 13, 30 February). **Use it in `laUtc` instead of writing a second regex parse** — duplicating the parse would leave the impossible-date hole open on this side, which is what Task 2's fix round closed.
 - Produces:
   - `adaugaZile(data: string, n: number): string`
   - `inceputSaptamana(data: string): string` — the Monday of that date's week.
@@ -543,14 +544,15 @@ Expected: FAIL — `Failed to resolve import "./week"`.
 Create `web/src/lib/week.ts`:
 
 ```typescript
-import { indiceZi } from './date-ro';
+import { indiceZi, partiData } from './date-ro';
 
 const MS_PE_ZI = 86_400_000;
 
 function laUtc(data: string): number {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(data);
-  if (!m) throw new Error(`Dată invalidă: ${data}`);
-  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  // partiData validates as well as parses — a second regex here would let
+  // 2026-02-30 through on this side of the codebase.
+  const { an, luna, zi } = partiData(data);
+  return Date.UTC(an, luna - 1, zi);
 }
 
 function dinUtc(ms: number): string {

@@ -9,6 +9,9 @@ public/admin/sveltia-cms.mjs
 # superpowers scratch: brainstorm mockups and the SDD ledger
 .superpowers/
 
+# rtk test wrapper scratch
+.vitest/
+
 # local
 .DS_Store
 *.log
