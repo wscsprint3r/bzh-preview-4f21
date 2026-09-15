@@ -1,0 +1,12 @@
+# This directory holds forensic backups of a twice-compromised server:
+# compromised-bzh-backup-DANGER/, backup-*/, *.sql dumps, and credentials
+# (NEW-DB-PASSWORD.txt). None of it may ever reach a remote.
+#
+# Therefore: ignore everything at the top level by default, and opt in
+# explicitly. Do not replace this with a deny-list.
+
+/*
+
+!/.gitignore
+!/docs/
+!/web/
