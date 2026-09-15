@@ -18,7 +18,28 @@ describe('vocabular', () => {
 
   it('are douăsprezece luni', () => {
     expect(NUME_LUNI).toHaveLength(12);
-    expect(NUME_LUNI[8]).toBe('septembrie');
+    // Assert all twelve by value. Checking only the length and one entry let
+    // `august` -> `aușust` and `martie` -> `marție` through the whole suite.
+    // Every month name is pure ASCII, so any non-ASCII character here is wrong.
+    expect(NUME_LUNI).toEqual([
+      'ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie',
+      'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie',
+    ]);
+  });
+
+  it('scrie zilele cu exact codepoint-urile corecte', () => {
+    // Written as escapes deliberately: the day names are where every diacritic
+    // in this module lives, and a look-alike glyph in the expectation would
+    // silently agree with a corrupted table.
+    expect(NUME_ZILE).toEqual([
+      'Luni',
+      'Mar\u021Bi',                 // U+021B t-comma-below, never U+0163
+      'Miercuri',
+      'Joi',
+      'Vineri',
+      'S\u00E2mb\u0103t\u0103',      // U+00E2 circumflex, U+0103 breve - plain ASCII t
+      'Duminic\u0103',
+    ]);
   });
 
   it('folosește virgulă dedesubt, nu sedilă', () => {

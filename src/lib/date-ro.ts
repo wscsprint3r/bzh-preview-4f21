@@ -7,9 +7,21 @@
  * rendered site depend on its build environment. A table is deterministic and
  * testable.
  *
- * Every `s` and `t` below carries a comma below (U+0219 / U+021B), which is the
- * correct Romanian letter. The Turkish cedilla forms (U+015F / U+0163) look
- * near-identical in most fonts but are a defect; `date-ro.test.ts` guards this.
+ * Diacritics, stated exactly, because the near-identical glyphs invite bad
+ * "corrections". Characters that must NOT appear are named by codepoint rather
+ * than shown, so this file stays greppable for them:
+ *
+ * - The tables are almost entirely ASCII. Not one month name contains a
+ *   non-ASCII character, and the only comma-below character in the whole module
+ *   is the `ț` in `Marți` (U+021B). U+0219, s-with-comma-below, appears nowhere.
+ * - The `s` and `t` in `august`, `septembrie`, `martie`, `octombrie` and
+ *   `Sâmbătă` are plain ASCII and must stay that way. Do not add a comma below.
+ * - `â` (U+00E2) and `ă` (U+0103), in `Sâmbătă` and `Duminică`, are circumflex and
+ *   breve. They are not comma-below characters and are already correct.
+ * - What must never appear is the Turkish cedilla: U+015F, s-with-cedilla, and
+ *   U+0163, t-with-cedilla. They are a defect, not a variant spelling.
+ *
+ * `date-ro.test.ts` asserts both tables by value, so any drift fails there.
  *
  * Dates are plain `YYYY-MM-DD` strings. No `Date` objects cross this module's
  * public surface, so nothing here depends on the host timezone.
