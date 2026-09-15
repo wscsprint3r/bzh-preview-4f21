@@ -1216,6 +1216,7 @@ Create `web/src/lib/ics.test.ts`:
 ```typescript
 import { describe, expect, it } from 'vitest';
 import type { ZiSlujba } from './schema';
+import { NUME_SLUJBE } from './schema';
 import { genereazaIcs } from './ics';
 
 function zi(data: string, slujbe: Array<[string, string]>, extra: Partial<ZiSlujba> = {}): ZiSlujba {
@@ -1300,9 +1301,25 @@ describe('UID', () => {
     expect(new Set(uids).size).toBe(2);
   });
 
-  it('nu confundă slujbe ale căror nume diferă doar prin diacritice', () => {
+  it('pliază diacriticele în slug, nu le șterge', () => {
     const a = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(a).toContain('-sfanta-liturghie@bor-zh.ch');
+  });
+
+  it('niciun nume de slujbă nu produce un UID care se împăturește', () => {
+    // Asserted against NUME_SLUJBE, not against today's longest name, so adding
+    // a longer service in future fails here instead of quietly folding a UID.
+    for (const nume of NUME_SLUJBE) {
+      const out = ics([zi('2026-09-20', [['10:00', nume]], {
+        slujbe: [{ ora: '10:00', slujba: nume, detaliu: nume === 'Altceva' ? 'Cerc biblic' : undefined }],
+      })]);
+      for (const linie of out.split('\r\n')) {
+        if (linie.startsWith('UID:')) {
+          expect(new TextEncoder().encode(linie).length).toBeLessThanOrEqual(75);
+        }
+      }
+      expect(out).not.toMatch(/UID:[^\r\n]*\r\n /);
+    }
   });
 });
 
@@ -1441,14 +1458,29 @@ function impatureste(linie: string): string {
 }
 
 /**
- * ASCII slug of the service name, for the UID. Romanian diacritics are folded
- * rather than stripped so that Sfânta and Sfanta cannot produce the same slug.
+ * ASCII slug of the service name, for the UID.
  *
- * COUPLING: Task 4's schema rejects two entries sharing `ora` AND `slujba`, which
- * is what stops two `Altceva` services at one time from reaching this slug. If
- * that refinement is ever relaxed to key on `detaliu` — it has been flagged as a
- * narrow over-rejection — then this slug must become part of the same key, or
- * two differently-punctuated `Altceva` names can slug identically and collide.
+ * Diacritics are FOLDED (Sfânta -> sfanta), which deliberately maps a name and
+ * its unaccented spelling to the same slug. That is the right trade: an ASCII
+ * slug is stable however the YAML is normalised, readable inside a UID, and safe
+ * in every client. Distinguishing Sfânta from Sfanta is not a property anyone
+ * should want — they are the same service, one of them misspelled.
+ *
+ * What actually prevents two different services colliding is Task 4's schema:
+ * NUME_SLUJBE is a closed list, and no day may carry the same `slujba` twice at
+ * the same `ora`.
+ *
+ * COUPLING: the residual gap is two `Altceva` entries whose `detaliu` values fold
+ * to the same slug. The schema rejects those today because both carry
+ * slujba: 'Altceva' — but that rejection has been flagged as a narrow
+ * over-rejection, so if it is ever relaxed to key on `detaliu`, this slug must
+ * join the same key.
+ *
+ * The 40-character cap is LOAD-BEARING. The longest name in NUME_SLUJBE,
+ * "Liturghia Darurilor mai înainte sfințite", yields a 40-character slug and a
+ * 68-octet UID line, which keeps UIDs under the 75-octet fold. A folded UID would
+ * break clients and silently break the /UID:(\S+)/ assertions. A test asserts this
+ * against NUME_SLUJBE itself, so adding a longer service name fails loudly.
  */
 function slugSlujba(s: Slujba): string {
   const nume = s.slujba === 'Altceva' ? (s.detaliu ?? '') : s.slujba;
