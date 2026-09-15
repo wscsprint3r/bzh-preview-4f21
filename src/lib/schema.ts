@@ -23,6 +23,45 @@
  */
 
 import { z } from 'astro/zod';
+import { partiData } from './date-ro';
+
+const NUME_FISIER = /^(\d{4}-\d{2}-\d{2})\.yml$/;
+
+/**
+ * Validates a schedule filename and returns the date it encodes.
+ *
+ * The filename *is* the primary key of the schedule: it is the entry id, and
+ * every later task joins on it. Zod never sees it - a collection schema is
+ * handed the file's `data`, never its `id` - so without this the one field that
+ * identifies a day would be the only unvalidated thing in the system.
+ * `2026-02-30.yml`, `2026-9-21.yml`, a stray `.yaml` or a file in a subfolder
+ * would each produce a missing or bogus day on a green build.
+ *
+ * Called from `generateId` in `content.config.ts`, where a throw fails the
+ * build. `partiData` does the date half: one parser for this format in the
+ * codebase, already tested against every date it accepts, now guarding the key
+ * as well as the contents. A regex alone would wave `2026-02-30` through.
+ */
+export function idDinNumeFisier(entry: string): string {
+  const m = NUME_FISIER.exec(entry);
+  if (!m) {
+    throw new Error(
+      `Fișier de program cu nume nepermis: "${entry}". Numele trebuie să fie exact o dată, ` +
+        `de forma 2026-09-14.yml, fără subdirectoare.`,
+    );
+  }
+  try {
+    partiData(m[1]); // aruncă pentru date inexistente, de exemplu 2026-02-30
+  } catch (cauza) {
+    // partiData names the date but not the file, and its stack points into
+    // date-ro.ts, so on its own it leaves you hunting for which entry is wrong.
+    throw new Error(
+      `Fișier de program cu dată inexistentă: "${entry}". Ziua aceasta nu există în calendar.`,
+      { cause: cauza },
+    );
+  }
+  return m[1];
+}
 
 /**
  * The list the CMS offers as a dropdown. Keeping it closed is what stops
@@ -77,7 +116,13 @@ export const slujbaSchema = z.strictObject(
     detaliu: z.string().optional(),
   },
   cheiStricte,
-);
+).refine((s) => s.slujba !== 'Altceva' || Boolean(s.detaliu?.trim()), {
+  // "Altceva" is the escape hatch for a service not on the dropdown, and it is
+  // only an escape hatch if the real name follows. Left empty, the word
+  // "Altceva" is what a parishioner reads off the schedule.
+  message: 'Pentru "Altceva" completați și câmpul detaliu cu numele slujbei.',
+  path: ['detaliu'],
+});
 
 /**
  * Do not add a `$schema` key to this shape, however tempting.
@@ -113,7 +158,31 @@ export const ziSchema = z
   .refine((z_) => !z_.praznic_mare || Boolean(z_.praznic?.trim()), {
     message: 'Un praznic mare trebuie să aibă și numele praznicului completat.',
     path: ['praznic'],
-  });
+  })
+  /**
+   * Two *different* services at one time are legitimate - confession runs
+   * during vespers - so this rejects only the same service listed twice at the
+   * same time, which is always a mistake.
+   *
+   * The calendar feed's UID scheme depends on this. UIDs are built from the
+   * date, the time and the service name, so this invariant is the only thing
+   * stopping two entries from sharing a UID and silently collapsing into one
+   * event in every subscriber's calendar. Do not relax it without changing
+   * that scheme first.
+   *
+   * `ora` is normalised before this runs, so `7:30` and `07:30` count as the
+   * same time rather than slipping past as two spellings.
+   */
+  .refine(
+    (z_) => {
+      const chei = z_.slujbe.map((s) => `${s.ora} ${s.slujba}`);
+      return new Set(chei).size === chei.length;
+    },
+    {
+      message: 'Aceeași slujbă nu poate apărea de două ori la aceeași oră.',
+      path: ['slujbe'],
+    },
+  );
 
 export type Slujba = z.infer<typeof slujbaSchema>;
 export type ZiSlujba = z.infer<typeof ziSchema> & { data: string };
