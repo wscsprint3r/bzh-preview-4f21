@@ -42,6 +42,17 @@ Every task's requirements implicitly include this section.
   pass claimed all nine mutants survived; re-running without the redirect killed all nine.
   Read mutation results off the test runner's own output, never off a report file you did not
   watch it write, and sanity-check that the baseline is green before trusting any SURVIVED.
+- **A guard that reads a file must prove it read something.** Task 7's first CSS guard passed
+  while entirely inert: `import.meta.glob(…, { query: '?raw' })` returns an *empty string* for
+  `.css` in this pipeline, so the guard scanned nothing and found nothing wrong. Only a
+  mutation caught it. Read with `node:fs` and assert the content is non-empty before
+  asserting anything about it. Task 11 reads `dist/` the same way.
+- **The gold roles invert between the parchment and oxblood surfaces.** `--gold-text`
+  (#8A6A28) is 4.7:1 on parchment but **2.26:1 on oxblood**; `--gold-lt` (#C8A45C) is
+  ornament-only on parchment at 2.95:1 but **4.82:1 on oxblood**. Each is safe exactly where
+  the other is not, so copying the global `a` rule into Task 9's dark hero ships a worse
+  failure than the mockup bug this project started with. `tokens.test.ts` enforces a role set
+  per surface; never pick a text colour for a dark surface from the parchment set.
 - **Assert the property, not an example — three green suites have hidden live bugs here.**
   Task 2's diacritics guard passed with `august` corrupted to `aușust`. Task 6's feed passed
   22/22 while emitting a zero-length calendar event. Task 6's day sort passed 25/25 while
@@ -1815,7 +1826,7 @@ export const PALETA: Record<string, string> = {
 
 /**
  * Tokens allowed for text. `gold` (#B08B3E, 2.95:1) and `gold-lt` are
- * deliberately absent: they are ornament only — hairlines, borders, the ✝ glyph
+ * deliberately absent: they are ornament only — hairlines, borders, the † glyph
  * and the feast-row top rule. The approved mockups used `gold` for service
  * times; tokens.test.ts is what stops that regressing.
  */
@@ -1983,7 +1994,7 @@ const linkuri = [
 <header class="sh">
   <div class="container sh-in">
     <a class="sh-brand" href="/">
-      <span class="sh-cross" aria-hidden="true">✝</span>
+      <span class="sh-cross" aria-hidden="true">†</span>
       <span class="sh-wm">
         <b>Sfântul Nicolae</b>
         <span>Parohia Ortodoxă Română · Zürich</span>
@@ -2175,7 +2186,7 @@ const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
       ))
     )}
 
-    <p class="abonare"><a href="/program.ics">✝ Adaugă programul în calendarul telefonului</a></p>
+    <p class="abonare"><a href="/program.ics">† Adaugă programul în calendarul telefonului</a></p>
   </div>
 </Base>
 
