@@ -156,3 +156,110 @@ describe('global.css folosește chiar valorile din tokens.ts', () => {
     expect(css).toContain(linie);
   });
 });
+
+/*
+ * No hex literal outside the token block.
+ *
+ * The contrast tests can only measure a colour that is a token. A raw hex in a
+ * component's <style> is invisible to every guard in this suite, and dropping
+ * one in is easier than looking a token up. Task 9's `.hero-verset` was about
+ * to ship `#E4D7C4` for exactly that reason.
+ *
+ * Scope is WIDER than the gold guard above: `src/pages/` is included, and the
+ * walk recurses, because Task 8 puts a page at `src/pages/program/index.astro`.
+ * A raw hex is wrong on every ground, so unlike the gold question this one does
+ * not depend on knowing the surface.
+ *
+ * In `.astro` files only the `<style>` blocks and `style="…"` attributes are
+ * read — those are the CSS the file ships. Frontmatter is left alone so a hex
+ * in a comment or a string cannot cause a false failure.
+ */
+
+const FISIER_TOKENURI = 'src/styles/global.css';
+
+function fisiereDeStil(): string[] {
+  const gasite: string[] = [];
+  const mergi = (relativ: string): void => {
+    for (const intrare of readdirSync(RADACINA + relativ, { withFileTypes: true })) {
+      const cale = relativ + '/' + intrare.name;
+      if (intrare.isDirectory()) mergi(cale);
+      else if (intrare.name.endsWith('.astro')) gasite.push(cale);
+      else if (intrare.name.endsWith('.css') && relativ === 'src/styles') gasite.push(cale);
+    }
+  };
+  mergi('src');
+  return gasite.sort();
+}
+
+/** The CSS a file actually ships: a whole .css, or an .astro's style blocks. */
+export function cssDinFisier(sursa: string, fisier: string): string {
+  if (fisier.endsWith('.css')) return sursa;
+  const bucati: string[] = [];
+  for (const m of sursa.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)) bucati.push(m[1] as string);
+  for (const m of sursa.matchAll(/\bstyle\s*=\s*"([^"]*)"/g)) bucati.push(`x { ${m[1]} }`);
+  return bucati.join('\n');
+}
+
+/** Hex literals appearing in a declaration *value*, so `#fade` as a selector is not one. */
+export function hexuriInStil(css: string): string[] {
+  const gasite: string[] = [];
+  for (const m of faraComentarii(css).matchAll(/([-\w]+)\s*:\s*([^;{}]+)/g)) {
+    const valoare = (m[2] as string).trim();
+    for (const h of valoare.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
+      gasite.push(`${m[1] as string}: ${h[0] as string}`);
+    }
+  }
+  return gasite;
+}
+
+const BLOC_ROOT = /:root\s*\{[^}]*\}/g;
+
+describe('hexuriInStil', () => {
+  // Control pozitiv, same reasoning as above: a guard that cannot fire is a
+  // claim nobody is checking.
+  const FIXTURI: [string, string[]][] = [
+    ['.x { color: #E4D7C4; }', ['color: #E4D7C4']],
+    ['.x { color: #fff }', ['color: #fff']],
+    ['.x { border: 1px solid #E3D9C6; }', ['border: #E3D9C6']],
+    ['.x { background: linear-gradient(90deg, #FFFDF8 0%, transparent 70%); }', ['background: #FFFDF8']],
+    ['.x { color: var(--ink); }', []],
+    ['.x { color: var(--gold-text); background: var(--raised); }', []],
+    // `#fade` is a selector, not a value — the declaration split is what keeps it out.
+    ['#fade { color: var(--ink); }', []],
+    ['/* #E4D7C4 was here */ .x { color: var(--ink); }', []],
+    ['@media (max-width: 34rem) { .x { color: var(--muted); } }', []],
+  ];
+
+  it.each(FIXTURI)('%s', (sursa, asteptat) => {
+    expect(hexuriInStil(sursa)).toEqual(asteptat);
+  });
+
+  it('citește doar <style> și style= dintr-un .astro', () => {
+    const astro = '---\nconst c = "#B08B3E";\n---\n<p style="color:#E4D7C4">x</p>\n<style>.y { color: var(--ink); }</style>';
+    // the frontmatter hex is invisible; the inline style attribute is not
+    expect(hexuriInStil(cssDinFisier(astro, 'a.astro'))).toEqual(['color: #E4D7C4']);
+  });
+});
+
+describe('nicio culoare hex în afara blocului de tokenuri', () => {
+  it('chiar scanează fișierele pe care pretinde că le acoperă', () => {
+    const fisiere = fisiereDeStil();
+    expect(fisiere).toEqual(expect.arrayContaining([FISIER_TOKENURI, 'src/pages/index.astro']));
+  });
+
+  it.each(fisiereDeStil())('%s', (fisier) => {
+    const sursa = readFileSync(RADACINA + fisier, 'utf8');
+    expect(sursa.length).toBeGreaterThan(0);
+    let css = cssDinFisier(sursa, fisier);
+    // The token block is the one place a hex literal belongs, and only there.
+    if (fisier === FISIER_TOKENURI) css = css.replace(BLOC_ROOT, '');
+    else expect(css).not.toMatch(/:root\s*\{/);
+    expect(hexuriInStil(css)).toEqual([]);
+  });
+
+  it('blocul de tokenuri chiar conține hexuri (altfel excluderea ar fi inertă)', () => {
+    const css = readFileSync(RADACINA + FISIER_TOKENURI, 'utf8');
+    const bloc = css.match(BLOC_ROOT)?.join('') ?? '';
+    expect(hexuriInStil(bloc).length).toBe(Object.keys(PALETA).length);
+  });
+});
