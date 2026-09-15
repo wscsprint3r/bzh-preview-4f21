@@ -6,7 +6,7 @@
 
 **Architecture:** All schedule data lives as one YAML file per service day in an Astro content collection, validated by a Zod schema so a malformed entry fails the build instead of shipping. All date arithmetic is calendar-date arithmetic in UTC on plain `YYYY-MM-DD` strings; the only timezone-aware operation in the codebase is "what is today's date in Zürich". The site renders the next three weeks server-side so it is correct without JavaScript, and ~1 KB of inline JS reveals the week containing today.
 
-**Tech Stack:** Astro 5 (static), TypeScript strict, Vitest, Sveltia CMS 0.213.x self-hosted, sveltia-cms-auth on Cloudflare Workers, Cloudflare Pages, @fontsource (Cormorant Garamond + Spectral).
+**Tech Stack:** Astro 7 (static), TypeScript strict, Vitest, Sveltia CMS 0.213.x self-hosted, sveltia-cms-auth on Cloudflare Workers, Cloudflare Pages, @fontsource (Cormorant Garamond + Spectral).
 
 **Spec:** `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.md`
 
@@ -18,7 +18,8 @@
 
 Every task's requirements implicitly include this section.
 
-- **Node 22 LTS.** Astro 5.x, `output: 'static'`.
+- **Node 22.12.0 or newer** (Astro v6 dropped 18 and 20). **Astro 7.x**, `output: 'static'`.
+- **Zod 4** — Astro v6 requires it. The schema in Task 4 is written in Zod 4 syntax; if a v3-only idiom creeps in (`z.string().email()` and friends), it is a defect.
 - **Client JavaScript budget: ≤ 3 KB total.** In Phase 1 the only JS is the week picker. No framework, no hydration, no Astro islands.
 - **Palette — exact values, copied from spec §4:**
   `--parchment:#FAF6EE` `--raised:#FFFDF8` `--rule:#E3D9C6` `--oxblood:#6B1F26` `--oxblood-dk:#54171D` `--gold-text:#8A6A28` `--gold:#B08B3E` `--gold-lt:#C8A45C` `--ink:#2A211C` `--muted:#6E5C4E` `--faint:#7E6C52`

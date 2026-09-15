@@ -68,7 +68,7 @@ Seven steps involving a page builder, for one paragraph of news. The new site mu
 
 | Layer | Choice | Reason |
 |---|---|---|
-| Build | **Astro 5.x**, `output: 'static'` | Content collections with Zod schemas; a malformed schedule entry fails the build rather than shipping. Ships zero JS by default. i18n routing built in. Build-time AVIF/WebP generation. |
+| Build | **Astro 7.x**, `output: 'static'` | Content collections with Zod schemas; a malformed schedule entry fails the build rather than shipping. Ships zero JS by default. i18n routing built in. Build-time AVIF/WebP generation. |
 | CMS | **Sveltia CMS** at `/admin` | Modern rewrite of Decap: GraphQL (whole repo in one request), first-class i18n, works on a phone. Reads Decap config, so Decap is a config-level fallback. |
 | Auth | **sveltia-cms-auth** Worker on Cloudflare | GitHub OAuth proxy. One-time ~15 min deploy. |
 | Hosting | **Cloudflare Pages** | Free tier verified 2026-09-15: 20,000 files/deploy, 25 MiB/file, 500 builds/month, 20 min build timeout, 2,000 static redirects. Our largest asset is a 13.1 MB PDF; our redirect list is ~80. |
@@ -76,6 +76,8 @@ Seven steps involving a page builder, for one paragraph of news. The new site mu
 | Repo | GitHub, private or public | Editors are collaborators with personal accounts. |
 | Fonts | Self-hosted woff2 subsets | No Google Fonts CDN — privacy, speed, and a tighter CSP. |
 | Analytics | Cloudflare Web Analytics | No cookies, no consent banner needed. |
+
+**Version note (corrected 2026-09-15).** This document first said Astro 5.x. Checked against the npm registry: `latest` is **7.3.2**, released 2026-09-08. The 5.x line ended at 5.18.2 on 2026-05-26 and 4.x is already tagged `legacy`. Pinning a rebuild whose entire motivation is security to an unmaintained framework line would be self-defeating, so the project targets 7.x. The v6 and v7 upgrade guides were checked against every API this design depends on: content collections, the `glob` loader, `astro/zod`, `i18n`, `build.inlineStylesheets`, `trailingSlash` and static endpoints are all unchanged. Two consequences worth recording: **Node 22.12.0 or newer** is required from v6, and v6 made endpoints with file extensions inaccessible via a trailing slash — which is precisely the behaviour `/program.ics` needs. One item for Phase 2: v7 replaced remark/rehype with Sätteri as the default Markdown processor, which matters when the 48 posts are migrated, not before.
 
 ### On the npm dependency argument
 
