@@ -123,9 +123,12 @@ export function grupeazaPeSaptamani(zile: ZiSlujba[]): Saptamana[] {
  * the sort is stable (required since ES2019), so the first one the editor wrote
  * wins - arbitrary, but deterministic between builds.
  *
- * A cancelled day is skipped whole, not service by service: `ziSchema` lets an
- * `anulat` day keep its `slujbe` list - marking the day cancelled is one edit,
- * deleting the times is another - so the flag, not the list, is the truth.
+ * A cancelled day is skipped whole, not service by service: `ziSchema` requires
+ * an `anulat` day to keep its `slujbe` list, so the flag rather than the list is
+ * what carries the cancellation. Keeping the times is not a convention a tidy
+ * editor may undo - `ics.ts` writes one VEVENT per service, so a cancelled day
+ * stripped of its times would emit nothing to mark CANCELLED, and a subscriber
+ * holding last Sunday's Liturgy would never learn it was called off.
  *
  * Throws on an `azi` that is not a real `YYYY-MM-DD` date. `ora` is not
  * validated: a malformed one makes `acum` NaN, which skips the rest of today
