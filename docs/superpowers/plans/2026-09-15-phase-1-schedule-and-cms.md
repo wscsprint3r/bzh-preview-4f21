@@ -50,7 +50,9 @@ Every task's requirements implicitly include this section.
 Two deliberate refinements. Both make the result better; neither changes the design.
 
 1. **Spec §7 specifies a `/program/date.json` endpoint that client JS reads to pick the current week. This plan drops `date.json` and server-renders the next three weeks instead.** The spec's own requirement is that the site be correct without JavaScript; rendering the weeks as HTML satisfies that directly, makes the JS smaller (it only toggles `hidden`), and removes a fetch. Combined with the nightly rebuild, correctness holds for three weeks even if every build fails. `/program` server-renders the full upcoming window.
-2. **Spec §8 specifies `.ics` UIDs of the form `<date>-<index>@bor-zh.ch`. This plan uses `<date>T<time>@bor-zh.ch`.** An index-based UID changes for every service on a day when the editor inserts one at the top, which makes subscribers' calendars delete and re-add events. Time-based UIDs are stable under reordering.
+2. **Spec §8 specifies `.ics` UIDs of the form `<date>-<index>@bor-zh.ch`. This plan uses `<date>T<time>-<slug>@bor-zh.ch`.** An index-based UID changes for every service on a day when the editor inserts one at the top, which makes subscribers' calendars delete and re-add every event.
+
+   The first draft of this deviation used `<date>T<time>` alone. That was wrong: two services can legitimately share a start time — `17:00 Spovedanie` alongside `17:00 Vecernie` is an ordinary parish arrangement, since confession runs during vespers — and identical UIDs make every subscriber's calendar silently collapse them into one event. Appending a slug of the service name keeps distinct services distinct while staying stable under reordering. Task 4's schema rejects the only remaining collision, the same service listed twice at the same time, which is a data error rather than a real arrangement.
 
 ---
 
@@ -1265,16 +1267,29 @@ describe('ora de început și de sfârșit', () => {
 });
 
 describe('UID', () => {
-  it('derivă UID din dată și oră, nu din poziție', () => {
+  it('derivă UID din dată, oră și numele slujbei, nu din poziție', () => {
     const out = ics([zi('2026-09-14', [['07:30', 'Utrenia']])]);
-    expect(out).toContain('UID:20260914T0730@bor-zh.ch');
+    expect(out).toContain('UID:20260914T0730-utrenia@bor-zh.ch');
   });
 
   it('păstrează UID-urile stabile când se inserează o slujbă mai devreme', () => {
     const inainte = ics([zi('2026-09-14', [['08:30', 'Sfânta Liturghie']])]);
     const dupa = ics([zi('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']])]);
-    expect(inainte).toContain('UID:20260914T0830@bor-zh.ch');
-    expect(dupa).toContain('UID:20260914T0830@bor-zh.ch');
+    expect(inainte).toContain('UID:20260914T0830-sfanta-liturghie@bor-zh.ch');
+    expect(dupa).toContain('UID:20260914T0830-sfanta-liturghie@bor-zh.ch');
+  });
+
+  it('dă UID-uri distincte la două slujbe care încep la aceeași oră', () => {
+    // Spovedanie în timpul Vecerniei — o seară obișnuită de parohie.
+    const out = ics([zi('2026-09-19', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie']])]);
+    const uids = [...out.matchAll(/UID:(\S+)/g)].map((m) => m[1]);
+    expect(uids).toHaveLength(2);
+    expect(new Set(uids).size).toBe(2);
+  });
+
+  it('nu confundă slujbe ale căror nume diferă doar prin diacritice', () => {
+    const a = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
+    expect(a).toContain('-sfanta-liturghie@bor-zh.ch');
   });
 });
 
@@ -1369,7 +1384,7 @@ Create `web/src/lib/ics.ts`:
 
 ```typescript
 import { etichetaSlujba, minute } from './schedule';
-import type { ZiSlujba } from './schema';
+import type { Slujba, ZiSlujba } from './schema';
 
 const CRLF = '\r\n';
 const DURATA_IMPLICITA = 90; // minutes, for the last service of a day
@@ -1411,6 +1426,21 @@ function impatureste(linie: string): string {
   }
   bucati.push(curenta);
   return bucati.join(`${CRLF} `);
+}
+
+/**
+ * ASCII slug of the service name, for the UID. Romanian diacritics are folded
+ * rather than stripped so that Sfânta and Sfanta cannot produce the same slug.
+ */
+function slugSlujba(s: Slujba): string {
+  const nume = s.slujba === 'Altceva' ? (s.detaliu ?? '') : s.slujba;
+  return nume
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()
+    .slice(0, 40) || 'slujba';
 }
 
 function laOraIcs(ora: string): string {
@@ -1489,7 +1519,10 @@ export function genereazaIcs(
       linii.push(
         'BEGIN:VEVENT',
         // HHMM, not HHMMSS — laOraIcs returns HHMM00, so the first four suffice.
-        `UID:${laDataIcs(z.data)}T${laOraIcs(s.ora).slice(0, 4)}@bor-zh.ch`,
+        // The slug is what keeps two services that share a start time apart:
+        // 17:00 Spovedanie and 17:00 Vecernie are one ordinary parish evening,
+        // and identical UIDs would make subscribers' calendars merge them.
+        `UID:${laDataIcs(z.data)}T${laOraIcs(s.ora).slice(0, 4)}-${slugSlujba(s)}@bor-zh.ch`,
         `DTSTAMP:${opts.dtstamp}`,
         `DTSTART;TZID=Europe/Zurich:${laDataIcs(z.data)}T${laOraIcs(s.ora)}`,
         `DTEND;TZID=Europe/Zurich:${laDataIcs(sfarsit.data)}T${laOraIcs(sfarsit.ora)}`,
