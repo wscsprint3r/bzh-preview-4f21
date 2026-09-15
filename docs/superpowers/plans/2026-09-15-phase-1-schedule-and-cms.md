@@ -3040,7 +3040,41 @@ jobs:
 
 This consumes about 30 of the 500 monthly builds.
 
-- [ ] **Step 6: Write the README**
+- [ ] **Step 6: Replace the scaffold's agent instructions**
+
+`npm create astro` left a `CLAUDE.md` and an `AGENTS.md`, each 22 lines about running the dev server. They load automatically into every agent session that touches this repo, so they read as the project's instructions while containing none of its actual rules — which is worse than having no file. Replace **both** with the same content (keep them identical; `AGENTS.md` is the vendor-neutral name):
+
+```markdown
+# bor-zh.ch — working rules
+
+Static Astro site for the Romanian Orthodox parish of St Nicholas, Zürich.
+Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.md`.
+
+## Rules that are not negotiable
+
+- **Diacritics are comma-below.** ș U+0219 and ț U+021B, never the Turkish cedilla
+  forms ş U+015F and ţ U+0163. Check any Romanian string you add.
+- **Dates are `YYYY-MM-DD` strings; times are `HH:MM` local strings.** Never a UTC
+  instant for a service — a Liturgy at 10:00 is at 10:00 across a DST change.
+  `aziLaZurich()` and `oraLaZurich()` in `src/lib/week.ts` are the only
+  timezone-aware functions; everything downstream takes plain strings.
+- **`#B08B3E` and `#C8A45C` are ornament only — never text** at any size. They fail
+  WCAG AA (2.95:1). Use `--gold-text` (#8A6A28). `src/lib/tokens.test.ts` enforces it.
+- **The parent directory is not part of this repository.** It holds ~6 GB of forensic
+  backups of the compromised server and a file of database credentials. Never `git add`
+  anything from outside this root, and never weaken `.gitignore`.
+- **Import Zod as `astro/zod`**, never a direct `zod` dependency — a second copy
+  breaks `instanceof` checks.
+- The service names in `public/admin/config.yml` must stay identical to `NUME_SLUJBE`
+  in `src/lib/schema.ts`. A test fails if they drift.
+
+## Commands
+
+`npm run dev` · `npm test` · `npm run test:all` (build + integration) · `npm run check`
+· `npm run budget`. Use `astro dev --background`, then `astro dev stop|status|logs`.
+```
+
+- [ ] **Step 7: Write the README**
 
 Create `web/README.md`:
 
@@ -3084,18 +3118,18 @@ e-mailul primit de la GitHub, care spune ce fișier are problema.
   `NUME_SLUJBE` din `src/lib/schema.ts`.
 ```
 
-- [ ] **Step 7: Push and verify the deployment**
+- [ ] **Step 8: Push and verify the deployment**
 
 ```bash
 cd /Users/stefan/Work/stuff/site-bzh/web
-git add public/_headers scripts/check-budget.mjs .github/ README.md package.json
+git add public/_headers scripts/check-budget.mjs .github/ README.md CLAUDE.md AGENTS.md package.json
 git commit -m "chore: security headers, CI with performance budget, nightly rebuild"
 git push -u origin main
 ```
 
 Expected: CI goes green; Cloudflare Pages deploys; `https://<project>.pages.dev/` serves the homepage.
 
-- [ ] **Step 8: Verify the headers and the whole phase**
+- [ ] **Step 9: Verify the headers and the whole phase**
 
 ```bash
 curl -sI https://<project>.pages.dev/ | grep -i -E 'content-security|strict-transport|x-content-type'
@@ -3111,7 +3145,7 @@ Then run the acceptance checks for Phase 1:
 3. Complete Task 12 Step 9: publish a service day through `/admin/` and watch it reach the live page.
 4. Load the homepage with JavaScript disabled; confirm all three weeks are visible.
 
-- [ ] **Step 9: Commit any fixes and tag**
+- [ ] **Step 10: Commit any fixes and tag**
 
 ```bash
 git tag -a phase-1 -m "Phase 1: liturgical schedule and CMS"
