@@ -71,6 +71,57 @@ describe('ziSchema', () => {
     const r = ziSchema.safeParse({ slujbe: [{ ora: '10:00', slujba: 'Brunch' }] });
     expect(r.success).toBe(false);
   });
+
+  it('normalizează ora la două cifre', () => {
+    const r = ziSchema.parse({ slujbe: [{ ora: '7:30', slujba: 'Utrenia' }] });
+    expect(r.slujbe[0].ora).toBe('07:30');
+  });
+
+  it('lasă ora canonică neschimbată', () => {
+    const r = ziSchema.parse({ slujbe: [{ ora: '07:30', slujba: 'Utrenia' }] });
+    expect(r.slujbe[0].ora).toBe('07:30');
+  });
+
+  it('respinge o cheie necunoscută în zi', () => {
+    // The quiet failure this exists to stop: `praznicmare` never becomes
+    // `praznic_mare`, so the day silently loses its feast styling.
+    const r = ziSchema.safeParse({
+      praznicmare: true,
+      slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0].message).toContain('Câmp necunoscut');
+      expect(r.error.issues[0].message).toContain('praznicmare');
+    }
+  });
+
+  it('respinge o cheie necunoscută într-o slujbă', () => {
+    const r = ziSchema.safeParse({
+      slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie', slujbaa: 'Utrenia' }],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0].message).toContain('slujbaa');
+    }
+  });
+
+  // Deliberate, not an oversight, and the reasoning is in schema.ts above
+  // `ziSchema`: declaring `$schema` in the shape fails EVERY build, because
+  // Astro calls `.extend({ $schema })` and Zod 4 will not overwrite an existing
+  // key on a schema that carries refinements. This test exists so that anyone
+  // who "fixes" it by adding the key gets a red test pointing at that comment,
+  // rather than a red build pointing into Zod's internals.
+  it('respinge $schema, deși editoarele îl pot scrie', () => {
+    const r = ziSchema.safeParse({
+      $schema: '../../../.astro/collections/slujbe.schema.json',
+      slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0].message).toContain('$schema');
+    }
+  });
 });
 
 /** The messages the schema actually emits, rather than a copy of them. */
@@ -111,6 +162,7 @@ describe('diacritice', () => {
       ...mesaje({ slujbe: [{ ora: '0830', slujba: 'Utrenia' }] }),
       ...mesaje({ slujbe: [] }),
       ...mesaje({ praznic_mare: true, slujbe: [{ ora: '10:00', slujba: 'Sf\u00E2nta Liturghie' }] }),
+      ...mesaje({ praznicmare: true, slujbe: [{ ora: '10:00', slujba: 'Utrenia' }] }),
     ].join('');
     // The Turkish cedilla look-alikes, written as escapes so that this guard
     // cannot be defeated by pasting the very characters it is meant to reject:
