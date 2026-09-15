@@ -3123,6 +3123,18 @@ Add to `package.json` scripts: `"budget": "node scripts/check-budget.mjs"`.
 Run: `cd web && npm run build && npm run budget`
 Expected: every line reads `OK`, exit code 0.
 
+- [ ] **Step 2b: Wire axe over the built pages**
+
+Install `@axe-core/cli` (or `axe-core` plus a headless driver) as a dev dependency and add:
+
+```json
+{ "scripts": { "a11y": "astro build && axe dist/index.html dist/program/index.html --exit" } }
+```
+
+Run it locally once and put the output in your report. It must report **zero violations**, not merely zero errors — a "serious" colour-contrast violation is exactly what this exists to catch.
+
+Why it is not redundant with the token tests: those assert every text colour is measurably safe against the background *its own block declares*. A colour inherited onto an ancestor's background — `--ink` on `--oxblood` is 1.39:1 — is invisible to any parser and visible to a real engine. The two together are the guarantee; neither alone is.
+
 - [ ] **Step 3: Write CI**
 
 Create `web/.github/workflows/ci.yml`:
@@ -3151,6 +3163,12 @@ jobs:
       - run: npm test
       - run: npm run test:build   # builds, then runs the dist/ integration tests
       - run: npm run budget
+      # A static scanner can prove every text colour is safe on the surface its own
+      # block declares. It cannot resolve a background inherited from an ancestor —
+      # that is a cascade computation. axe runs a real engine over the built pages
+      # and catches exactly that remainder. Spec §13 requires Lighthouse a11y 100;
+      # this is what makes it a gate rather than a hope.
+      - run: npm run a11y
 ```
 
 `TZ: Europe/Zurich` matters: `aziLaZurich` is explicit about its timezone, but pinning the runner removes any doubt about what "today" meant during a build.
