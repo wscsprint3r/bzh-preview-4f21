@@ -30,6 +30,10 @@ Every task's requirements implicitly include this section.
 - **All user-facing copy is Romanian**, with correct comma-below diacritics (ș ț, not ş ţ).
 - **Performance budget** (spec §13), enforced in CI by Task 13: homepage HTML ≤ 30 KB, CSS ≤ 15 KB, JS ≤ 3 KB, ≤ 12 requests. Lighthouse accessibility 100. Because `inlineStylesheets: 'always'` puts the CSS inside the document, Task 13 enforces the first two as one combined **45 KB** limit on `dist/index.html`; the reasoning is in that task.
 - **Cloudflare Pages free tier:** 20,000 files/deploy, 25 MiB/file, 500 builds/month, 2,000 static redirects.
+- **Predicted test counts in this plan are sketches, not contracts.** Each task's test block
+  shows the cases that motivated the design; implementations have consistently needed more.
+  Write the tests the code needs and report the real number. Where a stated count and a
+  sound implementation disagree, the plan is what is wrong.
 - **Commits:** conventional-commit prefixes (`feat:`, `test:`, `chore:`, `docs:`). If an AI agent makes the commit, append `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
 
 ### Deviations from the spec — read before starting
