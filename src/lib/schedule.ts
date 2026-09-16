@@ -29,6 +29,55 @@ import { partiData } from './date-ro';
 import type { Slujba, ZiSlujba } from './schema';
 import { cheieSaptamana, inceputSaptamana, sfarsitSaptamana } from './week';
 
+/**
+ * The least a service has to be for the three questions below to have answers:
+ * a start time.
+ *
+ * `Slujba` is that plus what the service is called; the projection the homepage
+ * embeds for its client script is that plus the name ALREADY RENDERED. Both are
+ * honest answers to "what happens at 17:00", and none of the functions taking
+ * this reads anything beyond `ora` - so none of them asks for anything more.
+ * Widening them is what lets the browser run the same decision as the build over
+ * a smaller record, instead of a second copy of the rule over a bigger one.
+ */
+export type CuOra = { ora: string };
+
+/**
+ * The part of a day that deciding "what happens next" actually reads.
+ *
+ * `urmatoareaSlujba` takes this rather than a whole `ZiSlujba` because from Task
+ * 10 the same call also runs in the browser, over a projection of the schedule
+ * embedded in the page. That projection carries these four fields and no others
+ * - a `praznic` or a `note` would be bytes on every homepage for a card that
+ * never renders them. Naming the subset here is what keeps the projection honest
+ * rather than cast into shape: drop `anulat` from it and this stops compiling,
+ * instead of quietly putting a cancelled Liturgy under "next service".
+ *
+ * `ZiSlujba` is assignable to it, so every server-side caller is unchanged.
+ */
+export type ZiDinProgram<S extends CuOra = Slujba> = Pick<
+  ZiSlujba,
+  'data' | 'anulat' | 'locatie'
+> & { slujbe: S[] };
+
+/** A service as the card shows it: a time, and the name `etichetaSlujba` gave it. */
+export type SlujbaPeCard = CuOra & { nume: string };
+
+/**
+ * A day as the homepage embeds it for the client, so that the next-service card
+ * can be recomputed once the build's clock has stopped being now.
+ *
+ * Every word the card displays arrives ALREADY RENDERED - `titlu` is "Duminică,
+ * 20 septembrie" and `nume` is what `etichetaSlujba` returned, both written by
+ * the server that was going to write them anyway. The browser is sent the
+ * DECISION and not the rendering: which service is next stays `urmatoareaSlujba`
+ * and `slujbeLaAceeasiOra`, the same functions on both sides, so the two answers
+ * can differ only because the clock moved. A string copied cannot be formatted
+ * differently from the one it was copied from, and `NUME_LUNI` never has to
+ * cross the wire to say "septembrie" twice.
+ */
+export type ZiPentruCard = ZiDinProgram<SlujbaPeCard> & { titlu: string };
+
 export type Saptamana = {
   cheie: string;
   luni: string;
@@ -108,6 +157,31 @@ export function punctFinal(valoare: string): string {
 }
 
 /**
+ * A Romanian enumeration of names: "A", "A și B", "A, B și C".
+ *
+ * Written out rather than handed to `Intl.ListFormat`, for the reason
+ * `date-ro.ts` hardcodes its month names: ICU data differs between Node builds
+ * and between a laptop and the CI container, and here it would also differ
+ * between the server and whatever browser runs the same composition. Romanian
+ * puts no comma before the final `și`, which is the whole rule.
+ *
+ * Here rather than as an expression on the homepage, because from Task 10 the
+ * next-service card is composed TWICE - once by `index.astro` at build time and
+ * once by the week picker's script when the clock has moved past that service.
+ * Two copies of one sentence rule is exactly how the three spellings of a
+ * service sort came to disagree; see `slujbeInOrdine`.
+ *
+ * The empty list yields `''`, not `undefined`. The card is never rendered
+ * without a service, so that branch is unreachable today - and the word
+ * "undefined" on the homepage is what it would cost on the day it stopped being.
+ */
+export function listaRomaneasca(nume: string[]): string {
+  if (nume.length === 0) return '';
+  if (nume.length === 1) return nume[0];
+  return `${nume.slice(0, -1).join(', ')} și ${nume[nume.length - 1]}`;
+}
+
+/**
  * A day's services in the order they happen.
  *
  * `ziSchema` neither sorts `slujbe` nor requires them sorted - YAML keeps the
@@ -129,7 +203,7 @@ export function punctFinal(valoare: string): string {
  * become an excuse to reorder a same-time pair, which carries meaning this
  * module cannot see.
  */
-export function slujbeInOrdine(slujbe: Slujba[]): Slujba[] {
+export function slujbeInOrdine<S extends CuOra>(slujbe: S[]): S[] {
   return [...slujbe].sort((a, b) => minute(a.ora) - minute(b.ora));
 }
 
@@ -198,11 +272,11 @@ export function grupeazaPeSaptamani(zile: ZiSlujba[]): Saptamana[] {
  * validated: a malformed one makes `acum` NaN, which skips the rest of today
  * and moves on - wrong, but not confidently wrong in the way a bad `azi` is.
  */
-export function urmatoareaSlujba(
-  zile: ZiSlujba[],
+export function urmatoareaSlujba<S extends CuOra>(
+  zile: ZiDinProgram<S>[],
   azi: string,
   ora: string,
-): (Slujba & { data: string }) | null {
+): (S & { data: string }) | null {
   // The other two functions here validate their date for free, by handing it to
   // cheieSaptamana/inceputSaptamana. This one only ever string-compares, so
   // without this call it would be the single unvalidated date path in the
@@ -248,7 +322,7 @@ export function urmatoareaSlujba(
  * Order is the caller's: `slujbe` is not sorted here, so the editor's order
  * survives, exactly as it does through `grupeazaPeSaptamani`.
  */
-export function slujbeLaAceeasiOra(slujbe: Slujba[], ora: string): Slujba[] {
+export function slujbeLaAceeasiOra<S extends CuOra>(slujbe: S[], ora: string): S[] {
   const cand = minute(ora);
   return slujbe.filter((s) => minute(s.ora) === cand);
 }

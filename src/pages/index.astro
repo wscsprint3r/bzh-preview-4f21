@@ -2,12 +2,15 @@
 import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import BandaSaptamanii from '../components/BandaSaptamanii.astro';
+import SelectorSaptamana from '../components/SelectorSaptamana.astro';
 import { formatIntervalSaptamana, numeLuna, numeZi, ziuaDinLuna } from '../lib/date-ro';
 import {
   etichetaSlujba,
+  listaRomaneasca,
   saptamaniViitoare,
   slujbeLaAceeasiOra,
   urmatoareaSlujba,
+  type ZiPentruCard,
 } from '../lib/schedule';
 import { aziLaZurich, oraLaZurich } from '../lib/week';
 
@@ -49,10 +52,14 @@ const deopotriva = urmatoarea
   ? slujbeLaAceeasiOra(ziuaUrmatoare?.slujbe ?? [urmatoarea], urmatoarea.ora)
   : [];
 const nume = deopotriva.map(etichetaSlujba);
-// Romanian list: "A", "A și B", "A, B și C". Written out rather than joined
-// with a separator so the card reads as a sentence a parishioner would say.
-const impreuna =
-  nume.length > 1 ? `${nume.slice(0, -1).join(', ')} și ${nume[nume.length - 1]}` : nume[0];
+/*
+ * Romanian list: "A", "A și B", "A, B și C". This was an expression on this
+ * line until Task 10; it is a function in `schedule.ts` because the week
+ * picker's script composes the same sentence in the browser once the clock has
+ * moved past this service, and one sentence rule written twice is exactly how
+ * two renderings of the same evening come to disagree.
+ */
+const impreuna = listaRomaneasca(nume);
 
 /*
  * The card names the place only when the day has one, so on an ordinary day it
@@ -68,6 +75,52 @@ const impreuna =
  * the brief asked only that the band carry it.
  */
 const undeUrmatoarea = ziuaUrmatoare?.locatie ?? '';
+
+/*
+ * One composition of the day's heading, used by the card below and carried in
+ * the island for the script that rewrites it. Written once so the two can never
+ * be formatted differently.
+ */
+const titluZi = (d: string) => `${numeZi(d)}, ${ziuaDinLuna(d)} ${numeLuna(d)}`;
+
+/*
+ * The schedule the card can still be recomputed from, embedded for the week
+ * picker's script — spec §7, the half of it the week band does not cover.
+ *
+ * Everything from today onward and nothing else. `urmatoareaSlujba` never looks
+ * behind `azi`, so this projection yields exactly the answer the full list
+ * would, for any clock at or after this build's — which is the only direction a
+ * clock moves. It is NOT the three weeks rendered below: were every day in those
+ * weeks cancelled, the card's answer would lie outside them.
+ *
+ * A projection rather than the days themselves: a `praznic` or a `note` would be
+ * bytes on every homepage for fields the card never renders, and `ZiPentruCard`
+ * is what stops the projection quietly losing `anulat` — which is the field that
+ * keeps a cancelled Liturgy from being announced as the next service.
+ */
+const program: ZiPentruCard[] = zile
+  .filter((z) => z.data >= azi)
+  .map((z) => ({
+    data: z.data,
+    anulat: z.anulat,
+    locatie: z.locatie,
+    // Rendered here, not in the browser: `etichetaSlujba` owns the `Altceva`
+    // escape hatch, and the card must never be the one place that word reaches
+    // a page. Shipping the rule instead of its output would put a second copy
+    // of it behind the one guard that cannot see it.
+    slujbe: z.slujbe.map((s) => ({ ora: s.ora, nume: etichetaSlujba(s) })),
+    titlu: titluZi(z.data),
+  }));
+
+/*
+ * `<` escaped, so that a `locatie` or a `detaliu` a volunteer typed can never
+ * close this script element early. Built from `String.fromCharCode(92)` rather
+ * than written as an escape sequence: a backslash followed by u and four hex
+ * digits is decoded into the character it names on the way to disk in this repo
+ * (see CLAUDE.md), so the literal form would land here as a bare `<` and do the
+ * exact opposite of its job.
+ */
+const insula = JSON.stringify(program).replaceAll('<', `${String.fromCharCode(92)}u003C`);
 ---
 
 <Base titlu="Bine ați venit">
@@ -90,12 +143,33 @@ const undeUrmatoarea = ziuaUrmatoare?.locatie ?? '';
 
   <div class="container">
     {urmatoarea && (
-      <p class="urm">
-        <span class="eyebrow">Următoarea slujbă</span>
-        <b>{numeZi(urmatoarea.data)}, {ziuaDinLuna(urmatoarea.data)} {numeLuna(urmatoarea.data)}</b>
-        <span class="urm-slujbe">{urmatoarea.ora} — {impreuna}</span>
-        {undeUrmatoarea && <span class="urm-loc">la {undeUrmatoarea}</span>}
-      </p>
+      <>
+        <p class="urm" data-urm>
+          <span class="eyebrow">Următoarea slujbă</span>
+          <b data-urm-zi>{titluZi(urmatoarea.data)}</b>
+          {/*
+            Three spans where one used to do, because the week picker's script
+            rewrites this card in the browser. Every Romanian word and every
+            separator on it — the em dash here, the "la" below — exists exactly
+            once, in this file, where a reader can see it; the script only writes
+            values into the spans that hold them. A script composing the same
+            line itself would be a second copy of this sentence, and the two
+            would drift the first time anyone edited one of them.
+          */}
+          <span class="urm-slujbe"><span data-urm-ora>{urmatoarea.ora}</span> — <span data-urm-nume>{impreuna}</span></span>
+          {/*
+            Always rendered and `hidden` when the day has no location, rather
+            than rendered conditionally: the script then has a span to fill
+            instead of an element to build, and with JavaScript off `hidden`
+            leaves exactly what the conditional used to produce.
+          */}
+          <span class="urm-loc" data-urm-loc hidden={!undeUrmatoarea}>la <span data-urm-unde>{undeUrmatoarea}</span></span>
+        </p>
+        {/* `is:inline` is the point, not a concession: this is data, not a
+            module for Astro to bundle. Stated explicitly so the intent is a
+            decision in the source rather than a hint in the build log. */}
+        <script is:inline type="application/json" data-program set:html={insula}></script>
+      </>
     )}
 
     {/*
@@ -114,12 +188,15 @@ const undeUrmatoarea = ziuaUrmatoare?.locatie ?? '';
     {saptamani.length === 0 ? (
       <p class="gol">Programul următoarei perioade nu a fost încă publicat. <a href="/program/">Vezi programul complet</a>.</p>
     ) : (
-      saptamani.map((s) => (
-        <section data-saptamana={s.cheie} aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}>
-          <p class="interval">{formatIntervalSaptamana(s.luni, s.duminica)}</p>
-          <BandaSaptamanii saptamana={s} />
-        </section>
-      ))
+      <>
+        <SelectorSaptamana />
+        {saptamani.map((s) => (
+          <section data-saptamana={s.cheie} aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}>
+            <p class="interval">{formatIntervalSaptamana(s.luni, s.duminica)}</p>
+            <BandaSaptamanii saptamana={s} />
+          </section>
+        ))}
+      </>
     )}
 
     <p class="tot"><a href="/program/">Programul complet →</a></p>
@@ -141,12 +218,22 @@ const undeUrmatoarea = ziuaUrmatoare?.locatie ?? '';
      adding one costs two requests, which would put this page over spec §13's
      limit of 12 once Task 10's script lands. See Task 7's request arithmetic. */
   .hero-verset { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
+  /* The user-agent/author-origin trap `SelectorSaptamana` documents, in its
+     second place: an author `display: flex` beats the UA stylesheet's
+     `[hidden] { display: none }` outright — author origin wins over UA origin
+     whatever the specificity — so without this rule the script could not hide a
+     card whose service has already happened. It would set the attribute and
+     nothing at all would change on screen. Measured in a browser, both ways
+     round; see the report. */
+  .urm[hidden] { display: none; }
   .urm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; border: 1px solid var(--gold-lt); background: var(--raised); padding: 1rem 1.25rem; margin-block: 1.75rem 0; }
   .urm b { font-family: var(--display); font-size: 1.25rem; color: var(--oxblood); }
-  /* By class, not `> span:last-child`. The location span below is conditional,
-     so a positional selector would mean "the service times" on most days and
-     "the address" on the days that have one, and would hand the times the
-     colour of whichever element happened to come last. */
+  /* By class, not `> span:last-child`. The location span below is shown only
+     on the days that have a `locatie`, so a positional selector would mean "the
+     service times" on most days and "the address" on those, and would hand the
+     times the colour of whichever element happened to come last. Since Task 10
+     that span is always PRESENT and merely `hidden`, which makes a positional
+     selector wrong every day rather than most days. */
   .urm-slujbe { color: var(--muted); }
   /* Oxblood, not muted: this line only appears when the service has moved, and
      it is the one fact on the card that a regular cannot supply from memory.

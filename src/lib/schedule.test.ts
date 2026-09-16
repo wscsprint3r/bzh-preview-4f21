@@ -6,6 +6,7 @@ import { AZI_FIXTURA, ZILE_FIXTURA } from './fixturi';
 import {
   etichetaSlujba,
   grupeazaPeSaptamani,
+  listaRomaneasca,
   minute,
   punctFinal,
   saptamaniViitoare,
@@ -509,5 +510,42 @@ describe('punctFinal', () => {
       .flatMap((s) => s.zile)
       .find((z) => z.data === '2026-09-30');
     expect(prinGrupare?.locatie).toBe('Capela Sf. Gallus, Winterthur.');
+  });
+});
+
+describe('listaRomaneasca', () => {
+  /*
+   * Această funcție era o expresie scrisă direct în `index.astro`. Din Task 10
+   * cardul „următoarea slujbă" se recalculează și în browser, așa că expresia ar
+   * fi existat în două locuri — exact forma în care au ajuns să se contrazică
+   * cele trei sortări pe care le-a unificat `slujbeInOrdine`.
+   */
+  it('un singur nume rămâne neatins', () => {
+    expect(listaRomaneasca(['Vecernie'])).toBe('Vecernie');
+  });
+
+  it('două nume se leagă cu „și", fără virgulă', () => {
+    expect(listaRomaneasca(['Spovedanie', 'Vecernie'])).toBe('Spovedanie și Vecernie');
+  });
+
+  it('trei nume: virgulă între primele, „și" înaintea ultimului', () => {
+    expect(listaRomaneasca(['Utrenia', 'Spovedanie', 'Vecernie'])).toBe(
+      'Utrenia, Spovedanie și Vecernie',
+    );
+  });
+
+  it('lista goală dă șirul gol, nu „undefined"', () => {
+    // Pagina nu randează cardul fără o slujbă următoare, dar o funcție care
+    // întoarce `undefined` pune cuvântul „undefined" pe pagină în ziua în care
+    // se schimbă paza de deasupra ei.
+    expect(listaRomaneasca([])).toBe('');
+  });
+
+  it('nu pune sedilă în legătură', () => {
+    // Legătura este „și": s cu virgulă dedesubt, U+0219. Garda e scrisă pe
+    // codepoint, nu pe glifă, ca fișierul să rămână scanabil pentru sedile.
+    const legat = listaRomaneasca(['A', 'B']);
+    expect(legat).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    expect(legat).toMatch(/\u0219/);
   });
 });

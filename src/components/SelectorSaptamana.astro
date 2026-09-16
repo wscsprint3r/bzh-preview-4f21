@@ -1,0 +1,196 @@
+---
+/**
+ * The 3 KB that makes a frozen build tell the truth about today.
+ *
+ * A static site is correct at deploy time and drifts from then on: "this week"
+ * and "the next service" both depend on the clock, and the build's clock stops.
+ * Spec §7 is that problem. The answer here is deliberately NOT a date stamped
+ * into the page at build time and compared later - it is that the server renders
+ * EVERY week it knows about, correct without a line of JavaScript, and this
+ * script narrows that to the one a visitor came for.
+ *
+ * So: no props. The component reads the week sections already in the DOM
+ * (`section[data-saptamana]`) and the schedule the homepage embedded next to its
+ * card, which is what stops it from ever disagreeing with what the page
+ * rendered.
+ *
+ * PROGRESSIVE ENHANCEMENT IS THE CONTRACT, AND HIDING IS THE ENHANCEMENT.
+ * Without JavaScript every week is visible, this bar is not, and the page is
+ * correct - wider than it needs to be, never wrong. Three consequences follow
+ * and none of them may be "tidied up":
+ *
+ * - The bar ships `hidden` and is revealed by script. Never the reverse.
+ * - When every rendered week is already past, this reveals nothing rather than
+ *   promising a current week that does not exist.
+ * - The weeks this hides stop being audited by `npm run a11y`, because axe skips
+ *   hidden elements and drives Chrome with JavaScript ON. Task 13's
+ *   JavaScript-off pass is what covers them. Neither pass alone is the guarantee.
+ *
+ * ONE SCRIPT, TWO JOBS, ON PURPOSE. The card and the week band are the same
+ * problem - a build-time answer to a question about now - and they answer it
+ * from ONE reading of the clock, which is what stops them disagreeing about
+ * which day it is at one minute past midnight.
+ *
+ * Measured rather than assumed: at 2,982 bytes this lands under Vite's 4 KB
+ * inline threshold, so Astro writes it into the page instead of emitting
+ * `dist/_astro/*.js`. It therefore costs NO request - the homepage stays at the
+ * 10 Task 9 measured, against spec §13's cap of 12 - and is paid for in HTML
+ * instead, on both pages, uncached. Grow it past 4 KB and that reverses: a file,
+ * a request, and a cache entry. `/program/` carries the card half for nothing,
+ * which is the price of the single clock read.
+ */
+---
+
+<div class="ss" hidden>
+  <button type="button" data-ss-prev aria-label="Săptămâna precedentă">‹</button>
+  <span data-ss-eticheta aria-live="polite"></span>
+  <button type="button" data-ss-next aria-label="Săptămâna următoare">›</button>
+</div>
+
+<script>
+  import { alegeSaptamana } from '../lib/week-picker';
+  import { aziLaZurich, cheieSaptamana, oraLaZurich } from '../lib/week';
+  import {
+    listaRomaneasca,
+    slujbeLaAceeasiOra,
+    urmatoareaSlujba,
+    type ZiPentruCard,
+  } from '../lib/schedule';
+
+  // The only clock read on the client, exactly as `aziLaZurich`/`oraLaZurich`
+  // are the only two on the server. Read once so the week band and the card
+  // cannot answer for two different minutes.
+  const azi = aziLaZurich();
+
+  /* ------------------------------------------------------------------ *
+   * 1. Reveal the week that contains today.
+   * ------------------------------------------------------------------ */
+  const bara = document.querySelector<HTMLElement>('.ss');
+  const sectiuni = [...document.querySelectorAll<HTMLElement>('section[data-saptamana]')];
+
+  // `> 1`, not `> 0`. With a single rendered week there is nothing to select:
+  // both arrows would be disabled and the bar would restate the heading already
+  // under it. That is not a hypothetical - the parish's published schedule is
+  // one week for most of the year, so `> 0` would put a dead control on the
+  // homepage on an ordinary day.
+  if (bara && sectiuni.length > 1) {
+    const chei = sectiuni.map((s) => s.dataset.saptamana!);
+    const start = alegeSaptamana(chei, cheieSaptamana(azi));
+
+    // Every week stays visible when all of them are in the past, and when
+    // JavaScript never runs at all. Hiding is the enhancement, not the baseline.
+    if (start !== -1) {
+      let i = start;
+      const eticheta = bara.querySelector<HTMLElement>('[data-ss-eticheta]')!;
+      const prev = bara.querySelector<HTMLButtonElement>('[data-ss-prev]')!;
+      const next = bara.querySelector<HTMLButtonElement>('[data-ss-next]')!;
+
+      const arata = () => {
+        sectiuni.forEach((s, j) => { s.hidden = j !== i; });
+        const titlu = sectiuni[i].getAttribute('aria-label') ?? '';
+        eticheta.textContent = titlu.replace(/^Săptămâna\s*/, '');
+        prev.disabled = i === 0;
+        next.disabled = i === sectiuni.length - 1;
+      };
+
+      prev.addEventListener('click', () => { if (i > 0) { i -= 1; arata(); } });
+      next.addEventListener('click', () => { if (i < sectiuni.length - 1) { i += 1; arata(); } });
+
+      bara.hidden = false;
+      arata();
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 2. Recompute the next-service card.
+   *
+   * The card is the first thing on the homepage and the one a visitor reads to
+   * answer "when is the next service". Built at 03:00 it announces whatever was
+   * next at 03:00, so at 20:00 on a Sunday it names a Liturgy that ended ten
+   * hours earlier, under a heading promising the next one. A wrong time stated
+   * confidently is the worst output this site can produce.
+   *
+   * The decision is not re-implemented here: `urmatoareaSlujba`,
+   * `slujbeLaAceeasiOra` and `listaRomaneasca` are the very functions
+   * `index.astro` called at build time, so the two answers can differ only
+   * because the clock moved. The RENDERING is not here at all - the day heading
+   * and every service name arrive already written, and every Romanian word on
+   * the card stays in the page's markup. This only moves values into the spans
+   * that hold them.
+   *
+   * Without JavaScript the card keeps its build-time value. That is a real
+   * limit, bounded by Task 13 rebuilding every six hours, and it is a decision
+   * rather than an oversight: the alternative is a card that is blank until a
+   * script runs, which is worse for the reader it is meant to serve.
+   * ------------------------------------------------------------------ */
+  const card = document.querySelector<HTMLElement>('[data-urm]');
+  const insula = document.querySelector<HTMLElement>('[data-program]');
+
+  if (card && insula) {
+    const program = JSON.parse(insula.textContent || '[]') as ZiPentruCard[];
+    const urm = urmatoareaSlujba(program, azi, oraLaZurich());
+
+    if (!urm) {
+      // The schedule ran out since the build. The card would otherwise name a
+      // service that has already happened; nothing is better than that.
+      card.hidden = true;
+    } else {
+      const ziua = program.find((z) => z.data === urm.data);
+      // Names as `etichetaSlujba` already wrote them; only the CHOICE of which
+      // ones is made here, by the same function the build called.
+      const nume = slujbeLaAceeasiOra(ziua?.slujbe ?? [urm], urm.ora).map((s) => s.nume);
+      const unde = ziua?.locatie ?? '';
+
+      const pune = (cheie: string, text: string) => {
+        const el = card.querySelector<HTMLElement>(`[data-urm-${cheie}]`);
+        if (el) el.textContent = text;
+      };
+
+      // The heading the server already wrote for that day, not a second
+      // rendering of it. `ziua` is always found - `urm` came out of `program` -
+      // so the guard only keeps a malformed island from blanking the date.
+      if (ziua) pune('zi', ziua.titlu);
+      pune('ora', urm.ora);
+      pune('nume', listaRomaneasca(nume));
+      pune('unde', unde);
+
+      const loc = card.querySelector<HTMLElement>('[data-urm-loc]');
+      if (loc) loc.hidden = unde === '';
+    }
+  }
+</script>
+
+<style>
+  /* `[hidden]` lives in the user-agent stylesheet, and an author `display`
+     declaration beats it whatever its specificity - author origin wins over UA
+     origin outright. So `.ss { display: flex }` would leave this bar visible for
+     every visitor without JavaScript, which is the one state this component
+     exists to keep clean. Measured in a real browser, both ways round; see the
+     report. The same trap is answered in `index.astro` for `.urm`.
+
+     The week `<section>`s need no such rule: nothing in this project gives them
+     a `display`, so the UA rule still applies to them. */
+  .ss[hidden] { display: none; }
+  .ss { display: flex; align-items: center; gap: 1rem; padding-block: 0.75rem; border-bottom: 1px solid var(--rule); }
+  .ss span { font-family: var(--display); font-size: 1.125rem; font-weight: 600; color: var(--oxblood); }
+  /* NO `outline` DECLARATION HERE, and none may be added. Astro scopes this
+     block with a `data-astro-cid-…` attribute, so this rule ships at (0,3,1),
+     while global.css's focus ring is `:where(a, button, [tabindex]):focus-visible`
+     - `:where()` contributes nothing, so it is (0,1,0). These are the first
+     non-link controls on the site, and an `outline: none` here would delete
+     their focus ring with no test, no axe violation and no build failure to
+     show for it. Measured on the built page: the focused button computes
+     `rgb(107, 31, 38) solid 2px` with a 2px offset. */
+  /* `font-family` is not decoration here. A button does not inherit the page
+     font: measured on the built page, these two chevrons were rendering in
+     Arial while every other character around them was Spectral. The fallback
+     chain is the page's own, so a face without U+2039/U+203A costs a Georgia
+     chevron rather than a missing glyph. */
+  .ss button { background: none; font-family: var(--body); border: 1px solid var(--rule); color: var(--oxblood); font-size: 1rem; line-height: 1; padding: 0.35rem 0.7rem; cursor: pointer; }
+  /* `--rule` is 1.30:1 on the page and would fail 4.5:1 as text. A disabled
+     control is exempt from WCAG 1.4.3 and axe skips it, which is the whole
+     reason the state is legible AS disabled: the arrow fades rather than
+     changing shape. It is never the only signal - the button is genuinely
+     `disabled`, so it is unreachable by keyboard and announced as such. */
+  .ss button:disabled { color: var(--rule); cursor: default; }
+</style>
