@@ -169,6 +169,36 @@ function cssPagina(html) {
   return bucati.join('\n');
 }
 
+/**
+ * Every request the page's CSS can make, as an upper bound.
+ *
+ * ONE PER `@font-face` RULE, not one per `url()` inside it: a face lists woff2
+ * and woff, a browser fetches at most one of them, and none at all when the
+ * face's `unicode-range` never matches. Every OTHER `url()` - a background, a
+ * mask, a cursor, a `list-style-image` - is a request of its own, and so is
+ * each `@import`.
+ *
+ * Counting only the faces was SOUND ON THE DAY IT WAS WRITTEN, because all
+ * sixteen url()s in this build sit inside the eight faces. "Sound today" is the
+ * state that decays, and this file claims its count is an upper bound BY
+ * CONSTRUCTION, so the construction has to mean it: one background-image added
+ * to global.css would otherwise be a request nothing counted.
+ *
+ * `data:` URIs and bare fragments (`url(#id)`, an SVG filter reference) fetch
+ * nothing and are skipped.
+ */
+function cereriCss(css) {
+  const BLOC_FATA = /@font-face\s*\{[^}]*\}/g;
+  const fete = (css.match(BLOC_FATA) ?? []).length;
+  // Faces first, then imports, so an `@import url(...)` is not counted twice.
+  const restul = css.replace(BLOC_FATA, ' ');
+  const importuri = (restul.match(/@import\b[^;]*;/g) ?? []).length;
+  const urluri = [...restul.replace(/@import\b[^;]*;/g, ' ').matchAll(/\burl\(\s*[\x27"]?([^\x27")]+)/g)]
+    .map((m) => m[1].trim())
+    .filter((u) => !u.startsWith('data:') && !u.startsWith('#'));
+  return { fete, importuri, urluri };
+}
+
 console.log(`Buget pentru ${PAGINI.length} pagină(i) de vizitator:\n`);
 
 let jsUnion = 0;
@@ -230,7 +260,6 @@ for (const pagina of PAGINI) {
   for (const f of vazuteAici) {
     if (!fisiereVazute.has(f)) { fisiereVazute.add(f); jsUnion += statSync(join(DIST, f)).size; }
   }
-  if (!html.includes('<script')) jsUnion += 0;
 
   // ---- requests, as an upper bound ----
   const cereri = [`documentul ${pagina}`];
@@ -247,11 +276,18 @@ for (const pagina of PAGINI) {
   for (const m of html.matchAll(/<(img|iframe|video|audio|source|embed)\b([^>]*)>/gi)) {
     if (ATRIBUT(m[2], 'src') !== null || ATRIBUT(m[2], 'srcset') !== null) cereri.push(`${m[1]}`);
   }
-  const fete = [...cssPagina(html).matchAll(/@font-face\s*\{/g)].length;
+  const inDocument = cereri.length;
+  const { fete, importuri, urluri } = cereriCss(cssPagina(html));
   for (let i = 0; i < fete; i += 1) cereri.push('@font-face');
+  for (let i = 0; i < importuri; i += 1) cereri.push('@import');
+  for (const u of urluri) cereri.push(`url(${u})`);
 
   raporteaza(`  cereri (limită superioară) pentru ${pagina}`, cereri.length, BUGET_CERERI, 'cereri');
-  console.log(`          ${cereri.length - fete} în document + ${fete} @font-face`);
+  console.log(
+    `          ${inDocument} în document + ${fete} @font-face` +
+      `${importuri > 0 ? ` + ${importuri} @import` : ''}` +
+      `${urluri.length > 0 ? ` + ${urluri.length} url() în CSS` : ''}`,
+  );
   console.log('');
 }
 
