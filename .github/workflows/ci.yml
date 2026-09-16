@@ -68,7 +68,10 @@ jobs:
       #                    every real build it stays hidden and axe skips it.
       #                    This builds a throwaway site from `src/lib/fixturi.ts`
       #                    and is the ONLY pass that ever sees the bar, its
-      #                    label, its arrows or its focus ring.
+      #                    label, its arrows or its focus ring. It runs at three
+      #                    widths, 1100px among them: the 62rem week band WITH
+      #                    the bar showing exists in no other build, and until
+      #                    that width was added nothing here had audited it.
       #
       # Each of these also runs with the page's scripts disabled, which is the
       # only state in which every week is rendered and therefore auditable.

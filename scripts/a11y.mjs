@@ -61,12 +61,14 @@
  *   - anything display:none, visibility:hidden, opacity:0 or [hidden]. This is
  *     why the JavaScript-off condition exists at all: with scripts running, the
  *     week picker hides every week but one and axe skips them.
- *   - viewports other than the ones listed in `CONDITII`. This is the one
- *     disclaimer here that is also a check: `verificaPraguri` derives the
- *     breakpoints from the built CSS and fails when they cut out a band of
- *     widths no condition audits, so "unaudited branch" is a red build rather
- *     than a caveat. What stays uncovered is width WITHIN a band, and any axis
- *     that is not width.
+ *   - viewports other than the ones some pass in `TRECERI` really loads THESE
+ *     pages at. This is the one disclaimer here that is also a check:
+ *     `verificaPraguri` derives the breakpoints from the built CSS and fails
+ *     when they cut out a band of widths nothing runs in, so "unaudited branch"
+ *     is a red build rather than a caveat. It counts a width only where a pass
+ *     over this same set of pages uses it - a width declared in `CONDITII` and
+ *     run over some other build buys this one nothing. What stays uncovered is
+ *     width WITHIN a band, and any axis that is not width.
  *   - colour-scheme branches other than dark
  *   - ::before / ::after content, and SVG <text>
  *   - pages that were not built when the audit ran
@@ -245,6 +247,246 @@ export const CONDITII = {
 };
 
 /* -------------------------------------------------------------------------- *
+ * THE PASSES. A CONDITION NOTHING RUNS IS NOT COVERAGE.
+ *
+ * `CONDITII` above is a DECLARATION, and until this table existed the band
+ * check below was measured against it. Measured: add one line to `CONDITII` -
+ * `tableta: { latime: 850, … }` - and nothing else. No npm script, no argument,
+ * no pass. All three `dist` passes went green printing
+ * `lățimi auditate: 390, 756, 850, 1100px` while NOTHING had ever loaded a page
+ * at 850px, and the band that 850 was supposed to cover stayed audited by
+ * nobody. The check credited a declaration instead of an execution - the third
+ * time on this task that the audit wore the defect it exists to catch.
+ *
+ * The failure message even said what to do: "add a condition with a width from
+ * the band (AND PUT IT IN THE package.json SCRIPTS)". It instructed two things
+ * and checked the first. The parenthesis was the load-bearing half, and
+ * following the instruction exactly closed the guard without closing the gap.
+ *
+ * So the audited widths are read from HERE instead. One entry per pass; a pass
+ * is a command `package.json` actually runs, over one SET OF PAGES, with a named
+ * list of conditions. `auditeaza` takes a key from this table rather than a list
+ * of conditions, so the conditions a pass runs and the conditions its coverage
+ * is credited for cannot be two different things.
+ *
+ * SETS OF PAGES, NOT ONE GLOBAL LIST, and that is the second hole this closes.
+ * `dist` and the selector pass's scratch build are different builds with
+ * different markup, so a width audited on one proves nothing about the other.
+ * Crediting the whole matrix to both hid `BandaSaptamanii`'s `min-width: 62rem`
+ * branch completely: it renders in the fixture build with the picker bar
+ * VISIBLE - the only build where that bar is not `hidden` - and no selector
+ * width reached 992px, while in `dist/` the bar is hidden and axe skips it. The
+ * Holy Week row with the bar showing had never been audited by anything. It is
+ * `TRECERI.selector`'s third condition now.
+ *
+ * WHAT IS ASSERTED ABOUT THIS TABLE, on every run, before the browser opens -
+ * each one a way a declaration can drift from what executes:
+ *
+ *   - every entry's command is reachable from `npm run test:all`, following
+ *     `npm run` chains. A pass no suite runs audits nothing;
+ *   - every a11y command anywhere in `package.json` is described by an entry. A
+ *     pass this table does not know about is a pass whose widths go uncounted;
+ *   - every `CONDITII` key is named by some entry - the hole above, by name;
+ *   - every condition an entry names exists in `CONDITII`.
+ *
+ * IT CANNOT PASS BY HAVING READ NOTHING: an unreadable or emptied `package.json`
+ * makes all four commands unreachable and fails four times over, so there is no
+ * arrangement where the check is silent because it found no input.
+ *
+ * DERIVED FROM package.json, COMPARED AGAINST WHAT IS WRITTEN HERE. The command
+ * strings below are a second copy of four strings in `package.json` - on purpose,
+ * and the opposite of the decayed copy of two breakpoints that the section after
+ * this one exists to have deleted. The difference is that both directions are
+ * asserted: a command here that `package.json` does not run fails, and a command
+ * `package.json` runs that is not here fails too. A copy nothing compares is what
+ * rots; a copy compared in both directions is an agreement between two files.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * @typedef {{ eticheta: string, latime: number | null, inaltime?: number, js: boolean,
+ *             medii: Record<string, boolean> }} Conditie
+ * @typedef {{ fisier: string, argumente: string[], pagini: string, conditii: string[],
+ *             eticheta: string }} Trecere
+ */
+
+/** This file's own path as `package.json` spells it, read off the module URL. */
+const ACEST_FISIER = `scripts/${new URL(import.meta.url).pathname.split('/').pop()}`;
+
+export const TRECERI = {
+  implicita: {
+    fisier: 'scripts/a11y.mjs',
+    argumente: [],
+    pagini: 'dist',
+    conditii: ['birou', 'birouFaraJs'],
+    eticheta: 'axe la lățimea implicită',
+  },
+  mobil: {
+    fisier: 'scripts/a11y.mjs',
+    argumente: ['--mobil'],
+    pagini: 'dist',
+    conditii: ['telefon', 'telefonFaraJs'],
+    eticheta: 'axe la lățime de telefon (390px)',
+  },
+  larg: {
+    fisier: 'scripts/a11y.mjs',
+    argumente: ['--larg'],
+    pagini: 'dist',
+    conditii: ['larg', 'largFaraJs'],
+    eticheta: 'axe peste pragul de 62rem (1100px)',
+  },
+  selector: {
+    fisier: 'scripts/a11y-selector.mjs',
+    argumente: [],
+    pagini: 'proba',
+    // `larg` is here because the 62rem branch of the week band renders in this
+    // build too, and this is the ONLY build in which the picker bar above it is
+    // visible. Without it the ≥992px band of the scratch build is audited by
+    // nothing at all - which is exactly what the check below now says.
+    conditii: ['birou', 'telefon', 'larg'],
+    eticheta: 'axe peste selectorul de săptămână (construcție de probă)',
+  },
+};
+
+/**
+ * A pass as `package.json` has to spell it.
+ *
+ * @param {Trecere} trecere
+ */
+export function comandaTrecerii(trecere) {
+  return ['node', trecere.fisier, ...trecere.argumente].join(' ');
+}
+
+/**
+ * Every command `npm run <nume>` ends up executing, `npm run` chains followed.
+ * Commands are normalised on whitespace so a reformatted `package.json` is not
+ * a failure.
+ *
+ * @param {Record<string, string>} scripturi
+ * @param {string} nume
+ * @param {Set<string>} [vazute]
+ * @returns {{ comenzi: string[], probleme: string[] }}
+ */
+export function comenzileScriptului(scripturi, nume, vazute = new Set()) {
+  const comenzi = [];
+  const probleme = [];
+  if (!(nume in scripturi)) {
+    probleme.push(`package.json nu are scriptul "${nume}" — nu se poate spune ce rulează suita.`);
+    return { comenzi, probleme };
+  }
+  if (vazute.has(nume)) return { comenzi, probleme };
+  vazute.add(nume);
+  for (const bucata of scripturi[nume].split('&&')) {
+    const comanda = bucata.trim().replace(/\s+/g, ' ');
+    if (comanda === '') continue;
+    const inlantuit = comanda.match(/^npm run ([\w:.-]+)$/);
+    if (inlantuit === null) {
+      comenzi.push(comanda);
+      continue;
+    }
+    const mai = comenzileScriptului(scripturi, inlantuit[1], vazute);
+    comenzi.push(...mai.comenzi);
+    probleme.push(...mai.probleme);
+  }
+  return { comenzi, probleme };
+}
+
+/**
+ * Every audit command `package.json` contains, wherever it sits.
+ *
+ * @param {Record<string, string>} scripturi
+ * @returns {string[]}
+ */
+export function comenziA11y(scripturi) {
+  const gasite = new Set();
+  for (const valoare of Object.values(scripturi)) {
+    for (const bucata of String(valoare).split('&&')) {
+      const comanda = bucata.trim().replace(/\s+/g, ' ');
+      if (/^node scripts\/a11y[\w.-]*\.mjs(\s|$)/.test(comanda)) gasite.add(comanda);
+    }
+  }
+  return [...gasite].sort();
+}
+
+/**
+ * The four assertions above, as sentences. Empty means the table and
+ * `package.json` agree and every condition is executed by something.
+ *
+ * @param {{ scripts?: Record<string, string> }} [pachet]
+ * @param {Record<string, Trecere>} [treceri]
+ * @param {Record<string, Conditie>} [conditii]
+ * @returns {string[]}
+ */
+export function verificaTreceri(pachet = citestePachet(), treceri = TRECERI, conditii = CONDITII) {
+  const scripturi = pachet.scripts ?? {};
+  const esecuri = [];
+
+  const { comenzi, probleme } = comenzileScriptului(scripturi, 'test:all');
+  esecuri.push(...probleme);
+  const rulate = new Set(comenzi);
+  const descrise = new Map(Object.entries(treceri).map(([cheie, t]) => [comandaTrecerii(t), cheie]));
+
+  for (const [comanda, cheie] of descrise) {
+    if (rulate.has(comanda)) continue;
+    esecuri.push(
+      `trecerea "${cheie}" nu este pornită de "npm run test:all": nimic din lanțul lui nu rulează \`${comanda}\`.\n` +
+        '    O trecere pe care suita nu o rulează nu auditează nicio lățime, oricâte ar declara TRECERI.',
+    );
+  }
+  for (const comanda of comenziA11y(scripturi)) {
+    if (descrise.has(comanda)) continue;
+    esecuri.push(
+      `package.json rulează \`${comanda}\`, dar nicio intrare din TRECERI nu o descrie.\n` +
+        '    Lățimile ei nu se socotesc nicăieri: adaug-o în TRECERI, cu setul de pagini și condițiile ei.',
+    );
+  }
+
+  const folosite = new Set(Object.values(treceri).flatMap((t) => t.conditii));
+  for (const [cheie, conditie] of Object.entries(conditii)) {
+    if (folosite.has(cheie)) continue;
+    esecuri.push(
+      `CONDITII declară "${cheie}" (${conditie.eticheta}), dar nicio trecere din TRECERI nu o rulează.\n` +
+        '    Nimeni nu încarcă nicio pagină la lățimea ei, deci ea nu acoperă nicio bandă. Pune-o în\n' +
+        '    condițiile unei treceri, și trecerea aceea într-un script pornit de "npm run test:all" —\n' +
+        '    ambele, fiindcă numai a doua jumătate face auditul să se întâmple.',
+    );
+  }
+  for (const [cheie, t] of Object.entries(treceri)) {
+    for (const nume of t.conditii) {
+      if (nume in conditii) continue;
+      esecuri.push(`trecerea "${cheie}" numește condiția "${nume}", care nu există în CONDITII.`);
+    }
+  }
+  return esecuri;
+}
+
+/**
+ * The widths at which some pass really loads this set of pages, and which passes
+ * they come from. Never the whole of `CONDITII`.
+ *
+ * @param {string} setPagini
+ * @param {number} latimeImplicita
+ * @param {Record<string, Trecere>} [treceri]
+ * @param {Record<string, Conditie>} [conditii]
+ * @returns {{ treceri: string[], latimi: number[] }}
+ */
+export function latimiAuditate(setPagini, latimeImplicita, treceri = TRECERI, conditii = CONDITII) {
+  const cheile = Object.keys(treceri).filter((cheie) => treceri[cheie].pagini === setPagini);
+  const latimi = new Set();
+  for (const cheie of cheile) {
+    for (const nume of treceri[cheie].conditii) {
+      const conditie = conditii[nume];
+      if (conditie !== undefined) latimi.add(conditie.latime ?? latimeImplicita);
+    }
+  }
+  return { treceri: cheile, latimi: [...latimi].sort((a, b) => a - b) };
+}
+
+/** `package.json`, resolved next to this file rather than to a working directory. */
+export function citestePachet() {
+  return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+}
+
+/* -------------------------------------------------------------------------- *
  * THE BREAKPOINTS, DERIVED FROM THE BUILT CSS INSTEAD OF COPIED FROM IT.
  *
  * This file used to write `(max-width: 34rem)` and `(min-width: 62rem)` out by
@@ -267,6 +509,11 @@ export const CONDITII = {
  *   (b) every band the breakpoints cut the width axis into contains at least one
  *       audited viewport - so a breakpoint that is ADDED, which (a) cannot see,
  *       fails as soon as it opens a band nothing looks at.
+ *
+ * "AUDITED" MEANS A PASS RUNS THERE, over these pages. Both assertions take
+ * their widths and their declared queries from the `TRECERI` entries whose
+ * `pagini` is the set being audited, never from `CONDITII` as a whole - see the
+ * table above for the two green arrangements that taught us the difference.
  *
  * SCOPE, SAID PLAINLY, BECAUSE IT CUTS AGAINST A RULE THIS PROJECT HOLDS. The
  * expectation here is derived FROM the artifact a defect would edit - our own
@@ -402,18 +649,33 @@ function scriePrag(p) {
  * The two assertions the derived set supports, as lines to print and problems to
  * report. `latimeImplicita` is the measured default viewport.
  *
- * The matrix is the WHOLE of `CONDITII`, not the subset this run happens to
- * audit: the claim is about what `npm run test:all` covers between all four
- * passes, so an uncovered band must fail every one of them rather than whichever
- * one happens to contain the guilty width.
+ * The widths are those of every pass over THIS SET OF PAGES, not the subset the
+ * current run happens to execute: the claim is about what `npm run test:all`
+ * covers over these pages between all of its passes, so an uncovered band must
+ * fail every one of them rather than whichever happens to hold the guilty width.
+ * What it is NOT is the whole of `CONDITII` - a width declared there and run
+ * over some other build says nothing about this one.
  */
-export function verificaPraguri({ praguri, probleme }, latimeImplicita) {
+export function verificaPraguri({ praguri, probleme }, latimeImplicita, setPagini) {
   const esecuri = [...probleme];
-  const latimi = [...new Set(Object.values(CONDITII).map((c) => c.latime ?? latimeImplicita))].sort((a, b) => a - b);
+  const { treceri, latimi } = latimiAuditate(setPagini, latimeImplicita);
+  const numeleTrecerilor = treceri.map((cheie) => `${cheie} (${comandaTrecerii(TRECERI[cheie])})`).join(' · ');
   const linii = [
     `praguri din CSS-ul construit: ${praguri.length > 0 ? praguri.map(scriePrag).join(' · ') : '(niciunul)'}`,
-    `lățimi auditate de CONDITII: ${latimi.join(', ')}px (implicita măsurată: ${latimeImplicita}px)`,
+    `set de pagini „${setPagini}” — treceri care îl auditează: ${numeleTrecerilor === '' ? '(niciuna)' : numeleTrecerilor}`,
+    `lățimi auditate de aceste treceri: ${latimi.join(', ')}px (implicita măsurată: ${latimeImplicita}px)`,
   ];
+
+  // A set of pages nothing audits cannot be said to cover any band. Without
+  // this the loop below would report every band as uncovered and bury the
+  // actual mistake, which is a `pagini` nobody spells the same way twice.
+  if (treceri.length === 0) {
+    esecuri.push(
+      `nicio trecere din TRECERI nu are pagini: "${setPagini}". Auditul rulează peste un set de pagini ` +
+        'pe care tabelul nu îl cunoaște, deci nicio lățime nu i se poate socoti.',
+    );
+    return { linii, esecuri };
+  }
 
   // A guard that reads files must prove it read something.
   if (praguri.length === 0) {
@@ -425,7 +687,11 @@ export function verificaPraguri({ praguri, probleme }, latimeImplicita) {
   }
 
   // (a) Every query a condition declares still names a breakpoint the CSS has.
-  const declarate = new Set(Object.values(CONDITII).flatMap((c) => Object.keys(c.medii)));
+  // The conditions are those this set of pages is actually loaded under.
+  const numeConditii = new Set(treceri.flatMap((cheie) => TRECERI[cheie].conditii));
+  const declarate = new Set(
+    [...numeConditii].flatMap((nume) => Object.keys(CONDITII[nume]?.medii ?? {})),
+  );
   for (const interogare of [...declarate].sort()) {
     const { gasite } = comparatii(interogare);
     const limite = gasite.map((g) => g.limita);
@@ -450,10 +716,16 @@ export function verificaPraguri({ praguri, probleme }, latimeImplicita) {
     if (latimi.some((l) => l >= jos && l <= sus)) continue;
     const vecine = praguri.filter((p) => p.limita === limite[i - 1] || p.limita === limite[i]).map(scriePrag);
     esecuri.push(
-      `nicio trecere nu auditează lățimile ${jos}-${sus === Number.POSITIVE_INFINITY ? '∞' : sus}px.\n` +
+      `nicio trecere nu auditează lățimile ${jos}-${sus === Number.POSITIVE_INFINITY ? '∞' : sus}px ` +
+        `din setul de pagini „${setPagini}”.\n` +
         `    Banda e delimitată de: ${vecine.join(' · ')}.\n` +
-        '    Adaugă în CONDITII o condiție cu o lățime din bandă (și pune-o în scripturile din package.json), ' +
-        'sau scrie aici de ce ramura aceea nu trebuie auditată.',
+        `    Lățimile care chiar se rulează peste aceste pagini: ${latimi.join(', ')}px.\n` +
+        '    Se închide în TREI pași, toți trei verificați — niciunul singur nu ajunge:\n' +
+        '      1. o condiție în CONDITII cu o lățime din bandă;\n' +
+        `      2. numele ei în conditii-le unei treceri din TRECERI cu pagini: "${setPagini}";\n` +
+        '      3. comanda trecerii aceleia într-un script pornit de "npm run test:all".\n' +
+        '    Sau, dacă banda chiar nu trebuie auditată, scrie aici care e și de ce — o lipsă spusă ' +
+        'e mai bună decât o trecere degeaba.',
     );
   }
 
@@ -551,13 +823,39 @@ async function asteaptaCsp(driver, asteptat) {
 /**
  * Runs the audit and returns true when everything passed.
  *
+ * `trecere` is a key of `TRECERI`, not a list of conditions: the conditions this
+ * runs and the conditions its band coverage is credited for are then the same
+ * list by construction, which is the whole of finding A.
+ *
  * `cerinta` is an optional check run ONCE PER CONDITION, after that condition's
  * page loop, for things only one build can show - the week picker's bar, which
  * needs two rendered weeks. It navigates itself, so it is not tied to whichever
  * page the loop happened to leave loaded, and its line appears once per
  * condition in the output.
  */
-export async function auditeaza({ dist, conditii, eticheta, cerinta = null, spune = console.log }) {
+export async function auditeaza({ dist, trecere, cerinta = null, spune = console.log }) {
+  const definitia = TRECERI[trecere];
+  if (definitia === undefined) {
+    spune(`Trecere necunoscută: "${trecere}". Cunoscute: ${Object.keys(TRECERI).join(', ')}.`);
+    return false;
+  }
+
+  /*
+   * BEFORE THE BROWSER, because a table that does not match `package.json` makes
+   * every width below meaningless and there is no reason to spend a Chrome
+   * launch finding that out.
+   */
+  const problemeTabel = verificaTreceri();
+  if (problemeTabel.length > 0) {
+    spune(`\n=== ${definitia.eticheta} ===`);
+    for (const problema of problemeTabel) spune(`  ${problema}`);
+    spune('\nAUDIT PICAT.');
+    return false;
+  }
+
+  const conditii = definitia.conditii.map((nume) => CONDITII[nume]);
+  const eticheta = definitia.eticheta;
+
   if (!existsSync(dist)) {
     spune(`${dist}/ nu există — rulează mai întâi build-ul.`);
     return false;
@@ -611,14 +909,14 @@ export async function auditeaza({ dist, conditii, eticheta, cerinta = null, spun
     /*
      * The default viewport is MEASURED, once, before anything else - on the
      * harness's own control page, so no built page's markup can affect it. The
-     * whole matrix is checked against the CSS's own breakpoints here rather than
-     * inside the loop, because the claim is about all of `CONDITII` and must
-     * fail every pass, not only the one running.
+     * coverage of this SET OF PAGES is checked against the CSS's own breakpoints
+     * here rather than inside the loop, because the claim is about every pass
+     * over these pages and must fail all of them, not only the one running.
      */
     await driver.sendDevToolsCommand('Emulation.clearDeviceMetricsOverride', {});
     await driver.get(`http://localhost:${port}${CALE_CONTROL}`);
     const latimeImplicita = await driver.executeScript('return window.innerWidth');
-    const { linii, esecuri } = verificaPraguri(pragurile(dist, deAuditat), latimeImplicita);
+    const { linii, esecuri } = verificaPraguri(pragurile(dist, deAuditat), latimeImplicita, definitia.pagini);
     for (const linie of linii) spune(`  ${linie}`);
     for (const problema of esecuri) nereusit(`  ${problema}`);
 
@@ -783,17 +1081,27 @@ export async function auditeaza({ dist, conditii, eticheta, cerinta = null, spun
  * Command line: `node scripts/a11y.mjs [--mobil|--larg]`.
  * -------------------------------------------------------------------------- */
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const mobil = process.argv.includes('--mobil');
-  const larg = process.argv.includes('--larg');
-  const conditii = mobil
-    ? [CONDITII.telefon, CONDITII.telefonFaraJs]
-    : larg
-      ? [CONDITII.larg, CONDITII.largFaraJs]
-      : [CONDITII.birou, CONDITII.birouFaraJs];
-  const eticheta = mobil
-    ? 'axe la lățime de telefon (390px)'
-    : larg
-      ? 'axe peste pragul de 62rem (1100px)'
-      : 'axe la lățimea implicită';
-  process.exit((await auditeaza({ dist: 'dist', conditii, eticheta })) ? 0 : 1);
+  /*
+   * The arguments are not parsed here - they are LOOKED UP in `TRECERI`, which
+   * is the same table the coverage check reads. A flag this file understood but
+   * the table did not would be a pass whose widths nothing counts; a flag the
+   * table declares but `package.json` never passes is caught by
+   * `verificaTreceri`. There is no third place where the two could disagree.
+   */
+  const argumente = process.argv.slice(2);
+  const cheie = Object.keys(TRECERI).find(
+    (k) =>
+      TRECERI[k].fisier === ACEST_FISIER &&
+      TRECERI[k].argumente.length === argumente.length &&
+      TRECERI[k].argumente.every((a, i) => a === argumente[i]),
+  );
+  if (cheie === undefined) {
+    console.log(`Argumente pe care TRECERI nu le descrie: ${argumente.join(' ') || '(niciunul)'}.`);
+    console.log('Treceri pornite din acest fișier:');
+    for (const [k, t] of Object.entries(TRECERI)) {
+      if (t.fisier === ACEST_FISIER) console.log(`  ${comandaTrecerii(t)}   (${k})`);
+    }
+    process.exit(1);
+  }
+  process.exit((await auditeaza({ dist: 'dist', trecere: cheie })) ? 0 : 1);
 }

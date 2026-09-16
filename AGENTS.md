@@ -174,9 +174,16 @@ three audit `dist/`; `a11y:selector` builds a throwaway site from `src/lib/fixtu
 a scratch directory and audits that one's `_headers`, which is the same file's content from
 a different build, not `dist/_headers`.
 
-Every pass also derives the layout breakpoints from the CSS of the pages it loads and fails
-if the viewports in `CONDITII` leave a band of widths unaudited — so a breakpoint that moves
-or one that is added is a red build, not a silently wrong claim.
+Every pass also derives the layout breakpoints from the CSS of the pages it loads and fails if
+a band of widths between them is audited by nobody — so a breakpoint that moves or one that is
+added is a red build, not a silently wrong claim. **Audited means a pass runs there, over those
+pages.** The widths come from `TRECERI` in `scripts/a11y.mjs`, one entry per pass, each naming
+the command `package.json` runs, the set of pages it loads and the conditions it loads them
+under; a `CONDITII` key no entry names, an entry `npm run test:all` never reaches, and a set of
+pages credited with another set's widths are each a failure naming the thing. `CONDITII` on its
+own is a declaration, and crediting it cost this project two invisible holes — an 850px viewport
+nothing ran at, and the week band's 62rem branch with the picker bar visible, which until this
+round nothing on the project had ever audited.
 
 **How long `test:all` takes is a property of the machine, not of this repository.** Well under a
 minute on both machines it has run on — 36 to 40 s over five runs — so quote a range or nothing.

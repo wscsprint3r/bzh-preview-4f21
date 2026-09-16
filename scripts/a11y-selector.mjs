@@ -32,6 +32,21 @@
  * below fail if the bar is not actually there.
  *
  * ---------------------------------------------------------------------------
+ * THE WIDTHS ARE `TRECERI.selector`'s, IN `a11y.mjs`, AND THE WIDE ONE IS NEW.
+ *
+ * This pass used to run at the default width and at 390px, and the band check
+ * credited it with the whole of `CONDITII` - 1100px included - because that
+ * check read the declaration rather than the passes. So `BandaSaptamanii`'s
+ * `min-width: 62rem` branch was audited by NOTHING: the three passes over
+ * `dist/` reach 1100px but there the bar is `hidden` and axe skips it, and this
+ * pass, the only one where the bar is visible, never reached 992px. Seven days
+ * on one row, the week with the most services and the most visitors of the year,
+ * with the picker bar showing - the single combination nothing on this project
+ * had ever looked at, and invisible by accident rather than by decision.
+ *
+ * `larg` is in the pass now, and the gap was closed by adding the width rather
+ * than by exempting the band.
+ * ---------------------------------------------------------------------------
  * WHAT THIS PASS COVERS, AND WHAT IT STILL DOES NOT.
  *
  * axe, once the bar is visible, covers the label's contrast against the page
@@ -56,7 +71,7 @@ import { pathToFileURL } from 'node:url';
 import { Key } from 'selenium-webdriver';
 import { build } from 'esbuild';
 import { stringify } from 'yaml';
-import { auditeaza, CONDITII } from './a11y.mjs';
+import { auditeaza } from './a11y.mjs';
 
 const RADACINA = process.cwd();
 const MS_PE_ZI = 86_400_000;
@@ -140,8 +155,7 @@ async function main() {
      */
     return await auditeaza({
       dist: join(proiect, 'dist'),
-      conditii: [CONDITII.birou, CONDITII.telefon],
-      eticheta: 'axe peste selectorul de săptămână (construcție de probă)',
+      trecere: 'selector',
       cerinta: verificaBara,
     });
   } finally {
