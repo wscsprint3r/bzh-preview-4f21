@@ -48,7 +48,15 @@ Seven steps involving a page builder, for one paragraph of news. The new site mu
 **Goals**
 
 - No server-side code execution. No database. No PHP.
-- A non-technical editor publishes a news post in under three minutes without help.
+- A non-technical editor publishes a news post in under three minutes without help. **The CMS
+  chrome is English** — Sveltia ships 29 UI languages and Romanian is not among them, and its
+  non-English locales are fetched from a CDN at run time, which this project's CSP blocks. The
+  field labels, hints and error messages we author *are* Romanian; six chrome buttons are not
+  (New, Duplicate, Save and Publish, Delete, Add, Cancel), and the printed guide carries the
+  translation. Decap **does** ship a bundled Romanian UI with correct comma-below diacritics
+  and no CDN dependencies; it was considered and declined in favour of Sveltia's modern
+  editor, phone support, 2 files versus 94, and active development. Recorded so nobody has to
+  rediscover the trade.
 - A non-technical editor updates the weekly liturgical schedule in under a minute.
 - Homepage under 100 KB total, loading in under a second.
 - A calm, clearly Orthodox visual identity (direction A, §4).
