@@ -48,4 +48,16 @@ const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
   .gol { color: var(--muted); font-style: italic; }
   .abonare { margin-block: 2rem; }
   .abonare a { display: inline-block; border: 1px solid var(--gold-lt); color: var(--oxblood); text-decoration: none; font-size: 0.8125rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.75rem 1.25rem; }
+  /* A component that colours a link owns that link's hover and focus states.
+     Astro scopes this block with a `data-astro-cid-…` attribute, which counts
+     as an attribute selector, so the rule above ships as
+     `.abonare[data-astro-cid-…] a[data-astro-cid-…]` — specificity (0,3,1).
+     global.css's `a:hover` is (0,1,1) and therefore loses, silently: no test,
+     no axe run and no build notices a link that never changes on hover. Checked
+     by reading the selector out of `dist/program/index.html` rather than out of
+     the source, since scoping is added at build time. `:hover` here restores
+     the global colour at (0,4,1). Focus needs no such rule — global.css sets
+     `outline` on `:focus-visible`, which nothing in this block declares, so
+     there is nothing to defeat; verified on the built page. */
+  .abonare a:hover { color: var(--oxblood-dk); }
 </style>

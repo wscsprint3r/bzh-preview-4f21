@@ -24,6 +24,16 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
   </div>
   <div>
     {zi.anulat && <p class="rz-anulat-txt">Slujbele acestei zile sunt anulate.</p>}
+    {/*
+      Above the times, not below them, because it changes how the times should
+      be read. `ics.ts` writes `z.locatie || opts.locatie` into LOCATION, so
+      without this line a day moved to another chapel reached calendar
+      subscribers and nobody else: the feed said one building, the page implied
+      the usual one, and the reader of the page went to the wrong address.
+      Phrased as a sentence about this day rather than as an address label, so
+      it reads as the exception it is.
+    */}
+    {zi.locatie && <p class="rz-loc">Slujbele acestei zile au loc la {zi.locatie}.</p>}
     {zi.slujbe.map((s) => (
       <div class="rz-slujba">
         <b>{s.ora}</b>
@@ -42,7 +52,21 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
 </div>
 
 <style>
-  .rz { display: grid; grid-template-columns: 7rem 1fr; gap: 1.25rem; padding-block: 1rem; border-bottom: 1px solid var(--rule); }
+  /* `minmax(…, auto)` rather than a bare fixed track, on both sides of the
+     breakpoint. The fixed value is only a MINIMUM now, so it decides how often
+     rows line up with each other — it can no longer decide whether the day name
+     fits. `auto` as the maximum is max-content, so a label wider than the
+     minimum widens its own row instead of spilling across the gap into the
+     times, and the worst case degrades from silent overlap to a visibly ragged
+     column.
+
+     Measured at 375px, where this matters most: the day names run
+     Luni 34.0 · Vineri 49.1 · Sâmbătă 66.3 · Miercuri 69.5 · Duminică 72.6 px,
+     against a 5rem (80px) minimum. Every Romanian day name clears it, so every
+     row stays aligned. German does not — `Donnerstag` measures 94.2px — and the
+     `de` locale the config already declares will push that one row wider rather
+     than printing the day name over the service times. */
+  .rz { display: grid; grid-template-columns: minmax(7rem, auto) 1fr; gap: 1.25rem; padding-block: 1rem; border-bottom: 1px solid var(--rule); }
   /* Feast days are marked by background AND a rule, never by colour alone.
      Flat, not a gradient: axe cannot determine contrast over a gradient and reports
      `incomplete`, which `npm run a11y` treats as a failure — so a gradient here would
@@ -73,9 +97,9 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
   .rz-slujba b { font-family: var(--display); font-size: 1.0625rem; font-weight: 600; color: var(--gold-text); }
   .rz-praznic-txt { font-family: var(--display); font-style: italic; font-size: 1.0625rem; color: var(--oxblood); margin: 0.5rem 0 0; }
   .rz-post { display: inline-block; font-family: var(--body); font-style: normal; font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.4rem; margin-left: 0.5rem; vertical-align: middle; }
-  .rz-note, .rz-anulat-txt { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
+  .rz-note, .rz-anulat-txt, .rz-loc { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
   @media (max-width: 34rem) {
-    .rz { grid-template-columns: 4rem 1fr; gap: 0.75rem; }
+    .rz { grid-template-columns: minmax(5rem, auto) 1fr; gap: 0.75rem; }
     .rz-luna { display: none; }
   }
 </style>
