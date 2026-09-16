@@ -3135,17 +3135,13 @@ Add to `package.json` scripts: `"budget": "node scripts/check-budget.mjs"`.
 Run: `cd web && npm run build && npm run budget`
 Expected: every line reads `OK`, exit code 0.
 
-- [ ] **Step 2b: Wire axe over the built pages**
+- [ ] **Step 2b: Run axe at a phone width as well**
 
-Install `@axe-core/cli` (or `axe-core` plus a headless driver) as a dev dependency and add:
+Task 7 already wires `npm run a11y` over every built page and runs it in `test:build`. One gap remains, measured rather than assumed: **the audit viewport is 701–800 CSS px**, so this site's `34rem` phone breakpoint — where the week band stacks and the day row drops its month name — is never audited. Most of the parish reads this on a phone.
 
-```json
-{ "scripts": { "a11y": "astro build && axe dist/index.html dist/program/index.html --exit" } }
-```
+Add a second pass at a phone width (390px), so CI audits both. Keep the same rules and the same "fail on `incomplete` for `color-contrast`" behaviour.
 
-Run it locally once and put the output in your report. It must report **zero violations**, not merely zero errors — a "serious" colour-contrast violation is exactly what this exists to catch.
-
-Why it is not redundant with the token tests: those assert every text colour is measurably safe against the background *its own block declares*. A colour inherited onto an ancestor's background — `--ink` on `--oxblood` is 1.39:1 — is invisible to any parser and visible to a real engine. The two together are the guarantee; neither alone is.
+Then add both to the CI job below. What axe covers and what it does not is documented in `a11y.mjs`; do not restate it here, and do not widen the claim.
 
 - [ ] **Step 3: Write CI**
 
@@ -3175,12 +3171,11 @@ jobs:
       - run: npm test
       - run: npm run test:build   # builds, then runs the dist/ integration tests
       - run: npm run budget
-      # A static scanner can prove every text colour is safe on the surface its own
-      # block declares. It cannot resolve a background inherited from an ancestor —
-      # that is a cascade computation. axe runs a real engine over the built pages
-      # and catches exactly that remainder. Spec §13 requires Lighthouse a11y 100;
-      # this is what makes it a gate rather than a hope.
-      - run: npm run a11y
+      # Contrast is guaranteed by axe over the built pages, not by any static check:
+      # specificity, @layer, media context and stylesheet order are cascade rules, and
+      # a parser asserting over CSS text loses to them. `test:build` already runs the
+      # desktop pass; this adds the phone width, which the default viewport misses.
+      - run: npm run a11y:mobil
 ```
 
 `TZ: Europe/Zurich` matters: `aziLaZurich` is explicit about its timezone, but pinning the runner removes any doubt about what "today" meant during a build.
