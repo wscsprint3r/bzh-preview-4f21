@@ -1,0 +1,270 @@
+/*
+ * Spec §13's performance budget, checked against the built output.
+ *
+ * Three numbers: what one page weighs, how much JavaScript a visitor runs on
+ * it, and how many requests it takes to render.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS READS THE PAGES RATHER THAN THE FILES IN `dist/_astro/`.
+ *
+ * The obvious JS check is to add up `dist/**\/*.js`. Task 10 proved that check
+ * cannot work here: at 2,982 bytes the week picker lands under Vite's 4 KB
+ * inline threshold, so Astro writes it INTO the document and emits no `.js`
+ * file at all. A file-walking check reports `0 / 3072 OK` and is loudest
+ * exactly when it has measured nothing - the same failure shape as a missing
+ * `dist/`. Worse, the threshold is a cliff: about a kilobyte more script and
+ * Astro flips to emitting a file, which changes the request count and the
+ * caching story with nothing failing either way.
+ *
+ * So every number below is derived from the built HTML, which is the only place
+ * that knows which form the script took.
+ * ---------------------------------------------------------------------------
+ *
+ * THE REQUEST COUNT IS AN UPPER BOUND, and deliberately so. Counting exactly
+ * what a browser fetches means re-implementing the browser - `unicode-range`
+ * decides which font subsets load, and `rel=icon` sizes decide which icon does.
+ * That is the mistake that cost this project its CSS contrast guard. Instead
+ * every term below is something a browser fetches AT MOST once:
+ *
+ *   - the document itself
+ *   - each linked stylesheet, each external script, each modulepreload
+ *   - each image, media source and iframe
+ *   - each declared icon (a browser picks ONE of them; today 2 are declared and
+ *     a real browser was measured fetching 1)
+ *   - each `@font-face` rule (a browser fetches at most one file per face, and
+ *     none at all for a face whose `unicode-range` never matches)
+ *
+ * The total is therefore >= what any browser actually requests, so a bound
+ * under the cap proves the real count is under the cap. Measured against a real
+ * headless Chrome on the Task 10 build: bound 11, actual 10.
+ *
+ * Not counted, because nothing fetches them on load: `rel=canonical`,
+ * `rel=alternate` (the `.ics` feed is fetched when someone subscribes),
+ * `preconnect` and `dns-prefetch`.
+ *
+ * Run with `npm run budget`, and as the last step of `npm run test:build`.
+ */
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, posix } from 'node:path';
+
+const DIST = 'dist';
+
+/*
+ * Spec §13 budgets the homepage at 30 KB of HTML and 15 KB of CSS. Because
+ * astro.config.mjs sets `inlineStylesheets: 'always'`, the CSS is *inside* the
+ * HTML - so a separate CSS check would measure an empty set and always pass,
+ * while the HTML check would fail for carrying weight the spec had allotted to
+ * CSS. The honest translation of those two numbers under inlining is one
+ * combined 45 KB limit on the document.
+ */
+const BUGET_PAGINI = {
+  'index.html': 45 * 1024,
+  'program/index.html': 135 * 1024,
+};
+const BUGET_JS = 3 * 1024;
+const BUGET_CERERI = 12;
+
+/*
+ * The Sveltia CMS bundle lives under dist/admin/. It is a few hundred KB of
+ * third-party code that only a signed-in editor ever loads, behind a login, and
+ * it is not part of what a visitor downloads - so that whole subtree is outside
+ * every budget here. Excluded by DIRECTORY, and the `.mjs` it ships is why the
+ * exclusion has to come before any extension test rather than after it.
+ */
+const EXCLUSE = ['admin'];
+
+let esec = false;
+
+function raporteaza(eticheta, valoare, limita, unitate = 'octeți') {
+  const ok = valoare <= limita;
+  if (!ok) esec = true;
+  console.log(`${ok ? 'OK       ' : 'PREA MARE'} ${eticheta}: ${valoare} / ${limita} ${unitate}`);
+}
+
+function opreste(mesaj) {
+  console.error(mesaj);
+  process.exit(1);
+}
+
+/** Every visitor-facing page in the build, as paths relative to `dist/`. */
+function paginiVizitator(relativ = '') {
+  const gasite = [];
+  for (const intrare of readdirSync(join(DIST, relativ), { withFileTypes: true })) {
+    if (intrare.isDirectory()) {
+      if (relativ === '' && EXCLUSE.includes(intrare.name)) continue;
+      gasite.push(...paginiVizitator(posix.join(relativ, intrare.name)));
+    } else if (intrare.name.endsWith('.html')) {
+      gasite.push(posix.join(relativ, intrare.name));
+    }
+  }
+  return gasite.sort();
+}
+
+// A guard that reads files must prove it read something: without these, a
+// missing or empty build would make every check below pass vacuously.
+if (!existsSync(DIST)) opreste(`${DIST}/ nu există — rulează mai întâi build-ul.`);
+const PAGINI = paginiVizitator();
+if (PAGINI.length === 0) opreste(`${DIST}/ nu conține nicio pagină de vizitator.`);
+
+/*
+ * Every visitor page must have a budget. A page with none would otherwise be
+ * the one page nobody is measuring, which is how a new route ships at 200 KB on
+ * a green build.
+ */
+const faraBuget = PAGINI.filter((p) => !(p in BUGET_PAGINI));
+if (faraBuget.length > 0) {
+  opreste(
+    `Pagini fără buget în BUGET_PAGINI: ${faraBuget.join(', ')}.\n` +
+      'Adaugă-le o limită sau exclude-le explicit; o pagină nemăsurată nu e o pagină în regulă.',
+  );
+}
+
+const ATRIBUT = (attrs, nume) =>
+  attrs.match(new RegExp(`\\b${nume}\\s*=\\s*["']([^"']*)["']`, 'i'))?.[1] ?? null;
+
+/** A `/`-rooted URL as a path inside `dist/`, or null when it points elsewhere. */
+function inDist(url) {
+  if (url === null || !url.startsWith('/')) return null;
+  const cale = decodeURIComponent(url.split('?')[0].split('#')[0]).slice(1);
+  return existsSync(join(DIST, cale)) ? cale : null;
+}
+
+/*
+ * Script types the BROWSER EXECUTES, and script types it merely reads. Anything
+ * in neither list stops the build rather than being skipped: a `<script>` shape
+ * this file has never seen is precisely what a budget must not wave through,
+ * and it is the mistake the old file-walking check made in a different costume.
+ */
+const TIPURI_EXECUTATE = new Set(['', 'module', 'text/javascript', 'application/javascript']);
+const TIPURI_DATE = new Set(['application/json', 'application/ld+json', 'importmap', 'speculationrules']);
+
+/** Bytes of one emitted module plus every module it statically pulls in. */
+function octetiModul(cale, vazute) {
+  if (vazute.has(cale)) return 0;
+  vazute.add(cale);
+  const sursa = readFileSync(join(DIST, cale));
+  let total = sursa.length;
+  const text = sursa.toString('utf8');
+  const specificatoare = [
+    ...text.matchAll(/\bfrom\s*["']([^"']+)["']/g),
+    ...text.matchAll(/\bimport\s*\(\s*["']([^"']+)["']/g),
+    ...text.matchAll(/\bimport\s*["']([^"']+)["']/g),
+  ].map((m) => m[1]);
+  for (const s of specificatoare) {
+    const tinta = s.startsWith('/') ? s.slice(1) : posix.normalize(posix.join(dirname(cale), s));
+    if (/\.m?js$/.test(tinta) && existsSync(join(DIST, tinta))) total += octetiModul(tinta, vazute);
+  }
+  return total;
+}
+
+/** The CSS one built page ships: linked stylesheets and inline blocks. */
+function cssPagina(html) {
+  const bucati = [];
+  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
+    if (!/rel\s*=\s*["']?stylesheet/i.test(m[0])) continue;
+    const cale = inDist(ATRIBUT(m[0], 'href'));
+    if (cale) bucati.push(readFileSync(join(DIST, cale), 'utf8'));
+  }
+  for (const m of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) bucati.push(m[1]);
+  return bucati.join('\n');
+}
+
+console.log(`Buget pentru ${PAGINI.length} pagină(i) de vizitator:\n`);
+
+let jsUnion = 0;
+const fisiereVazute = new Set();
+
+for (const pagina of PAGINI) {
+  const html = readFileSync(join(DIST, pagina), 'utf8');
+  raporteaza(pagina, statSync(join(DIST, pagina)).size, BUGET_PAGINI[pagina]);
+
+  // ---- JavaScript, inlined or emitted ----
+  let js = 0;
+  const detalii = [];
+  const vazuteAici = new Set();
+
+  for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    const [, atribute, continut] = m;
+    const tip = (ATRIBUT(atribute, 'type') ?? '').trim().toLowerCase();
+    const src = ATRIBUT(atribute, 'src');
+
+    if (TIPURI_DATE.has(tip)) {
+      detalii.push(`date ${tip} ${Buffer.byteLength(continut)} B (neexecutat)`);
+      continue;
+    }
+    if (!TIPURI_EXECUTATE.has(tip)) {
+      opreste(
+        `${pagina}: <script type="${tip}"> nu e nici cod, nici date cunoscute.\n` +
+          'Adaugă-l în TIPURI_EXECUTATE sau în TIPURI_DATE. Un buget care sare peste ' +
+          'ce nu recunoaște nu e un buget.',
+      );
+    }
+    if (src === null) {
+      js += Buffer.byteLength(continut);
+      detalii.push(`inline ${Buffer.byteLength(continut)} B`);
+      continue;
+    }
+    const cale = inDist(src);
+    if (cale === null) {
+      opreste(
+        `${pagina}: <script src="${src}"> nu se rezolvă în ${DIST}/.\n` +
+          'Un script extern e tot JavaScript pe care vizitatorul îl descarcă.',
+      );
+    }
+    const octeti = octetiModul(cale, vazuteAici);
+    js += octeti;
+    detalii.push(`${cale} ${octeti} B`);
+  }
+
+  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
+    if (!/rel\s*=\s*["']?modulepreload/i.test(m[0])) continue;
+    const cale = inDist(ATRIBUT(m[0], 'href'));
+    if (cale === null) continue;
+    const octeti = octetiModul(cale, vazuteAici);
+    js += octeti;
+    detalii.push(`modulepreload ${cale} ${octeti} B`);
+  }
+
+  raporteaza(`  JS pentru vizitator pe ${pagina}`, js, BUGET_JS);
+  console.log(`          ${detalii.length > 0 ? detalii.join(' + ') : 'niciun script'}`);
+  for (const f of vazuteAici) {
+    if (!fisiereVazute.has(f)) { fisiereVazute.add(f); jsUnion += statSync(join(DIST, f)).size; }
+  }
+  if (!html.includes('<script')) jsUnion += 0;
+
+  // ---- requests, as an upper bound ----
+  const cereri = [`documentul ${pagina}`];
+  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
+    const rel = (ATRIBUT(m[0], 'rel') ?? '').toLowerCase();
+    if (/\b(stylesheet|icon|modulepreload|preload|apple-touch-icon|manifest)\b/.test(rel)) {
+      cereri.push(`${rel} ${ATRIBUT(m[0], 'href')}`);
+    }
+  }
+  for (const m of html.matchAll(/<script\b([^>]*)>/gi)) {
+    const src = ATRIBUT(m[1], 'src');
+    if (src !== null) cereri.push(`script ${src}`);
+  }
+  for (const m of html.matchAll(/<(img|iframe|video|audio|source|embed)\b([^>]*)>/gi)) {
+    if (ATRIBUT(m[2], 'src') !== null || ATRIBUT(m[2], 'srcset') !== null) cereri.push(`${m[1]}`);
+  }
+  const fete = [...cssPagina(html).matchAll(/@font-face\s*\{/g)].length;
+  for (let i = 0; i < fete; i += 1) cereri.push('@font-face');
+
+  raporteaza(`  cereri (limită superioară) pentru ${pagina}`, cereri.length, BUGET_CERERI, 'cereri');
+  console.log(`          ${cereri.length - fete} în document + ${fete} @font-face`);
+  console.log('');
+}
+
+console.log(`JS emis în fișiere, peste tot: ${jsUnion} octeți în ${fisiereVazute.size} fișier(e).`);
+console.log(
+  fisiereVazute.size === 0
+    ? 'Niciun fișier .js emis — scriptul e inline în pagini, deci nu costă nicio cerere.\n' +
+        'Peste pragul de 4096 de octeți al Vite asta se inversează: un fișier, o cerere, o intrare de cache.'
+    : 'Scriptul e emis ca fișier, deci costă o cerere și se păstrează în cache între pagini.',
+);
+
+if (esec) {
+  console.error('\nBugetul de performanță a fost depășit (specificație §13).');
+  process.exit(1);
+}
+console.log('\nBuget respectat.');

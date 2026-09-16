@@ -13,8 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "astro": "astro",
-    "test:build": "astro build && vitest run --config vitest.itest.config.ts && node scripts/a11y.mjs",
-    "a11y": "astro build && node scripts/a11y.mjs"
+    "test:build": "astro build && vitest run --config vitest.itest.config.ts && node scripts/a11y.mjs && node scripts/check-budget.mjs",
+    "a11y": "astro build && node scripts/a11y.mjs",
+    "budget": "node scripts/check-budget.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
