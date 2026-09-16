@@ -10,6 +10,7 @@ node_modules/
 # and be decided on, not disappear into a wildcard.
 public/admin/sveltia-cms.mjs
 public/admin/chunks/
+public/admin/fonturi/
 
 # superpowers scratch: brainstorm mockups and the SDD ledger
 .superpowers/

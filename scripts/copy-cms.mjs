@@ -18,6 +18,28 @@
  * blocked rather than merely slow. Copying the folders makes the self-hosting
  * claim true by construction rather than true by my reading of minified code.
  *
+ * AND THE FONTS, which is the one place this script REWRITES what it copies.
+ *
+ * The CMS's own stylesheet points three `@font-face` rules at `cdn.jsdelivr.net`,
+ * one of them the 748 KB Material Symbols icon font. Those URLs are literal text
+ * inside the bundle - nothing is built from `import.meta.url` - and there is no
+ * configuration option for them, so the chunk trick above does not reach them.
+ * Left alone under Task 13's `script-src`/`font-src 'self'`, the icon face fails
+ * to load and, because it is declared `font-display: block`, every button in the
+ * CMS renders its ligature as a WORD: `save`, `delete`, `close`. Measured, on
+ * this build: 24 px of glyph becoming 75 px of text.
+ *
+ * So the three URLs are rewritten to local copies, taken from npm at exactly the
+ * versions the URLs themselves name, and verified byte-for-byte against what
+ * jsDelivr serves (SHA-256, all three identical). `/admin/` is the page where an
+ * editor's GitHub credential lives, so it keeps `'self'` like the rest of the
+ * site rather than being granted an exception.
+ *
+ * Rewriting vendored code is a liability, and the assertions are what make it a
+ * loud one: each URL must be found EXACTLY ONCE, and afterwards the file must
+ * contain no `cdn.jsdelivr.net` at all. An upgrade that moves a URL, or adds a
+ * fourth font, fails the build instead of silently restoring the CDN.
+ *
  * WHAT IS LEFT BEHIND, and why the rule is a shape rather than a list of names:
  *
  *   - the ENTRY FILE that `require.resolve` returns, and every file in every
@@ -48,7 +70,7 @@
  * Everything written here is git-ignored, and `.gitignore` has to keep up: see
  * the Task 12 report.
  */
-import { copyFileSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, join, posix } from 'node:path';
 import { argv } from 'node:process';
@@ -76,6 +98,96 @@ function fisiereDin(relativ) {
 }
 
 /** The folders the package ships beside its entry file; today just `chunks`. */
+/**
+ * The CMS's three font URLs, and the npm package file that serves each instead.
+ *
+ * Keyed by the EXACT url, so the rewrite is an equality and not a pattern. The
+ * versions are the ones the URLs themselves name, and each file is byte-identical
+ * to what jsDelivr serves - checked by SHA-256 once, by hand, when this was
+ * written; `admin.itest.ts` re-checks the served copy against the package on
+ * every build.
+ */
+export const FONTURI = [
+  {
+    url: 'https://cdn.jsdelivr.net/fontsource/fonts/source-sans-3:vf@5.3.0/latin-wght-normal.woff2',
+    modul: '@fontsource-variable/source-sans-3/files/source-sans-3-latin-wght-normal.woff2',
+  },
+  {
+    url: 'https://cdn.jsdelivr.net/fontsource/fonts/noto-mono@5.3.0/latin-400-normal.woff2',
+    modul: '@fontsource/noto-mono/files/noto-mono-latin-400-normal.woff2',
+  },
+  {
+    url: 'https://cdn.jsdelivr.net/fontsource/fonts/material-symbols-outlined:vf@5.3.1/latin-wght-normal.woff2',
+    modul: '@fontsource-variable/material-symbols-outlined/files/material-symbols-outlined-latin-wght-normal.woff2',
+  },
+];
+
+/** Where the local copies go, under `TINTA`, and where the rewritten URLs point. */
+const DOSAR_FONTURI = 'fonturi';
+
+/** How many times `cdn.jsdelivr.net` may appear in the copied bundle when we are done. */
+const CDN = 'cdn.jsdelivr.net';
+
+function numaraAparitii(text, bucata) {
+  let n = 0;
+  for (let i = text.indexOf(bucata); i !== -1; i = text.indexOf(bucata, i + bucata.length)) n += 1;
+  return n;
+}
+
+/**
+ * Rewrites the bundle's three font URLs to point at the local copies.
+ *
+ * Every step is asserted, because this is the one place we edit someone else's
+ * code: each URL exactly once, the leftover `preconnect` exactly once, and
+ * nothing naming the CDN afterwards.
+ *
+ * @param {string} text The bundle, as the package ships it.
+ * @returns {string} The same bundle, serving its fonts from this origin.
+ */
+export function rescrieFonturi(text) {
+  let rezultat = text;
+
+  for (const { url, modul } of FONTURI) {
+    const aparitii = numaraAparitii(rezultat, url);
+    if (aparitii !== 1) {
+      throw new Error(
+        `Fontul ${basename(modul)} este așteptat exact o dată în bundle-ul CMS, dar ` +
+          `apare de ${aparitii} ori: ${url}
+` +
+          'O versiune nouă de @sveltia/cms i-a mutat adresa. Actualizează FONTURI din ' +
+          'scripts/copy-cms.mjs, altfel fontul s-ar încărca iar de pe CDN.',
+      );
+    }
+    rezultat = rezultat.replace(url, `/${posix.join('admin', DOSAR_FONTURI, basename(modul))}`);
+  }
+
+  /*
+   * What is left is the `<link rel="preconnect">` the bundle puts in `<head>` for
+   * a CDN it no longer uses. CSP does not police preconnect, so it would not
+   * fail - it would just open a TLS connection to a third party on every visit
+   * to `/admin/`, quietly. Pointed at this origin instead, where the browser is
+   * already connected and ignores it.
+   */
+  const preconnect = 'https://cdn.jsdelivr.net/';
+  const rest = numaraAparitii(rezultat, preconnect);
+  if (rest !== 1) {
+    throw new Error(
+      `După rescrierea fonturilor, ${preconnect} ar trebui să apară exact o dată ` +
+        `(preconnect), dar apare de ${rest} ori.`,
+    );
+  }
+  rezultat = rezultat.replace(preconnect, '/');
+
+  const ramase = numaraAparitii(rezultat, CDN);
+  if (ramase !== 0) {
+    throw new Error(
+      `Bundle-ul CMS mai numește ${CDN} de ${ramase} ori după rescriere. ` +
+        'Ceva nou se încarcă de pe CDN - vezi ce, înainte să ajungă în producție.',
+    );
+  }
+  return rezultat;
+}
+
 const SUBFOLDERE = readdirSync(SURSA, { withFileTypes: true })
   .filter((intrare) => intrare.isDirectory())
   .map((intrare) => intrare.name);
@@ -98,25 +210,47 @@ export function copiazaCms(jurnal = console.log) {
   }
 
   /*
-   * Stale vendored files go first, but ONLY the folders the package itself
-   * ships. `public/admin/index.html`, `config.yml` and `pornire.mjs` are this
+   * Stale vendored files go first: the folders the package itself ships, plus
+   * `fonturi/`, which this script writes and therefore also owns.
+   * `public/admin/index.html`, `config.yml` and `pornire.mjs` are this
    * repository's own files, tracked in git, and nothing here may touch them:
    * they are what a volunteer actually reads.
    */
-  for (const nume of SUBFOLDERE) {
+  for (const nume of [...SUBFOLDERE, DOSAR_FONTURI]) {
     rmSync(join(TINTA, nume), { recursive: true, force: true });
   }
 
-  let octeti = 0;
+  const scrise = [];
   for (const fisier of DE_COPIAT) {
     const destinatie = join(TINTA, fisier);
     mkdirSync(dirname(destinatie), { recursive: true });
     copyFileSync(join(SURSA, fisier), destinatie);
-    octeti += statSync(destinatie).size;
+    scrise.push(fisier);
   }
 
-  jurnal(`CMS copiat din ${SURSA}: ${DE_COPIAT.length} fișier(e), ${octeti} octeți.`);
-  return DE_COPIAT.map((fisier) => join(TINTA, fisier));
+  /*
+   * The entry file is the only one edited, and it is edited AFTER being copied,
+   * so `node_modules` is never written to. `rescrieFonturi` throws rather than
+   * returning something half-done, which fails the build before the bundle can
+   * ship still pointing at a CDN.
+   */
+  const intrare = join(TINTA, basename(INTRARE));
+  writeFileSync(intrare, rescrieFonturi(readFileSync(intrare, 'utf8')));
+
+  for (const { modul } of FONTURI) {
+    const nume = basename(modul);
+    const destinatie = join(TINTA, DOSAR_FONTURI, nume);
+    mkdirSync(dirname(destinatie), { recursive: true });
+    copyFileSync(require.resolve(modul), destinatie);
+    scrise.push(posix.join(DOSAR_FONTURI, nume));
+  }
+
+  const octeti = scrise.reduce((n, f) => n + statSync(join(TINTA, f)).size, 0);
+  jurnal(
+    `CMS copiat din ${SURSA}: ${scrise.length} fișier(e), ${octeti} octeți, ` +
+      `fonturile servite de aici, nu de pe CDN.`,
+  );
+  return scrise.map((fisier) => join(TINTA, fisier));
 }
 
 // Rulat direct, nu importat: `node scripts/copy-cms.mjs`.

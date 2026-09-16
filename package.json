@@ -19,7 +19,10 @@
     "budget": "node scripts/check-budget.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/material-symbols-outlined": "5.3.1",
+    "@fontsource-variable/source-sans-3": "5.3.0",
     "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fontsource/noto-mono": "5.3.0",
     "@fontsource/spectral": "^5.3.0",
     "@sveltia/cms": "0.213.0",
     "astro": "^7.3.2"

@@ -25,6 +25,7 @@ import { createRequire } from 'node:module';
 import { basename, dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { FONTURI, rescrieFonturi } from '../../scripts/copy-cms.mjs';
 
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const PUBLIC = fileURLToPath(new URL('../../public/', import.meta.url));
@@ -56,7 +57,7 @@ function fisiere(radacina: string, relativ = ''): string[] {
  * it: the entry file npm resolved, plus every file in every subfolder beside it
  * (that is where the lazily-imported chunks live), minus the source maps.
  */
-const ASTEPTATE = [
+const ASTEPTATE_PACHET = [
   basename(INTRARE_CMS),
   ...readdirSync(SURSA_CMS, { withFileTypes: true })
     .filter((intrare) => intrare.isDirectory())
@@ -65,8 +66,29 @@ const ASTEPTATE = [
   .filter((f) => !f.endsWith('.map'))
   .sort();
 
+/*
+ * And the three fonts, whose expected set comes from the DECLARATION in
+ * `copy-cms.mjs` rather than from anything in `dist/`. That is a weaker source
+ * than the package folder above - it is the same table the script rewrites with
+ * - so it is not asked to carry the claim on its own. Three other assertions
+ * below come at it from outside: the served bundle must name no CDN while the
+ * package's own copy still does, every font URL it does name must resolve to a
+ * real file, and each of those files must match the npm package byte for byte.
+ */
+const ASTEPTATE_FONTURI = FONTURI.map(({ modul }) => `fonturi/${basename(modul)}`);
+
+const ASTEPTATE = [...ASTEPTATE_PACHET, ...ASTEPTATE_FONTURI].sort();
+
 /** Our own files under `admin/`, which are not vendored and are tracked in git. */
 const ALE_NOASTRE = ['index.html', 'config.yml', 'pornire.mjs'];
+
+const INTRARE_SERVITA = join(DIST, 'admin', basename(INTRARE_CMS));
+
+function numaraAparitii(text: string, bucata: string): number {
+  let n = 0;
+  for (let i = text.indexOf(bucata); i !== -1; i = text.indexOf(bucata, i + bucata.length)) n += 1;
+  return n;
+}
 
 describe('pagina de administrare există', () => {
   it('dist/admin/index.html a fost construită', () => {
@@ -131,6 +153,7 @@ describe('bundle-ul CMS este servit din acest sit, nu de pe un CDN', () => {
     expect(ASTEPTATE.length).toBeGreaterThan(1);
     expect(ASTEPTATE).toContain(basename(INTRARE_CMS));
     expect(ASTEPTATE.some((f) => f.startsWith('chunks/'))).toBe(true);
+    expect(ASTEPTATE.some((f) => f.startsWith('fonturi/'))).toBe(true);
   });
 
   /*
@@ -144,9 +167,55 @@ describe('bundle-ul CMS este servit din acest sit, nu de pe un CDN', () => {
   });
 
   it('poartă octeții pachetului, nu o copie veche', () => {
-    for (const cale of ASTEPTATE) {
+    for (const cale of ASTEPTATE_PACHET) {
+      // Fișierul de intrare este singurul rescris; are testul lui mai jos.
+      if (cale === basename(INTRARE_CMS)) continue;
       const copiat = citeste(join(DIST, 'admin', cale));
       expect(copiat.equals(readFileSync(join(SURSA_CMS, cale))), cale).toBe(true);
+    }
+  });
+
+  /*
+   * FIȘIERUL DE INTRARE ESTE SINGURUL COD STRĂIN PE CARE ÎL MODIFICĂM, deci
+   * egalitatea este exactă: ce se servește trebuie să fie chiar pachetul trecut
+   * prin `rescrieFonturi`, nici un octet mai mult. O modificare în plus -
+   * strecurată, sau făcută de o unealtă pe drum - pică aici.
+   */
+  it('fișierul de intrare este pachetul cu fonturile rescrise și nimic altceva', () => {
+    const servit = citeste(INTRARE_SERVITA).toString('utf8');
+    expect(servit).toBe(rescrieFonturi(readFileSync(INTRARE_CMS, 'utf8')));
+  });
+
+  /*
+   * Și dovada că rescrierea are ce să rescrie. Fără controlul pozitiv, „nu
+   * numește niciun CDN" ar fi la fel de adevărat despre un pachet care nu l-a
+   * numit niciodată - iar atunci nimeni nu ar afla că tabelul `FONTURI` a rămas
+   * în urmă.
+   */
+  it('nu mai numește CDN-ul de fonturi, deși pachetul îl numește', () => {
+    const CDN = 'cdn.jsdelivr.net';
+    expect(numaraAparitii(readFileSync(INTRARE_CMS, 'utf8'), CDN)).toBeGreaterThan(0);
+    expect(numaraAparitii(citeste(INTRARE_SERVITA).toString('utf8'), CDN)).toBe(0);
+  });
+
+  /*
+   * Referințele, urmărite până la fișier - aceeași regulă ca pentru `.ics`: o
+   * adresă rescrisă greșit ar ieși din mulțimea verificată în loc să o facă să
+   * pice, dacă nimeni nu ar număra și nu ar deschide fișierele.
+   */
+  it('fiecare font pe care îl cere duce la un fișier real din dist/', () => {
+    const servit = citeste(INTRARE_SERVITA).toString('utf8');
+    const urluri = [...servit.matchAll(/url\((\/admin\/[^)]+)\)/g)].map((m) => m[1] as string);
+    expect(urluri.length, 'bundle-ul nu cere niciun font local').toBe(FONTURI.length);
+    for (const url of urluri) citeste(join(DIST, url.slice(1)));
+  });
+
+  it('fonturile servite sunt chiar fonturile din pachetele npm', () => {
+    const require = createRequire(import.meta.url);
+    for (const { modul } of FONTURI) {
+      const nume = basename(modul);
+      const servit = citeste(join(DIST, 'admin', 'fonturi', nume));
+      expect(servit.equals(readFileSync(require.resolve(modul))), nume).toBe(true);
     }
   });
 
