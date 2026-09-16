@@ -43,6 +43,30 @@
  * `rel=alternate` (the `.ics` feed is fetched when someone subscribes),
  * `preconnect` and `dns-prefetch`.
  *
+ * ---------------------------------------------------------------------------
+ * EVERY TAG SCAN BELOW EXCEPT THE `<script>` ONE IS NOT COMMENT-AWARE, AND THE
+ * DIRECTION IT CAN BE WRONG IN IS WHY THAT IS FINE.
+ *
+ * `<link>`, `<style>`, `<img>`, `<iframe>`, `<video>`, `<audio>`, `<source>` and
+ * `<embed>` are matched with a plain regex, so a tag commented out in the HTML
+ * is counted as though it were live. Every one of those counts feeds a
+ * `valoare <= limita` comparison, so the only outcome over-counting can reach is
+ * a FAILED budget. A false red costs somebody a minute and a `git blame`; a
+ * false green is the thing this whole file exists to prevent.
+ *
+ * `<script>` was the exception, and it had to be fixed, because it fed a
+ * measurement that could come out LOW. `public/admin/index.html` carries a
+ * comment mentioning `<script>`, and the naive pattern ate the comment and the
+ * real tag as one match: a 758-byte inline script that does not exist, the real
+ * tag's `src` gone with it, weight nothing measured and a CSP hash for nothing.
+ * That is why `scripturi()` consumes comments first and why the scans below do
+ * not need to.
+ *
+ * So before "fixing" one of them into comment-awareness, work out which
+ * direction it can be wrong in. Making one of these feed a count that can come
+ * out low is the change that would matter.
+ * ---------------------------------------------------------------------------
+ *
  * Run with `npm run budget`, and as the last step of `npm run test:build`.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -194,7 +218,13 @@ function octetiModul(cale, vazute) {
   return total;
 }
 
-/** The CSS one built page ships: linked stylesheets and inline blocks. */
+/*
+ * The CSS one built page ships: linked stylesheets and inline blocks.
+ *
+ * FIRST OF THE NOT-COMMENT-AWARE TAG SCANS; the rest are in the page loop
+ * below. See the note at the top of this file for why they are left that way
+ * and what would have to change before one of them could be made to matter.
+ */
 function cssPagina(html) {
   const bucati = [];
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {

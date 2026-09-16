@@ -17,7 +17,14 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   The forbidden four are named by number and never printed as glyphs anywhere in this
   repository, including here: a file that spelled them out could not be swept for them,
   and nothing in it could be copied without carrying one.
-  `src/lib/diacritice.itest.ts` sweeps every text file in `dist/`.
+  `src/lib/diacritice.itest.ts` sweeps every text file in `dist/` **except the vendored
+  Sveltia bundle**, whose own i18n tables legitimately contain Turkish; the exclusion is
+  by path, the paths come from the installed package, and the test asserts both halves —
+  that the bundle really is excluded and that our own files under `admin/` really are not.
+  It asks two questions of each file: "is this one of the four wrong characters?", and the
+  stronger "is every non-ASCII character one this project expects?" against a list of
+  twenty-two. The second exists because a stray U+5DEE once passed every scan the first
+  could make. A new character in the output fails until somebody names it.
 - **Dates are `YYYY-MM-DD` strings; times are `HH:MM` local strings.** Never a UTC instant
   for a service — a Liturgy at 10:00 is at 10:00 across a DST change. `aziLaZurich()` and
   `oraLaZurich()` in `src/lib/week.ts` are the only timezone-aware functions; everything
@@ -74,7 +81,11 @@ Every one of these was paid for.
   not pass quietly; every "X is absent" claim needs a positive control showing the
   detector can fire.
 - **A guard that derives its subject from the artifact it checks can only check what it
-  recognised.** Take the expected set from somewhere the defect cannot edit.
+  recognised.** Take the expected set from somewhere the defect cannot edit — that is why
+  `CSP_ASTEPTAT` is written out by hand rather than read off a run. The exception is when
+  following the artifact *is* the property: `a11y.mjs` derives the layout breakpoints from
+  the built CSS precisely because a hand-written copy of them went stale without a symptom.
+  Say which of the two a list is, and why, beside it.
 - **Assert that a reference resolves, not that its text appears.** A rule for a path that
   does not exist looks exactly like a rule that works.
 - **Print what was measured, not only the verdict.** The number is what a later reader
@@ -89,7 +100,12 @@ Every one of these was paid for.
   beside every number so a third occurrence cannot hide.
 - **Replacing a checker is where coverage goes to die.** The new one passes, everyone
   relaxes, and nobody notices it checks less. Run both over the same input and diff the
-  results — for `a11y.mjs` that meant every rule id, in passes, violations *and* incompletes.
+  results — every rule id, in passes, violations *and* incompletes, because a rule that
+  stops running reports no violations either. This was done once, for `a11y.mjs` at
+  `bed5e4e`, and **nothing re-runs it**: `@axe-core/cli` is deliberately not a dependency
+  any more. `docs/a11y-differential.md` carries the result, the versions on both sides,
+  this side's rule inventory and the procedure to redo it. It is a gate, not a guard, and
+  saying so is the point — doctrine with no implementation reads as a running check.
 - **An explicit gap beats a vacuous pass.** Where something cannot be checked here — what
   Cloudflare does with `_headers`, what the CMS does after a real sign-in — say so and say
   what to run instead.
@@ -102,10 +118,24 @@ Every one of these was paid for.
 pass, then the budget.
 
 `npm run test:all` — all of the above plus the phone (390px), wide (1100px) and
-week-picker passes. **This is what CI runs; a green `npm test` is not.**
+week-picker passes. A green `npm test` is not this. **CI runs `npm run check` as well
+(`ci.yml`), and `test:all` does not include it** — a type error passes here and fails there,
+so run both before you push.
 
 `npm run a11y` · `a11y:mobil` · `a11y:larg` · `a11y:selector` — the browser passes on
-their own. Each loads the built site with `dist/_headers` applied and fails on any
-Content-Security-Policy violation the policy did not already expect.
+their own. Each serves the built site with the `_headers` of the build it is auditing and
+fails on any Content-Security-Policy violation the policy did not already expect. The first
+three audit `dist/`; `a11y:selector` builds a throwaway site from `src/lib/fixturi.ts` into
+a scratch directory and audits that one's `_headers`, which is the same file's content from
+a different build, not `dist/_headers`.
+
+Every pass also derives the layout breakpoints from the CSS of the pages it loads and fails
+if the viewports in `CONDITII` leave a band of widths unaudited — so a breakpoint that moves
+or one that is added is a red build, not a silently wrong claim.
+
+**How long `test:all` takes is a property of the machine, not of this repository.** Well under a
+minute on both machines it has run on — 36 to 40 s over five runs — so quote a range or nothing.
+What is invariant is the shape: four Astro builds and four headless-Chrome launches dominate the
+wall time, so it tracks the browser and the disk rather than the number of tests.
 
 Use `astro dev --background`, then `astro dev stop|status|logs`.
