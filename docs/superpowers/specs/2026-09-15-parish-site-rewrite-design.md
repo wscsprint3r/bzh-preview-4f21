@@ -51,9 +51,12 @@ Seven steps involving a page builder, for one paragraph of news. The new site mu
 - A non-technical editor publishes a news post in under three minutes without help. **The CMS
   chrome is English** — Sveltia ships 29 UI languages and Romanian is not among them, and its
   non-English locales are fetched from a CDN at run time, which this project's CSP blocks. The
-  field labels, hints and error messages we author *are* Romanian; six chrome buttons are not
-  (New, Duplicate, Save and Publish, Delete, Add, Cancel), and the printed guide carries the
-  translation. Decap **does** ship a bundled Romanian UI with correct comma-below diacritics
+  field labels, hints and error messages we author *are* Romanian; the chrome is not, and the printed guide carries the
+  translation. **The publish button is labelled `Save`** — not "Save and Publish", which this
+  configuration never renders — and pressing it puts the change on the website in about a
+  minute, because every commit triggers a build. There is no separate publish step to explain.
+  Duplicate, Delete and Discard live in a menu rather than the toolbar, which matters because
+  duplicating last week's day is the whole weekly routine. Decap **does** ship a bundled Romanian UI with correct comma-below diacritics
   and no CDN dependencies; it was considered and declined in favour of Sveltia's modern
   editor, phone support, 2 files versus 94, and active development. Recorded so nobody has to
   rediscover the trade.
