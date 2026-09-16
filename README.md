@@ -53,9 +53,15 @@ trece local și pică în CI. Rulați-le pe amândouă înainte să publicați.
 peste `dist/`, apoi patru treceri cu un Chrome adevărat peste paginile
 construite — la lățimea implicită, la 390px (telefon), la 1100px (peste pragul
 de 62rem) și peste o construcție de probă cu mai multe săptămâni, singura în
-care se vede bara selectorului de săptămână. Fiecare trecere servește paginile
-cu antetele din `dist/_headers` și pică la orice încălcare de
-Content-Security-Policy neprevăzută.
+care se vede bara selectorului de săptămână; ultima rulează la toate trei
+lățimile, fiindcă rândul de șapte zile al Săptămânii Mari *cu bara vizibilă* nu
+apare în nicio altă construcție.
+
+Fiecare trecere servește paginile cu antetele `_headers` **ale construcției pe
+care o auditează** și pică la orice încălcare de Content-Security-Policy
+neprevăzută. Primele trei citesc `dist/_headers`; trecerea cu selectorul citește
+`_headers`-ul construcției de probă — același conținut, altă construcție, nu
+`dist/_headers`.
 
 ## Cum ajunge pe internet
 
