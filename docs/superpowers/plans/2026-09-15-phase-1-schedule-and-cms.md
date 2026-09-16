@@ -42,6 +42,19 @@ Every task's requirements implicitly include this section.
   pass claimed all nine mutants survived; re-running without the redirect killed all nine.
   Read mutation results off the test runner's own output, never off a report file you did not
   watch it write, and sanity-check that the baseline is green before trusting any SURVIVED.
+- **Opacity on text is not dimming, it is contrast reduction.** The plan's `.rz-anulat`
+  `opacity: 0.75` produced six `color-contrast` violations on a genuinely cancelled day —
+  times falling 4.67:1 to 2.96:1 — and `--gold-text` is unusable below opacity 0.981. Every
+  static guard passed it; axe caught it. Say "not happening" with a strike or a label, never
+  by fading the text.
+- **A component that colours a link owns that link's hover and focus states.** Astro's scoping
+  attribute puts a component rule at (0,3,1), which outranks a global `a:hover` at (0,1,1) —
+  so every scoped `.x a { color }` silently loses its hover, with no test, no axe violation
+  and no build failure to say so.
+- **`locatie` must render wherever the schedule renders.** It is in the schema, exposed by the
+  CMS, and written into the `.ics` `LOCATION`. A day held in a different chapel would
+  otherwise produce a calendar that says so and a website that does not — sending a
+  parishioner to the wrong building, which is worse than the field not existing.
 - **Do not re-implement the cascade. Assert contrast with a real engine.** Task 7 spent three
   fix rounds on a guard parsing CSS for unsafe text colours. Nine escapes were found across
   three reviews, the last four proven with `getComputedStyle` in headless Chrome:
