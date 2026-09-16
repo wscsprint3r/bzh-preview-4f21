@@ -1,0 +1,77 @@
+/**
+ * The calendar feed, at `/program.ics`.
+ *
+ * Three places already point here — the `<link rel="alternate">` in
+ * `Base.astro`, the footer's "Abonare la program (.ics)" and the button at the
+ * foot of `/program/` — so until this file existed the link was broken on every
+ * page of the site.
+ *
+ * All this route does is join two things that are each tested on their own:
+ * the collection (`content.config.ts` + `schema.ts`) and the generator
+ * (`lib/ics.ts`). The joint itself has no unit test and cannot have one, which
+ * is what `lib/build-output.itest.ts` is for: it reads the built `dist/` and
+ * asserts that every day in the collection came out the other end.
+ */
+import type { APIRoute } from 'astro';
+import { getCollection } from 'astro:content';
+import { genereazaIcs } from '../lib/ics';
+
+/**
+ * Where the services are, unless a day says otherwise.
+ *
+ * `ics.ts` writes `z.locatie || opts.locatie` into LOCATION, so this is the
+ * address a subscriber's phone shows on an ordinary day. Fuller than the
+ * footer's two lines on purpose: a calendar entry is read away from the site,
+ * often in a map application, so it carries the building's name as well as the
+ * street. The commas are escaped by `ics.ts` per RFC 5545 §3.3.11 — do not
+ * escape them here as well.
+ */
+const LOCATIE = 'Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich';
+
+export const GET: APIRoute = async () => {
+  const intrari = await getCollection('slujbe');
+  /*
+   * `data` is two different things on this line, exactly as on both pages.
+   * `e.data` is Astro's parsed frontmatter — every field `ziSchema` validated,
+   * which is every field of a day EXCEPT its date; the date is the filename,
+   * i.e. `e.id`, checked by `idDinNumeFisier`. Spread first, then set `data`
+   * (Romanian for date) from the id. Either order reversed leaves `zi.data`
+   * undefined and every UID and DTSTART in the feed reads `undefined`.
+   */
+  const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
+
+  /*
+   * THIS CALL SITE OWNS THE CORRECTNESS OF THIS STRING. `genereazaIcs` takes
+   * `dtstamp` as a parameter and does not validate it — that is deliberate, so
+   * its own tests get deterministic output — so nothing downstream will notice
+   * if what arrives is not an RFC 5545 §3.3.5 UTC date-time. It must be exactly
+   * YYYYMMDDTHHMMSSZ, and a malformed DTSTAMP is the kind of defect that makes
+   * a strict parser reject the whole calendar rather than one event.
+   *
+   * `toISOString` is specified to return exactly `YYYY-MM-DDTHH:mm:ss.sssZ` for
+   * every year this site will see, so dropping the separators and cutting at 15
+   * characters is a slice of a fixed-width string rather than a parse. The
+   * property is asserted against the built feed in `build-output.itest.ts`,
+   * which is where it can be checked rather than merely asserted by comment.
+   */
+  const dtstamp = `${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`;
+
+  /*
+   * The headers are honoured by `astro dev` and `astro preview`. A static build
+   * writes the body to `dist/program.ics` and drops them, so on the deployed
+   * site the content type comes from the host's mapping for `.ics` — which is
+   * `text/calendar` by default everywhere, and is also declared by the
+   * `<link rel="alternate" type="text/calendar">` in `Base.astro`.
+   *
+   * `inline` rather than `attachment`: this link is for subscribing, and an
+   * `attachment` disposition pushes a browser towards saving a one-off copy of
+   * the file, which is the one outcome that would leave a parishioner with a
+   * schedule that never updates again.
+   */
+  return new Response(genereazaIcs(zile, { dtstamp, locatie: LOCATIE }), {
+    headers: {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'inline; filename="program-liturgic.ics"',
+    },
+  });
+};
