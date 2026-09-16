@@ -78,6 +78,14 @@ Every task's requirements implicitly include this section.
 - **Print what was measured, not only the verdict.** A responsive check was caught measuring
   nothing only because it printed the viewport it actually got — Chrome had clamped a 375px
   window to 500px. A verdict alone would have hidden that.
+- **The schema validates shape, not theology — and nothing here can.** Three fabricated seed
+  files passed every guard in this project: valid dates, valid times, service names from the
+  closed list, correct diacritics, a green build. What gave them away was that each was a
+  Sunday carrying only Spovedanie and Vecernie, **with no Sfânta Liturghie** — impossible for
+  an Orthodox parish, and invisible to every test we have. This is a gap to know about rather
+  than close: the only guard against liturgically wrong content is a reader who knows what a
+  Sunday looks like, which is an argument for the parish reviewing what the CMS publishes,
+  not for more validation.
 - **Coverage that depends on what the parish published is not coverage.** Three fabricated
   Sundays briefly made the week picker visible to axe by accident. Content changes; a guarantee
   resting on today's content is not a guarantee. Use a fixture build.
