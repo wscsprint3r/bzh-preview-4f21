@@ -20,6 +20,76 @@ const A_BREVE = String.fromCodePoint(0x0103);
 // control was added, measured.
 const CRATIMA_MOALE = 0x00ad;
 const INVIZIBILE = [CRATIMA_MOALE, 0x2068, 0x2069];
+const SPATIU_NESEPARABIL = 0x00a0;
+
+// Group B: the visible characters ruled untouchable - legitimate Romanian and
+// German typography that `normalizeaza` must carry through unchanged. Written
+// out here by number for the same reason as `INVIZIBILE`: an expected set taken
+// from the module under test only ever restates what that module already does.
+//
+// Guillemets are Romanian's own quotation pair; the umlauts are German names
+// and words the parish writes. Counts measured in the corpus, 2026-09-16.
+const GRUPA_B = [
+  0x00ab, // « x33
+  0x00bb, // » x33
+  0x201c, // opening double quote, x21
+  0x2019, // typographic apostrophe, x4
+  0x00dc, // U with umlaut, x4
+  0x00e4, // a with umlaut, x2
+  0x00f6, // o with umlaut, x2
+];
+
+// The two combining marks the pairs differ by, for the correspondence check.
+const CEDILA_COMBINATA = 0x0327;
+const VIRGULA_COMBINATA = 0x0326;
+
+/*
+ * THE PREMISE `INLOCUIRI` RESTS ON, WHICH NOTHING CHECKED.
+ *
+ * `INLOCUIRI` is a zip of `CEDILE` and `VIRGULA_DEDESUBT` on the stated grounds
+ * that the two are declared in matching order. Nothing in the repository
+ * asserted that. Every other pairing assertion in this file has the shape
+ * `normalizeaza(CEDILE[i]) === VIRGULA_DEDESUBT[i]`, which restates the map's
+ * own definition - so permuting `VIRGULA_DEDESUBT` in `cedile.ts`, pairing a
+ * capital with a small letter, would ship GREEN through the whole suite. That
+ * is the corrupted-expectation-agreeing-with-corrupted-source shape again, one
+ * remove further out than a wrong entry in the map itself: the map would be a
+ * faithful zip of a table that had become wrong.
+ *
+ * So this asks Unicode rather than this repository. It decomposes both
+ * characters (NFD) and compares the pieces. Comparing the BASE character
+ * settles same-letter and same-case in one go, because `S` and `s` are
+ * different base characters - and case is precisely what a transposition would
+ * get wrong.
+ */
+describe('premisa zipului: cele doua tablouri chiar se corespund', () => {
+  it.each(CEDILE.map((cp, i) => [i, cp, VIRGULA_DEDESUBT[i]]))(
+    'perechea %i este aceeasi litera, doar cu alt semn',
+    (_i, cedila, virgula) => {
+      const descompusaCedila = [...String.fromCodePoint(cedila).normalize('NFD')];
+      const descompusaVirgula = [...String.fromCodePoint(virgula).normalize('NFD')];
+      // Each is exactly a base letter plus one combining mark. Asserted, not
+      // assumed: a character that decomposed to something else would make the
+      // comparisons below compare the wrong pieces.
+      expect(descompusaCedila, uPlus(cedila)).toHaveLength(2);
+      expect(descompusaVirgula, uPlus(virgula)).toHaveLength(2);
+      // Same base character: same letter AND same case.
+      expect(descompusaVirgula[0], `${uPlus(cedila)} vs ${uPlus(virgula)}`).toBe(
+        descompusaCedila[0],
+      );
+      // And the mark is the only thing that differs: cedilla to comma below.
+      expect(descompusaCedila[1].codePointAt(0), uPlus(cedila)).toBe(CEDILA_COMBINATA);
+      expect(descompusaVirgula[1].codePointAt(0), uPlus(virgula)).toBe(VIRGULA_COMBINATA);
+    },
+  );
+
+  it('tablourile au aceeasi lungime, altfel zipul ar lasa perechi nedefinite', () => {
+    // A `CEDILE` entry with no partner zips to `[cp, undefined]`, and
+    // `INLOCUIRI.get(cp)` then returns `undefined`, which `normalizeaza` reads
+    // as "leave it alone" - a forbidden character passing through in silence.
+    expect(VIRGULA_DEDESUBT).toHaveLength(CEDILE.length);
+  });
+});
 
 describe('normalizarea diacriticelor', () => {
   it('schimba toate cele patru forme cu sedila', () => {
@@ -56,9 +126,9 @@ describe('normalizarea diacriticelor', () => {
   });
 
   it('reface cuvantul rupt de cratima moale, fara sa inventeze o cratima', () => {
-    // Masurat in corpus: `rugaciune` rupt mid-cuvant de o cratima moale. Nu
-    // este o cratima obisnuita - cuvantul este unul singur, iar o cratima
-    // adevarata ar inventa o scriere pe care nu a folosit-o nimeni.
+    // Measured in the corpus: the word broken mid-word by a soft hyphen. A
+    // soft hyphen is not a hyphen - the word is a single one, and writing a
+    // real hyphen in its place would invent a spelling nobody used.
     const rupt = `rug${A_BREVE}ciu${String.fromCodePoint(CRATIMA_MOALE)}ne`;
     expect(normalizeaza(rupt)).toBe(`rug${A_BREVE}ciune`);
     expect(normalizeaza(rupt)).not.toContain('-');
@@ -74,6 +144,24 @@ describe('normalizarea diacriticelor', () => {
       expect(toate.includes(String.fromCodePoint(c)), uPlus(c)).toBe(true);
     }
     expect(normalizeaza(`x${toate}y`)).toBe('xy');
+  });
+
+  it('lasa neatinsa tipografia romaneasca si germana', () => {
+    // Nothing else guards these. The `dist/` sweep fires on characters it does
+    // not EXPECT and never on characters that have gone MISSING, so an entry
+    // added to `DE_STERS` or `INLOCUIRI` later that swallowed a guillemet would
+    // be caught by nothing at all - in the one module every migration task runs
+    // the parish's prose through. This is the deletion nobody would see.
+    for (const c of GRUPA_B) {
+      const ch = String.fromCodePoint(c);
+      expect(normalizeaza(ch), uPlus(c)).toBe(ch);
+      expect(normalizeaza(`ab${ch}cd`), uPlus(c)).toBe(`ab${ch}cd`);
+      expect(DE_STERS.has(c), `${uPlus(c)} nu are ce cauta in DE_STERS`).toBe(false);
+      expect(INLOCUIRI.has(c), `${uPlus(c)} nu are ce cauta in INLOCUIRI`).toBe(false);
+    }
+    // And all seven together, the way they turn up in a real paragraph.
+    const toate = GRUPA_B.map((c) => String.fromCodePoint(c)).join('');
+    expect(normalizeaza(toate)).toBe(toate);
   });
 
   it('NU adauga diacritice lipsa - asta este treaba unui om', () => {
@@ -108,7 +196,27 @@ describe('normalizarea diacriticelor', () => {
     expect(r.get(CEDILE[3])).toBe(1);
   });
 
-  it('este idempotenta', () => {
+  it('este idempotenta prin structura, nu doar pe un exemplu', () => {
+    // `f(f(x)) === f(x)` is satisfied by the identity function too, so the
+    // example at the end cannot tell a working normaliser from one that does
+    // nothing. The structural property can, and it is the real reason this
+    // holds: `normalizeaza` is idempotent exactly when nothing it PRODUCES is
+    // something it would go on to transform. Transformed: every key of
+    // `INLOCUIRI`, the non-breaking space, every member of `DE_STERS`.
+    // Produced: every value of `INLOCUIRI`, and the plain space.
+    const transformate = new Set([...INLOCUIRI.keys(), SPATIU_NESEPARABIL, ...DE_STERS]);
+    const produse = new Set([...INLOCUIRI.values(), 0x20]);
+    const ambele = [...produse].filter((c) => transformate.has(c)).map(uPlus);
+    expect(
+      ambele,
+      `normalizeaza produce caractere pe care le-ar transforma din nou: ${ambele.join(', ')}`,
+    ).toEqual([]);
+    // Positive control: both sets have something in them, so the empty
+    // intersection above is empty for the right reason rather than because
+    // there was nothing there to meet.
+    expect(transformate.size).toBeGreaterThan(DE_STERS.size);
+    expect(produse.size).toBeGreaterThan(1);
+
     const intrare =
       S_CEDILA + T_CEDILA + A_TILDA + String.fromCodePoint(CRATIMA_MOALE) + 'text';
     expect(normalizeaza(normalizeaza(intrare))).toBe(normalizeaza(intrare));

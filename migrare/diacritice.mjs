@@ -94,8 +94,22 @@ export function normalizeaza(text) {
  * Print what was measured, not only the verdict: the migration prints this
  * before and after so a later reader can check a number rather than trust a
  * sentence. It is also the stronger question - not "does this contain the four
- * forbidden characters" but "is every character in here one this project
- * expects".
+ * forbidden characters" but "is every NON-ASCII character in here one this
+ * project expects".
+ *
+ * WHAT IT CANNOT SEE, said rather than left to be discovered. The filter is
+ * `c > 127`, so an ASCII control - U+000B, U+000C, U+007F - is invisible to it.
+ * Those are Group A's class exactly: invisible residue from the same word
+ * processor that left the soft hyphens. So "no invisible characters remain",
+ * concluded from this function, only ever means "no non-ASCII ones", and a
+ * report that says otherwise is overclaiming.
+ *
+ * Measured on the 2026-08-27 corpus rather than assumed: zero ASCII controls in
+ * all 232,298 characters, counting everything below 0x20 except tab, newline
+ * and carriage return, plus 0x7F. Tab appears 6,562 times and newline 914,
+ * which is why the filter is not simply widened - doing that would bury every
+ * report under ordinary whitespace. If a control ever does turn up, it needs
+ * its own count, not a looser floor here.
  */
 export function raportCodepoints(text) {
   const harta = new Map();
