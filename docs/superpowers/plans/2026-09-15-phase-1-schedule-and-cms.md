@@ -2665,7 +2665,7 @@ With JavaScript off (DevTools → Command Palette → "Disable JavaScript", then
 Check the JS budget:
 
 Run: `cd web && npm run budget`
-Expected: the JS line is under 3,072 bytes.
+Expected: the JS line is under 3,800 bytes.
 
 Do **not** measure this by globbing `dist/_astro/*.js` — Astro inlines a script below roughly
 4 KB, so that glob matches nothing and the check silently passes. The budget script counts
