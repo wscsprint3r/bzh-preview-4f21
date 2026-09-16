@@ -190,13 +190,25 @@ function serveste(dist, reguli) {
  * breakpoints, both need naming explicitly. `js: false` means the page's own
  * scripts never ran.
  */
+const TELEFON = '(max-width: 34rem)';
+const LARG = '(min-width: 62rem)';
+
+/*
+ * `medii` is asserted in the browser rather than worked out on paper, and the
+ * DEFAULT condition is the important one: it claims that the viewport axe gives
+ * you matches NEITHER of this site's two breakpoints, which is the entire reason
+ * the other two conditions exist. Arithmetic would get that from 34rem = 544px
+ * and 62rem = 992px against a measured 756px - right today, and quietly wrong
+ * the day someone moves a breakpoint or sets a root font-size. `matchMedia` is
+ * the browser answering the question the CSS actually asked.
+ */
 export const CONDITII = {
-  birou: { eticheta: 'birou, JS pornit', latime: null, js: true },
-  birouFaraJs: { eticheta: 'birou, JS oprit', latime: null, js: false },
-  telefon: { eticheta: 'telefon 390px, JS pornit', latime: 390, inaltime: 844, js: true },
-  telefonFaraJs: { eticheta: 'telefon 390px, JS oprit', latime: 390, inaltime: 844, js: false },
-  larg: { eticheta: 'larg 1100px, JS pornit', latime: 1100, inaltime: 900, js: true },
-  largFaraJs: { eticheta: 'larg 1100px, JS oprit', latime: 1100, inaltime: 900, js: false },
+  birou: { eticheta: 'birou, JS pornit', latime: null, js: true, medii: { [TELEFON]: false, [LARG]: false } },
+  birouFaraJs: { eticheta: 'birou, JS oprit', latime: null, js: false, medii: { [TELEFON]: false, [LARG]: false } },
+  telefon: { eticheta: 'telefon 390px, JS pornit', latime: 390, inaltime: 844, js: true, medii: { [TELEFON]: true, [LARG]: false } },
+  telefonFaraJs: { eticheta: 'telefon 390px, JS oprit', latime: 390, inaltime: 844, js: false, medii: { [TELEFON]: true, [LARG]: false } },
+  larg: { eticheta: 'larg 1100px, JS pornit', latime: 1100, inaltime: 900, js: true, medii: { [TELEFON]: false, [LARG]: true } },
+  largFaraJs: { eticheta: 'larg 1100px, JS oprit', latime: 1100, inaltime: 900, js: false, medii: { [TELEFON]: false, [LARG]: true } },
 };
 
 function deschide() {
@@ -361,6 +373,25 @@ export async function auditeaza({ dist, conditii, eticheta, cerinta = null, spun
       } else {
         spune(`  control: scripturile paginii ${aRulat ? 'rulează' : 'nu rulează'}, cum se cere`);
       }
+
+      const masurate = await driver.executeScript(
+        'return { latime: window.innerWidth, medii: ' +
+          JSON.stringify(Object.keys(conditie.medii)) +
+          '.map((q) => [q, window.matchMedia(q).matches]) };',
+      );
+      for (const [interogare, potriveste] of masurate.medii) {
+        if (potriveste !== conditie.medii[interogare]) {
+          nereusit(
+            `  la ${masurate.latime}px, ${interogare} ${potriveste ? 'se potrivește' : 'nu se potrivește'}, ` +
+              `dar condiția cere contrariul. Un prag s-a mutat, sau lățimea nu e cea cerută.`,
+          );
+        }
+      }
+      spune(
+        `  ${masurate.latime}px · ` +
+          masurate.medii.map(([q, m]) => `${q} ${m ? 'DA' : 'nu'}`).join(' · '),
+      );
+
       await pregateste(driver, conditie);
 
       for (const pagina of toate) {

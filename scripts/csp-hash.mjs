@@ -38,6 +38,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { scripturi } from './scripturi.mjs';
 
 /** The token in `public/_headers` that this file replaces. */
@@ -140,7 +141,10 @@ export const hashuriCsp = {
   name: 'hashuri-csp',
   hooks: {
     'astro:build:done': ({ dir, logger }) => {
-      scrieHeaders(dir.pathname, (mesaj) => logger.info(mesaj));
+      // `fileURLToPath`, not `dir.pathname`: a project path containing a space
+      // arrives percent-encoded in `pathname` and every `readdirSync` below
+      // would then miss the build entirely.
+      scrieHeaders(fileURLToPath(dir), (mesaj) => logger.info(mesaj));
     },
   },
 };

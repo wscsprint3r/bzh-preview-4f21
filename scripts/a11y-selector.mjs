@@ -53,6 +53,7 @@ import { cpSync, mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writ
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { Key } from 'selenium-webdriver';
 import { build } from 'esbuild';
 import { stringify } from 'yaml';
 import { auditeaza, CONDITII } from './a11y.mjs';
@@ -131,13 +132,18 @@ async function main() {
       cwd: proiect,
     });
 
-    const ok = await auditeaza({
+    /*
+     * RETURNED, NOT `process.exit`ed. `process.exit` inside a `try` terminates
+     * the process without unwinding, so the `finally` below never runs and every
+     * run leaves a few megabytes of copied `public/` behind in the temp
+     * directory. Found by counting four of them.
+     */
+    return await auditeaza({
       dist: join(proiect, 'dist'),
       conditii: [CONDITII.birou, CONDITII.telefon],
       eticheta: 'axe peste selectorul de săptămână (construcție de probă)',
       cerinta: verificaBara,
     });
-    process.exit(ok ? 0 : 1);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
@@ -200,7 +206,6 @@ async function verificaBara(driver, conditie, url) {
    * programmatic focus, so `el.focus()` would read the unfocused outline and
    * agree with a deleted ring. Tabbing is what a keyboard user does.
    */
-  const { Key } = await import('selenium-webdriver');
   let inel = null;
   for (let i = 0; i < 40; i += 1) {
     await driver.actions().sendKeys(Key.TAB).perform();
@@ -224,4 +229,4 @@ async function verificaBara(driver, conditie, url) {
   return null;
 }
 
-await main();
+process.exit((await main()) ? 0 : 1);
