@@ -71,6 +71,16 @@ Every task's requirements implicitly include this section.
   picker shipped its navigation bar — two dead arrows — to every no-JS visitor while looking
   correct to anyone testing with JavaScript on, which is the state nobody checks. Any
   component that both sets `display` and relies on `hidden` needs its own `[hidden]` rule.
+- **A check that prints the problem and exits 0 is a check that ships it.** Task 10's budget
+  detected the script flipping from inlined to emitted, reported the flip as prose, and
+  returned success. Detecting a condition and failing on it are different features; write the
+  second. Where a tolerance is wanted, make it an explicit opt-in, never a silent pass.
+- **Print what was measured, not only the verdict.** A responsive check was caught measuring
+  nothing only because it printed the viewport it actually got — Chrome had clamped a 375px
+  window to 500px. A verdict alone would have hidden that.
+- **Coverage that depends on what the parish published is not coverage.** Three fabricated
+  Sundays briefly made the week picker visible to axe by accident. Content changes; a guarantee
+  resting on today's content is not a guarantee. Use a fixture build.
 - **A verification command that matches no files is a check that always passes.** The plan's
   JS budget step globbed `dist/_astro/*.js`, which matches nothing once Astro inlines the
   script — so the budget was never measured. Assert the number, not the absence of an error.
