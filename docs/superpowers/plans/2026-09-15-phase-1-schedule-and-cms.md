@@ -105,12 +105,21 @@ Every task's requirements implicitly include this section.
   labels no volunteer will ever read. Documentation for a sighted reader must describe
   **positions and icons**; aria-labels are what a screen-reader user has, and the two audiences
   need different words.
-- **One configuration flag can put phantom controls into every document you own.**
-  `publish_mode: simple` makes a whole branch of the CMS unreachable, and three documents each
-  confidently described a control from that dead branch — `Save and Publish` on the card,
-  `Discard` in the spec, `Publish` in `config.yml`. No test caught any of them, because none of
-  them is code. A control found in a locale table or in one branch of a bundle is not a control
+- **Configuration can put phantom controls into every document you own, and there is usually
+  more than one cause.** Three documents each confidently described a control this build never
+  renders — `Save and Publish` on the printed card, `Publish` in `config.yml`, `Discard` in the
+  spec — and no test caught any of them, because none of them is code.
+  **Two different dead branches, not one.** `Save and Publish` and `Publish` live in a branch
+  gated by the *backend block* (`skip_ci` / `automatic_deployments`, neither of which we
+  declare). Only `Discard` sits on the editorial-workflow path that `publish_mode: simple`
+  blocks. An earlier draft of this very bullet blamed `publish_mode` for all three — a wrong
+  cause inside the paragraph about causes, which would have sent a future reader to watch the
+  wrong line. A control found in a locale table or in one branch of a bundle is not a control
   this configuration shows: open it and look.
+- **`test-repo` cannot test backend-specific behaviour.** It is the right tool for reading
+  labels, menus and flows off a running CMS with no credentials — but `TestBackend` declares
+  no `skip_ci` or `automatic_deployments`, and the validator reads those only for git backends,
+  so a scratch config setting them proves nothing either way. Know which claims it can settle.
 - **Static reading is the wrong tool for a claim about what a person sees.** Task 12's card named
   a button that does not exist, because the bundle was read rather than run: the first pass
   found a `Save and Publish` branch and missed the branch selector two hundred characters
