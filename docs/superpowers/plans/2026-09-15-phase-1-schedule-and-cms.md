@@ -71,6 +71,16 @@ Every task's requirements implicitly include this section.
   picker shipped its navigation bar — two dead arrows — to every no-JS visitor while looking
   correct to anyone testing with JavaScript on, which is the state nobody checks. Any
   component that both sets `display` and relies on `hidden` needs its own `[hidden]` rule.
+- **A comment quoting a number the code prints will go stale — so have it say which to trust.**
+  `check-budget.mjs` ended up quoting `0 / 3072` against a run printing `0 / 3800`, in the file
+  whose whole job is making numbers traceable. The fix that generalises is not vigilance: the
+  comment now names the printed figure as authoritative *if the sentence ever disagrees with
+  it*. Write the precedence into the comment.
+- **A timing figure from one machine is not a property.** `27 ms before first paint` was
+  measured repeatedly and agreed with itself every time — on one machine. A reviewer on
+  another got 21.7. Runs that agree with each other are not evidence of a property; state a
+  range, and say which part is the invariant (here, the ordering) and which is merely the
+  margin observed.
 - **A check that prints the problem and exits 0 is a check that ships it.** Task 10's budget
   detected the script flipping from inlined to emitted, reported the flip as prose, and
   returned success. Detecting a condition and failing on it are different features; write the
