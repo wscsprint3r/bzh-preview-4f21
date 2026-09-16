@@ -360,7 +360,7 @@ Well under the 2,000-redirect free-tier limit.
 |---|---|---|
 | Homepage HTML | ≤ 30 KB | 400 KB |
 | CSS | ≤ 15 KB | part of 74 refs |
-| JS | ≤ 3 KB | part of 74 refs |
+| JS | ≤ 3,800 B | part of 74 refs |
 | Requests (homepage) | ≤ 12 | ~90 (74 CSS/JS + 16 images) |
 | LCP on 4G | < 1.2 s | HTML alone takes 5.3 s |
 | Lighthouse performance | ≥ 95 | — |
