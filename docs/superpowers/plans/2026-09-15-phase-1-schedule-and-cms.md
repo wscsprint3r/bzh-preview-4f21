@@ -2962,6 +2962,9 @@ collections:
         label: Alt loc decât capela obișnuită
         widget: string
         required: false
+        hint: >
+          Numele locului, fără punct la final. Textul apare ca atare pe site și în
+          calendarul la care sunt abonați credincioșii.
       - name: slujbe
         label: Slujbe
         label_singular: Slujbă
