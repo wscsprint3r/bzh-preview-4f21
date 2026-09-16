@@ -10,6 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.md`
 
+> **Amended after Phase 1, on the rule this document itself states.** The Global Constraints below
+> say the four Turkish cedilla forms must be named by codepoint and never written as glyphs, because
+> a file that spells them out cannot be swept for them. This document broke that rule in the very
+> paragraph stating it, and in three test sketches copied from it — seventeen occurrences, which for
+> the whole of Phase 1 made the repo-wide sweep the rule exists to enable impossible to run. They
+> have been rewritten by codepoint. Nothing else about the plan has been changed, and
+> `src/lib/diacritice-surse.test.ts` now fails on any tracked file that writes one again.
+
 **Scope:** This plan implements **Phase 1 only** (spec §19). Phases 2 (content migration), 3 (events, galleries, donations, contact form) and 4 (redirects, DNS cutover) get their own plans. Phase 1 is independently shippable: at the end of it the parish can edit the schedule, which is the single biggest win.
 
 ---
@@ -25,9 +33,9 @@ Every task's requirements implicitly include this section.
   `--parchment:#FAF6EE` `--raised:#FFFDF8` `--rule:#E3D9C6` `--oxblood:#6B1F26` `--oxblood-dk:#54171D` `--gold-text:#8A6A28` `--gold:#B08B3E` `--gold-lt:#C8A45C` `--ink:#2A211C` `--muted:#6E5C4E` `--faint:#7E6C52`
 - **`#B08B3E` and `#C8A45C` are ornament only and MUST NEVER be used for text** at any size (2.95:1 and lower — fails WCAG AA entirely). Task 7 enforces this in CI.
 - **Fonts self-hosted**, `latin` + `latin-ext` subsets. `latin-ext` covers U+0100–U+024F, which includes U+0218–U+021B (Ș ș Ț ț with comma below). No Google Fonts CDN.
-- **Which words actually carry comma-below**, since it is easy to assert this of the wrong ones: `Marți`, `Ț`/`ț` and `Ș`/`ș` anywhere — and in this project's vocabulary that means `Marți`, `Sfântul Maslu` has none, `Spovedanie` has none. `Sâmbătă` carries **â** and **ă** only, not a comma-below character. `Duminică`, `Înălțarea` and `Sfânta` likewise carry only â/ă/Î. Check codepoints, not appearance: ș U+0219 vs ş U+015F are near-identical in most fonts.
+- **Which words actually carry comma-below**, since it is easy to assert this of the wrong ones: `Marți`, `Ț`/`ț` and `Ș`/`ș` anywhere — and in this project's vocabulary that means `Marți`, `Sfântul Maslu` has none, `Spovedanie` has none. `Sâmbătă` carries **â** and **ă** only, not a comma-below character. `Duminică`, `Înălțarea` and `Sfânta` likewise carry only â/ă/Î. Check codepoints, not appearance: ș U+0219 and the Turkish form U+015F are near-identical in most fonts — which is why the wrong one is named by number here and never written out.
 - **Dates are plain `YYYY-MM-DD` strings. Times are plain `HH:MM` local strings.** Never store or compute a UTC instant for a service — a Liturgy at 10:00 is at 10:00 on both sides of a DST change. The single exception is `aziLaZurich()`, which converts the real clock into a Zürich calendar date.
-- **All user-facing copy is Romanian**, with correct comma-below diacritics (ș ț, not ş ţ).
+- **All user-facing copy is Romanian**, with correct comma-below diacritics — ș U+0219 and ț U+021B, never the Turkish cedilla forms U+015F and U+0163.
 - **Performance budget** (spec §13), enforced in CI by Task 13: homepage HTML ≤ 30 KB, CSS ≤ 15 KB, JS ≤ 3,800 B (just under Astro's inline threshold), ≤ 12 requests. Lighthouse accessibility 100. Because `inlineStylesheets: 'always'` puts the CSS inside the document, Task 13 enforces the first two as one combined **45 KB** limit on `dist/index.html`; the reasoning is in that task.
 - **Cloudflare Pages free tier:** 20,000 files/deploy, 25 MiB/file, 500 builds/month, 2,000 static redirects.
 - **`data` is overloaded — beware.** In this project `data` is Romanian for *date* and is the
@@ -499,8 +507,8 @@ describe('vocabular', () => {
 
   it('folosește virgulă dedesubt, nu sedilă', () => {
     const tot = [...NUME_ZILE, ...NUME_LUNI].join('');
-    expect(tot).not.toMatch(/[şţŞŢ]/);
-    expect(tot).toMatch(/ț/);
+    expect(cedileIn(tot)).toEqual([]);
+    expect(areVirgulaDedesubt(tot)).toBe(true);
   });
 });
 
@@ -2832,7 +2840,7 @@ describe('ieșirea build-ului', () => {
   it('feed-ul păstrează diacriticele cu virgulă dedesubt', () => {
     const ics = readFileSync(`${DIST}program.ics`, 'utf8');
     expect(ics).toContain('Înălțarea Sfintei Cruci');
-    expect(ics).not.toMatch(/[şţŞŢ]/); // cedilla forms
+    expect(cedileIn(ics)).toEqual([]); // cele patru, ca numere, din src/lib/cedile.ts
   });
 
   it('feed-ul respectă limita de 75 de octeți pe linie', () => {
@@ -2853,7 +2861,7 @@ describe('ieșirea build-ului', () => {
       const html = readFileSync(`${DIST}${p}`, 'utf8');
       expect(html).toContain('<html lang="ro"');
       expect(html).toContain('Sfântul Nicolae');
-      expect(html).not.toMatch(/[şţŞŢ]/);
+      expect(cedileIn(html)).toEqual([]);
     }
   });
 
@@ -3450,7 +3458,7 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
 ## Rules that are not negotiable
 
 - **Diacritics are comma-below.** ș U+0219 and ț U+021B, never the Turkish cedilla
-  forms ş U+015F and ţ U+0163. Check any Romanian string you add.
+  forms U+015F and U+0163. Check any Romanian string you add.
 - **Dates are `YYYY-MM-DD` strings; times are `HH:MM` local strings.** Never a UTC
   instant for a service — a Liturgy at 10:00 is at 10:00 across a DST change.
   `aziLaZurich()` and `oraLaZurich()` in `src/lib/week.ts` are the only

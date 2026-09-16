@@ -14,9 +14,34 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   defect here, not a variant spelling — and the shipped fonts contain all four, so a
   corrupted character draws as a perfectly formed glyph. **No screenshot, dev server or
   careful look can ever tell you anything about this class of bug.** Dump the codepoints.
-  The forbidden four are named by number and never printed as glyphs anywhere in this
-  repository, including here: a file that spelled them out could not be swept for them,
-  and nothing in it could be copied without carrying one.
+  The forbidden four are named by number and never printed as glyphs in any file this
+  repository **tracks**, including this one: a file that spelled them out could not be
+  swept for them, and nothing in it could be copied without carrying one. The four numbers
+  and the detector live in one place, `src/lib/cedile.ts`, built with
+  `String.fromCodePoint` rather than as escapes.
+  **That rule was false for the whole of Phase 1, in the two files best placed to make it
+  false.** `date-ro.test.ts`'s guard was a character class of all four, on disk; the plan
+  document printed all four inside the paragraph forbidding them, and three test sketches
+  copied from it carried them onward. Seventeen occurrences in one file and four in the
+  other. Each looked right; each was the decoded-escape hazard three paragraphs below
+  landing exactly where it does most damage, in an *expectation*, where a corrupted guard
+  agrees with a corrupted source forever. And for as long as they were there, the
+  repo-wide sweep this rule exists to enable **could not be run**: it returned hits a
+  reader had to learn to ignore, which is the habit the rule is written to prevent.
+  So the rule is now a test rather than a sentence. `src/lib/diacritice-surse.test.ts`
+  sweeps **every tracked file** — sources, tests, documents, `public/admin/`, `_headers`,
+  this file — and fails naming path and offset. It takes its subject from `git ls-files`,
+  so it cannot fall behind the repository; what is git-ignored is outside it and both
+  halves are deliberate: `public/admin/sveltia-cms.mjs` is third-party and legitimately
+  Turkish, and `.superpowers/` is scratch whose review diffs must be able to quote the
+  corrupted characters as evidence. Binary files are named one by one in `BINARE`, and any
+  tracked file that is neither named there nor decodable as text fails, so that list
+  cannot fall behind either. It asks only the cedilla question: the stronger
+  "is every non-ASCII character expected" check does not transfer to sources, which carry
+  over thirty distinct non-ASCII characters between English prose, Romanian comments and
+  deliberate astral test fixtures. **That is a real gap**: a look-alike from another
+  alphabet in a source file is not caught. One was introduced and caught by measurement
+  while that file was being written — a Cyrillic U+0435 inside an identifier.
   `src/lib/diacritice.itest.ts` sweeps every text file in `dist/` **except the vendored
   Sveltia bundle**, whose own i18n tables legitimately contain Turkish; the exclusion is
   by path, the paths come from the installed package, and the test asserts both halves —

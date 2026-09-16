@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CEDILE, areVirgulaDedesubt, cedileIn, uPlus } from './cedile';
 import {
   NUME_LUNI,
   NUME_ZILE,
@@ -42,10 +43,32 @@ describe('vocabular', () => {
     ]);
   });
 
-  it('folosește virgulă dedesubt, nu sedilă', () => {
+  it('foloseste virgula dedesubt, nu sedila', () => {
+    /*
+     * Ultima gardă din proiect care scria chiar cele patru caractere interzise.
+     * Era o clasă de caractere cu ele înăuntru, pe disc, într-un fișier urmărit —
+     * adică exact ce spune `CLAUDE.md` că nu are voie să existe, fiindcă un fișier
+     * care le scrie nu mai poate fi măturat pentru ele. Surorile ei le construiau
+     * din numere; aceasta era supraviețuitoarea decodării la scriere pe care o
+     * documentează `CLAUDE.md`, și a rămas așa două runde.
+     *
+     * Acum întreabă detectorul unic din `./cedile`, care le ține pe toate patru ca
+     * numere. Titlul testului este ASCII curat dinadins: un titlu cu diacritice ar
+     * fi fost încă un loc în care o sedilă ar fi trecut drept corectură.
+     */
     const tot = [...NUME_ZILE, ...NUME_LUNI].join('');
-    expect(tot).not.toMatch(/[şţŞŢ]/);
-    expect(tot).toMatch(/ț/);
+    expect(cedileIn(tot)).toEqual([]);
+    // Și dovada că garda are ce prinde: tabelele chiar conțin virgulă dedesubt,
+    // altfel „nicio sedilă” ar fi adevărat despre un corpus întâmplător ASCII.
+    expect(areVirgulaDedesubt(tot)).toBe(true);
+  });
+
+  it('detectorul chiar se declanșează pe fiecare dintre cele patru', () => {
+    // Control pozitiv, construit din numere: o gardă care nu poate să se
+    // declanșeze nu verifică nimic.
+    for (const cp of CEDILE) {
+      expect(cedileIn(`Mar${String.fromCodePoint(cp)}i`), uPlus(cp)).toHaveLength(1);
+    }
   });
 });
 

@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { CEDILE, VIRGULA_DEDESUBT, areVirgulaDedesubt, cedileIn, uPlus } from './cedile';
 
 /*
  * WHAT THIS PROVES: nothing the site actually ships contains a Turkish cedilla
@@ -19,8 +20,13 @@ import { describe, expect, it } from 'vitest';
  * cedilla with it. The comma-below characters above ARE written out, because
  * they are the correct ones and a reader should see what right looks like.
  *
- * WHY IT READS `dist` RATHER THAN `src`. Four lib tests carry a codepoint guard
- * over their own tables, and until this file existed **no `.astro` file was
+ * The detector itself, and the four numbers, live in `./cedile` - one detector
+ * for two sweeps, because `diacritice-surse.test.ts` asks the same question of
+ * the TRACKED SOURCES and two copies of a rule is how two answers come to
+ * disagree. Everything below that line is about `dist/` and stays here.
+ *
+ * WHY THIS ONE READS `dist` RATHER THAN `src`. Four lib tests carry a codepoint
+ * guard over their own tables, and until this file existed **no `.astro` file was
  * covered by anything** - every page, every component, every `aria-label`. A
  * per-module guard also cannot see the one source the parish actually edits:
  * a volunteer typing U+0163 instead of U+021B into a `praznic:` field puts a
@@ -31,6 +37,11 @@ import { describe, expect, it } from 'vitest';
  * volunteer-entered content are all visible at once, so it is the only place a
  * single guard can cover them all - including whatever Tasks 10-13 add, with
  * nobody remembering to copy a pattern.
+ *
+ * The source sweep is the other half and neither subsumes the other: this one
+ * cannot see an input that never reaches a page - a corrupted EXPECTATION in a
+ * test, which would then agree with a corrupted source - and that one cannot see
+ * what a volunteer typed into the CMS.
  *
  * The characters are built from NUMBERS, never written as escapes. A guard
  * spelled with a backslash-u sequence is decoded into the literal character on
@@ -46,10 +57,6 @@ import { describe, expect, it } from 'vitest';
 
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 
-/** Turkish cedilla forms: capital/small S, capital/small T. */
-const CEDILE = [0x015e, 0x015f, 0x0162, 0x0163];
-/** The Romanian comma-below forms they are mistaken for. */
-const VIRGULA_DEDESUBT = [0x0218, 0x0219, 0x021a, 0x021b];
 
 /*
  * ===========================================================================
@@ -143,34 +150,6 @@ export function inventarNonAscii(text: string, acumulator = new Map<number, numb
   return acumulator;
 }
 
-function uPlus(cp: number): string {
-  return `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
-}
-
-/**
- * Every cedilla in `text`, each reported with enough context to find it. Empty
- * means clean.
- */
-export function cedileIn(text: string): string[] {
-  const gasite: string[] = [];
-  for (let i = 0; i < text.length; i += 1) {
-    const cp = text.codePointAt(i);
-    if (cp !== undefined && CEDILE.includes(cp)) {
-      const context = text.slice(Math.max(0, i - 40), i + 40).replace(/\s+/g, ' ');
-      gasite.push(`${uPlus(cp)} la ${i}: …${context}…`);
-    }
-  }
-  return gasite;
-}
-
-/** Whether `text` contains any Romanian comma-below character at all. */
-export function areVirgulaDedesubt(text: string): boolean {
-  for (let i = 0; i < text.length; i += 1) {
-    const cp = text.codePointAt(i);
-    if (cp !== undefined && VIRGULA_DEDESUBT.includes(cp)) return true;
-  }
-  return false;
-}
 
 /*
  * Text-ish output only: a woff2 is bytes, and scanning it would report noise.
