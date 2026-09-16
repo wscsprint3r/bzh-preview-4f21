@@ -61,7 +61,19 @@ const BUGET_PAGINI = {
   'index.html': 45 * 1024,
   'program/index.html': 135 * 1024,
 };
-const BUGET_JS = 3 * 1024;
+/*
+ * 3,800 bytes, not a round 3 KB or 4 KB. Astro inlines a script below roughly
+ * 4,096 bytes; above that it emits a file and the request count and the caching
+ * story both change, so the ceiling belongs just under that cliff rather than on
+ * a round number.
+ *
+ * The original 3 KB was set when this script only revealed a week. Recomputing
+ * the next-service card is real work the browser has to do, and a budget that
+ * makes the correct architecture uncomfortable gets met by moving rendering back
+ * into the browser - which is the thing this budget exists to prevent. Kept in
+ * step with the plan and the spec; do not lower it without changing those too.
+ */
+const BUGET_JS = 3800;
 const BUGET_CERERI = 12;
 
 /*
