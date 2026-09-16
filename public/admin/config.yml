@@ -28,7 +28,14 @@ publish_mode: simple
 # Shown on the sign-in screen and in the browser tab — the first Romanian a
 # volunteer sees, and the only part of the CMS chrome we can put in Romanian at
 # all. Sveltia ships 29 UI translations and Romanian is not one of them, so the
-# buttons themselves read "Save", "Publish", "Duplicate" in English.
+# buttons themselves read "Save", "New", "Duplicate" in English.
+#
+# NOT "Publish": there is no such button under `publish_mode: simple`. Sveltia
+# splits the save control only when the backend declares `skip_ci` or
+# `automatic_deployments`, and this one declares neither, so the toolbar shows a
+# plain `Save` - which does publish, because every commit triggers a build. That
+# same dead branch also owns `Discard`. Both have already been written into our
+# documentation as buttons that exist; do not add a third.
 app_title: Parohia Sfântul Nicolae — administrare
 site_url: https://www.bor-zh.ch
 
