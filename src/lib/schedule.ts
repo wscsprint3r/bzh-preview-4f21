@@ -405,9 +405,32 @@ export function saptamaniViitoare(zile: ZiSlujba[], azi: string, nr: number): Sa
  * WHAT HAPPENS PAST THE BOUND, and it is the safe direction: the client finds no
  * future service in the island and HIDES the card - `SelectorSaptamana`'s one
  * branch for "this card can no longer be trusted". A card that is gone beats one
- * that states a time which has passed. For that to happen the site must have gone
- * unrebuilt for longer than the window, by which point every rendered week is in
- * the past as well and the picker reveals nothing either.
+ * that states a time which has passed.
+ *
+ * WHICH DAYS THE BOUND COUNTS, because the answer used to be the wrong one and an
+ * earlier version of this paragraph described a degradation that could not be
+ * reached the only way it actually was. The slice used to run BEFORE cancelled
+ * days were discarded, while `urmatoareaSlujba` discards them afterwards. So
+ * `ZILE_INSULA` consecutive cancelled published days emptied the island of
+ * answers while the schedule was full of them: the server rendered a correct card
+ * and the client then hid it, ON A FRESH BUILD, with no staleness involved at
+ * all. Measured on these functions, threshold exact - 39 cancelled days and the
+ * two agree, 40 and they do not. Forty consecutive cancelled days is about ten
+ * weeks at four service days a week: a vacancy, a closure or a long illness,
+ * entered exactly the way `README.md` and ruling #28 ask for it, since an editor
+ * is told to KEEP the times and tick the cancellation rather than delete the day
+ * so that calendar subscribers learn of it. So the filter runs before the slice
+ * and the bound counts days the card could actually use.
+ *
+ * WHAT IS LEFT, and it is the case the sentence above used to claim was the only
+ * one: the site goes unrebuilt for longer than the island reaches, by which point
+ * every rendered week is in the past as well and the picker reveals nothing
+ * either. HOW FAR IT REACHES IS A FUNCTION OF THE PUBLISHING RHYTHM, which the
+ * "60 days" arithmetic below states without stating its converse: 40 entries at
+ * the parish's four service days a week is 67 calendar days, comfortably past the
+ * 60-day rule, while a parish with a service every day gets 40. Still the safe
+ * direction - the card goes rather than lying - but the window is in days with
+ * services, not in days.
  *
  * It also comfortably contains the three weeks the page renders, so the island
  * can always answer for a day the visitor can see. That is a consequence rather
@@ -424,9 +447,19 @@ export const ZILE_INSULA = 40;
  * from `azi` forward, in order, at most `nr` of them.
  *
  * A projection rather than the days themselves - a `praznic` or a `note` would be
- * bytes on every homepage for fields the card never renders - and `ZiPentruCard`
- * is what stops it quietly losing `anulat`, which is the field that keeps a
- * cancelled Liturgy from being announced as the next service.
+ * bytes on every homepage for fields the card never renders.
+ *
+ * CANCELLED DAYS ARE DISCARDED BEFORE THE SLICE, not after, so `nr` bounds days
+ * the card could actually answer with. The block above says what that cost when
+ * it was the other way round.
+ *
+ * `anulat` STAYS IN THE PROJECTION EVEN THOUGH IT IS NOW ALWAYS false, and that is
+ * a decision rather than a leftover. It is the second belt: the browser runs the
+ * same `urmatoareaSlujba` this module exports, which skips a cancelled day whole,
+ * so if this filter is ever loosened again the client still refuses to announce a
+ * cancelled Liturgy instead of announcing one. `ZiDinProgram` requires the field,
+ * which is what makes dropping it a compile error rather than a silent change of
+ * behaviour, and `schedule.test.ts` pins both halves separately.
  *
  * Every word the card displays is rendered HERE, by the server that was going to
  * render it anyway: `etichetaSlujba` owns the `Altceva` escape hatch, and the
@@ -444,7 +477,7 @@ export function programPentruInsula(
   // the island would silently start in the past.
   partiData(azi);
   return zile
-    .filter((z) => z.data >= azi)
+    .filter((z) => !z.anulat && z.data >= azi)
     .sort((a, b) => inainte(a.data, b.data))
     .slice(0, Math.max(0, nr))
     .map((z) => ({

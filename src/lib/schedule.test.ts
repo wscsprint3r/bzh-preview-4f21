@@ -695,20 +695,79 @@ describe('insula de date a paginii de start', () => {
     expect(urmatoareaSlujba(DOI_ANI, dupaFereastra, '00:00')).not.toBeNull();
   });
 
-  it('nu poartă zile trecute și nu pierde anulat', () => {
+  it('nu poartă zile trecute și nici zile anulate', () => {
     const cuAnulat: ZiSlujba[] = [
       { data: '2026-09-12', praznic_mare: false, zi_de_post: false, anulat: false,
         slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] } as ZiSlujba,
-      { data: '2026-09-20', praznic_mare: false, zi_de_post: false, anulat: true,
+      { data: '2026-09-16', praznic_mare: false, zi_de_post: false, anulat: true,
+        slujbe: [{ ora: '18:30', slujba: 'Acatist' }] } as ZiSlujba,
+      { data: '2026-09-20', praznic_mare: false, zi_de_post: false, anulat: false,
         slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] } as ZiSlujba,
     ];
     const insula = programPentruInsula(cuAnulat, AZI);
     expect(insula.map((z) => z.data)).toEqual(['2026-09-20']);
-    expect(insula[0].anulat).toBe(true);
+    expect(insula[0].anulat).toBe(false);
+    // Câmpul rămâne în proiecție deși este acum întotdeauna fals: este a doua
+    // curea, iar `urmatoareaSlujba` din browser tot îl citește. Dacă dispare din
+    // JSON, testul acesta pică înainte să dispară comportamentul.
+    expect(Object.keys(insula[0])).toContain('anulat');
     // Numele sunt randate aici, nu în browser: `etichetaSlujba` deține portița
     // `Altceva`, iar cuvântul acela nu are voie să ajungă pe pagină.
     expect(insula[0].slujbe).toEqual([{ ora: '10:00', nume: 'Sfânta Liturghie' }]);
     expect(insula[0].titlu).toBe('Duminică, 20 septembrie');
+  });
+
+  /*
+   * ZILELE ANULATE NU CONSUMĂ MARGINEA, și de ce are cazul acesta un test al lui.
+   *
+   * Tăierea rula ÎNAINTE de filtrarea anulatelor, iar `urmatoareaSlujba` filtrează
+   * după. Deci primele `ZILE_INSULA` zile publicate viitoare, toate anulate,
+   * goleau insula de răspunsuri în timp ce programul era plin de ele: serverul
+   * randa un card corect și clientul îl ascundea, PE O CONSTRUCȚIE PROASPĂTĂ, fără
+   * nicio vechime la mijloc. Pragul, măsurat pe funcțiile astea: 39 de zile anulate
+   * și cele două se potrivesc, 40 și nu.
+   *
+   * Patruzeci de zile anulate la rând sunt vreo zece săptămâni la patru zile de
+   * slujbă pe săptămână — o vacanță, o închidere sau o boală lungă, introduse exact
+   * cum cere proiectul: `README.md` și hotărârea #28 spun editorului să PĂSTREZE
+   * orele și să bifeze anularea, ca abonații la calendar să afle.
+   */
+  it('zilele anulate nu consumă marginea insulei', () => {
+    /** `DOI_ANI` cu primele `n` zile viitoare anulate, orele păstrate. */
+    function cuPrimeleAnulate(n: number): ZiSlujba[] {
+      const ordonate = [...DOI_ANI].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0));
+      return ordonate.map((z, i) => ({ ...z, anulat: i < n }));
+    }
+
+    const masurat: string[] = [];
+    let verificate = 0;
+    for (const n of [0, 38, 39, 40, 41, 80]) {
+      const zile = cuPrimeleAnulate(n);
+      const server = urmatoareaSlujba(zile, AZI, '00:00');
+      const client = urmatoareaSlujba(programPentruInsula(zile, AZI), AZI, '00:00');
+      masurat.push(
+        `  primele ${String(n).padStart(2)} zile anulate → server ${server?.data ?? 'NULL'}` +
+          ` | client ${client?.data ?? 'NULL'} | acord: ${server?.data === client?.data}`,
+      );
+      expect(server, `n=${n}: programul întreg mai are slujbe`).not.toBeNull();
+      expect(client?.data, `n=${n}: clientul nu răspunde ca serverul`).toBe(server?.data);
+      verificate += 1;
+    }
+    process.stdout.write(`\nInsula cu zile anulate la început:\n${masurat.join('\n')}\n`);
+    expect(verificate).toBe(6);
+
+    /*
+     * CONTROL POZITIV, în aceeași funcție: aranjamentul chiar este unul care rupe.
+     * Aici este vechea ordine — taie întâi, filtrează după — pe exact aceleași
+     * date. Fără el, cazul de mai sus ar putea fi verde fiindcă nu are ce sparge.
+     */
+    const zile = cuPrimeleAnulate(ZILE_INSULA);
+    const insulaVeche = zile
+      .filter((z) => z.data >= AZI)
+      .sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+      .slice(0, ZILE_INSULA);
+    expect(urmatoareaSlujba(insulaVeche, AZI, '00:00'), 'vechea ordine chiar golea insula').toBeNull();
+    expect(urmatoareaSlujba(zile, AZI, '00:00')).not.toBeNull();
   });
 
   it('o dată de azi stricată pică, în loc să pornească insula în trecut', () => {
