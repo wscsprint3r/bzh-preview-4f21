@@ -7,8 +7,9 @@
 # ("will not itself be served as a static asset, but will instead be parsed").
 # So nothing you can request from the deployed site shows you this file; the
 # only way to see what it did is to read the response headers of some OTHER
-# URL, with `curl -sI`. The handover checklist in
-# `.superpowers/sdd/.../task-13-report.md` gives the exact commands.
+# URL, with `curl -sI`. Step F of the handover checklist in `docs/handover.md`
+# gives the exact commands, against the Pages deployment rather than against
+# www.bor-zh.ch, which still serves the old WordPress install.
 #
 # And what ships is `dist/_headers`, not this file: `script-src` below carries
 # a PLACEHOLDER that `scripts/csp-hash.mjs` replaces at build time with the
@@ -50,7 +51,8 @@
 # next-service card keeps whatever value the build stamped on it. The page looks
 # perfect and tells a parishioner about a Liturgy that finished hours ago.
 # Measured in headless Chrome over the real build, both with and without the
-# hash; see the task 13 report.
+# hash. `npm run a11y` IS that measurement, and it still fails on the
+# missing-hash case: the refusal it reports is `script-src-elem <- inline`.
 #
 # So the policy names the script BY HASH. `'unsafe-inline'` would also work and
 # is not acceptable here: it would re-admit every injected `<script>` this
@@ -97,8 +99,8 @@
 # `/admin/` is the page where an editor's GitHub credential lives, so it gets
 # the same `'self'` treatment as the rest of the site rather than an exception:
 # the CMS's three fonts are vendored from npm at the exact versions its own URLs
-# named, and `copy-cms.mjs` asserts each URL is found exactly once so an upgrade
-# that moves them fails the build instead of silently restoring the CDN.
+# named, and `scripts/copy-cms.mjs` asserts each URL is found exactly once so an
+# upgrade that moves them fails the build instead of silently restoring the CDN.
 #
 # FIVE requests are deliberately still blocked here, each measured in a real
 # browser and each failing gracefully - the sign-in screen draws correctly with
@@ -127,14 +129,20 @@
 #                                                         `blob:` in `img-src`
 #                                                         is the fix.
 #
-# `scripts/csp-browser.mjs` holds that list as the EXPECTED set and fails when a
-# sixth appears, so a CMS upgrade that reaches for a new origin cannot do it
-# quietly.
+# `CSP_ASTEPTAT` in `scripts/a11y.mjs` holds that list as the EXPECTED set and
+# fails when a sixth appears, so a CMS upgrade that reaches for a new origin
+# cannot do it quietly. It also fails when an expected one STOPS appearing,
+# which is what catches an audit that measured nothing.
+#
+# That name was wrong in this file until somebody checked it - it pointed at a
+# script that has never existed. `src/lib/headers.itest.ts` now resolves every
+# path named here, because an instruction naming a file that does not exist
+# reads exactly like an instruction that works.
 #
 # UNVERIFIED until the first real sign-in, which needs credentials no agent has:
 # `img-src avatars.githubusercontent.com` for the editor's avatar, and whatever
 # the OAuth flow needs - the Worker origin in `connect-src`, possibly
-# github.com. Watch the browser console on that first attempt; the task 13
-# report says what to do with each message.
+# github.com. Watch the browser console on that first attempt; step G of
+# `docs/handover.md` says what to do with each message.
 /admin/*
   X-Robots-Tag: noindex

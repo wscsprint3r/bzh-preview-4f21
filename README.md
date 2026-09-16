@@ -8,8 +8,12 @@ Regulile de lucru: `AGENTS.md` (`CLAUDE.md` este o legătură simbolică spre el
 
 ## Pentru cei care actualizează programul
 
-Deschideți <https://www.bor-zh.ch/admin/> și intrați cu contul GitHub
-(**Sign In with GitHub**).
+Deschideți `https://<proiect>.pages.dev/admin/` și intrați cu contul GitHub
+(**Sign In with GitHub**). Adresa exactă v-o dă persoana care se ocupă de site.
+
+> **<https://www.bor-zh.ch/> este deocamdată vechiul site.** Până la mutarea
+> domeniului, acolo răspunde instalarea WordPress pe care o înlocuim; nu se
+> administrează de acolo și nimic văzut acolo nu spune nimic despre site-ul nou.
 
 Pentru o săptămână obișnuită: deschideți o zi din săptămâna trecută, apăsați
 butonul **⋮** din dreapta lui `Save` și alegeți **Duplicate**, schimbați data și
@@ -36,9 +40,14 @@ e-mailul primit de la GitHub, care spune ce fișier are problema.
 npm install
 npm run dev        # http://localhost:4321
 npm test           # teste unitare
-npm run test:all   # tot ce rulează și în CI
+npm run check      # verificarea de tipuri (astro check)
+npm run test:all   # build + integrare + patru treceri cu un browser adevărat
 npm run budget     # verifică bugetul de performanță
 ```
+
+**CI rulează `npm run check` pe lângă `npm run test:all`**
+(`.github/workflows/ci.yml`), iar `test:all` nu îl conține: o eroare de tipuri
+trece local și pică în CI. Rulați-le pe amândouă înainte să publicați.
 
 `npm run test:all` înseamnă: testele unitare, construcția, testele de integrare
 peste `dist/`, apoi patru treceri cu un Chrome adevărat peste paginile
@@ -49,6 +58,10 @@ cu antetele din `dist/_headers` și pică la orice încălcare de
 Content-Security-Policy neprevăzută.
 
 ## Cum ajunge pe internet
+
+**Punerea în funcțiune — crearea depozitului, Cloudflare Pages, Worker-ul de
+autentificare, cârligul de reconstrucție și verificările de după — este în
+`docs/handover.md`, pas cu pas.** Nimic din ce e acolo nu a fost încă făcut.
 
 Cloudflare Pages construiește din ramura de producție la fiecare commit.
 În plus, `.github/workflows/rebuild.yml` cere o reconstrucție la fiecare șase
@@ -61,14 +74,20 @@ niciodată**, deci singurul mod de a vedea ce a făcut este să citiți antetele
 altei adrese:
 
 ```bash
-curl -sI https://www.bor-zh.ch/ | grep -i content-security-policy
-curl -sI https://www.bor-zh.ch/program.ics | grep -i content-type
+curl -sI https://<proiect>.pages.dev/ | grep -i content-security-policy
+curl -sI https://<proiect>.pages.dev/program.ics | grep -i content-type
 ```
+
+**Adresa `pages.dev`, niciodată `www.bor-zh.ch`.** Până la mutarea domeniului,
+pe domeniu răspunde vechiul WordPress: aceleași comenzi date acolo întorc
+antete și arată ca o verificare trecută, deși nu spun nimic despre construcția
+aceasta.
 
 A doua comandă trebuie să răspundă `text/calendar; charset=utf-8`. Nimic din
 acest depozit nu poate verifica asta: o construcție statică pierde antetul pus
 de `src/pages/program.ics.ts`, așa că tipul pe care îl primește telefonul unui
-abonat este hotărât acolo și nicăieri altundeva.
+abonat este hotărât acolo și nicăieri altundeva. Restul verificărilor de acest
+fel sunt în `docs/handover.md`, pasul F.
 
 ## Reguli care nu se încalcă
 
