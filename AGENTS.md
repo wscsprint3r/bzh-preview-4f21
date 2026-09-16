@@ -49,18 +49,28 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   fallback, so a broken policy renders a page that looks perfect and announces a service
   that finished hours ago.
 
-## Tooling here lies to you in three specific ways
+## Tooling here lies to you in four specific ways
 
 **Test verdicts: use the process exit code, never `.vitest/json/output.json`.** The `rtk`
 wrapper writes that file whether or not a JSON reporter was asked for, and when its parse
 fails — the normal case when stdout is piped — the previous file stays. A stale green
-report has already inverted every mutation verdict once on this project. For readable
-output use `rtk proxy npx vitest run …`, which bypasses the filter.
+report has already inverted every mutation verdict once on this project. It goes stale in
+both directions: during the task 13 fix round the file sat fifty minutes untouched across
+a session of vitest runs, reporting `numTotalTests 19`, `numPassedTests 18`,
+`success: false` — a red verdict, for a suite that was green at 250 unit and 137
+integration tests, naming a test count that had stopped being current two commits earlier.
+For readable output use `rtk proxy npx vitest run …`, or the binary directly at
+`./node_modules/.bin/vitest`, which bypasses the filter altogether.
 
-**`diff` lies too, and in the worse direction.** `rtk`'s `diff` reported
-`public/_headers` and `dist/_headers` as `[ok] Files are identical` when they differ on a
-330-character line, and it exits 0 even when it does print a difference. Use
-`rtk proxy diff`, and read the exit code.
+**`diff` lies too, and in the worse direction.** `rtk`'s `diff` reports `public/_headers`
+and `dist/_headers` as `[ok] Files are identical` and exits 0, when what they differ on is
+line 32 — the `Content-Security-Policy` header itself, 317 characters in the source and 352
+in the build, the substituted hash being the whole difference between a working policy and
+one that silently kills the site's only script. It also exits 0 when it *does* print a
+difference. Use `rtk proxy diff`, which exits 1 on that same pair, and read the exit code.
+(An earlier version of this paragraph said "a 330-character line". Neither file has ever
+had one; the number was never measured. That is this section's own failure mode, and it
+survived two rounds here before anyone put a `.length` on it.)
 
 **Escape sequences of the form backslash-u followed by four hex digits do not survive
 being written to disk.** Both the Bash heredoc — even quoted, `<<'EOF'` — and the
@@ -70,6 +80,20 @@ still functionally correct, but the "correct by construction" property it existe
 gone, and a corrupted expectation would then happily agree with a corrupted source. Build
 such characters from numbers — `String.fromCodePoint(0x015f)` — or write a placeholder and
 post-process it with a script that never emits the backslash and the `u` adjacently.
+Re-measured: a quoted heredoc carrying `X`, the escape for U+00E9 and `Y` lands on disk as
+three characters, not eight.
+
+**A `console.log` in a test is invisible on the run that matters.** Vitest 5's default
+reporter shows a passing test's `console.log` nowhere at all — not with `--silent=false`,
+only under `--reporter=verbose`. So the rule below this section, *print what was measured,
+not only the verdict*, cannot be followed with `console.log`: measured with a two-case
+probe, the failing case's line is printed under a `stdout |` header and the passing case's
+is not — so the print disappears on exactly the green run a later reader would check the
+number against, and appears only on the red one, which is the wrong way round.
+`process.stdout.write` passes through the reporter in both cases.
+The three prints this project relies on all use it — the inline-script hashes and the paths
+`public/_headers` names, both in `headers.itest.ts`, and the full non-ASCII inventory in
+`diacritice.itest.ts`. Measured both ways on that last one.
 
 ## How this project decides whether something is actually checked
 
