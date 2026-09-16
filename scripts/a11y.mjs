@@ -130,8 +130,34 @@ const TIPURI = {
  *
  * Excluded BY EXACT PATH, not by folder - the same rule `stylesheet.itest.ts`
  * follows - so the next page put under `admin/` is audited like any other.
+ *
+ * KEYED BY PATH WITH THE REASON BESIDE IT, like `FARA_JS_MOTIVAT` and
+ * `TRASATURI_NEAUDITATE`, and for the same reason those two are. This list is the
+ * one lever that SHRINKS the audit's subject: a page named here is audited by no
+ * axe run, and its CSS leaves the derived breakpoint set with it. As a bare array
+ * it was the last narrowing list in this file whose entries did not have to say
+ * anything, and an entry nobody has to justify is the cheapest way out of a red
+ * build. `verificaTreceri` fails on an entry with no reason written, so adding a
+ * page here is a decision somebody signed rather than a line somebody appended.
+ *
+ * @type {Record<string, string>}
  */
-const FARA_AXE = ['admin/index.html'];
+export const FARA_AXE_MOTIVAT = {
+  'admin/index.html': [
+    'gazda Sveltia CMS: un `<script>` și un `<noscript>`, nimic altceva. Tot ce vede un editor',
+    'este desenat de bundle după încărcare, deci ce ar măsura axe este învelișul gol — de unde',
+    'și `landmark-one-main` și `page-has-heading-one` pe `<html>` însuși, și `color-contrast`',
+    'care nu rulează deloc. A-i da un `<main>` și un `<h1>` ca regulile să aibă în ce mușca ar fi',
+    'mai rău: markup-ul este înlocuit o secundă mai târziu de markup pe care nu l-am scris noi',
+    'și nu îl putem schimba, deci verdele ar fi despre un substitut și s-ar citi ca o garanție',
+    'despre CMS. Accesibilitatea ei este a lui Sveltia. NU este scutită de verificarea CSP —',
+    'este pagina pe care stă o credențială GitHub, deci pagina a cărei politică contează cel mai',
+    'mult.',
+  ].join('\n      '),
+};
+
+/** The paths above, which is all most of this file needs. */
+const FARA_AXE = Object.keys(FARA_AXE_MOTIVAT);
 
 /*
  * The CSP violations `/admin/` is EXPECTED to provoke, each measured in a real
@@ -308,6 +334,8 @@ export const CONDITII = {
  * -------------------------------------------------------------------------- */
 
 /**
+ * @typedef {{ limita: number, px: number, texte: Set<string>, surse: Set<string> }} Prag
+ * @typedef {{ nume: string, surse: Set<string>, conditii: Set<string> }} Trasatura
  * @typedef {{ eticheta: string, latime: number | null, inaltime?: number, js: boolean,
  *             medii: Record<string, boolean> }} Conditie
  * @typedef {{ fisier: string, argumente: string[], pagini: string, conditii: string[],
@@ -475,6 +503,7 @@ export function comenziA11y(scripturi) {
  * @param {Record<string, Trecere>} [treceri]
  * @param {Record<string, Conditie>} [conditii]
  * @param {Record<string, string>} [motive]
+ * @param {Record<string, string>} [faraAxe]
  * @returns {string[]}
  */
 export function verificaTreceri(
@@ -482,6 +511,7 @@ export function verificaTreceri(
   treceri = TRECERI,
   conditii = CONDITII,
   motive = FARA_JS_MOTIVAT,
+  faraAxe = FARA_AXE_MOTIVAT,
 ) {
   const scripturi = pachet.scripts ?? {};
   const esecuri = [];
@@ -580,6 +610,21 @@ export function verificaTreceri(
     esecuri.push(
       `FARA_JS_MOTIVAT numește setul de pagini „${setPagini}”, pe care nicio trecere din TRECERI\n` +
         '    nu îl auditează. Scuza a rămas în urma tabelului.',
+    );
+  }
+  /*
+   * Every page excluded from axe says why, in words. The other direction - an
+   * exclusion for a page that does not exist - is checked in `auditeaza`, where
+   * the build is in hand.
+   */
+  for (const [cale, motiv] of Object.entries(faraAxe)) {
+    if (typeof motiv === 'string' && motiv.trim().length > 40) continue;
+    esecuri.push(
+      `FARA_AXE_MOTIVAT scoate „${cale}” din auditul axe fără să spună de ce.\n` +
+        '    Lista aceasta este singura pârghie care MICȘOREAZĂ subiectul auditului: pagina nu mai\n' +
+        '    este auditată de nicio trecere, iar CSS-ul ei iese odată cu ea din setul de praguri\n' +
+        '    derivat. Scrie motivul lângă cale — o scutire pe care nu trebuie s-o justifice nimeni\n' +
+        '    este cea mai ieftină ieșire dintr-o construcție roșie.',
     );
   }
   return esecuri;
@@ -913,7 +958,7 @@ export function comparatii(conditie) {
 /** The CSS one built page ships: every inline `<style>` and every stylesheet it links. */
 function cssPaginii(dist, pagina) {
   const html = readFileSync(join(dist, pagina), 'utf8');
-  const bucati = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]);
+  const bucati = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => ({ css: m[1], mediu: '' }));
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
     if (!/rel\s*=\s*["']?stylesheet/i.test(m[0])) continue;
     const href = m[0].match(/\bhref\s*=\s*["']([^"']*)["']/i)?.[1] ?? '';
@@ -925,9 +970,19 @@ function cssPaginii(dist, pagina) {
     }
     const cale = href.startsWith('/') ? href.slice(1) : join(dirname(pagina), href);
     if (!existsSync(join(dist, cale))) throw new Error(`${pagina}: leagă ${href}, care nu există în build.`);
-    bucati.push(readFileSync(join(dist, cale), 'utf8'));
+    /*
+     * THE `media` ATTRIBUTE IS A MEDIA CONDITION LIKE ANY OTHER, and reading the
+     * file while ignoring it would fold a `media="print"` stylesheet into the set
+     * as if it always applied - a whole branch of the page counted as
+     * unconditional, and the `print` axis invisible. It is carried alongside the
+     * text and joined onto every `@media` condition inside it.
+     */
+    bucati.push({
+      css: readFileSync(join(dist, cale), 'utf8'),
+      mediu: (m[0].match(/\bmedia\s*=\s*["']([^"']*)["']/i)?.[1] ?? '').trim(),
+    });
   }
-  return bucati.join('\n');
+  return bucati;
 }
 
 /**
@@ -950,12 +1005,42 @@ export function pragurile(dist, pagini) {
     trasaturi.set(nume, intrare);
   };
   for (const pagina of pagini) {
-    let css;
+    let bucati;
     try {
-      css = cssPaginii(dist, pagina);
+      bucati = cssPaginii(dist, pagina);
     } catch (e) {
       probleme.push(e.message);
       continue;
+    }
+    const css = bucati.map((b) => b.css).join('\n');
+    /*
+     * A STYLESHEET THIS FILE DOES NOT FOLLOW IS A SUBJECT SILENTLY NARROWED.
+     * `cssPaginii` follows `<link rel=stylesheet>` and throws on one it cannot
+     * read; an `@import` inside a stylesheet it DID read was followed by nobody
+     * and reported by nobody, so every breakpoint behind one would be missing
+     * from the derived set while the coverage check below said it had looked.
+     */
+    for (const m of css.matchAll(/@import\b([^;]*);/g)) {
+      probleme.push(
+        `${pagina}: CSS-ul construit conține @import${m[1].trim() === '' ? '' : ` ${m[1].trim()}`}, ` +
+          'pe care acest fișier nu îl urmărește — pragurile din foaia importată nu sunt în setul derivat. ' +
+          'Fie o legi cu <link>, fie o urmărești aici.',
+      );
+    }
+    // The `media` attribute of a linked stylesheet conditions everything in it.
+    for (const b of bucati) {
+      if (b.mediu === '' || b.mediu.toLowerCase() === 'all') continue;
+      for (const nume of trasaturileConditiei(b.mediu)) noteaza(nume, pagina, `<link media="${b.mediu}">`);
+      for (const g of comparatii(b.mediu).gasite) {
+        if (!Number.isFinite(g.px)) {
+          probleme.push(`${pagina}: <link media="${b.mediu}"> — unitate necunoscută în "${g.text}".`);
+          continue;
+        }
+        const intrare = dupaLimita.get(g.limita) ?? { limita: g.limita, px: g.px, texte: new Set(), surse: new Set() };
+        intrare.texte.add(g.text);
+        intrare.surse.add(pagina);
+        dupaLimita.set(g.limita, intrare);
+      }
     }
     for (const nume of REGULI_DE_MEDIU) {
       for (const m of css.matchAll(new RegExp(`@${nume}([^{]*)\\{`, 'g'))) {
@@ -1016,6 +1101,13 @@ function scriePrag(p) {
  * The tables are arguments with the real ones as defaults, so every assertion
  * below has a unit-level positive control in `a11y-treceri.test.ts` that runs in
  * milliseconds instead of four Chrome launches.
+ *
+ * @param {{ praguri: Prag[], trasaturi?: Trasatura[], probleme: string[] }} derivat
+ * @param {number} latimeImplicita
+ * @param {string} setPagini
+ * @param {{ tabele?: Record<string, Trecere>, conditii?: Record<string, Conditie>,
+ *           motive?: Record<string, string>, neauditate?: Record<string, string> }} [optiuni]
+ * @returns {{ linii: string[], esecuri: string[] }}
  */
 export function verificaPraguri(
   { praguri, trasaturi = [], probleme },

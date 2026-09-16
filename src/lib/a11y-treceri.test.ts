@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONDITII,
+  FARA_AXE_MOTIVAT,
   FARA_JS_MOTIVAT,
   TRASATURI_NEAUDITATE,
   TRECERI,
@@ -563,5 +564,43 @@ describe('fiecare trăsătură de mediu care nu e lățime este numită, cu moti
     for (const [nume, motiv] of intrari) {
       expect(motiv.length, `${nume} nu are motiv scris`).toBeGreaterThan(80);
     }
+  });
+});
+
+/*
+ * ULTIMA LISTĂ CARE MICȘOREAZĂ SUBIECTUL, și singura care nu trebuia să spună
+ * nimic. O pagină numită în `FARA_AXE_MOTIVAT` nu este auditată de nicio trecere,
+ * iar CSS-ul ei iese odată cu ea din setul de praguri derivat — deci este exact
+ * forma pe care fișierul acesta o tratează peste tot altundeva cu un motiv scris
+ * lângă intrare. Ca vector simplu, era cea mai ieftină ieșire dintr-o construcție
+ * roșie: adaugi o cale și pagina dispare din audit fără să semneze nimeni.
+ */
+describe('fiecare pagină scoasă din auditul axe spune de ce', () => {
+  it('prinde o excludere fără motiv scris', () => {
+    const esecuri = verificaTreceri(PACHET_BUN, TRECERI_BUNE, CONDITII_BUNE, {}, { 'admin/index.html': '' });
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('admin/index.html');
+    expect(esecuri[0]).toContain('FARA_AXE_MOTIVAT');
+  });
+
+  it('prinde și un motiv prea scurt ca să fie un motiv', () => {
+    const esecuri = verificaTreceri(PACHET_BUN, TRECERI_BUNE, CONDITII_BUNE, {}, { 'o/pagina.html': 'fiindcă da' });
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('o/pagina.html');
+  });
+
+  it('control: o excludere cu motiv scris nu se plânge', () => {
+    const motiv = 'a'.repeat(60);
+    expect(verificaTreceri(PACHET_BUN, TRECERI_BUNE, CONDITII_BUNE, {}, { 'o/pagina.html': motiv })).toEqual([]);
+  });
+
+  it('configurația reală: fiecare excludere are motivul lângă ea', () => {
+    const intrari = Object.entries(FARA_AXE_MOTIVAT as Record<string, string>);
+    process.stdout.write(
+      `\nPagini scoase din auditul axe (${intrari.length}):\n` +
+        intrari.map(([cale, motiv]) => `  ${cale}: ${motiv.split('\n')[0]}…\n`).join(''),
+    );
+    expect(intrari.length, 'lista este goală — verificarea n-ar avea ce compara').toBeGreaterThan(0);
+    for (const [cale, motiv] of intrari) expect(motiv.trim().length, cale).toBeGreaterThan(40);
   });
 });

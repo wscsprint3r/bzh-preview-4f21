@@ -72,7 +72,7 @@ meta-viewport-large page-has-heading-one region skip-link
 `avoid-inline-spacing`.
 
 `admin/index.html` is not in this table: it is excluded from the axe audit by exact path
-(`FARA_AXE`), for the reason given at the top of `scripts/a11y.mjs`. It is *not* excluded
+(`FARA_AXE_MOTIVAT`), which carries the reason beside the path. It is *not* excluded
 from the Content-Security-Policy check.
 
 ## How to redo it
