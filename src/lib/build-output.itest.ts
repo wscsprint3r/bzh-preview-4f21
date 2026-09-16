@@ -184,10 +184,32 @@ describe('ieșirea build-ului', () => {
  */
 describe('feed-ul de calendar poartă colecția', () => {
   it('se deschide și se închide ca un VCALENDAR', () => {
-    const linii = desfasoara(citeste('program.ics'));
+    const ics = citeste('program.ics');
+    const linii = desfasoara(ics);
     expect(linii[0]).toBe('BEGIN:VCALENDAR');
     expect(linii[linii.length - 1]).toBe('END:VCALENDAR');
-    expect(linii.length).toBeGreaterThan(30);
+    // Un prag legat de conținut, nu un număr ales cu mâna: fiecare VEVENT are
+    // cel puțin șase proprietăți între BEGIN și END. Un prag fix ar fi trecut
+    // peste un feed retezat dacă parohia publică o singură zi și ar fi picat
+    // degeaba dacă publică puține — adică ar fi vorbit despre calendarul
+    // parohiei, nu despre fișier.
+    expect(linii.length).toBeGreaterThan(evenimente(ics).length * 6);
+  });
+
+  /*
+   * Fiecare DTSTART și DTEND din feed spune `TZID=Europe/Zurich`. Fără blocul
+   * care definește acel TZID, referința rămâne în gol și fiecare client ghicește
+   * singur fusul — adică exact ora greșită pe telefonul unui parohian, fără ca
+   * fișierul să pară stricat. Blocul este scris de `ics.ts` și nu depinde de
+   * conținut, deci lipsa lui înseamnă întotdeauna o regresie.
+   */
+  it('definește fusul orar pe care îl numesc toate evenimentele', () => {
+    const linii = desfasoara(citeste('program.ics'));
+    expect(linii).toContain('BEGIN:VTIMEZONE');
+    expect(linii).toContain('TZID:Europe/Zurich');
+    expect(linii).toContain('END:VTIMEZONE');
+    expect(linii).toContain('BEGIN:DAYLIGHT');
+    expect(linii).toContain('BEGIN:STANDARD');
   });
 
   // Egalitate de mulțimi, nu un exemplu: o zi pierdută pe drumul dintre
@@ -223,8 +245,11 @@ describe('feed-ul respectă formatul iCalendar', () => {
   });
 
   it('nu depășește 75 de octeți pe linie', () => {
-    const linii = citeste('program.ics').split(CRLF);
-    expect(linii.length).toBeGreaterThan(30);
+    const ics = citeste('program.ics');
+    const linii = ics.split(CRLF);
+    // Aceeași grijă ca mai sus: „am citit chiar liniile feed-ului” trebuie să
+    // rămână adevărat și pentru o săptămână cu o singură slujbă.
+    expect(linii.length).toBeGreaterThan(evenimente(ics).length * 6);
     for (const linie of linii) {
       expect(new TextEncoder().encode(linie).length, linie).toBeLessThanOrEqual(75);
     }
