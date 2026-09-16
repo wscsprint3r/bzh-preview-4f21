@@ -2158,8 +2158,12 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
 
 <style>
   .rz { display: grid; grid-template-columns: 7rem 1fr; gap: 1.25rem; padding-block: 1rem; border-bottom: 1px solid var(--rule); }
-  /* Feast days are marked by background AND a rule, never by colour alone. */
-  .rz-praznic { background: linear-gradient(90deg, var(--raised) 0%, transparent 70%); box-shadow: inset 0 2px 0 var(--gold-lt); }
+  /* Feast days are marked by background AND a rule, never by colour alone.
+     Flat, not a gradient: axe cannot determine contrast over a gradient and reports
+     `incomplete`, which `npm run a11y` treats as a failure — so a gradient here would
+     turn the feast row, the one row that matters most, into an unverifiable surface.
+     The gradient's own contribution measured 1.06:1 against the page, so nothing is lost. */
+  .rz-praznic { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
   .rz-anulat { opacity: 0.75; }
   .rz-zi { display: block; font-family: var(--display); font-size: 0.6875rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
   .rz-nr { display: block; font-family: var(--display); font-size: 1.875rem; line-height: 1.05; color: var(--ink); }
