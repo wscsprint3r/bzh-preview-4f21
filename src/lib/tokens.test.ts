@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { raportContrast } from './contrast';
 import { PALETA, ROLURI_TEXT, ROLURI_TEXT_PE_OXBLOOD, cssTokens } from './tokens';
 
+/*
+ * WHAT THIS PROVES: the palette's contrast arithmetic. Every token named as a
+ * text role clears 4.5:1 against the surface it is declared for, each role set
+ * lists exactly the tokens that do, and the ornamental golds are excluded from
+ * the parchment set. Pure computation over values — no CSS, no cascade.
+ *
+ * WHAT THIS DOES NOT PROVE: that any of it reaches a visitor, or that a colour
+ * is used on the surface it was measured against. That is `npm run a11y`.
+ */
+
 describe('paleta', () => {
   it('folosește valorile din specificație', () => {
     expect(PALETA.parchment).toBe('#FAF6EE');
