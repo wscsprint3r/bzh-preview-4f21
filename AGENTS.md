@@ -49,7 +49,7 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   fallback, so a broken policy renders a page that looks perfect and announces a service
   that finished hours ago.
 
-## Tooling here lies to you in four specific ways
+## Tooling here lies to you in five specific ways
 
 **Test verdicts: use the process exit code, never `.vitest/json/output.json`.** The `rtk`
 wrapper writes that file whether or not a JSON reporter was asked for, and when its parse
@@ -94,6 +94,27 @@ number against, and appears only on the red one, which is the wrong way round.
 The three prints this project relies on all use it — the inline-script hashes and the paths
 `public/_headers` names, both in `headers.itest.ts`, and the full non-ASCII inventory in
 `diacritice.itest.ts`. Measured both ways on that last one.
+
+**`grep` lies about content, which is worse than lying about a verdict.** The four above
+misreport an *answer*, and an answer is something you might think to check twice. `rtk`'s
+`grep` misreports the *list* — what you are reading is not what you asked for, and there is
+no verdict sitting beside it to be suspicious of. Two agents hit it in one session, an hour
+apart, on different flags:
+
+- **`-v` is dropped.** `rtk grep -v REGULI <file>` printed `12 matches in 1 files:` followed
+  by the twelve lines that *do* match — on a 38-line file whose honest answer is the other
+  twenty-six. Every line was also cut at terminal width, mid-word.
+- **Piping counts the display, not the matches.** `rtk grep -n Ruling <ledger> | wc -l` gives
+  **28**, because unpiped that same call prints a header, twenty-five lines and `[+44 more]`.
+  `rtk proxy grep -c` on the same unchanged file gives **69**. The other agent got 28 one way
+  and a different, larger number the other way, concluded that something must have been
+  reformatted between the two calls, and moved on — which is the behaviour this paragraph
+  exists to stop.
+
+Use `rtk proxy grep` and read the whole output. And treat anything downstream of a filtered
+`grep` — a `wc -l`, a `head`, a count quoted in a report — as a measurement of the filter
+rather than of the file. Every count in this file was taken with `node` reading the file
+directly, for that reason.
 
 ## How this project decides whether something is actually checked
 
