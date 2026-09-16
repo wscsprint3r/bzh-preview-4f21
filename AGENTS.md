@@ -154,6 +154,17 @@ Use `rtk proxy grep` and read the whole output. And treat anything downstream of
 rather than of the file. Every count in this file was taken with `node` reading the file
 directly, for that reason.
 
+**It is not only `grep`, and the cap is not one number.** The rule is about the *filter*, so
+it applies to every command `rtk` renders. Measured on this repository's own history:
+`rtk git log --oneline main..HEAD | wc -l` is **50**, `rtk proxy git log --oneline main..HEAD
+| wc -l` is **137**, and `rtk proxy git rev-list --count main..HEAD` — which counts rather
+than lists, so there is nothing to render — is **137**. So `git log` truncates at a different
+place from `grep`'s twenty-five, and neither number is worth memorising: what is worth
+memorising is that a piped count of a filtered command is a fact about the renderer. Ask for a
+count from something that counts. `rtk git status --short` has the same shape in the other
+direction — it prints `ok` for a clean tree rather than nothing, so a script testing for empty
+output sees a non-empty answer and concludes the tree is dirty.
+
 ## How this project decides whether something is actually checked
 
 Every one of these was paid for.
