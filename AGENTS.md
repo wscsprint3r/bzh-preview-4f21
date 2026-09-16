@@ -199,8 +199,10 @@ nothing ran at, and the week band's 62rem branch with the picker bar visible, wh
 round nothing on the project had ever audited.
 
 **How long `test:all` takes is a property of the machine, not of this repository.** Well under a
-minute on both machines it has run on — 36 to 40 s over five runs — so quote a range or nothing.
-What is invariant is the shape: four Astro builds and four headless-Chrome launches dominate the
-wall time, so it tracks the browser and the disk rather than the number of tests.
+minute on all three machines it has run on — 36 to 42 s over nine runs — so quote a range or
+nothing. The top of that range moved when the selector pass gained its third condition: 40, 40
+and 42 s on the machine measured after that change, against 36 to 40 before it. What is invariant
+is the shape: four Astro builds and four headless-Chrome launches dominate the wall time, so it
+tracks the browser and the disk rather than the number of tests.
 
 Use `astro dev --background`, then `astro dev stop|status|logs`.
