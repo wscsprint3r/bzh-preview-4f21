@@ -81,6 +81,11 @@ Every task's requirements implicitly include this section.
   another got 21.7. Runs that agree with each other are not evidence of a property; state a
   range, and say which part is the invariant (here, the ordering) and which is merely the
   margin observed.
+- **Assert that a link resolves, not that its href appears.** `expect(html).toContain('/program.ics')`
+  was green for the entire period that link was dead on every page: the attribute existed and
+  the file did not. Follow the href to its target and read bytes from it. The same shape —
+  asserting a reference rather than its referent — is worth hunting wherever Tasks 12 and 13
+  check that something is wired up.
 - **A check that prints the problem and exits 0 is a check that ships it.** Task 10's budget
   detected the script flipping from inlined to emitted, reported the flip as prose, and
   returned success. Detecting a condition and failing on it are different features; write the
@@ -2783,7 +2788,7 @@ describe('ieșirea build-ului', () => {
 
   it('pagina de pornire are secțiunea de program', () => {
     const html = readFileSync(`${DIST}index.html`, 'utf8');
-    expect(html).toContain('Programul săptămânii');
+    expect(html).toContain('Programul slujbelor');
     expect(html).toContain('Bine ați venit în casa Domnului');
   });
 
@@ -2796,9 +2801,21 @@ describe('ieșirea build-ului', () => {
     }
   });
 
-  it('pagina de program oferă abonarea la calendar', () => {
-    const html = readFileSync(`${DIST}program/index.html`, 'utf8');
-    expect(html).toContain('/program.ics');
+  it('fiecare link către calendar duce la un fișier real', () => {
+    // Do NOT assert that the string '/program.ics' appears. That assertion was
+    // green for the entire period the link was dead on every page, because the
+    // href existed and the file did not. Follow each href to its target and
+    // read it.
+    for (const p of ['index.html', 'program/index.html']) {
+      const html = readFileSync(`${DIST}${p}`, 'utf8');
+      const hrefs = [...html.matchAll(/(?:href|src)="([^"]*\.ics)"/g)].map((m) => m[1]);
+      expect(hrefs.length).toBeGreaterThan(0);
+      for (const href of hrefs) {
+        const tinta = `${DIST}${href.replace(/^\//, '')}`;
+        expect(existsSync(tinta), `${p} trimite la ${href}, care nu există`).toBe(true);
+        expect(readFileSync(tinta, 'utf8').length).toBeGreaterThan(0);
+      }
+    }
   });
 });
 ```
@@ -3161,6 +3178,9 @@ Create `web/public/_headers`:
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), interest-cohort=()
 
+# LOAD-BEARING. A static build discards the endpoint's own Content-Type, so what a
+# subscriber's calendar client receives is decided here and nowhere else. Verify it
+# against the deployed host with `curl -sI`, not against the local build.
 /program.ics
   Content-Type: text/calendar; charset=utf-8
   Cache-Control: public, max-age=3600
