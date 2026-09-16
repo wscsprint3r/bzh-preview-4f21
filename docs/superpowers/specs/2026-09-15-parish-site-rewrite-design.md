@@ -58,7 +58,7 @@ Seven steps involving a page builder, for one paragraph of news. The new site mu
   Duplicate, Delete and Discard live in a menu rather than the toolbar, which matters because
   duplicating last week's day is the whole weekly routine. Decap **does** ship a bundled Romanian UI with correct comma-below diacritics
   and no CDN dependencies; it was considered and declined in favour of Sveltia's modern
-  editor, phone support, 2 files versus 94, and active development. Recorded so nobody has to
+  editor, phone support, 5 vendored files versus 95, and active development. Recorded so nobody has to
   rediscover the trade.
 - A non-technical editor updates the weekly liturgical schedule in under a minute.
 - Homepage under 100 KB total, loading in under a second.

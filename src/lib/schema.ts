@@ -84,8 +84,12 @@ export function idDinNumeFisier(entry: string, continut?: Record<string, unknown
   const scrisa = continut?.data;
   if (scrisa instanceof Date) {
     throw new Error(
+      // The example is the file's OWN date, never a date written into the source:
+      // a hardcoded `2026-09-14` reads as stale within the month, and a volunteer
+      // comparing it with their own file has to work out that it is an example.
       `Fișier de program cu data scrisă fără ghilimele: "${entry}". YAML citește ` +
-        `2026-09-14 ca dată calendaristică, nu ca text. Scrieți data: "${m[1]}".`,
+        `${m[1]} ca dată calendaristică, nu ca text. Scrieți data: "${m[1]}", ` +
+        `cu ghilimele.`,
     );
   }
   if (scrisa !== undefined && scrisa !== m[1]) {

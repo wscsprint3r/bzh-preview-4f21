@@ -97,7 +97,13 @@ collections:
       default:
         field: data
         direction: descending
-    summary: "{{data}} — {{praznic}}"
+    # A SPACE, NOT A DASH, between the two. Most days have no `praznic`, and
+    # `{{data}} — {{praznic}}` leaves every one of them showing a dangling dash in
+    # the entry list - which is the first thing an editor sees, every week. With a
+    # space, a plain weekday reads `2026-09-16` and a feast day reads
+    # `2026-09-20 Duminica după Înălțarea Sfintei Cruci`; the trailing space on the
+    # ordinary days is invisible.
+    summary: "{{data}} {{praznic}}"
     description: >
       Fiecare intrare este o zi cu slujbe. Pentru o săptămână obișnuită,
       deschideți ziua din săptămâna trecută, apăsați „Duplicate” și schimbați
