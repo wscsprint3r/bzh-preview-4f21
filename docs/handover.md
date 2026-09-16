@@ -329,6 +329,37 @@ show it, nothing needs changing and the belt-and-braces was cheap.
 
 Then untick and save again, so the test day is not left cancelled.
 
+**H11. Make one build fail on purpose, and write down what the editor actually receives.**
+This is the only failure on the whole project that is **not** the editor's, and it is the
+one the editor is least equipped to read.
+
+*What it is.* `scripts/check-budget.mjs` fails when a page grows past its limit. For
+`/program/` that happens at around **58 published weeks**, because that page renders the
+whole schedule by design — browsing ahead is the point and Ctrl+F has to work — so its
+weight is the feature and the limit is a statement about how far ahead the parish can
+publish before the page stops being a page. Nothing is wrong with anybody's file. But the
+CMS commits to the build branch, `ci.yml` runs on that push, and the failure email goes to
+**whoever saved last**.
+
+*What to do, once, before you hand the site over:*
+
+1. On a branch, set `BUGET_PAGINI['program/index.html']` in `scripts/check-budget.mjs` to
+   `1024`, commit and push. CI will go red on `npm run budget`.
+2. Open the **failure e-mail** GitHub sends you and write down here what it contains. This
+   repository cannot see or change that e-mail, and `README.md` now tells the editors it
+   names no file — which is a claim nobody here has ever checked against a real one.
+3. Follow its link. At the top of the run page there should be a red box with the Romanian
+   paragraph — the same words the `npm run budget` step prints, put there by a workflow
+   annotation so the editor does not have to find and expand a step in an English
+   interface. Write down whether it is there and whether it is readable.
+4. Revert the change.
+
+*Who it belongs to.* You. If it ever fires for real, the decision is either to raise the
+limit — which means accepting a heavier page — or to accept that `/program/` cannot hold
+more than about a year and a bit of schedule. Neither is a decision an editor can make from
+the CMS, and the message says so in Romanian. Tell the editors, at the training session,
+that a red build which names no file is one to forward to you and forget about.
+
 ## I — finish
 
 **I1.** Print the editors' card and hand it out at the training session. Every row on it was

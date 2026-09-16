@@ -31,8 +31,16 @@ Două lucruri care se uită ușor:
   anulate”.** Dacă ștergeți rândurile, cei abonați la calendar rămân cu vechiul
   program și nu află de anulare.
 
-Dacă ceva nu apare pe site după câteva minute, construcția a eșuat — verificați
-e-mailul primit de la GitHub, care spune ce fișier are problema.
+Dacă ceva nu apare pe site după câteva minute, construcția a eșuat. Veți primi un
+e-mail de la GitHub. **E-mailul acela nu numește niciun fișier** — spune doar că a
+eșuat, și dă un link; nimic din acest depozit nu poate scrie în el. Deschideți
+linkul și citiți ce scrie sus, pe pagină: dacă acolo apare un text în românește,
+acela este explicația și vă spune ce s-a întâmplat.
+
+Dacă nu găsiți nimic care să vă privească — și de cele mai multe ori nu vă va
+privi — **anunțați persoana care se ocupă de site și lăsați-o în seama ei.** Nu
+tot ce înroșește o construcție este o greșeală într-un fișier de program; ziua pe
+care tocmai ați salvat-o poate fi perfect în regulă și publicată.
 
 ## Dezvoltare
 
