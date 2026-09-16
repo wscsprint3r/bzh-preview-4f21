@@ -42,9 +42,15 @@ The work is on `phase-1`; `public/admin/config.yml` says `branch: main`. So eith
   `ci.yml`.
 
 **Keeping `phase-1` without making it the default is the one combination that fails
-silently**, which is why `rebuild.yml` refuses to run from a non-default branch: dispatch it
-by hand from `phase-1` while `main` is the default and it stops and says so, rather than
-posting the hook and letting you conclude the schedule works.
+silently**, which is why `rebuild.yml` says so about itself. Dispatch it by hand from
+`phase-1` while `main` is the default and the job goes **red** with
+`Reconstrucția a fost cerută, dar PROGRAMAREA NU VA RULA DE AICI` — rather than going green
+and letting you conclude the schedule works.
+
+The hook **is** posted first, and that is deliberate: the branch check is the workflow's
+*second* step, because a guard about branch configuration must not be able to stop the
+rebuild it exists to protect. So a red job here means "the rebuild you asked for happened,
+and the *scheduled* one never will" — not "nothing was triggered".
 
 **A2.** Create the repository and push:
 
@@ -144,9 +150,11 @@ branch**.
 
 - *If it prints `Secretul CF_DEPLOY_HOOK nu este configurat`*, E2 did not take — check the
   name character for character.
-- *If it prints `Programarea rulează doar din ramura implicită`*, you dispatched it from a
+- *If the second step, **Programarea funcționează doar din ramura implicită**, goes red with
+  `Reconstrucția a fost cerută, dar PROGRAMAREA NU VA RULA DE AICI`*, you dispatched it from a
   branch that is not the default one. That is A1: the scheduled run would never have
-  fired. Either dispatch from the default branch, or make this branch the default.
+  fired. Either dispatch from the default branch, or make this branch the default. The `curl`
+  ran first, so the one-off rebuild you asked for did happen; what is broken is the schedule.
 
 Scheduled runs are best-effort and can be delayed by GitHub; the first real proof is a
 deployment appearing in Cloudflare around 03:00 Zürich time.
