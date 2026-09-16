@@ -87,8 +87,10 @@ Hugo (a single Go binary, zero npm) was considered and rejected: its templating 
 
 Only two pieces of JS ship:
 
-1. The week picker (§7), ~1 KB inline, on the homepage and `/program`.
+1. The week picker and next-service recomputation (§7), inline, **on the homepage only** — `/program` renders every week and ships no JavaScript at all, so it stays searchable with Ctrl+F and fully present in the accessibility tree.
 2. Cloudflare Turnstile, on `/contact` only.
+
+The ceiling is **3,800 bytes**, chosen to sit just under Astro's ~4,096-byte inline threshold: above that the script becomes a separate file and both the request count and the caching behaviour change.
 
 Everything else — navigation, galleries, IBAN copy buttons — is HTML and CSS.
 
@@ -108,7 +110,7 @@ Approved from mockups. Warm parchment, oxblood, icon gold; serif throughout; thi
 --oxblood-dk:  #54171D;  /* hover                              */
 --gold-text:   #8A6A28;  /* service times, links       4.7:1   */
 --gold:        #B08B3E;  /* ORNAMENT ONLY — never text 2.9:1   */
---gold-lt:     #C8A45C;  /* borders, rules, ✝ glyph            */
+--gold-lt:     #C8A45C;  /* borders, rules, † glyph            */
 --ink:         #2A211C;  /* body text                 14.6:1   */
 --muted:       #6E5C4E;  /* secondary text             5.9:1   */
 --faint:       #7E6C52;  /* eyebrow labels             4.7:1   */
@@ -123,7 +125,7 @@ Both self-hosted, subset to `latin` + `latin-ext`. **The subset must include U+0
 
 ### Rules
 
-- Ornament is a `✝` glyph and gold hairlines. No drop shadows, no gradients except the hero scrim.
+- Ornament is a `†` glyph (U+2020) and gold hairlines. **Not `✝` U+271D** — it is in none of the eight shipped font files, so it would render from an OS fallback; `†` is present, and is the conventional feast-day mark in Romanian Orthodox calendars. No drop shadows, no gradients except the hero scrim.
 - Feast days are marked by a `--raised` background and a 2px `--gold-lt` top rule, never by colour alone (accessibility).
 - "Zi de post" is a bordered text tag, never an icon alone.
 ### Contrast — a correction to the mockups
