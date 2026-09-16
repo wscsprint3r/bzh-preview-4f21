@@ -608,6 +608,60 @@ export function latimiAuditate(setPagini, latimeImplicita, treceri = TRECERI, co
 }
 
 /**
+ * The widths this set of pages is really loaded at, SPLIT BY JAVASCRIPT STATE.
+ *
+ * `latimiAuditate` answers "which widths", `moduriAuditate` answers "which
+ * states", and the guard asked those two questions separately. That is the sixth
+ * blind arrangement, found while closing the fifth and measured before it was
+ * closed: delete `telefonFaraJs` from `CONDITII` and from `TRECERI.mobil`, change
+ * nothing else, and the unit guard is 28 passed, both `dist` passes exit 0, and
+ * the run prints `stari JavaScript auditate: JS pornit - JS oprit` - true of the
+ * SET, false of the phone band, which has just lost its only scripts-off audit.
+ * The band below 34rem is where the day row drops its month name, where the week
+ * band stacks, and where most of the parish reads this; with scripts on the
+ * picker hides every week but one and axe skips them.
+ *
+ * Coverage is therefore a property of the PAIR, and that is what this returns.
+ *
+ * @param {string} setPagini
+ * @param {number} latimeImplicita
+ * @param {Record<string, Trecere>} [treceri]
+ * @param {Record<string, Conditie>} [conditii]
+ * @returns {{ cuJs: number[], faraJs: number[] }}
+ */
+export function latimiPeStare(setPagini, latimeImplicita, treceri = TRECERI, conditii = CONDITII) {
+  const pe = { cuJs: new Set(), faraJs: new Set() };
+  for (const cheie of Object.keys(treceri).filter((k) => treceri[k].pagini === setPagini)) {
+    for (const nume of treceri[cheie].conditii) {
+      const conditie = conditii[nume];
+      if (conditie === undefined) continue;
+      pe[conditie.js === true ? 'cuJs' : 'faraJs'].add(conditie.latime ?? latimeImplicita);
+    }
+  }
+  return {
+    cuJs: [...pe.cuJs].sort((a, b) => a - b),
+    faraJs: [...pe.faraJs].sort((a, b) => a - b),
+  };
+}
+
+/** The two JavaScript states, as they are named in output and in code. */
+export const STARI = [
+  { cheie: 'cuJs', eticheta: 'PORNITE', scurt: 'JS pornit' },
+  { cheie: 'faraJs', eticheta: 'OPRITE', scurt: 'JS oprit' },
+];
+
+/**
+ * The states a set of pages must be audited in: scripts on always, scripts off
+ * unless `FARA_JS_MOTIVAT` says in words why that set has no such state.
+ *
+ * @param {string} setPagini
+ * @param {Record<string, string>} [motive]
+ */
+export function stariCerute(setPagini, motive = FARA_JS_MOTIVAT) {
+  return STARI.filter((s) => s.cheie === 'cuJs' || motive[setPagini] === undefined);
+}
+
+/**
  * The JavaScript states some pass really loads this set of pages in, and which
  * passes they come from. Never the whole of `CONDITII` - the same rule as
  * `latimiAuditate`, on the other axis: a scripts-off condition run over some
@@ -650,19 +704,77 @@ export function citestePachet() {
  * single stylesheet still asks that question. The browser was being asked the
  * right question about the wrong number.
  *
- * So the set is read out of the CSS of the pages this audit actually loads, and
- * two things are asserted against it:
+ * So the set is read out of the CSS of the pages this audit actually loads.
  *
- *   (a) every query a condition DECLARES is still a breakpoint the CSS has - so
- *       a breakpoint that moves is named immediately, at its old value;
- *   (b) every band the breakpoints cut the width axis into contains at least one
- *       audited viewport - so a breakpoint that is ADDED, which (a) cannot see,
- *       fails as soon as it opens a band nothing looks at.
+ * ===========================================================================
+ * WHY THE AXES KEPT ARRIVING, AND THE RESTATEMENT THAT IS MEANT TO STOP THEM.
  *
- * "AUDITED" MEANS A PASS RUNS THERE, over these pages. Both assertions take
- * their widths and their declared queries from the `TRECERI` entries whose
+ * This guard has been green while blind FIVE TIMES, found by three different
+ * reviewers: hardcoded breakpoints; widths declared in `CONDITII` that no pass
+ * ran; the JavaScript axis, which nothing indexed; `medii: {}`, which made the
+ * comparison a loop over nothing; and assertion (a) being one-directional. Each
+ * fix closed the arrangement it was shown. A SIXTH was then found here while
+ * closing the fifth - coverage indexed on the page SET rather than on the band,
+ * so one width could lose its scripts-off pass with nothing going red.
+ *
+ * Six instances, one shape: THE GUARD COMPARED A DECLARATION AGAINST A SUBJECT
+ * ALONG SOME AXES AND NOT OTHERS, AND WAS SILENT ABOUT WHAT IT DID NOT INDEX.
+ * Whichever axis was left unindexed was the next one somebody walked through.
+ *
+ * So the check is stated as one sentence with no axis left implicit:
+ *
+ *   EVERYTHING THE BUILT CSS DEMANDS IS MATCHED AGAINST EVERYTHING THE SUITE
+ *   RUNS, IN BOTH DIRECTIONS - and anything this file cannot index is NAMED in
+ *   words or is a failure.
+ *
+ * "What the CSS demands" is every `@media` condition of the pages being audited,
+ * decomposed into width comparisons (which this file indexes, into breakpoints
+ * and bands) and everything else (which it cannot, and therefore must not
+ * silently drop). "What the suite runs" is the (width, JavaScript state) pairs of
+ * the `TRECERI` entries whose `pagini` is this set. Five assertions, and the
+ * letters say which direction each one goes:
+ *
+ *   (a)  declaration -> CSS. Every query a condition DECLARES is still a
+ *        breakpoint the CSS has, so a breakpoint that MOVED is named immediately,
+ *        at its old value.
+ *   (a') CSS -> declaration. Every breakpoint the CSS HAS is named by the `medii`
+ *        of some condition this set is loaded under. Without this, dropping a
+ *        breakpoint from every `medii` and then moving it is green on everything:
+ *        measured, all four passes and the unit guard, with a 62rem breakpoint
+ *        sitting at 60rem and printed in the output. There is deliberately NO
+ *        exemption table beside it - a breakpoint the CSS has is a branch of the
+ *        layout, and the repair is always to say what should match there, never
+ *        to excuse it.
+ *   (b)  CSS -> execution, per band AND per JavaScript state. Every band the
+ *        breakpoints cut the width axis into is loaded at some width IN EVERY
+ *        STATE this set must be audited in - the pair, not the two axes
+ *        separately. A breakpoint that is ADDED, which (a) cannot see, fails as
+ *        soon as it opens a band nothing looks at; a state dropped from one band
+ *        fails even though other bands still have it.
+ *   (c)  CSS -> named. Every media feature that is NOT a width comparison is
+ *        named in `TRASATURI_NEAUDITATE` with the reason in words. This is the
+ *        assertion that closes the CLASS rather than an instance:
+ *        `prefers-reduced-motion` has been in the built CSS the whole time,
+ *        indexed by nothing, declared by nothing and silent - a seventh
+ *        arrangement already standing when the sixth was found. A
+ *        `prefers-color-scheme: light` branch, a `print` block or an `@container`
+ *        query would each have been the eighth.
+ *   (c') named -> CSS, like every other list in this file: a feature named there
+ *        that the CSS no longer has is a stale excuse and fails.
+ *
+ * "AUDITED" MEANS A PASS RUNS THERE, over these pages. Every assertion takes its
+ * widths, its states and its declared queries from the `TRECERI` entries whose
  * `pagini` is the set being audited, never from `CONDITII` as a whole - see the
  * table above for the two green arrangements that taught us the difference.
+ *
+ * WHAT IS STILL NOT CLOSED, said plainly rather than left to be found seventh:
+ * width WITHIN a band; `@supports`, which branches on the browser rather than on
+ * the viewport, and this audit is one browser by construction; and any state a
+ * script can put the page into other than "ran" and "did not run" - the picker's
+ * other weeks are audited by the scripts-off passes, and nothing else on the site
+ * has one. None of those three is a media query, so none of them is something the
+ * CSS declares and this file ignores, which is the property (c) is for.
+ * ===========================================================================
  *
  * SCOPE, SAID PLAINLY, BECAUSE IT CUTS AGAINST A RULE THIS PROJECT HOLDS. The
  * expectation here is derived FROM the artifact a defect would edit - our own
@@ -684,6 +796,77 @@ export function citestePachet() {
 
 const PX_PE_UNITATE = { px: 1, rem: 16, em: 16 };
 const OGLINDA = { '<': '>', '<=': '>=', '>': '<', '>=': '<=' };
+
+/*
+ * MEDIA FEATURES THIS AUDIT DOES NOT VARY, each with the reason in words.
+ *
+ * Assertion (c) above. Width is the only axis this file indexes; every other
+ * feature a built stylesheet asks about is a branch of the page that no pass here
+ * renders, and until this table existed it was dropped in silence. `comparatii`
+ * consumed the width comparisons and the leftover was only inspected for the word
+ * "width" - so `@media (prefers-reduced-motion: reduce)` went through every
+ * version of this guard, including the two written specifically to close blind
+ * arrangements, without a line of output.
+ *
+ * AN ENTRY HERE IS A STATED GAP, NOT A COVERED ONE, and that is the whole value
+ * of it: a reader of a green run can see which branches of the CSS were rendered
+ * and which were only reasoned about. It is not a place to put a feature that is
+ * merely inconvenient to audit - if a branch can change what a visitor reads, the
+ * repair is a condition that renders it.
+ *
+ * Both directions fail, as with `FARA_JS_MOTIVAT` and the command strings: a
+ * feature the CSS no longer has, named here, is a stale excuse.
+ *
+ * @type {Record<string, string>}
+ */
+export const TRASATURI_NEAUDITATE = {
+  'prefers-reduced-motion': [
+    'nicio trecere nu schimbă preferința: Chrome pornește pe `no-preference`, deci ramura',
+    '`reduce` nu este randată de nimeni. Ce face ea este să stingă animațiile și tranzițiile',
+    '(`animation: none`, `transition: none` în src/styles/global.css) — scoate mișcare, nu',
+    'adaugă nimic: nu poate strica un contrast, un nume accesibil sau un inel de focalizare pe',
+    'care ramura implicită să nu le aibă deja, iar axe măsoară oricum starea rezolvată a unui',
+    'DOM static, nu mișcarea. Ce ar putea ascunde este un control a cărui singură indicație',
+    'vizuală este o animație; situl nu are niciunul. Deci este o lipsă spusă, nu una acoperită.',
+  ].join('\n      '),
+};
+
+/*
+ * At-rules other than `@media` that can make the built page render differently
+ * depending on the environment. `@container` is the one that exists; it is a
+ * SECOND width axis, keyed to an element rather than to the viewport, and nothing
+ * in this file would index it. It is not used today, and the moment it is, (c)
+ * fails until somebody decides what audits it.
+ *
+ * `@supports` is deliberately not here: it branches on the BROWSER, not on the
+ * viewport, and this audit is one browser by construction - that gap is in the
+ * HONEST SCOPE block at the top of the file, where it belongs.
+ */
+const REGULI_DE_MEDIU = ['container'];
+
+/** The logical words that join media features, which are not features. */
+const CUVINTE_LOGICE = new Set(['and', 'not', 'only', 'or']);
+
+/**
+ * Every media feature in one `@media` condition that is NOT a width comparison,
+ * lower-cased. A media TYPE (`print`, `screen`) counts as one, and so does any
+ * leftover this file failed to parse: a guard that derives its subject can only
+ * check what it recognised, so what it did not recognise has to be loud.
+ */
+export function trasaturileConditiei(conditie) {
+  const { rest } = comparatii(conditie);
+  const nume = new Set();
+  const ramas = rest.replace(/\(\s*([a-zA-Z][\w-]*)\s*(?::[^()]*)?\)/g, (_, f) => {
+    nume.add(f.toLowerCase());
+    return ' ';
+  });
+  for (const bucata of ramas.split(/[\s,]+/)) {
+    const cuvant = bucata.trim().toLowerCase();
+    if (cuvant === '' || CUVINTE_LOGICE.has(cuvant)) continue;
+    nume.add(cuvant);
+  }
+  return [...nume].sort();
+}
 
 /*
  * A width comparison as the largest integer viewport width on its LOWER side.
@@ -748,12 +931,24 @@ function cssPaginii(dist, pagina) {
 }
 
 /**
- * Every width breakpoint the given built pages declare, sorted, deduplicated by
- * where it cuts the width axis, each carrying the pages it was found in.
+ * WHAT THE BUILT CSS OF THESE PAGES DEMANDS: every width breakpoint, sorted and
+ * deduplicated by where it cuts the width axis, AND every media feature that is
+ * not a width comparison. Each carries the pages it was found in.
+ *
+ * The second half is assertion (c)'s subject. It used to be thrown away: the
+ * leftover of `comparatii` was tested for the word "width" and otherwise dropped,
+ * so every `@media` question this file cannot ask was invisible to it.
  */
 export function pragurile(dist, pagini) {
   const dupaLimita = new Map();
+  const trasaturi = new Map();
   const probleme = [];
+  const noteaza = (nume, pagina, conditie) => {
+    const intrare = trasaturi.get(nume) ?? { nume, surse: new Set(), conditii: new Set() };
+    intrare.surse.add(pagina);
+    intrare.conditii.add(conditie);
+    trasaturi.set(nume, intrare);
+  };
   for (const pagina of pagini) {
     let css;
     try {
@@ -761,6 +956,11 @@ export function pragurile(dist, pagini) {
     } catch (e) {
       probleme.push(e.message);
       continue;
+    }
+    for (const nume of REGULI_DE_MEDIU) {
+      for (const m of css.matchAll(new RegExp(`@${nume}([^{]*)\\{`, 'g'))) {
+        noteaza(`@${nume}`, pagina, `@${nume} ${m[1].trim()}`);
+      }
     }
     for (const m of css.matchAll(/@media([^{]*)\{/g)) {
       const conditie = m[1].trim();
@@ -774,6 +974,8 @@ export function pragurile(dist, pagini) {
             `(a rămas necitit: "${rest.trim()}"). Adaug-o în comparatii() din scripts/a11y.mjs.`,
         );
       }
+      // Everything that is not a width. Silent until this line existed.
+      for (const nume of trasaturileConditiei(conditie)) noteaza(nume, pagina, `@media ${conditie}`);
       for (const g of gasite) {
         if (!Number.isFinite(g.px)) {
           probleme.push(`${pagina}: @media ${conditie} — unitate necunoscută în "${g.text}".`);
@@ -786,7 +988,11 @@ export function pragurile(dist, pagini) {
       }
     }
   }
-  return { praguri: [...dupaLimita.values()].sort((a, b) => a.limita - b.limita), probleme };
+  return {
+    praguri: [...dupaLimita.values()].sort((a, b) => a.limita - b.limita),
+    trasaturi: [...trasaturi.values()].sort((a, b) => (a.nume < b.nume ? -1 : a.nume > b.nume ? 1 : 0)),
+    probleme,
+  };
 }
 
 /** How a breakpoint reads in output: the query as the CSS writes it, plus its px. */
@@ -795,31 +1001,90 @@ function scriePrag(p) {
 }
 
 /**
- * The two assertions the derived set supports, as lines to print and problems to
- * report. `latimeImplicita` is the measured default viewport.
+ * EVERYTHING THE CSS DEMANDS AGAINST EVERYTHING THE SUITE RUNS, IN BOTH
+ * DIRECTIONS - the five assertions (a), (a'), (b), (c) and (c') listed in the
+ * block above this section, as lines to print and problems to report.
+ * `latimeImplicita` is the measured default viewport.
  *
- * The widths are those of every pass over THIS SET OF PAGES, not the subset the
- * current run happens to execute: the claim is about what `npm run test:all`
- * covers over these pages between all of its passes, so an uncovered band must
- * fail every one of them rather than whichever happens to hold the guilty width.
- * What it is NOT is the whole of `CONDITII` - a width declared there and run
- * over some other build says nothing about this one.
+ * The widths and states are those of every pass over THIS SET OF PAGES, not the
+ * subset the current run happens to execute: the claim is about what
+ * `npm run test:all` covers over these pages between all of its passes, so an
+ * uncovered band must fail every one of them rather than whichever happens to
+ * hold the guilty width. What it is NOT is the whole of `CONDITII` - a width
+ * declared there and run over some other build says nothing about this one.
+ *
+ * The tables are arguments with the real ones as defaults, so every assertion
+ * below has a unit-level positive control in `a11y-treceri.test.ts` that runs in
+ * milliseconds instead of four Chrome launches.
  */
-export function verificaPraguri({ praguri, probleme }, latimeImplicita, setPagini) {
+export function verificaPraguri(
+  { praguri, trasaturi = [], probleme },
+  latimeImplicita,
+  setPagini,
+  { tabele = TRECERI, conditii = CONDITII, motive = FARA_JS_MOTIVAT, neauditate = TRASATURI_NEAUDITATE } = {},
+) {
   const esecuri = [...probleme];
-  const { treceri, latimi } = latimiAuditate(setPagini, latimeImplicita);
-  const numeleTrecerilor = treceri.map((cheie) => `${cheie} (${comandaTrecerii(TRECERI[cheie])})`).join(' · ');
-  // Printed rather than only asserted, on both axes, for the same reason the
+  const { treceri, latimi } = latimiAuditate(setPagini, latimeImplicita, tabele, conditii);
+  const numeleTrecerilor = treceri.map((cheie) => `${cheie} (${comandaTrecerii(tabele[cheie])})`).join(' · ');
+  const peStare = latimiPeStare(setPagini, latimeImplicita, tabele, conditii);
+  const cerute = stariCerute(setPagini, motive);
+  // Printed rather than only asserted, on every axis, for the same reason the
   // widths are: the line below is what a later reader checks a claim against.
-  const { cuJs, faraJs } = moduriAuditate(setPagini);
+  const { cuJs, faraJs } = moduriAuditate(setPagini, tabele, conditii);
   const stari = [cuJs ? 'JS pornit' : null, faraJs ? 'JS oprit' : null].filter(Boolean);
   const linii = [
     `praguri din CSS-ul construit: ${praguri.length > 0 ? praguri.map(scriePrag).join(' · ') : '(niciunul)'}`,
+    `trăsături de mediu care nu sunt lățimi: ${
+      trasaturi.length > 0 ? trasaturi.map((t) => `${t.nume} (${[...t.surse].join(', ')})`).join(' · ') : '(niciuna)'
+    }`,
     `set de pagini „${setPagini}” — treceri care îl auditează: ${numeleTrecerilor === '' ? '(niciuna)' : numeleTrecerilor}`,
     `lățimi auditate de aceste treceri: ${latimi.join(', ')}px (implicita măsurată: ${latimeImplicita}px)`,
     `stări JavaScript auditate: ${stari.length > 0 ? stari.join(' · ') : '(niciuna)'}` +
-      `${faraJs ? '' : ` — scutit: ${FARA_JS_MOTIVAT[setPagini] === undefined ? 'NU' : 'da'}`}`,
+      `${faraJs ? '' : ` — scutit: ${motive[setPagini] === undefined ? 'NU' : 'da'}`}`,
+    // The PAIR, which is what coverage is a property of. Two axes printed apart
+    // is exactly what let one width lose its scripts-off pass unnoticed.
+    ...STARI.map(
+      (st) =>
+        `  lățimi cu scripturile ${st.eticheta}: ${peStare[st.cheie].length > 0 ? `${peStare[st.cheie].join(', ')}px` : '(niciuna)'}` +
+        `${cerute.some((c) => c.cheie === st.cheie) ? '' : ' — scutit, cu motiv scris'}`,
+    ),
   ];
+
+  /*
+   * (c) CSS -> named, and (c') named -> CSS.
+   *
+   * Width is the only axis this file indexes. Every other question the built CSS
+   * asks about the environment is a branch no pass renders, and it was dropped in
+   * silence until this loop: `prefers-reduced-motion` sat in `global.css` through
+   * every earlier version of this guard, including the two written to close blind
+   * arrangements, without a line of output. This is the assertion that makes the
+   * NEXT such feature a red build instead of the seventh finding.
+   *
+   * BEFORE THE EARLY RETURNS BELOW, deliberately: a build whose CSS had lost every
+   * width breakpoint would otherwise leave this loop unrun, and an early return
+   * that skips a check is the shape this project has paid for most.
+   */
+  const numite = new Set(Object.keys(neauditate));
+  for (const t of trasaturi) {
+    if (numite.has(t.nume)) continue;
+    esecuri.push(
+      `CSS-ul construit ramifică pe „${t.nume}”, pe care acest audit nu o variază și nimeni nu a numit-o.\n` +
+        `    Găsită în: ${[...t.surse].join(', ')} — ${[...t.conditii].join(' · ')}.\n` +
+        '    Lățimea este singura axă pe care fișierul acesta o indexează, deci ramura aceasta nu\n' +
+        '    este randată de nicio trecere. Ori o auditezi (o condiție care o pune în starea ei),\n' +
+        '    ori o scrii în TRASATURI_NEAUDITATE din scripts/a11y.mjs cu motivul în cuvinte.\n' +
+        '    O lipsă spusă e mai bună decât o ramură pe care nimeni nu a văzut-o.',
+    );
+  }
+  for (const nume of [...numite].sort()) {
+    if (trasaturi.some((t) => t.nume === nume)) continue;
+    esecuri.push(
+      `TRASATURI_NEAUDITATE numește „${nume}”, pe care CSS-ul construit al setului „${setPagini}” ` +
+        'nu-l mai conține.\n' +
+        '    Scuza a rămas în urma foilor de stil: scoate-o. Una de care nu are nimeni nevoie rămâne\n' +
+        '    în cod arătând ca o regulă, gata să acopere altceva cu același nume.',
+    );
+  }
 
   // A set of pages nothing audits cannot be said to cover any band. Without
   // this the loop below would report every band as uncovered and bury the
@@ -841,12 +1106,16 @@ export function verificaPraguri({ praguri, probleme }, latimeImplicita, setPagin
     return { linii, esecuri };
   }
 
-  // (a) Every query a condition declares still names a breakpoint the CSS has.
-  // The conditions are those this set of pages is actually loaded under.
-  const numeConditii = new Set(treceri.flatMap((cheie) => TRECERI[cheie].conditii));
+  // The conditions this set of pages is actually loaded under, and the queries
+  // they declare. Both (a) and (a') are about these two sets and nothing else.
+  const numeConditii = new Set(treceri.flatMap((cheie) => tabele[cheie].conditii));
   const declarate = new Set(
-    [...numeConditii].flatMap((nume) => Object.keys(CONDITII[nume]?.medii ?? {})),
+    [...numeConditii].flatMap((nume) => Object.keys(conditii[nume]?.medii ?? {})),
   );
+
+  // (a) declaration -> CSS. Every query a condition declares still names a
+  // breakpoint the CSS has, so a breakpoint that MOVED is named at its old value.
+  const limiteDeclarate = new Set();
   for (const interogare of [...declarate].sort()) {
     const { gasite } = comparatii(interogare);
     const limite = gasite.map((g) => g.limita);
@@ -854,6 +1123,7 @@ export function verificaPraguri({ praguri, probleme }, latimeImplicita, setPagin
       esecuri.push(`CONDITII declară "${interogare}", pe care comparatii() nu o citește ca un singur prag.`);
       continue;
     }
+    limiteDeclarate.add(limite[0]);
     if (!praguri.some((p) => p.limita === limite[0])) {
       esecuri.push(
         `CONDITII declară "${interogare}", dar CSS-ul construit nu mai are un prag acolo.\n` +
@@ -863,25 +1133,69 @@ export function verificaPraguri({ praguri, probleme }, latimeImplicita, setPagin
     }
   }
 
-  // (b) Every band between breakpoints contains at least one audited width.
-  const limite = praguri.map((p) => p.limita);
-  for (let i = 0; i <= limite.length; i += 1) {
-    const jos = i === 0 ? 0 : limite[i - 1] + 1;
-    const sus = i === limite.length ? Number.POSITIVE_INFINITY : limite[i];
-    if (latimi.some((l) => l >= jos && l <= sus)) continue;
-    const vecine = praguri.filter((p) => p.limita === limite[i - 1] || p.limita === limite[i]).map(scriePrag);
+  /*
+   * (a') CSS -> declaration, AND THIS IS THE DIRECTION THAT WAS MISSING.
+   *
+   * (a) iterates the declarations, so a breakpoint dropped from every `medii`
+   * leaves its loop with nothing to say about it. Measured before this existed:
+   * remove `(min-width: 62rem)` from all six conditions - each `medii` still
+   * non-empty, so the `medii: {}` check is satisfied - then move that breakpoint
+   * in the component to 60rem and rebuild. All four browser passes and the unit
+   * guard are exit 0, while the run PRINTS a breakpoint at 960px that nothing
+   * declares and nothing compares against anything.
+   *
+   * There is no exemption table here on purpose. A breakpoint in the built CSS is
+   * a branch of the layout; the repair is to say what should and should not match
+   * at it, which is one line in each condition, and an excuse would be a way to
+   * keep the branch and stop looking at it.
+   */
+  for (const prag of praguri) {
+    if (limiteDeclarate.has(prag.limita)) continue;
     esecuri.push(
-      `nicio trecere nu auditează lățimile ${jos}-${sus === Number.POSITIVE_INFINITY ? '∞' : sus}px ` +
-        `din setul de pagini „${setPagini}”.\n` +
-        `    Banda e delimitată de: ${vecine.join(' · ')}.\n` +
-        `    Lățimile care chiar se rulează peste aceste pagini: ${latimi.join(', ')}px.\n` +
-        '    Se închide în TREI pași, toți trei verificați — niciunul singur nu ajunge:\n' +
-        '      1. o condiție în CONDITII cu o lățime din bandă;\n' +
-        `      2. numele ei în conditii-le unei treceri din TRECERI cu pagini: "${setPagini}";\n` +
-        '      3. comanda trecerii aceleia într-un script pornit de "npm run test:all".\n' +
-        '    Sau, dacă banda chiar nu trebuie auditată, scrie aici care e și de ce — o lipsă spusă ' +
-        'e mai bună decât o trecere degeaba.',
+      `CSS-ul construit declară un prag pe care nicio condiție nu-l numește: ${scriePrag(prag)}.\n` +
+        `    Condițiile sub care se încarcă setul „${setPagini}”: ${[...numeConditii].sort().join(', ')}.\n` +
+        `    Interogări declarate de ele: ${[...declarate].sort().join(' · ') || '(niciuna)'}.\n` +
+        '    Verificarea (a) iterează exact interogările declarate, deci un prag scos din toate\n' +
+        '    `medii` iese din raza ei și supraviețuiește numai pe acoperirea benzilor — care vede\n' +
+        '    doar mutările destul de mari cât să golească o bandă. Scrie interogarea în `medii`-le\n' +
+        '    condițiilor de mai sus, cu ce trebuie și ce nu trebuie să se potrivească la fiecare.',
     );
+  }
+
+  /*
+   * (b) CSS -> execution, ON THE PAIR (band, JavaScript state).
+   *
+   * These two used to be checked apart: bands against the union of the widths,
+   * and JavaScript states against the set of pages. Measured while closing (a'):
+   * delete `telefonFaraJs` from `CONDITII` and from `TRECERI.mobil` and
+   * everything stays green - the unit guard, both `dist` passes - while the band
+   * below 34rem loses its only scripts-off audit and the output still says the
+   * set is audited in both states. True of the set, false of the band.
+   */
+  const limite = praguri.map((p) => p.limita);
+  for (const stare of cerute) {
+    const aleStarii = peStare[stare.cheie];
+    for (let i = 0; i <= limite.length; i += 1) {
+      const jos = i === 0 ? 0 : limite[i - 1] + 1;
+      const sus = i === limite.length ? Number.POSITIVE_INFINITY : limite[i];
+      if (aleStarii.some((l) => l >= jos && l <= sus)) continue;
+      const vecine = praguri.filter((p) => p.limita === limite[i - 1] || p.limita === limite[i]).map(scriePrag);
+      esecuri.push(
+        `nicio trecere nu auditează lățimile ${jos}-${sus === Number.POSITIVE_INFINITY ? '∞' : sus}px ` +
+          `din setul de pagini „${setPagini}” cu scripturile ${stare.eticheta}.\n` +
+          `    Banda e delimitată de: ${vecine.join(' · ')}.\n` +
+          `    Lățimile care chiar se rulează peste aceste pagini cu scripturile ${stare.eticheta}: ` +
+          `${aleStarii.join(', ') || '(niciuna)'}px.\n` +
+          `    (Pe cealaltă stare: ${peStare[stare.cheie === 'cuJs' ? 'faraJs' : 'cuJs'].join(', ') || '(niciuna)'}px — ` +
+          'acoperirea este o proprietate a PERECHII, nu a celor două axe luate separat.)\n' +
+          '    Se închide în TREI pași, toți trei verificați — niciunul singur nu ajunge:\n' +
+          `      1. o condiție în CONDITII cu o lățime din bandă și js: ${stare.cheie === 'cuJs' ? 'true' : 'false'};\n` +
+          `      2. numele ei în conditii-le unei treceri din TRECERI cu pagini: "${setPagini}";\n` +
+          '      3. comanda trecerii aceleia într-un script pornit de "npm run test:all".\n' +
+          '    Sau, dacă banda chiar nu trebuie auditată, scrie aici care e și de ce — o lipsă spusă ' +
+          'e mai bună decât o trecere degeaba.',
+      );
+    }
   }
 
   return { linii, esecuri };

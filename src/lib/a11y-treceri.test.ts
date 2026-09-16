@@ -2,13 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
   CONDITII,
   FARA_JS_MOTIVAT,
+  TRASATURI_NEAUDITATE,
   TRECERI,
   comandaTrecerii,
   comenziA11y,
   comenzileScriptului,
   citestePachet,
   latimiAuditate,
+  latimiPeStare,
   moduriAuditate,
+  stariCerute,
+  trasaturileConditiei,
+  verificaPraguri,
   verificaTreceri,
 } from '../../scripts/a11y.mjs';
 
@@ -73,14 +78,21 @@ const TRECERI_BUNE = {
   },
   mobil: {
     fisier: 'scripts/a11y.mjs', argumente: ['--mobil'], pagini: 'dist',
-    conditii: ['telefon'], eticheta: 'm',
+    conditii: ['telefon', 'telefonFaraJs'], eticheta: 'm',
   },
 };
 
+/*
+ * `telefonFaraJs` este aici pentru același motiv pentru care `medii` nu mai este
+ * gol: fixtura trebuie să treacă regulile adevărate, fiindcă ea este ce copiază
+ * următorul om. Fără ea, banda de sub 34rem ar fi auditată numai cu scripturile
+ * pornite — exact al șaselea aranjament orb, scris în fixtură.
+ */
 const CONDITII_BUNE = {
   birou: { eticheta: 'birou', latime: null, js: true, medii: { [TELEFON_PROBA]: false } },
   birouFaraJs: { eticheta: 'birou, JS oprit', latime: null, js: false, medii: { [TELEFON_PROBA]: false } },
   telefon: { eticheta: 'telefon 390px', latime: 390, js: true, medii: { [TELEFON_PROBA]: true } },
+  telefonFaraJs: { eticheta: 'telefon 390px, JS oprit', latime: 390, js: false, medii: { [TELEFON_PROBA]: true } },
 };
 
 describe('tabelul de treceri al auditului', () => {
@@ -239,8 +251,12 @@ describe('fiecare set de pagini este auditat și cu scripturile oprite', () => {
   it('prinde ștergerea condițiilor fără JS din setul principal', () => {
     // Exact mutația din raport: `dist` rămâne auditat numai cu scripturile
     // pornite. Fără verificarea asta, nimic nu se schimbă la culoare.
-    const treceri = { ...TRECERI_BUNE, implicita: { ...TRECERI_BUNE.implicita, conditii: ['birou'] } };
-    const esecuri = verificaTreceri(PACHET_BUN, treceri, CONDITII_BUNE, {});
+    const treceri = {
+      implicita: { ...TRECERI_BUNE.implicita, conditii: ['birou'] },
+      mobil: { ...TRECERI_BUNE.mobil, conditii: ['telefon'] },
+    };
+    const conditii = { birou: CONDITII_BUNE.birou, telefon: CONDITII_BUNE.telefon };
+    const esecuri = verificaTreceri(PACHET_BUN, treceri, conditii, {});
     expect(esecuri.filter((e) => e.includes('OPRITE'))).toHaveLength(1);
     expect(esecuri.some((e) => e.includes('dist'))).toBe(true);
   });
@@ -348,5 +364,204 @@ describe('lățimile se socotesc pe set de pagini', () => {
         `  dist  ${dist.latimi.join(', ')}px  (${dist.treceri.join(', ')})\n` +
         `  proba ${proba.latimi.join(', ')}px  (${proba.treceri.join(', ')})\n`,
     );
+  });
+});
+
+/*
+ * ===========================================================================
+ * TOT CE CERE CSS-UL, FAȚĂ ÎN FAȚĂ CU TOT CE RULEAZĂ SUITA, ÎN AMBELE SENSURI.
+ *
+ * Garda aceasta a fost verde și oarbă de ȘASE ori, găsită de patru oameni:
+ * praguri scrise de mână; lățimi declarate pe care nu le rula nimeni; axa
+ * JavaScript, pe care n-o indexa nimic; `medii: {}`, care făcea comparația o
+ * buclă fără corp; verificarea (a), care mergea într-un singur sens; și
+ * acoperirea socotită pe SETUL de pagini în loc de bandă, așa că o lățime își
+ * putea pierde trecerea fără scripturi fără să pice nimic.
+ *
+ * Șase instanțe, o singură formă: garda compara o declarație cu un subiect pe
+ * unele axe și nu pe altele, și tăcea despre ce nu indexa. Cazurile de mai jos
+ * sunt controalele pozitive ale restatementului — câte unul pe fiecare direcție,
+ * fiindcă o afirmație de forma „nu lipsește nimic" nu se primește aici fără o
+ * demonstrație că detectorul chiar se declanșează. Rulează în ~140 ms, înainte de
+ * patru porniri de Chrome.
+ * ===========================================================================
+ */
+
+/** Un prag derivat, în forma în care îl întoarce `pragurile()`. */
+function prag(text: string, px: number, limita: number, sursa = 'index.html') {
+  return { limita, px, texte: new Set([text]), surse: new Set([sursa]) };
+}
+
+/** O trăsătură de mediu care nu este o lățime, în aceeași formă. */
+function trasatura(nume: string, sursa = 'index.html') {
+  return { nume, surse: new Set([sursa]), conditii: new Set([`@media (${nume}: reduce)`]) };
+}
+
+const OPTIUNI_BUNE = { tabele: TRECERI_BUNE, conditii: CONDITII_BUNE, motive: {}, neauditate: {} };
+const PRAG_34 = prag('(max-width: 34rem)', 544, 544);
+const DERIVAT_BUN = { praguri: [PRAG_34], trasaturi: [], probleme: [] };
+
+describe('pragurile derivate din CSS față de ce declară condițiile', () => {
+  it('control: tabelele sintetice întregi nu au nimic de reproșat', () => {
+    expect(verificaPraguri(DERIVAT_BUN, 756, 'dist', OPTIUNI_BUNE).esecuri).toEqual([]);
+  });
+
+  it('(a) prinde o interogare declarată pe care CSS-ul nu o mai are', () => {
+    // Pragul s-a mutat din 34rem în 30rem: acum pică în AMBELE sensuri.
+    const mutat = { praguri: [prag('(max-width: 30rem)', 480, 480)], trasaturi: [], probleme: [] };
+    const esecuri = verificaPraguri(mutat, 756, 'dist', OPTIUNI_BUNE).esecuri;
+    expect(esecuri.some((e: string) => e.includes('CSS-ul construit nu mai are un prag acolo'))).toBe(true);
+    expect(esecuri.some((e: string) => e.includes('nicio condiție nu-l numește'))).toBe(true);
+  });
+
+  it("(a') prinde un prag din CSS pe care nicio condiție nu-l numește — al cincilea aranjament", () => {
+    /*
+     * Aranjamentul exact, în mic: `medii` rămâne nevid (deci verificarea lui
+     * trece), dar pragul de 62rem nu mai e numit de nicio condiție. Înainte de
+     * linia asta, toate cele patru treceri și toată suita ieșeau 0 cu pragul
+     * mutat la 60rem și tipărit în ieșire.
+     */
+    const cuAlDoilea = {
+      praguri: [PRAG_34, prag('(min-width: 62rem)', 992, 991)],
+      trasaturi: [],
+      probleme: [],
+    };
+    const esecuri = verificaPraguri(cuAlDoilea, 756, 'dist', OPTIUNI_BUNE).esecuri;
+    expect(esecuri.filter((e: string) => e.includes('nicio condiție nu-l numește'))).toHaveLength(1);
+    expect(esecuri[0]).toContain('992px');
+    expect(esecuri[0]).toContain('medii');
+  });
+
+  it("(a') nu se plânge de același prag, dacă o condiție îl declară", () => {
+    // Cealaltă jumătate a controlului: roșul depinde de absența declarației.
+    const conditii = {
+      ...CONDITII_BUNE,
+      birou: { ...CONDITII_BUNE.birou, medii: { [TELEFON_PROBA]: false, '(min-width: 62rem)': false } },
+    };
+    const cuAlDoilea = {
+      praguri: [PRAG_34, prag('(min-width: 62rem)', 992, 991)],
+      trasaturi: [],
+      probleme: [],
+    };
+    const esecuri = verificaPraguri(cuAlDoilea, 756, 'dist', { ...OPTIUNI_BUNE, conditii }).esecuri;
+    expect(esecuri.filter((e: string) => e.includes('nicio condiție nu-l numește'))).toEqual([]);
+  });
+});
+
+describe('acoperirea este o proprietate a perechii (bandă, stare a scripturilor)', () => {
+  it('prinde o bandă auditată doar cu scripturile pornite — al șaselea aranjament', () => {
+    /*
+     * Mutația măsurată înainte de a exista verificarea: scoate `telefonFaraJs`
+     * din CONDITII și din TRECERI.mobil și nu pică nimic — nici garda unitară,
+     * nici cele două treceri peste `dist` — deși banda de sub 34rem rămâne
+     * auditată numai cu scripturile pornite, adică tocmai acolo unde selectorul
+     * ascunde toate săptămânile în afară de una și unde citește cea mai mare
+     * parte a parohiei. Ieșirea spunea în continuare „JS pornit · JS oprit”:
+     * adevărat despre SET, fals despre bandă.
+     */
+    const tabele = { ...TRECERI_BUNE, mobil: { ...TRECERI_BUNE.mobil, conditii: ['telefon'] } };
+    const esecuri = verificaPraguri(DERIVAT_BUN, 756, 'dist', { ...OPTIUNI_BUNE, tabele }).esecuri;
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('OPRITE');
+    expect(esecuri[0]).toContain('0-544px');
+    // Mesajul trebuie să spună și ce se rulează pe cealaltă stare, altfel cititorul
+    // vede o bandă „neauditată" lângă o ieșire care zice că setul e auditat în ambele.
+    expect(esecuri[0]).toContain('Pe cealaltă stare');
+  });
+
+  it('prinde și banda de sus rămasă fără o stare', () => {
+    const tabele = { ...TRECERI_BUNE, implicita: { ...TRECERI_BUNE.implicita, conditii: ['birou'] } };
+    const esecuri = verificaPraguri(DERIVAT_BUN, 756, 'dist', { ...OPTIUNI_BUNE, tabele }).esecuri;
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('OPRITE');
+    expect(esecuri[0]).toContain('545-∞px');
+  });
+
+  it('un motiv scris scutește starea fără scripturi, ca la verificaTreceri', () => {
+    const tabele = { ...TRECERI_BUNE, mobil: { ...TRECERI_BUNE.mobil, conditii: ['telefon'] } };
+    const optiuni = { ...OPTIUNI_BUNE, tabele, motive: { dist: 'fiindcă da' } };
+    expect(verificaPraguri(DERIVAT_BUN, 756, 'dist', optiuni).esecuri).toEqual([]);
+  });
+
+  it('latimiPeStare nu amestecă nici seturile, nici stările', () => {
+    expect(latimiPeStare('dist', 756, TRECERI_BUNE, CONDITII_BUNE)).toEqual({
+      cuJs: [390, 756], faraJs: [390, 756],
+    });
+    const tabele = { ...TRECERI_BUNE, mobil: { ...TRECERI_BUNE.mobil, conditii: ['telefon'] } };
+    expect(latimiPeStare('dist', 756, tabele, CONDITII_BUNE)).toEqual({ cuJs: [390, 756], faraJs: [756] });
+    expect(latimiPeStare('inexistent', 756, TRECERI_BUNE, CONDITII_BUNE)).toEqual({ cuJs: [], faraJs: [] });
+  });
+
+  it('stariCerute cere ambele stări, sau numai una dacă există motiv scris', () => {
+    expect(stariCerute('dist', {}).map((s: { cheie: string }) => s.cheie)).toEqual(['cuJs', 'faraJs']);
+    expect(stariCerute('proba', { proba: 'fiindcă da' }).map((s: { cheie: string }) => s.cheie)).toEqual(['cuJs']);
+  });
+});
+
+/*
+ * AXA PE CARE GARDA N-O INDEXEAZĂ DELOC, și care a fost acolo tot timpul.
+ *
+ * `comparatii()` consuma comparațiile de lățime, iar restul era cercetat numai
+ * după cuvântul „width". Deci `@media (prefers-reduced-motion: reduce)` a trecut
+ * prin fiecare versiune a gărzii, inclusiv prin cele două scrise anume ca să
+ * închidă aranjamente oarbe, fără o linie de ieșire. Asta este verificarea care
+ * face din următoarea trăsătură o construcție roșie, nu a șaptea constatare.
+ */
+describe('fiecare trăsătură de mediu care nu e lățime este numită, cu motiv', () => {
+  it('prinde o trăsătură pe care nimeni nu a numit-o', () => {
+    const derivat = { praguri: [PRAG_34], trasaturi: [trasatura('prefers-color-scheme')], probleme: [] };
+    const esecuri = verificaPraguri(derivat, 756, 'dist', OPTIUNI_BUNE).esecuri;
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('prefers-color-scheme');
+    expect(esecuri[0]).toContain('TRASATURI_NEAUDITATE');
+  });
+
+  it('un motiv scris o scutește', () => {
+    const derivat = { praguri: [PRAG_34], trasaturi: [trasatura('prefers-color-scheme')], probleme: [] };
+    const optiuni = { ...OPTIUNI_BUNE, neauditate: { 'prefers-color-scheme': 'fiindcă da' } };
+    expect(verificaPraguri(derivat, 756, 'dist', optiuni).esecuri).toEqual([]);
+  });
+
+  it('prinde un motiv rămas în urma foilor de stil', () => {
+    // Cealaltă direcție, ca la FARA_JS_MOTIVAT și la comenzile din package.json.
+    const optiuni = { ...OPTIUNI_BUNE, neauditate: { 'prefers-reduced-motion': 'fiindcă da' } };
+    const esecuri = verificaPraguri(DERIVAT_BUN, 756, 'dist', optiuni).esecuri;
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('prefers-reduced-motion');
+    expect(esecuri[0]).toContain('nu-l mai conține');
+  });
+
+  it('trăsăturile se verifică și când CSS-ul n-a dat niciun prag', () => {
+    // Fără asta, întoarcerea devreme pentru „niciun prag" ar sări peste (c) — o
+    // ieșire timpurie care ascunde o verificare este exact forma plătită aici.
+    const derivat = { praguri: [], trasaturi: [trasatura('print')], probleme: [] };
+    const esecuri = verificaPraguri(derivat, 756, 'dist', OPTIUNI_BUNE).esecuri;
+    expect(esecuri.some((e: string) => e.includes('print'))).toBe(true);
+  });
+
+  it('citește trăsăturile dintr-o condiție @media, lățimile nu', () => {
+    expect(trasaturileConditiei('(max-width: 34rem)')).toEqual([]);
+    expect(trasaturileConditiei('(width>=62rem)')).toEqual([]);
+    expect(trasaturileConditiei('(prefers-reduced-motion: reduce)')).toEqual(['prefers-reduced-motion']);
+    expect(trasaturileConditiei('screen and (max-width: 34rem)')).toEqual(['screen']);
+    expect(trasaturileConditiei('print')).toEqual(['print']);
+    expect(trasaturileConditiei('(min-width: 62rem) and (prefers-color-scheme: dark)')).toEqual([
+      'prefers-color-scheme',
+    ]);
+    // Ce nu recunoaște trebuie să iasă la iveală, nu să dispară: o gardă care își
+    // derivă subiectul poate verifica numai ce a recunoscut.
+    expect(trasaturileConditiei('(min-resolution: 2dppx)')).toEqual(['min-resolution']);
+  });
+
+  it('configurația reală: fiecare scutire are un motiv scris, nu doar o cheie', () => {
+    const intrari = Object.entries(TRASATURI_NEAUDITATE as Record<string, string>);
+    process.stdout.write(
+      `\nTrăsături de mediu neauditate (${intrari.length}):\n` +
+        intrari.map(([nume, motiv]) => `  ${nume}: ${motiv.split('\n')[0]}…\n`).join(''),
+    );
+    expect(intrari.length, 'lista este goală — (c) n-ar avea ce compara').toBeGreaterThan(0);
+    for (const [nume, motiv] of intrari) {
+      expect(motiv.length, `${nume} nu are motiv scris`).toBeGreaterThan(80);
+    }
   });
 });
