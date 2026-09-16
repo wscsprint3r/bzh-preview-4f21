@@ -52,6 +52,23 @@ of U+015E, U+015F, U+0162, U+0163 appear. `src/lib/date-ro.test.ts` and
 `src/lib/schema.test.ts` each carry a test that does this for their own tables — copy that
 pattern rather than inventing one.
 
+## Test verdicts: use the exit code, never the JSON report
+
+The `rtk` wrapper intercepts `vitest` and writes `.vitest/json/output.json` **whether or
+not you asked for a JSON reporter** — confirmed by running with no reporter flag and
+watching it rewritten. Every `Bash` call here is a pipe, so stdout is never unredirected
+and the wrapper's parse-failure path is the normal case; when it fails to parse, the
+previous file stays. A stale green report has already inverted every mutation verdict
+once on this project.
+
+Read verdicts from the **process exit code**. For readable output use
+`rtk proxy npx vitest run …`, which bypasses the filter. If you must persist results,
+delete `.vitest/json/output.json` first.
+
+Same family as the backslash hazard above: the tooling silently substitutes something
+plausible for what you asked for, and both have now bitten someone on the very guard
+written to catch them.
+
 ## Documentation
 
 Full documentation: https://docs.astro.build

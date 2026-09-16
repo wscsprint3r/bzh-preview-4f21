@@ -35,13 +35,17 @@ Every task's requirements implicitly include this section.
   page and endpoint that reads the collection must therefore write
   `intrari.map((e) => ({ ...e.data, data: e.id }))` — spreading Astro's parsed object, then
   overwriting `data` with the entry id, which is the date from the filename.
-- **Redirecting stdout can silently invert a mutation result.** This project writes the vitest
-  JSON report only when stdout is not redirected, so running a mutant with `> /dev/null`
-  leaves the *previous* green report in place — and the run reports SURVIVED for every mutant,
-  including ones that are actually killed. A Task 6 reviewer hit exactly this and its first
-  pass claimed all nine mutants survived; re-running without the redirect killed all nine.
-  Read mutation results off the test runner's own output, never off a report file you did not
-  watch it write, and sanity-check that the baseline is green before trusting any SURVIVED.
+- **Never read a pass/fail verdict from `.vitest/json/output.json`. Use the process exit code.**
+  The `rtk` wrapper intercepts `vitest` and writes that file **whether or not anyone asked for a
+  JSON reporter** — verified by running with no reporter flag and watching it be rewritten. And
+  because every `Bash` call here is a pipe, stdout is *never* unredirected, so the wrapper's
+  parse-failure path (`vitest parser: All parsing tiers failed`) is the normal case rather than
+  the exception. When it fails to parse, the previous file remains — and a stale green report
+  has already inverted every mutation verdict once on this project, for an agent who had opted
+  into a reporter. It can now do the same to one who never did.
+  The exit code is the only verdict no wrapper staleness can touch. For human-readable output,
+  use `rtk proxy npx vitest run …`, which bypasses the filter. If something must persist
+  results, delete `.vitest/json/output.json` before each run.
 - **axe must audit with JavaScript disabled as well as enabled.** `a11y.mjs` drives Chrome with
   JS on, so from Task 10 onward it audits only the one week the picker leaves visible and
   silently stops seeing the rest — the guarantee narrowing inside the task whose job is
@@ -81,6 +85,15 @@ Every task's requirements implicitly include this section.
   another got 21.7. Runs that agree with each other are not evidence of a property; state a
   range, and say which part is the invariant (here, the ordering) and which is merely the
   margin observed.
+- **A guard that derives its subject from the artifact it is checking can only check the subset
+  it recognised.** This is the general shape behind most of the defects found on this project.
+  Any corruption that breaks *recognition* removes the subject rather than failing the check,
+  and the guard then reports success for having found nothing wrong with nothing. Three
+  generations of one bug showed it: the href's text exists (subject = a string, referent
+  unchecked) → the href is followed to bytes, but the artifact still nominates which hrefs
+  count → **the expected set comes from a source the defect cannot edit**, and the guard
+  asserts *that* set resolves. Take the expected set from the content collection, a fixed list
+  of pages, or a declared count — never from a pattern match over the thing under test.
 - **Assert that a link resolves, not that its href appears.** `expect(html).toContain('/program.ics')`
   was green for the entire period that link was dead on every page: the attribute existed and
   the file did not. Follow the href to its target and read bytes from it. The same shape —
