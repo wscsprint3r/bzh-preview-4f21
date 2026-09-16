@@ -146,7 +146,32 @@ export const ziSchema = z
       zi_de_post: z.boolean().default(false),
       anulat: z.boolean().default(false),
       note: z.string().optional(),
-      locatie: z.string().optional(),
+      /*
+       * Normalised here, for the same reason `ora` is: the editor types a value
+       * and everything downstream gets a canonical one, rather than four
+       * consumers each tidying it their own way.
+       *
+       * Both pages compose a sentence around this - "Slujbele acestei zile au
+       * loc la X." - so an editor who ends the field with a full stop gets
+       * "Winterthur..". The card writes it bare and `ics.ts` writes it into
+       * LOCATION, where a trailing stop is merely untidy. One rule at the
+       * boundary fixes all four.
+       *
+       * Trailing stops are stripped, not just one, so "Winterthur..." also
+       * comes out clean. The cost is a location that genuinely ends in an
+       * abbreviation: "Capela Sf." becomes "Capela Sf". That is the same loss a
+       * single-stop rule would take, and it is worth it against a doubled stop
+       * on every sentence the site prints.
+       *
+       * The surrounding trim also turns a whitespace-only value into `''`,
+       * which is falsy - so a location field left with a stray space renders
+       * nothing and `ics.ts` falls back to the parish address, instead of
+       * printing "Slujbele acestei zile au loc la  ."
+       */
+      locatie: z
+        .string()
+        .transform((s) => s.trim().replace(/\.+$/, '').trim())
+        .optional(),
       slujbe: z.array(slujbaSchema),
     },
     cheiStricte,

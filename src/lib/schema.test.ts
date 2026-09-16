@@ -302,3 +302,33 @@ describe('diacritice', () => {
     expect(tot).toMatch(/\u021B/); // ț, in "cel puțin" and "sfințite"
   });
 });
+
+describe('locatie, normalizată la graniță', () => {
+  const loc = (locatie: unknown) =>
+    ziSchema.parse({ locatie, slujbe: [{ ora: '10:00', slujba: 'Utrenia' }] }).locatie;
+
+  it('taie punctul final, ca să nu iasă „Winterthur.." în propoziție', () => {
+    // Ambele pagini compun „Slujbele acestei zile au loc la X." în jurul lui.
+    expect(loc('Winterthur.')).toBe('Winterthur');
+  });
+
+  it('taie și mai multe puncte, și spațiile din jur', () => {
+    expect(loc('Winterthur...')).toBe('Winterthur');
+    expect(loc('  Winterthur .  ')).toBe('Winterthur');
+  });
+
+  it('nu atinge o locație scrisă corect', () => {
+    expect(loc('Capela Sf. Gallus, Winterthur')).toBe('Capela Sf. Gallus, Winterthur');
+  });
+
+  it('transformă un câmp doar cu spații în ceva fals', () => {
+    // Altfel pagina ar scrie „…au loc la  ." iar ics.ts ar pune spații în
+    // LOCATION în loc să cadă pe adresa parohiei.
+    expect(loc('   ')).toBe('');
+    expect(Boolean(loc('   '))).toBe(false);
+  });
+
+  it('lasă lipsa neatinsă', () => {
+    expect(ziSchema.parse({ slujbe: [{ ora: '10:00', slujba: 'Utrenia' }] }).locatie).toBeUndefined();
+  });
+});
