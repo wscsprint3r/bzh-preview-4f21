@@ -287,7 +287,12 @@ export const CONDITII = {
  *   - every a11y command anywhere in `package.json` is described by an entry. A
  *     pass this table does not know about is a pass whose widths go uncounted;
  *   - every `CONDITII` key is named by some entry - the hole above, by name;
- *   - every condition an entry names exists in `CONDITII`.
+ *   - every condition an entry names exists in `CONDITII`;
+ *   - every condition declares at least one media query, because assertion (a)
+ *     of the breakpoint check iterates exactly those and an empty `medii` makes
+ *     it a loop over nothing;
+ *   - every set of pages is audited with scripts OFF by some entry, or is named
+ *     in `FARA_JS_MOTIVAT` with the reason. See the block above this table.
  *
  * IT CANNOT PASS BY HAVING READ NOTHING: an unreadable or emptied `package.json`
  * makes all four commands unreachable and fails four times over, so there is no
@@ -345,6 +350,59 @@ export const TRECERI = {
     conditii: ['birou', 'telefon', 'larg'],
     eticheta: 'axe peste selectorul de săptămână (construcție de probă)',
   },
+};
+
+/* -------------------------------------------------------------------------- *
+ * THE SECOND AXIS: SCRIPTS ON AND SCRIPTS OFF.
+ *
+ * The table above closed the WIDTH axis - no width counts unless some pass over
+ * these pages really loads them at it. The JavaScript axis had nothing at all,
+ * and it is the axis on which this site deliberately renders two different
+ * pages. Measured: delete `birouFaraJs`, `telefonFaraJs` and `largFaraJs` from
+ * `CONDITII` and from the three `TRECERI` entries that name them, change nothing
+ * else, and all four browser passes plus the whole unit suite stay GREEN - while
+ * the only audit that ever renders the weeks the picker hides has been removed.
+ *
+ * That pass is not optional and three places in this repository say so: the
+ * plan's Global Constraints ("Neither pass alone is the guarantee"), the HONEST
+ * SCOPE block at the top of this file, and `SelectorSaptamana.astro`, which
+ * explains that axe skips hidden elements and drives Chrome with scripts ON, so
+ * every week but one leaves the audit the moment the picker works. Today the
+ * parish publishes one week and nothing is hidden; the first week two are
+ * published, the JS-on passes audit one week of the homepage band and the JS-off
+ * passes audit three.
+ *
+ * So each SET OF PAGES must be audited with scripts off by some pass that
+ * `npm run test:all` really runs - or be named here, in words, with the reason.
+ * The check reads `TRECERI` and `CONDITII`, the same tables the width check
+ * reads and the same ones the browser is driven from, so what it credits is what
+ * executes rather than what is declared.
+ *
+ * BOTH DIRECTIONS ARE ASSERTED, as with the command strings above. An exemption
+ * for a set that DOES have a scripts-off condition fails, and so does one for a
+ * set no pass audits: an excuse nobody needs is an excuse waiting to cover
+ * something else, and this project has already paid twice for a list that fell
+ * behind the thing it described.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Sets of pages with no scripts-off pass, and why each one has none.
+ *
+ * NOT A LIST OF EXCEPTIONS TO BE ADDED TO WHEN A PASS IS INCONVENIENT. An entry
+ * here says the set has no no-JS STATE worth auditing, not that auditing it is
+ * awkward. `dist` has one - it is the whole site as a visitor without JavaScript
+ * sees it - and will never belong here.
+ *
+ * @type {Record<string, string>}
+ */
+export const FARA_JS_MOTIVAT = {
+  proba: [
+    'bara selectorului există numai cu scripturile pornite: componenta o trimite `hidden` și',
+    'scriptul o dezvăluie, deci cu JS oprit construcția de probă nu are nicio stare proprie de',
+    'auditat — randează exact ce randează `dist`, toate săptămânile vizibile, iar `verificaBara`',
+    'se și întoarce devreme pentru `conditie.js === false`. Starea fără JS a acestor pagini este',
+    'acoperită de trecerile peste `dist`, care chiar o au.',
+  ].join('\n      '),
 };
 
 /**
@@ -408,15 +466,23 @@ export function comenziA11y(scripturi) {
 }
 
 /**
- * The four assertions above, as sentences. Empty means the table and
- * `package.json` agree and every condition is executed by something.
+ * The assertions above, as sentences. Empty means the table and `package.json`
+ * agree, every condition is executed by something, every condition says what it
+ * expects of the CSS, and every set of pages is audited in both JavaScript
+ * states or says why not.
  *
  * @param {{ scripts?: Record<string, string> }} [pachet]
  * @param {Record<string, Trecere>} [treceri]
  * @param {Record<string, Conditie>} [conditii]
+ * @param {Record<string, string>} [motive]
  * @returns {string[]}
  */
-export function verificaTreceri(pachet = citestePachet(), treceri = TRECERI, conditii = CONDITII) {
+export function verificaTreceri(
+  pachet = citestePachet(),
+  treceri = TRECERI,
+  conditii = CONDITII,
+  motive = FARA_JS_MOTIVAT,
+) {
   const scripturi = pachet.scripts ?? {};
   const esecuri = [];
 
@@ -456,6 +522,66 @@ export function verificaTreceri(pachet = citestePachet(), treceri = TRECERI, con
       esecuri.push(`trecerea "${cheie}" numește condiția "${nume}", care nu există în CONDITII.`);
     }
   }
+
+  /*
+   * A CONDITION THAT DECLARES NOTHING MAKES ASSERTION (a) VACUOUS. That check
+   * iterates the union of the `medii` keys of the conditions a set of pages is
+   * loaded under; empty every `medii` and the loop body never runs, with no
+   * complaint. Measured: with `medii: {}` everywhere AND `RandZi.astro`'s phone
+   * breakpoint moved from 34rem to 30rem, all four passes are exit 0 - against
+   * exit 1 for the identical breakpoint move with `medii` populated. Band
+   * coverage (b) still holds, so nothing else fires, and the default pass is
+   * then auditing a layout branch nobody asked about.
+   *
+   * `medii` is also the only thing the BROWSER checks about a width: it answers
+   * each query with `matchMedia` at the measured viewport. An empty one leaves
+   * that silent too.
+   */
+  for (const [cheie, conditie] of Object.entries(conditii)) {
+    if (Object.keys(conditie.medii ?? {}).length > 0) continue;
+    esecuri.push(
+      `CONDITII declară "${cheie}" (${conditie.eticheta}) fără nicio interogare în medii.\n` +
+        '    Verificarea (a) din verificaPraguri iterează exact aceste interogări, deci cu medii gol\n' +
+        '    nu verifică nimic: un prag care se MUTĂ trece nevăzut, iar browserul nu are ce\n' +
+        '    confirma cu matchMedia la lățimea măsurată. Scrie ce trebuie și ce nu trebuie să se\n' +
+        '    potrivească acolo — o condiție care nu declară nimic nu poate contrazice nimic.',
+    );
+  }
+
+  // Every set of pages is audited with scripts off, or says why it is not.
+  const seturi = [...new Set(Object.values(treceri).map((t) => t.pagini))].sort();
+  for (const setPagini of seturi) {
+    const { faraJs } = moduriAuditate(setPagini, treceri, conditii);
+    const motiv = motive[setPagini];
+    if (!faraJs && motiv === undefined) {
+      esecuri.push(
+        `nicio trecere nu auditează setul de pagini „${setPagini}” cu scripturile OPRITE.\n` +
+          '    axe sare peste tot ce e ascuns, iar selectorul de săptămână ascunde toate\n' +
+          '    săptămânile în afară de una — deci cu JS pornit banda săptămânii este auditată pe o\n' +
+          '    singură săptămână, și fără trecerea fără JS restul nu e auditat de nimeni. La fel\n' +
+          '    pentru orice altceva dezvăluit de un script.\n' +
+          '    Se închide în trei pași, ca și o lățime: o condiție cu js: false în CONDITII, numele\n' +
+          `    ei în conditii-le unei treceri cu pagini: "${setPagini}", și comanda acelei treceri\n` +
+          '    într-un script pornit de "npm run test:all".\n' +
+          `    Sau, dacă setul acesta chiar nu are o stare fără JS de auditat, scrie motivul în\n` +
+          '    FARA_JS_MOTIVAT din scripts/a11y.mjs — o lipsă spusă e mai bună decât o trecere degeaba.',
+      );
+    }
+    if (faraJs && motiv !== undefined) {
+      esecuri.push(
+        `FARA_JS_MOTIVAT scuză setul de pagini „${setPagini}”, dar o trecere chiar îl auditează cu\n` +
+          '    scripturile oprite. Scoate scuza: una de care nu are nimeni nevoie rămâne în cod\n' +
+          '    arătând ca o regulă, gata să acopere altceva cu același nume.',
+      );
+    }
+  }
+  for (const setPagini of Object.keys(motive)) {
+    if (seturi.includes(setPagini)) continue;
+    esecuri.push(
+      `FARA_JS_MOTIVAT numește setul de pagini „${setPagini}”, pe care nicio trecere din TRECERI\n` +
+        '    nu îl auditează. Scuza a rămas în urma tabelului.',
+    );
+  }
   return esecuri;
 }
 
@@ -479,6 +605,29 @@ export function latimiAuditate(setPagini, latimeImplicita, treceri = TRECERI, co
     }
   }
   return { treceri: cheile, latimi: [...latimi].sort((a, b) => a - b) };
+}
+
+/**
+ * The JavaScript states some pass really loads this set of pages in, and which
+ * passes they come from. Never the whole of `CONDITII` - the same rule as
+ * `latimiAuditate`, on the other axis: a scripts-off condition run over some
+ * other build buys this one nothing.
+ *
+ * @param {string} setPagini
+ * @param {Record<string, Trecere>} [treceri]
+ * @param {Record<string, Conditie>} [conditii]
+ * @returns {{ treceri: string[], cuJs: boolean, faraJs: boolean }}
+ */
+export function moduriAuditate(setPagini, treceri = TRECERI, conditii = CONDITII) {
+  const cheile = Object.keys(treceri).filter((cheie) => treceri[cheie].pagini === setPagini);
+  const stari = new Set();
+  for (const cheie of cheile) {
+    for (const nume of treceri[cheie].conditii) {
+      const conditie = conditii[nume];
+      if (conditie !== undefined) stari.add(conditie.js === true);
+    }
+  }
+  return { treceri: cheile, cuJs: stari.has(true), faraJs: stari.has(false) };
 }
 
 /** `package.json`, resolved next to this file rather than to a working directory. */
@@ -660,10 +809,16 @@ export function verificaPraguri({ praguri, probleme }, latimeImplicita, setPagin
   const esecuri = [...probleme];
   const { treceri, latimi } = latimiAuditate(setPagini, latimeImplicita);
   const numeleTrecerilor = treceri.map((cheie) => `${cheie} (${comandaTrecerii(TRECERI[cheie])})`).join(' · ');
+  // Printed rather than only asserted, on both axes, for the same reason the
+  // widths are: the line below is what a later reader checks a claim against.
+  const { cuJs, faraJs } = moduriAuditate(setPagini);
+  const stari = [cuJs ? 'JS pornit' : null, faraJs ? 'JS oprit' : null].filter(Boolean);
   const linii = [
     `praguri din CSS-ul construit: ${praguri.length > 0 ? praguri.map(scriePrag).join(' · ') : '(niciunul)'}`,
     `set de pagini „${setPagini}” — treceri care îl auditează: ${numeleTrecerilor === '' ? '(niciuna)' : numeleTrecerilor}`,
     `lățimi auditate de aceste treceri: ${latimi.join(', ')}px (implicita măsurată: ${latimeImplicita}px)`,
+    `stări JavaScript auditate: ${stari.length > 0 ? stari.join(' · ') : '(niciuna)'}` +
+      `${faraJs ? '' : ` — scutit: ${FARA_JS_MOTIVAT[setPagini] === undefined ? 'NU' : 'da'}`}`,
   ];
 
   // A set of pages nothing audits cannot be said to cover any band. Without

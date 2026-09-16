@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONDITII,
+  FARA_JS_MOTIVAT,
   TRECERI,
   comandaTrecerii,
   comenziA11y,
   comenzileScriptului,
   citestePachet,
   latimiAuditate,
+  moduriAuditate,
   verificaTreceri,
 } from '../../scripts/a11y.mjs';
 
@@ -45,14 +47,40 @@ const PACHET_BUN = {
   },
 };
 
+/*
+ * The synthetic tables below are a SHAPE, and that is why they are written out
+ * in full rather than trimmed to what each case needs.
+ *
+ * They used to carry `medii: {}` and no scripts-off condition at all. Both were
+ * holes in `verificaTreceri` at the time, so the fixtures agreed with the holes -
+ * and a fixture is what the next person copies when they add a condition. A
+ * synthetic table that could not pass the real rules would have said so here
+ * first, in 140 ms, instead of in a review.
+ *
+ * Every synthetic call passes `{}` as the fourth argument, which is the
+ * scripts-off exemption table. A synthetic `TRECERI` gets a synthetic exemption
+ * list for the same reason it gets synthetic conditions: the real one names the
+ * real `proba` set, and a set these tables do not have is a stale exemption -
+ * which the real check correctly reports, and which would then be counted as the
+ * failure each case below is looking for.
+ */
+const TELEFON_PROBA = '(max-width: 34rem)';
+
 const TRECERI_BUNE = {
-  implicita: { fisier: 'scripts/a11y.mjs', argumente: [], pagini: 'dist', conditii: ['birou'], eticheta: 'i' },
-  mobil: { fisier: 'scripts/a11y.mjs', argumente: ['--mobil'], pagini: 'dist', conditii: ['telefon'], eticheta: 'm' },
+  implicita: {
+    fisier: 'scripts/a11y.mjs', argumente: [], pagini: 'dist',
+    conditii: ['birou', 'birouFaraJs'], eticheta: 'i',
+  },
+  mobil: {
+    fisier: 'scripts/a11y.mjs', argumente: ['--mobil'], pagini: 'dist',
+    conditii: ['telefon'], eticheta: 'm',
+  },
 };
 
 const CONDITII_BUNE = {
-  birou: { eticheta: 'birou', latime: null, js: true, medii: {} },
-  telefon: { eticheta: 'telefon 390px', latime: 390, js: true, medii: {} },
+  birou: { eticheta: 'birou', latime: null, js: true, medii: { [TELEFON_PROBA]: false } },
+  birouFaraJs: { eticheta: 'birou, JS oprit', latime: null, js: false, medii: { [TELEFON_PROBA]: false } },
+  telefon: { eticheta: 'telefon 390px', latime: 390, js: true, medii: { [TELEFON_PROBA]: true } },
 };
 
 describe('tabelul de treceri al auditului', () => {
@@ -89,8 +117,8 @@ describe('tabelul de treceri al auditului', () => {
 
 describe('detectorul de declarații pe care nu le rulează nimeni', () => {
   it('prinde o condiție din CONDITII pe care nicio trecere nu o numește', () => {
-    const conditii = { ...CONDITII_BUNE, tableta: { eticheta: 'tableta 850px', latime: 850, js: true, medii: {} } };
-    const esecuri = verificaTreceri(PACHET_BUN, TRECERI_BUNE, conditii);
+    const conditii = { ...CONDITII_BUNE, tableta: { eticheta: 'tableta 850px', latime: 850, js: true, medii: { [TELEFON_PROBA]: false } } };
+    const esecuri = verificaTreceri(PACHET_BUN, TRECERI_BUNE, conditii, {});
     expect(esecuri).toHaveLength(1);
     expect(esecuri[0]).toContain('tableta');
     // The message must send the reader to BOTH halves. The old one instructed
@@ -104,7 +132,7 @@ describe('detectorul de declarații pe care nu le rulează nimeni', () => {
       ...TRECERI_BUNE,
       larg: { fisier: 'scripts/a11y.mjs', argumente: ['--larg'], pagini: 'dist', conditii: ['birou'], eticheta: 'l' },
     };
-    const esecuri = verificaTreceri(PACHET_BUN, treceri, CONDITII_BUNE);
+    const esecuri = verificaTreceri(PACHET_BUN, treceri, CONDITII_BUNE, {});
     expect(esecuri).toHaveLength(1);
     expect(esecuri[0]).toContain('larg');
     expect(esecuri[0]).toContain('node scripts/a11y.mjs --larg');
@@ -114,29 +142,154 @@ describe('detectorul de declarații pe care nu le rulează nimeni', () => {
     const pachet = {
       scripts: { ...PACHET_BUN.scripts, 'a11y:tableta': 'astro build && node scripts/a11y.mjs --tableta' },
     };
-    const esecuri = verificaTreceri(pachet, TRECERI_BUNE, CONDITII_BUNE);
+    const esecuri = verificaTreceri(pachet, TRECERI_BUNE, CONDITII_BUNE, {});
     expect(esecuri).toHaveLength(1);
     expect(esecuri[0]).toContain('node scripts/a11y.mjs --tableta');
   });
 
   it('prinde o trecere care numește o condiție inexistentă', () => {
     const treceri = {
-      implicita: { ...TRECERI_BUNE.implicita, conditii: ['birou', 'inventata'] },
+      implicita: { ...TRECERI_BUNE.implicita, conditii: ['birou', 'birouFaraJs', 'inventata'] },
       mobil: TRECERI_BUNE.mobil,
     };
-    const esecuri = verificaTreceri(PACHET_BUN, treceri, CONDITII_BUNE);
+    const esecuri = verificaTreceri(PACHET_BUN, treceri, CONDITII_BUNE, {});
     expect(esecuri).toHaveLength(1);
     expect(esecuri[0]).toContain('inventata');
   });
 
   it('prinde un package.json fără test:all, în loc să tacă', () => {
-    const esecuri = verificaTreceri({ scripts: { test: 'vitest run' } }, TRECERI_BUNE, CONDITII_BUNE);
+    const esecuri = verificaTreceri({ scripts: { test: 'vitest run' } }, TRECERI_BUNE, CONDITII_BUNE, {});
     expect(esecuri.length).toBeGreaterThan(0);
     expect(esecuri[0]).toContain('test:all');
   });
 
   it('nu se plânge de configurația sintetică întreagă', () => {
-    expect(verificaTreceri(PACHET_BUN, TRECERI_BUNE, CONDITII_BUNE)).toEqual([]);
+    expect(verificaTreceri(PACHET_BUN, TRECERI_BUNE, CONDITII_BUNE, {})).toEqual([]);
+  });
+});
+
+/*
+ * AXA LĂȚIMII, PARTEA CARE LIPSEA: o condiție care nu declară nimic.
+ *
+ * Verificarea (a) din `verificaPraguri` iterează reuniunea cheilor din `medii`
+ * ale condițiilor sub care se încarcă un set de pagini. Cu `medii` gol peste tot,
+ * bucla nu are corp și nimeni nu se plânge: măsurat, cu pragul de telefon mutat
+ * din 34rem în 30rem, toate cele patru treceri ies 0 — față de 1 pentru exact
+ * aceeași mutare cu `medii` populat.
+ */
+describe('o condiție trebuie să declare ce așteaptă de la CSS', () => {
+  it('prinde o condiție cu medii gol', () => {
+    const conditii = { ...CONDITII_BUNE, telefon: { ...CONDITII_BUNE.telefon, medii: {} } };
+    const esecuri = verificaTreceri(PACHET_BUN, TRECERI_BUNE, conditii, {});
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('telefon');
+    expect(esecuri[0]).toContain('medii');
+  });
+
+  it('prinde o condiție căreia îi lipsește medii cu totul', () => {
+    const faraMedii = { eticheta: 'telefon 390px', latime: 390, js: true } as unknown as typeof CONDITII_BUNE.telefon;
+    const esecuri = verificaTreceri(PACHET_BUN, TRECERI_BUNE, { ...CONDITII_BUNE, telefon: faraMedii }, {});
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('telefon');
+  });
+
+  it('control: aceleași tabele cu medii populat nu au nimic de reproșat', () => {
+    expect(verificaTreceri(PACHET_BUN, TRECERI_BUNE, CONDITII_BUNE, {})).toEqual([]);
+  });
+
+  it('fiecare condiție reală declară cel puțin o interogare', () => {
+    for (const [cheie, c] of Object.entries(CONDITII)) {
+      expect(Object.keys((c as { medii: Record<string, boolean> }).medii), cheie).not.toHaveLength(0);
+    }
+  });
+});
+
+/*
+ * AXA JAVASCRIPT-ULUI, care până acum nu era indexată de nimic.
+ *
+ * Ștergerea celor trei condiții cu `js: false` lăsa verde tot — patru treceri cu
+ * browser și toată suita unitară — deși singurul audit care randează săptămânile
+ * ascunse de selector dispăruse. O trecere care se poate șterge fără să pice ceva
+ * este o trecere pe care nu se bazează nimeni.
+ */
+describe('fiecare set de pagini este auditat și cu scripturile oprite', () => {
+  const DOUA_SETURI = {
+    ...TRECERI_BUNE,
+    proba: { fisier: 'scripts/a11y-selector.mjs', argumente: [], pagini: 'proba', conditii: ['birou'], eticheta: 'p' },
+  };
+  const PACHET_DOUA = {
+    scripts: {
+      ...PACHET_BUN.scripts,
+      'test:all': 'npm run test && npm run test:build && npm run a11y:mobil && npm run a11y:selector',
+      'a11y:selector': 'node scripts/a11y-selector.mjs',
+    },
+  };
+
+  it('prinde un set de pagini fără nicio condiție cu js: false', () => {
+    const esecuri = verificaTreceri(PACHET_DOUA, DOUA_SETURI, CONDITII_BUNE, {});
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('proba');
+    expect(esecuri[0]).toContain('OPRITE');
+    // Mesajul trebuie să trimită la toate trei verigile, ca și cel de lățime.
+    expect(esecuri[0]).toContain('CONDITII');
+    expect(esecuri[0]).toContain('test:all');
+    expect(esecuri[0]).toContain('FARA_JS_MOTIVAT');
+  });
+
+  it('prinde ștergerea condițiilor fără JS din setul principal', () => {
+    // Exact mutația din raport: `dist` rămâne auditat numai cu scripturile
+    // pornite. Fără verificarea asta, nimic nu se schimbă la culoare.
+    const treceri = { ...TRECERI_BUNE, implicita: { ...TRECERI_BUNE.implicita, conditii: ['birou'] } };
+    const esecuri = verificaTreceri(PACHET_BUN, treceri, CONDITII_BUNE, {});
+    expect(esecuri.filter((e) => e.includes('OPRITE'))).toHaveLength(1);
+    expect(esecuri.some((e) => e.includes('dist'))).toBe(true);
+  });
+
+  it('un motiv scris îl scutește', () => {
+    expect(verificaTreceri(PACHET_DOUA, DOUA_SETURI, CONDITII_BUNE, { proba: 'fiindcă da' })).toEqual([]);
+  });
+
+  it('prinde un motiv rămas în urmă, pentru un set care CHIAR are trecere fără JS', () => {
+    // Cealaltă direcție, ca la comenzile din package.json: o scuză de care nu
+    // mai are nimeni nevoie rămâne în cod arătând ca o regulă.
+    const esecuri = verificaTreceri(PACHET_BUN, TRECERI_BUNE, CONDITII_BUNE, { dist: 'fiindcă da' });
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('dist');
+    expect(esecuri[0]).toContain('FARA_JS_MOTIVAT');
+  });
+
+  it('prinde un motiv pentru un set de pagini pe care nu-l auditează nimeni', () => {
+    const esecuri = verificaTreceri(PACHET_BUN, TRECERI_BUNE, CONDITII_BUNE, { inventat: 'fiindcă da' });
+    expect(esecuri).toHaveLength(1);
+    expect(esecuri[0]).toContain('inventat');
+  });
+
+  it('moduriAuditate nu amestecă seturile', () => {
+    expect(moduriAuditate('dist', DOUA_SETURI, CONDITII_BUNE)).toEqual({
+      treceri: ['implicita', 'mobil'], cuJs: true, faraJs: true,
+    });
+    expect(moduriAuditate('proba', DOUA_SETURI, CONDITII_BUNE)).toEqual({
+      treceri: ['proba'], cuJs: true, faraJs: false,
+    });
+  });
+
+  it('configurația reală: dist e auditat în ambele stări, proba e scutită cu motiv', () => {
+    const dist = moduriAuditate('dist');
+    const proba = moduriAuditate('proba');
+    process.stdout.write(
+      `\nStări JavaScript pe set de pagini:\n` +
+        `  dist  JS pornit ${dist.cuJs} · JS oprit ${dist.faraJs}  (${dist.treceri.join(', ')})\n` +
+        `  proba JS pornit ${proba.cuJs} · JS oprit ${proba.faraJs}  (${proba.treceri.join(', ')})\n` +
+        `  scutite: ${Object.keys(FARA_JS_MOTIVAT).join(', ') || '(niciunul)'}\n`,
+    );
+    expect(dist.faraJs, 'dist trebuie auditat și fără JavaScript').toBe(true);
+    expect(FARA_JS_MOTIVAT).not.toHaveProperty('dist');
+    expect(proba.faraJs ? undefined : FARA_JS_MOTIVAT.proba, 'proba fără JS și fără motiv').toBeTruthy();
+  });
+
+  it('fiecare set scutit este un set pe care chiar îl auditează o trecere', () => {
+    const seturi = new Set(Object.values(TRECERI).map((t) => (t as { pagini: string }).pagini));
+    for (const cheie of Object.keys(FARA_JS_MOTIVAT)) expect(seturi, cheie).toContain(cheie);
   });
 });
 
