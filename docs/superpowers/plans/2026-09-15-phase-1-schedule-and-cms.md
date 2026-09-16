@@ -99,6 +99,14 @@ Every task's requirements implicitly include this section.
   invalidă: undefined` from `partiData` on the pages, `TypeError: Cannot read properties of
   undefined (reading 'replace')` inside `laDataIcs` for the feed — and two of the three
   original comments named the wrong one.
+- **Static reading is the wrong tool for a claim about what a person sees.** Task 12's card named
+  a button that does not exist, because the bundle was read rather than run: the first pass
+  found a `Save and Publish` branch and missed the branch selector two hundred characters
+  later that makes it unreachable in this configuration. Reading the right branch would have
+  been luck. **Sveltia's `test-repo` backend needs no credentials**, so a scratch copy of the
+  built admin page pointed at it opens the real editor — and against a running CMS, five of
+  the card's rows were wrong, not one. Any claim about a label, a menu or a flow must be read
+  off a running interface.
 - **A guard that derives its subject from the artifact it is checking can only check the subset
   it recognised.** This is the general shape behind most of the defects found on this project.
   Any corruption that breaks *recognition* removes the subject rather than failing the check,
