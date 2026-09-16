@@ -1,0 +1,114 @@
+---
+/**
+ * One week of the schedule as a compact band of day cells, for the homepage.
+ *
+ * Deliberately NOT `RandZi`. That component is the full record of a day and is
+ * what `/program/` renders; this one is the glance — the question "when is
+ * Sunday" answered without scrolling. So it drops the month name, the day's
+ * `note` and the cancelled-day sentence, and keeps only what decides whether
+ * someone comes: the date, the times, the feast, the fast, and the location on
+ * the rare day that has one.
+ *
+ * `note` is the one field of the day that reaches the `.ics` DESCRIPTION and
+ * does not appear here. That is a summary dropping detail, not a page
+ * contradicting the feed: `/program/` carries it, and "Programul complet →"
+ * sits directly under this band. `locatie` is different in kind and is
+ * rendered — see below.
+ *
+ * Every colour comes from a token in `global.css`; a hex literal anywhere in
+ * this file fails `stylesheet.itest.ts` against `dist`.
+ */
+import type { Saptamana } from '../lib/schedule';
+import { etichetaSlujba } from '../lib/schedule';
+import { numeZi, ziuaDinLuna } from '../lib/date-ro';
+
+interface Props { saptamana: Saptamana }
+const { saptamana } = Astro.props;
+---
+
+<div class="bs">
+  {saptamana.zile.map((z) => (
+    <div class:list={['bs-zi', (z.praznic_mare || z.praznic) && 'bs-praznic']}>
+      <div class="bs-cap">
+        <span class="bs-nume">{numeZi(z.data)}</span>
+        <span class="bs-nr">{ziuaDinLuna(z.data)}</span>
+      </div>
+      {/*
+        Above the times and suppressed on a cancelled day, both for the reasons
+        `RandZi` spells out: the address changes how the times should be read,
+        and "Anulat" followed by "Slujbele au loc la Winterthur." is a flat
+        contradiction with nothing to mark which sentence wins.
+
+        It is here at all because `ics.ts` writes `z.locatie || opts.locatie`
+        into LOCATION. A homepage that omitted it would send the person who
+        reads the page to the usual building while the person subscribed to the
+        feed went to the right one. Shorter than `/program/`'s wording by the
+        two words the column heading already supplies ("acestei zile"), because
+        the cell is ~10rem wide.
+      */}
+      {!z.anulat && z.locatie && <p class="bs-loc">Slujbele au loc la {z.locatie}.</p>}
+      {z.anulat ? (
+        <p class="bs-anulat">Anulat</p>
+      ) : (
+        z.slujbe.map((s) => (
+          /*
+            The explicit space is load-bearing, and `margin-right` below is not
+            a substitute for it. JSX puts no whitespace between `</b>` and the
+            next expression, so without it the accessibility tree and a
+            copy-paste both read `07:30Utrenia` — which looks perfect on screen,
+            because the margin draws the gap the space does not. Exactly the
+            shape Task 8 fixed between a feast name and its fast tag: no
+            screenshot and no axe run can see it, a screen reader says it.
+            Measured on the built page: `innerText` is "07:30 Utrenia", and the
+            visible gap is 9.65px — 6.4px of margin plus a 3.25px space.
+          */
+          <p class="bs-slujba"><b>{s.ora}</b>{' '}{etichetaSlujba(s)}</p>
+        ))
+      )}
+      {z.praznic && <p class="bs-praznic-txt">{z.praznic_mare && <span aria-hidden="true">† </span>}{z.praznic}</p>}
+      {z.zi_de_post && <p class="bs-post">Zi de post</p>}
+    </div>
+  ))}
+</div>
+
+<style>
+  /* `auto-fit` with a 10rem minimum, measured rather than assumed. At 375px the
+     container is 343px, so the band lays out TWO columns of 171.5px — not the
+     one column the plan's step 3 predicted, which would need a viewport under
+     352px. Two were kept because a cell was measured against what it must hold,
+     which is the check RandZi's fixed date track failed:
+
+       content box                     143.0px  (171 client − 2 × 14 padding)
+       widest day name  DUMINICĂ        64.4px  (10px, uppercase, 0.18em)
+       widest service word  Spovedanie  65.4px  (13px)
+
+     Both clear by more than half the box, `scrollWidth === clientWidth` on every
+     cell, and the document does not scroll sideways at 375px. `1fr` as the
+     maximum is what keeps that true: the track grows with the container, so the
+     10rem is only ever a minimum and can never decide whether a word fits.
+
+     The one shape this does NOT flatter is a seven-day week on a wide screen:
+     1016px of container fits six 10rem tracks, so Holy Week wraps 6 + 1 and
+     leaves Sunday alone on a second row. Measured, not guessed; see the report. */
+  .bs { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); border-top: 1px solid var(--rule); }
+  .bs-zi { padding: 0.875rem 0.875rem 1.125rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  /* Feast days are marked by background AND a rule, never by colour alone.
+     Flat, not a gradient: axe reports contrast over a gradient as `incomplete`,
+     which `npm run a11y` treats as a failure. Same ruling as `RandZi`. */
+  .bs-praznic { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
+  .bs-nume { font-family: var(--display); font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); display: block; }
+  .bs-nr { font-family: var(--display); font-size: 1.5rem; line-height: 1.05; color: var(--oxblood); display: block; margin-bottom: 0.4rem; }
+  .bs-slujba { margin: 0; font-size: 0.8125rem; line-height: 1.5; }
+  .bs-slujba b { color: var(--gold-text); font-weight: 600; margin-right: 0.4rem; }
+  .bs-praznic-txt { font-family: var(--display); font-style: italic; font-size: 0.8125rem; color: var(--oxblood); margin: 0.4rem 0 0; }
+  .bs-post { font-size: 0.5625rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.35rem; display: inline-block; margin: 0.4rem 0 0; }
+  /* `--muted`, and no `opacity`. The obvious way to say "this is off" is to dim
+     the cell, and this palette has no room for it: `opacity` below 1 blends
+     text toward the page, so `--muted` leaves AA at 0.879 on the page and at
+     0.860 on a feast cell — a dimming anyone would reach for, not a rounding
+     error. Same ruling as `RandZi`, whose `opacity: .75` measured 2.96:1.
+     `--gold-lt` is out for the other reason: 2.18:1 on this ground. At full
+     strength `--muted` is 5.90:1 on the page and 6.25:1 on a feast cell. */
+  .bs-anulat { margin: 0; font-size: 0.8125rem; color: var(--muted); font-style: italic; }
+  .bs-loc { margin: 0 0 0.4rem; font-size: 0.75rem; line-height: 1.45; color: var(--muted); }
+</style>
