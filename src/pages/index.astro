@@ -56,6 +56,23 @@ const nume = deopotriva.map(etichetaSlujba);
 // with a separator so the card reads as a sentence a parishioner would say.
 const impreuna =
   nume.length > 1 ? `${nume.slice(0, -1).join(', ')} și ${nume[nume.length - 1]}` : nume[0];
+
+/*
+ * The card names the place only when the day has one, so on an ordinary day it
+ * stays as short as it is meant to be and the exception is what announces
+ * itself.
+ *
+ * It has to name it at all for the same reason the band does, only more so:
+ * this card is the first thing on the page, it is what someone checking "when
+ * is the next service" reads, and `ics.ts` writes this value into the feed's
+ * LOCATION. Without it the card is confidently wrong on exactly the day when
+ * being wrong costs a wasted journey — the reader of the page drives to Zürich
+ * while the subscriber to the calendar drives to Winterthur. Not in the brief;
+ * the brief asked only that the band carry it.
+ */
+const undeUrmatoarea = urmatoarea
+  ? (zile.find((z) => z.data === urmatoarea.data)?.locatie ?? '')
+  : '';
 ---
 
 <Base titlu="Bine ați venit">
@@ -81,7 +98,8 @@ const impreuna =
       <p class="urm">
         <span class="eyebrow">Următoarea slujbă</span>
         <b>{numeZi(urmatoarea.data)}, {ziuaDinLuna(urmatoarea.data)} {numeLuna(urmatoarea.data)}</b>
-        <span>{urmatoarea.ora} — {impreuna}</span>
+        <span class="urm-slujbe">{urmatoarea.ora} — {impreuna}</span>
+        {undeUrmatoarea && <span class="urm-loc">la {undeUrmatoarea}</span>}
       </p>
     )}
 
@@ -119,7 +137,15 @@ const impreuna =
   .hero-verset { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
   .urm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; border: 1px solid var(--gold-lt); background: var(--raised); padding: 1rem 1.25rem; margin-block: 1.75rem 0; }
   .urm b { font-family: var(--display); font-size: 1.25rem; color: var(--oxblood); }
-  .urm > span:last-child { color: var(--muted); }
+  /* By class, not `> span:last-child`. The location span below is conditional,
+     so a positional selector would mean "the service times" on most days and
+     "the address" on the days that have one, and would hand the times the
+     colour of whichever element happened to come last. */
+  .urm-slujbe { color: var(--muted); }
+  /* Oxblood, not muted: this line only appears when the service has moved, and
+     it is the one fact on the card that a regular cannot supply from memory.
+     11.17:1 on `--raised`. */
+  .urm-loc { color: var(--oxblood); }
   .titlu-sect { font-size: 1.375rem; margin-block: 2rem 0.25rem; }
   .interval { font-family: var(--display); font-size: 1.0625rem; color: var(--faint); margin: 0 0 0.75rem; }
   .gol { color: var(--muted); font-style: italic; }
