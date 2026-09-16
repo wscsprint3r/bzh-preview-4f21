@@ -30,12 +30,27 @@ publish_mode: simple
 # all. Sveltia ships 29 UI translations and Romanian is not one of them, so the
 # buttons themselves read "Save", "New", "Duplicate" in English.
 #
-# NOT "Publish": there is no such button under `publish_mode: simple`. Sveltia
-# splits the save control only when the backend declares `skip_ci` or
-# `automatic_deployments`, and this one declares neither, so the toolbar shows a
-# plain `Save` - which does publish, because every commit triggers a build. That
-# same dead branch also owns `Discard`. Both have already been written into our
-# documentation as buttons that exist; do not add a third.
+# NOT "Publish", and not "Save and Publish". Sveltia renders those only when the
+# BACKEND BLOCK declares `skip_ci` or `automatic_deployments`; ours declares
+# neither, so the toolbar shows a plain `Save` - which does publish, because
+# every commit triggers a build.
+#
+# TWO DEAD BRANCHES, TWO DIFFERENT SWITCHES, and the distinction matters to
+# whoever edits this file next:
+#
+#   - `Publish` / `Save and Publish` / `Save without Publishing` are gated by the
+#     BACKEND options above. Declaring `skip_ci` or `automatic_deployments` -
+#     even to say `automatic_deployments: true` - brings them back, and the
+#     weekly routine then grows a step and a distinction to explain.
+#   - `Discard` is gated by EDITORIAL WORKFLOW instead: its label is chosen from
+#     the entry`s workflow state, which `publish_mode: simple` never produces.
+#
+# Three phantom buttons have already been written into this project`s
+# documentation - `Save and Publish` onto the printed card, `Discard` and
+# `Publish` into the spec and into this file - and an earlier version of this
+# very comment blamed `publish_mode` for all three. It is not one switch. A
+# control found in the bundle`s locale table, or in one branch of its source, is
+# not a control this configuration renders: open `/admin/` and look.
 app_title: Parohia Sfântul Nicolae — administrare
 site_url: https://www.bor-zh.ch
 
