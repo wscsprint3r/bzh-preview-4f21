@@ -99,6 +99,18 @@ Every task's requirements implicitly include this section.
   invalidă: undefined` from `partiData` on the pages, `TypeError: Cannot read properties of
   undefined (reading 'replace')` inside `laDataIcs` for the feed — and two of the three
   original comments named the wrong one.
+- **An accessible name is not what a sighted person sees.** Sveltia renders no tooltips, and
+  several of its controls are icon-only: the navigation button's visible text is the ligature
+  `article`, and "Contents" exists only as its aria-label. Three rows of the printed card named
+  labels no volunteer will ever read. Documentation for a sighted reader must describe
+  **positions and icons**; aria-labels are what a screen-reader user has, and the two audiences
+  need different words.
+- **One configuration flag can put phantom controls into every document you own.**
+  `publish_mode: simple` makes a whole branch of the CMS unreachable, and three documents each
+  confidently described a control from that dead branch — `Save and Publish` on the card,
+  `Discard` in the spec, `Publish` in `config.yml`. No test caught any of them, because none of
+  them is code. A control found in a locale table or in one branch of a bundle is not a control
+  this configuration shows: open it and look.
 - **Static reading is the wrong tool for a claim about what a person sees.** Task 12's card named
   a button that does not exist, because the bundle was read rather than run: the first pass
   found a `Save and Publish` branch and missed the branch selector two hundred characters
