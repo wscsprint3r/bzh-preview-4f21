@@ -3212,6 +3212,22 @@ Create `web/public/_headers`:
   Content-Type: text/calendar; charset=utf-8
   Cache-Control: public, max-age=3600
 
+# /admin/ is the page where an editor's GitHub credential lives, so it gets the
+# same `'self'` treatment as the rest of the site rather than an exception: the
+# CMS's three fonts are vendored from npm at the exact versions its own URLs
+# named, and copy-cms.mjs asserts each URL is found exactly once so an upgrade
+# that moves them fails the build instead of silently restoring the CDN.
+#
+# Deliberately still blocked, each verified to fail gracefully: unpkg's hourly
+# update check (the version is pinned on purpose), the githubstatus.com incident
+# banner (pornire.mjs already tells a volunteer the site is unaffected, what to
+# try and who to tell — which is what they need, not a diagnosis), and a `data:`
+# logo fetch (console error only, UI draws correctly).
+#
+# UNVERIFIED until the first real sign-in, which needs credentials no agent has:
+# img-src avatars.githubusercontent.com for the editor's avatar, and whatever the
+# OAuth flow needs — the Worker origin in connect-src, possibly github.com.
+# Watch the browser console on that first attempt.
 /admin/*
   X-Robots-Tag: noindex
 ```
