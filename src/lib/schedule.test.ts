@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { NUME_SLUJBE, type ZiSlujba } from './schema';
+import { NUME_SLUJBE, type Slujba, type ZiSlujba } from './schema';
+import { formatIntervalSaptamana } from './date-ro';
+import { adaugaZile } from './week';
+import { AZI_FIXTURA, ZILE_FIXTURA } from './fixturi';
 import {
   etichetaSlujba,
   grupeazaPeSaptamani,
   minute,
   saptamaniViitoare,
+  slujbeLaAceeasiOra,
   urmatoareaSlujba,
 } from './schedule';
 
@@ -278,5 +282,126 @@ describe('saptamaniViitoare', () => {
     expect(saptamaniViitoare(date, '2026-09-16', 0)).toEqual([]);
     // Fără gardă, slice(0, -1) ar tăia ultima săptămână și ar întoarce restul.
     expect(saptamaniViitoare(date, '2026-09-16', -1)).toEqual([]);
+  });
+});
+
+describe('slujbeLaAceeasiOra', () => {
+  const seara = [
+    { ora: '17:00', slujba: 'Spovedanie' },
+    { ora: '17:00', slujba: 'Vecernie' },
+    { ora: '18:30', slujba: 'Paraclisul Maicii Domnului' },
+  ] as Slujba[];
+
+  it('întoarce ambele slujbe care încep în același minut', () => {
+    expect(slujbeLaAceeasiOra(seara, '17:00').map((s) => s.slujba)).toEqual([
+      'Spovedanie',
+      'Vecernie',
+    ]);
+  });
+
+  it('păstrează ordinea în care le-a scris redactorul', () => {
+    const invers = [seara[1], seara[0]] as Slujba[];
+    expect(slujbeLaAceeasiOra(invers, '17:00').map((s) => s.slujba)).toEqual([
+      'Vecernie',
+      'Spovedanie',
+    ]);
+  });
+
+  it('nu ia și slujba de la altă oră', () => {
+    expect(slujbeLaAceeasiOra(seara, '18:30').map((s) => s.slujba)).toEqual([
+      'Paraclisul Maicii Domnului',
+    ]);
+  });
+
+  it('compară minute, nu text', () => {
+    // Schema normalizează ora înainte ca funcția să o vadă, așa că egalitatea de
+    // șiruri ar fi de acord astăzi. Aici se dovedește că acordul nu e o
+    // coincidență de padare: „9:30" și „09:30" sunt același minut.
+    const nepadat = [{ ora: '9:30', slujba: 'Utrenia' }] as Slujba[];
+    expect(slujbeLaAceeasiOra(nepadat, '09:30')).toHaveLength(1);
+    expect(slujbeLaAceeasiOra(nepadat, '9:30')).toHaveLength(1);
+  });
+
+  it('întoarce o listă goală când nimic nu începe atunci', () => {
+    expect(slujbeLaAceeasiOra(seara, '10:00')).toEqual([]);
+    expect(slujbeLaAceeasiOra([], '17:00')).toEqual([]);
+  });
+});
+
+/*
+ * The homepage renders `saptamaniViitoare(zile, azi, 3)` and prints each week's
+ * own interval under its band. The seed content has entries in a single week,
+ * so none of that composition runs on a normal build — it ran only when someone
+ * remembered to force it by hand. `ZILE_FIXTURA` makes it run on every test.
+ */
+describe('fereastra de trei săptămâni a paginii de start', () => {
+  const trei = saptamaniViitoare(ZILE_FIXTURA, AZI_FIXTURA, 3);
+
+  it('sare peste săptămâna fără intrări', () => {
+    // 2026-W39 lipsește din fixtură și trebuie să lipsească și de aici.
+    expect(trei.map((s) => s.cheie)).toEqual(['2026-W38', '2026-W40', '2026-W41']);
+  });
+
+  it('numără săptămâni cu intrări, nu săptămâni calendaristice', () => {
+    // Trei săptămâni afișate, patru săptămâni de calendar acoperite: de luni 14
+    // septembrie până duminică 11 octombrie. De aceea niciun titlu nu are voie
+    // să promită „următoarele trei săptămâni" ca interval de date.
+    const [prima] = trei;
+    const ultima = trei[trei.length - 1];
+    expect(trei).toHaveLength(3);
+    expect(prima.luni).toBe('2026-09-14');
+    expect(ultima.duminica).toBe('2026-10-11');
+    // Ultima săptămână începe la trei săptămâni după prima, deci intervalul
+    // acoperă patru. Cu `adaugaZile`, nu cu aritmetică pe `Date`: în proiectul
+    // ăsta datele calendaristice nu trec niciodată printr-un instant UTC.
+    expect(adaugaZile(prima.luni, 21)).toBe(ultima.luni);
+  });
+
+  it('dă fiecărei săptămâni intervalul ei, singurul care e adevărat', () => {
+    expect(trei.map((s) => formatIntervalSaptamana(s.luni, s.duminica))).toEqual([
+      '14 – 20 septembrie 2026',
+      '28 septembrie – 4 octombrie 2026',
+      '5 – 11 octombrie 2026',
+    ]);
+  });
+
+  it('exclude săptămâna deja încheiată', () => {
+    // 2026-09-09 este în fixtură tocmai ca excluderea să fie dovedită pe date.
+    expect(saptamaniViitoare(ZILE_FIXTURA, AZI_FIXTURA, 9).map((s) => s.cheie)).not.toContain(
+      '2026-W37',
+    );
+  });
+
+  it('trece corect peste granița de an', () => {
+    const peste = saptamaniViitoare(ZILE_FIXTURA, '2026-12-28', 3);
+    expect(peste.map((s) => s.cheie)).toEqual(['2026-W53', '2027-W01']);
+    expect(peste.map((s) => formatIntervalSaptamana(s.luni, s.duminica))).toEqual([
+      '28 decembrie 2026 – 3 ianuarie 2027',
+      '4 – 10 ianuarie 2027',
+    ]);
+  });
+
+  it('cheile sunt ordonate lexical, cum le va compara selectorul din Task 10', () => {
+    const chei = saptamaniViitoare(ZILE_FIXTURA, AZI_FIXTURA, 9).map((s) => s.cheie);
+    expect(chei).toEqual([...chei].sort());
+  });
+
+  it('cardul „următoarea slujbă" numește ambele slujbe de la 17:00', () => {
+    const u = urmatoareaSlujba(ZILE_FIXTURA, AZI_FIXTURA, '09:00');
+    expect(u).not.toBeNull();
+    expect(u?.data).toBe('2026-09-16');
+    expect(u?.ora).toBe('17:00');
+    const ziua = ZILE_FIXTURA.find((z) => z.data === u?.data);
+    expect(slujbeLaAceeasiOra(ziua?.slujbe ?? [], u!.ora).map(etichetaSlujba)).toEqual([
+      'Spovedanie',
+      'Vecernie',
+    ]);
+  });
+
+  it('sare peste ziua anulată în întregime', () => {
+    // 2026-10-04 este anulată și își păstrează ora; cardul trebuie să treacă la
+    // 7 octombrie, nu să anunțe o slujbă care nu are loc.
+    const u = urmatoareaSlujba(ZILE_FIXTURA, '2026-10-04', '00:00');
+    expect(u?.data).toBe('2026-10-07');
   });
 });

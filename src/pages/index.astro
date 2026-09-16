@@ -3,7 +3,12 @@ import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import BandaSaptamanii from '../components/BandaSaptamanii.astro';
 import { formatIntervalSaptamana, numeLuna, numeZi, ziuaDinLuna } from '../lib/date-ro';
-import { etichetaSlujba, minute, saptamaniViitoare, urmatoareaSlujba } from '../lib/schedule';
+import {
+  etichetaSlujba,
+  saptamaniViitoare,
+  slujbeLaAceeasiOra,
+  urmatoareaSlujba,
+} from '../lib/schedule';
 import { aziLaZurich, oraLaZurich } from '../lib/week';
 
 const intrari = await getCollection('slujbe');
@@ -29,26 +34,19 @@ const saptamani = saptamaniViitoare(zile, azi, 3);
 const urmatoarea = urmatoareaSlujba(zile, azi, oraLaZurich());
 
 /*
- * Every service that starts at the same minute, not just the one the helper
- * returned.
+ * The card names every service that starts at the same minute, not only the one
+ * `urmatoareaSlujba` returned — the rule and its reasoning live in
+ * `slujbeLaAceeasiOra`, which is tested against a fixture with a `17:00`
+ * Spovedanie beside a `17:00` Vecernie.
  *
- * `urmatoareaSlujba` answers "which service is next" and can only return one.
- * But two DIFFERENT services at one time are an ordinary parish evening —
- * confession runs during vespers, which is why `ziSchema` permits `17:00
- * Spovedanie` beside `17:00 Vecernie` and forbids only the same service twice.
- * A card that named one of them would tell someone coming for confession that
- * vespers is what is on, or the reverse. So the day is filtered again here.
- *
- * Compared with `minute()` rather than by string, because that is the
- * comparison `urmatoareaSlujba` itself made; `ora` is already canonical `HH:MM`
- * out of the schema, so the two agree, and using the same one means they cannot
- * stop agreeing. The `?? [urmatoarea]` is unreachable — the date is the
+ * The day is looked up once and used twice, for its services here and for its
+ * `locatie` below. The `?? [urmatoarea]` is unreachable — the date is the
  * collection's primary key, so the day the helper read from is always found —
  * and exists so this list is never empty while the card is rendered.
  */
 const ziuaUrmatoare = urmatoarea ? zile.find((z) => z.data === urmatoarea.data) : undefined;
 const deopotriva = urmatoarea
-  ? (ziuaUrmatoare?.slujbe ?? [urmatoarea]).filter((s) => minute(s.ora) === minute(urmatoarea.ora))
+  ? slujbeLaAceeasiOra(ziuaUrmatoare?.slujbe ?? [urmatoarea], urmatoarea.ora)
   : [];
 const nume = deopotriva.map(etichetaSlujba);
 // Romanian list: "A", "A și B", "A, B și C". Written out rather than joined
@@ -100,7 +98,18 @@ const undeUrmatoarea = ziuaUrmatoare?.locatie ?? '';
       </p>
     )}
 
-    <h2 class="titlu-sect">Programul săptămânii</h2>
+    {/*
+      Not "Programul săptămânii", and not any heading that counts weeks.
+      `saptamaniViitoare` counts weeks WITH ENTRIES, so this section renders
+      between zero and three of them and they can span more calendar weeks than
+      that. From Task 10 the count also depends on whether JavaScript ran: one
+      week revealed with it, all three without. A heading naming a number or a
+      span would be false in at least one of those states and nothing would
+      fail. This one cannot become false. The interval under each band is the
+      only date range on the page, and it is true because each week states its
+      own.
+    */}
+    <h2 class="titlu-sect">Programul slujbelor</h2>
 
     {saptamani.length === 0 ? (
       <p class="gol">Programul următoarei perioade nu a fost încă publicat. <a href="/program/">Vezi programul complet</a>.</p>

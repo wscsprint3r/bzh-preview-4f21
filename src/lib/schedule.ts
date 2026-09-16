@@ -1,6 +1,7 @@
 /**
- * The five questions the site asks of the schedule: what a service is called,
- * which week a day belongs to, and what happens next.
+ * The questions the site asks of the schedule: what a service is called, which
+ * week a day belongs to, what happens next, and what else happens at that same
+ * moment.
  *
  * Nothing here reads the clock and nothing here builds a `Date`. Dates arrive
  * as plain `YYYY-MM-DD` and times as plain `HH:MM`, both already validated and
@@ -162,6 +163,31 @@ export function urmatoareaSlujba(
     }
   }
   return null;
+}
+
+/**
+ * Every service in `slujbe` that starts at the same minute as `ora`.
+ *
+ * The companion to `urmatoareaSlujba`, and the reason it needs one: that
+ * function answers "which service is next" and can only return a single entry,
+ * but two DIFFERENT services at one time are an ordinary parish evening.
+ * Confession runs during vespers, which is why `ziSchema` permits `17:00
+ * Spovedanie` beside `17:00 Vecernie` and forbids only the same service twice
+ * at one time. A homepage card that named just the one the sort happened to put
+ * first would tell someone coming for confession that vespers is what is on, or
+ * the reverse. That is a product ruling, not a nicety, so it lives here with a
+ * test rather than as an expression on a page.
+ *
+ * Compared as minutes, like everything else in this module: `ora` is already
+ * canonical `HH:MM` out of the schema, so string equality would agree today,
+ * and would stop agreeing the moment anything upstream stopped padding.
+ *
+ * Order is the caller's: `slujbe` is not sorted here, so the editor's order
+ * survives, exactly as it does through `grupeazaPeSaptamani`.
+ */
+export function slujbeLaAceeasiOra(slujbe: Slujba[], ora: string): Slujba[] {
+  const cand = minute(ora);
+  return slujbe.filter((s) => minute(s.ora) === cand);
 }
 
 /**
