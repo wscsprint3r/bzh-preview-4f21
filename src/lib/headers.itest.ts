@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { SEMN } from '../../scripts/csp-hash.mjs';
 import { anteteleRutei, parseazaHeaders } from '../../scripts/headers.mjs';
 
 /*
@@ -26,7 +28,8 @@ import { anteteleRutei, parseazaHeaders } from '../../scripts/headers.mjs';
  * It reads `dist/`, so it runs only after a build: `npm run test:build`.
  */
 
-const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
+const RADACINA = fileURLToPath(new URL('../../', import.meta.url));
+const DIST = `${RADACINA}dist/`;
 
 /** The file's text, having proved there was a file and that it had text in it. */
 function citeste(cale: string): string {
@@ -77,6 +80,56 @@ function hashuriInline(html: string): string[] {
 }
 
 const CSP = anteteleRutei(REGULI, '/').get('Content-Security-Policy') ?? '';
+
+/** Sorted, without repeats — so two sets can be compared as arrays and read. */
+function unic(valori: string[]): string[] {
+  return [...new Set(valori)].sort();
+}
+
+/*
+ * The `'sha256-…'` tokens of ONE directive, found by splitting the policy the
+ * way a browser does rather than by searching the whole string. A hash sitting
+ * in `style-src`, or in `script-src-elem`, is a different rule with different
+ * consequences, and must not be mistaken for one of these.
+ */
+function hashuriDinScriptSrc(politica: string): string[] {
+  const directiva = politica
+    .split(';')
+    .map((d) => d.trim())
+    .find((d) => d === 'script-src' || d.startsWith('script-src '));
+  return [...(directiva ?? '').matchAll(/'sha256-[A-Za-z0-9+/=]+'/g)].map((m) => m[0]);
+}
+
+/** Every `sha256-` token anywhere in a text, quoted or not, valid or not. */
+function tokenuriSha(text: string): string[] {
+  return [...text.matchAll(/sha256-[A-Za-z0-9+/=]*/g)].map((m) => m[0]);
+}
+
+/*
+ * Every path into this repository that a text mentions in backticks.
+ *
+ * A token counts as a path when it is a bare `a/b/c` — no spaces, no quotes, no
+ * scheme, no angle brackets — and either contains a `/` or ends in a source
+ * extension. That deliberately keeps out `img-src`, `Cache-Control`, `blob:`,
+ * `/admin/` (a URL, not a file) and `text/calendar; charset=utf-8`, and lets in
+ * `astro.config.mjs` at the root. The list is PRINTED by the test below, so a
+ * token that quietly stopped being recognised is visible in a run rather than
+ * inferred from a green.
+ */
+export function caiMentionate(text: string): string[] {
+  const EXTENSII = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
+  const gasite: string[] = [];
+  for (const m of text.matchAll(/`([^`]+)`/g)) {
+    const token = m[1] as string;
+    if (!/^[A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@-]+)*$/.test(token)) continue;
+    if (!token.includes('/') && !EXTENSII.test(token)) continue;
+    gasite.push(token);
+  }
+  return unic(gasite);
+}
+
+/** `public/_headers` as written, not as built. */
+const SURSA = readFileSync(`${RADACINA}public/_headers`, 'utf8');
 
 describe('_headers ajunge în build', () => {
   it('conține reguli', () => {
@@ -147,18 +200,148 @@ describe('politica de securitate', () => {
     expect(antete.filter((l) => l.includes('{{'))).toEqual([]);
   });
 
-  it('script-src numește hash-ul fiecărui script inline din fiecare pagină', () => {
-    const toate = pagini().flatMap((p) => hashuriInline(readFileSync(DIST + p, 'utf8')).map((h) => [p, h]));
+  /*
+   * EQUALITY, NOT CONTAINMENT, AND THAT IS THE WHOLE POINT OF THIS ASSERTION.
+   *
+   * "Every hash the build computed appears in `script-src`" is a subset
+   * relation, and it is silent about the other direction. Measured on this very
+   * file: paste an invented `'sha256-3MO6h9CZ…'` beside the placeholder in
+   * `public/_headers` and the build, this suite and the browser pass all went
+   * green — while the policy shipped to every page `/*` covers, `/admin/`
+   * included, whitelisting whatever inline script happens to hash to it.
+   *
+   * `toEqual` over both sets closes it, and also catches a hash left behind by
+   * a merge or by a script that was deleted.
+   */
+  it('script-src numește exact hash-urile scripturilor inline construite, niciunul în plus', () => {
+    const perPagina = pagini().flatMap((p) => hashuriInline(readFileSync(DIST + p, 'utf8')).map((h) => [p, h]));
     // A guard that reads files must prove it read something: with no inline
-    // script anywhere, an empty loop below would pass while proving nothing.
-    expect(toate.length, 'nicio pagină construită nu are script inline').toBeGreaterThan(0);
-    for (const [pagina, hash] of toate) expect(CSP, `${pagina}: ${hash} lipsește din script-src`).toContain(hash);
+    // script anywhere, two empty sets would agree while proving nothing.
+    expect(perPagina.length, 'nicio pagină construită nu are script inline').toBeGreaterThan(0);
+    const construite = unic(perPagina.map(([, h]) => h as string));
+    const inPolitica = unic(hashuriDinScriptSrc(CSP));
+    // Print what was measured, not only the verdict. Straight to stdout:
+    // vitest's default reporter swallows `console.log` from a passing test.
+    process.stdout.write(
+      `\nScripturi inline construite:\n${perPagina.map(([p, h]) => `  ${p} -> ${h}`).join('\n')}\n` +
+        `script-src numește ${inPolitica.length}: ${inPolitica.join(' ')}\n`,
+    );
+    expect(inPolitica, 'hash-urile din script-src nu sunt exact cele ale scripturilor construite').toEqual(
+      construite,
+    );
   });
 
   it("script-src nu permite 'unsafe-inline'", () => {
     const scriptSrc = CSP.split(';').map((d) => d.trim()).find((d) => d.startsWith('script-src'));
     expect(scriptSrc).toBeDefined();
     expect(scriptSrc).not.toContain('unsafe-inline');
+  });
+});
+
+/*
+ * THE DETECTORS ABOVE, PROVED ABLE TO FIRE.
+ *
+ * Both assertions in this file that matter are of the form "X is absent": no
+ * hash in the source, nothing extra in the policy. This repository does not
+ * accept that claim without a positive control — an absence is also what a
+ * detector that stopped matching reports.
+ *
+ * The invented hash is the one measured slipping through the old subset check.
+ */
+describe('detectoarele de hash chiar se declanșează', () => {
+  const INVENTAT = "'sha256-3MO6h9CZoU1BDqVrXhF8G7RbqZZTQmJfN3uAn9GJXEo='";
+
+  it('vede un hash strecurat în script-src', () => {
+    expect(hashuriDinScriptSrc(`default-src 'self'; script-src 'self' ${INVENTAT}; img-src 'self'`)).toEqual([
+      INVENTAT,
+    ]);
+  });
+
+  it('nu ia hash-uri din alte directive', () => {
+    expect(hashuriDinScriptSrc(`script-src 'self'; style-src ${INVENTAT}`)).toEqual([]);
+  });
+
+  // `script-src-elem` starts with the same fourteen characters and is a
+  // different directive; a prefix test would have counted its hashes as ours.
+  it('nu confundă script-src-elem cu script-src', () => {
+    expect(hashuriDinScriptSrc(`script-src-elem ${INVENTAT}`)).toEqual([]);
+  });
+
+  it('vede un hash scris de mână într-o linie de antet', () => {
+    expect(tokenuriSha(`  Content-Security-Policy: script-src 'self' ${INVENTAT} ${SEMN}`)).toHaveLength(1);
+  });
+
+  it('nu se declanșează pe un text fără hash', () => {
+    expect(tokenuriSha(`script-src 'self' ${SEMN}`)).toEqual([]);
+  });
+});
+
+describe('public/_headers, fișierul sursă', () => {
+  /*
+   * THE HASH IS FORBIDDEN AT THE SOURCE, not only checked at the destination.
+   *
+   * `AGENTS.md` says in so many words "do not hand-write a hash there", and
+   * until this test nothing enforced it. A hand-written hash here survives every
+   * rebuild — `csp-hash.mjs` only substitutes the placeholder, it does not clean
+   * the line — so catching it in `dist/` catches it once per build, while
+   * catching it here catches it where someone typed it.
+   */
+  it('nu conține niciun hash scris de mână', () => {
+    expect(tokenuriSha(SURSA), 'hash-urile se calculează la build, nu se scriu aici').toEqual([]);
+  });
+
+  it(`poartă ${SEMN} pe o linie de antet`, () => {
+    const antete = SURSA.split('\n').filter((l) => !l.trimStart().startsWith('#'));
+    expect(antete.filter((l) => l.includes(SEMN)).length, `${SEMN} apare doar în comentarii`).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * EVERY PATH THIS FILE NAMES MUST RESOLVE.
+ *
+ * `public/_headers` is instruction as much as configuration: its comments are
+ * what someone reads on the first real sign-in, when the console is full of
+ * refusals and they need to know where the expected list lives. It shipped
+ * pointing at `scripts/csp-browser.mjs`, which has never existed — and a rule
+ * for a path that does not exist looks exactly like a rule that works.
+ */
+describe('referințele din public/_headers', () => {
+  const CAI = caiMentionate(SURSA);
+
+  it('chiar găsește căi de verificat', () => {
+    process.stdout.write(`\npublic/_headers menționează ${CAI.length} cale(i):\n${CAI.map((c) => `  ${c}`).join('\n')}\n`);
+    expect(CAI.length, `detectorul de căi a găsit ${CAI.length} — nu ar verifica nimic mai jos`).toBeGreaterThan(3);
+    // Named explicitly so a regex that stopped recognising a shape fails here
+    // rather than quietly shrinking the list the cases below iterate.
+    expect(CAI).toContain('scripts/csp-hash.mjs');
+    expect(CAI).toContain('src/pages/program.ics.ts');
+    expect(CAI).toContain('docs/handover.md');
+  });
+
+  it('detectorul recunoaște o cale inexistentă, și nu confundă restul cu o cale', () => {
+    expect(caiMentionate('lista e în `scripts/csp-browser.mjs`, nu în `img-src` sau `/admin/`')).toEqual([
+      'scripts/csp-browser.mjs',
+    ]);
+    expect(existsSync(`${RADACINA}scripts/csp-browser.mjs`)).toBe(false);
+  });
+
+  it.each(CAI)('`%s` există', (cale) => {
+    expect(existsSync(RADACINA + cale), `public/_headers trimite la ${cale}, care nu există`).toBe(true);
+  });
+
+  /*
+   * EXISTING IS NOT ENOUGH FOR THE HANDOVER. `.gitignore` excludes
+   * `.superpowers/`, and this file used to point there for "the exact
+   * commands" — a path that resolves on the machine that wrote it and in no
+   * clone at all. A pointer to an untracked file is the same failure one level
+   * up, so the pointer's target is asserted to be in the index.
+   */
+  it('docs/handover.md este urmărit de git, nu doar prezent pe disc', () => {
+    const urmarit = execFileSync('git', ['ls-files', '--', 'docs/handover.md'], {
+      cwd: RADACINA,
+      encoding: 'utf8',
+    }).trim();
+    expect(urmarit, 'docs/handover.md nu este urmărit — un clone nu l-ar primi').toBe('docs/handover.md');
   });
 });
 
