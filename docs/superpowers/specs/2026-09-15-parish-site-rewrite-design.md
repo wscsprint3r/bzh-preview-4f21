@@ -39,7 +39,10 @@ From `Instructiuni Parohie/Pagina Noutăți.pdf`, publishing one news item today
 6. If only one item is being added, right-click the other two columns → Advanced → Responsive → Hide on *every* device class
 7. Hand-paste the post's URL into the "Citește mai mult" button
 
-Seven steps involving a page builder, for one paragraph of news. The new site must make this: write, attach a photo, press Publică.
+Seven steps involving a page builder, for one paragraph of news. The new site must make this:
+write, attach a photo, press **Save** — one button, which publishes. (The CMS chrome is
+English; see the goals below. Earlier drafts of this document said "press Publică", which was
+never a real button.)
 
 ---
 
@@ -55,8 +58,14 @@ Seven steps involving a page builder, for one paragraph of news. The new site mu
   translation. **The publish button is labelled `Save`** — not "Save and Publish", which this
   configuration never renders — and pressing it puts the change on the website in about a
   minute, because every commit triggers a build. There is no separate publish step to explain.
-  Duplicate, Delete and Discard live in a menu rather than the toolbar, which matters because
-  duplicating last week's day is the whole weekly routine. Decap **does** ship a bundled Romanian UI with correct comma-below diacritics
+  Duplicate and Delete live in a menu behind the **⋮** beside `Save` — accessible name
+  *Show Editor Options* — rather than on the toolbar, which matters because duplicating last
+  week's day is the whole weekly routine. The menu's "undo" item is **Revert All Changes**,
+  not `Discard`: `discard` belongs to the editorial-workflow branch, unreachable under
+  `publish_mode: simple`, the same dead branch that made `Save and Publish` unreachable.
+  Sveltia renders **no tooltips at all** — every such label is an aria-label, invisible to a
+  sighted volunteer, so the printed card must describe what is on screen, not what a screen
+  reader would announce. Decap **does** ship a bundled Romanian UI with correct comma-below diacritics
   and no CDN dependencies; it was considered and declined in favour of Sveltia's modern
   editor, phone support, 5 vendored files versus 95, and active development. Recorded so nobody has to
   rediscover the trade.
