@@ -35,10 +35,19 @@
  * editor's GitHub credential lives, so it keeps `'self'` like the rest of the
  * site rather than being granted an exception.
  *
- * Rewriting vendored code is a liability, and the assertions are what make it a
- * loud one: each URL must be found EXACTLY ONCE, and afterwards the file must
- * contain no `cdn.jsdelivr.net` at all. An upgrade that moves a URL, or adds a
- * fourth font, fails the build instead of silently restoring the CDN.
+ * THIS PATCHES SOMEONE ELSE'S CODE, AND MUST BE RE-VERIFIED ON EVERY UPGRADE.
+ * That is the cost, stated plainly so nobody discovers it by surprise: bumping
+ * `@sveltia/cms` means re-reading `FONTURI` and re-running the browser check, not
+ * just the changelog.
+ *
+ * THE ASSERTIONS BELOW ARE LOAD-BEARING, NOT FUSSY. Do not soften one to get a
+ * build through. Each URL must be found EXACTLY ONCE, and afterwards the file
+ * must contain no `cdn.jsdelivr.net` at all - the same shape as `REFERINTE_ICS`
+ * in `build-output.itest.ts`, and for the same reason: a count is what closes the
+ * set, so an upgrade that moves a URL or adds a fourth font FAILS THE BUILD
+ * rather than silently restoring the CDN on the one page that holds an editor's
+ * GitHub credential. A guard that only checked "we replaced what we knew about"
+ * would pass while the CDN came back.
  *
  * WHAT IS LEFT BEHIND, and why the rule is a shape rather than a list of names:
  *

@@ -32,6 +32,15 @@ publish_mode: simple
 app_title: Parohia Sfântul Nicolae — administrare
 site_url: https://www.bor-zh.ch
 
+# The parish's own icon on the sign-in screen and in the browser tab, instead of
+# Sveltia's. A small signal to a nervous volunteer that they are in the right
+# place - and it costs no new origin, because it is this site's own favicon.
+#
+# It does NOT remove the CMS's `data:` logo fetch, which Task 13's `connect-src`
+# blocks: that was tested, and the block is a console error with the UI drawing
+# correctly either way.
+logo_url: /favicon.svg
+
 # Nothing in Phase 1 uses these: the schedule has no image or file field, so no
 # upload can reach them. They are declared because `media_folder` is required.
 # Phase 2 adds the first real media field and must revisit the pair together —
