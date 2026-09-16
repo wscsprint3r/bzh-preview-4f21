@@ -3143,7 +3143,7 @@ Expected: every line reads `OK`, exit code 0.
 
 Task 7 already wires `npm run a11y` over every built page and runs it in `test:build`. One gap remains, measured rather than assumed: **the audit viewport is 701–800 CSS px**, so this site's `34rem` phone breakpoint — where the week band stacks and the day row drops its month name — is never audited. Most of the parish reads this on a phone.
 
-Add a second pass at a phone width (390px), so CI audits both. Keep the same rules and the same "fail on `incomplete` for `color-contrast`" behaviour.
+Add a second pass at a phone width (390px) as **`npm run a11y:mobil`** — the CI job below calls it by that name. Keep the same rules and the same "fail on `incomplete` for `color-contrast`" behaviour.
 
 Then add both to the CI job below. What axe covers and what it does not is documented in `a11y.mjs`; do not restate it here, and do not widen the claim.
 
