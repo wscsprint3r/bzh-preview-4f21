@@ -58,6 +58,13 @@ public_folder: /uploads
 # string value also keeps `ora: "07:30"` a string, which is how the hand-written
 # files in `src/content/slujbe/` are already spelled.
 #
+# BOTH ARE SVELTIA OPTIONS, AND `quote` SOLVES A SVELTIA PROBLEM. Decap — the
+# config-level fallback of spec §17 — serialises with js-yaml, which quotes
+# date-like and time-like strings on its own. So if this project ever moves to
+# Decap, `quote: double` is a line to delete rather than to carry across.
+# Written down because a setting whose reason is invisible is one the next
+# person keeps and wonders about.
+#
 # `omit_empty_optional_fields` — without it every optional field is written as an
 # empty string, so a plain weekday gains `praznic: ""`, `note: ""`, `locatie: ""`
 # and every service gains `detaliu: ""`. The files stay as short as the ones a
