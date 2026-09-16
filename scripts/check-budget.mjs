@@ -8,10 +8,11 @@
  * WHY THIS READS THE PAGES RATHER THAN THE FILES IN `dist/_astro/`.
  *
  * The obvious JS check is to add up `dist/**\/*.js`. Task 10 proved that check
- * cannot work here: at 2,982 bytes the week picker lands under Vite's 4 KB
- * inline threshold, so Astro writes it INTO the document and emits no `.js`
- * file at all. A file-walking check reports `0 / 3072 OK` and is loudest
- * exactly when it has measured nothing - the same failure shape as a missing
+ * cannot work here: at 2,988 bytes - the figure every run prints below, which is
+ * the one to trust if this sentence ever disagrees with it - the week picker lands
+ * under Vite's 4 KB inline threshold, so Astro writes it INTO the document and
+ * emits no `.js` file at all. A file-walking check reports `0 / 3800 OK` and is
+ * loudest exactly when it has measured nothing - the same failure shape as a missing
  * `dist/`. Worse, the threshold is a cliff: about a kilobyte more script and
  * Astro flips to emitting a file, which changes the request count and the
  * caching story with nothing failing either way.
@@ -293,7 +294,7 @@ for (const pagina of PAGINI) {
    * failure.
    *
    * `/program/` renders every week server-side and mounts no script at all, so
-   * it honestly ships no JavaScript, and this line reads `0 / 3072` beside
+   * it honestly ships no JavaScript, and this line reads `0 / 3800` beside
    * `niciun script` - which looks exactly like the vacuous pass this whole file
    * was written to abolish.
    *
