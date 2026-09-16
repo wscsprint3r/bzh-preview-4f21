@@ -61,6 +61,11 @@ Every task's requirements implicitly include this section.
   component never declares `outline`: measured, `:focus-visible` still matches and the global
   ring still lands. So the rule is narrower than "own every state" — a component that sets a
   property on a link owns that property's interactive states, and only those.
+  **But that survival is luck, not design:** `outline` is declared nowhere except
+  `global.css`, and the global rule is only `(0,1,0)`. The first component to declare its own
+  `outline` defeats the ring silently. Task 10's `.ss button` is the first non-link the focus
+  rule has to defend, and a swept audit found only four scoped link-colour rules in the whole
+  project — so the margin here is thin rather than comfortable.
 - **`locatie` must render wherever the schedule renders.** It is in the schema, exposed by the
   CMS, and written into the `.ics` `LOCATION`. A day held in a different chapel would
   otherwise produce a calendar that says so and a website that does not — sending a
