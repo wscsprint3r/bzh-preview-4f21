@@ -157,10 +157,22 @@ async function verificaBara(driver, conditie, url) {
   if (!conditie.js) return null; // the bar is revealed by script; without it there is nothing to check
   await driver.get(url('index.html'));
 
+  /*
+   * THE WEEK COUNT IS READ BEFORE THE BAR, and the count is judged first.
+   *
+   * When the fixture ages out completely the homepage takes its "nothing
+   * published yet" branch and never renders `SelectorSaptamana` at all, so a
+   * check that dereferenced the bar first answered "the .ss bar is missing from
+   * the page" - true, alarming, and pointing at the component instead of at the
+   * fixture that actually aged. Measured by shifting the fixture a year into the
+   * past. Both stale states now give the same instruction, and "the bar is
+   * missing" is kept for the case it really describes: two weeks rendered and no
+   * bar in the markup.
+   */
   const stare = await driver.executeScript(`
     const sectiuni = [...document.querySelectorAll('section[data-saptamana]')];
     const bara = document.querySelector('.ss');
-    if (!bara) return { eroare: 'bara .ss lipsește din pagină' };
+    if (!bara) return { sectiuni: sectiuni.length, faraBara: true };
     const eticheta = bara.querySelector('[data-ss-eticheta]');
     const prev = bara.querySelector('[data-ss-prev]');
     const next = bara.querySelector('[data-ss-next]');
@@ -179,9 +191,27 @@ async function verificaBara(driver, conditie, url) {
     };
   `);
 
-  if (stare.eroare) return stare.eroare;
   if (stare.sectiuni < 2) {
-    return `construcția de probă a randat ${stare.sectiuni} săptămână(i); sub două, bara nu se arată și pasul nu verifică nimic. Fixturile trebuie împrospătate.`;
+    /*
+     * The message names the fixture, not the symptom, on purpose. Someone will
+     * meet this failure on a quiet morning months from now, and the cheap way
+     * out - deleting the pass, or relaxing the check to "one week is fine" -
+     * leaves the bar audited by nothing while the build goes green again. The
+     * repair is always in `fixturi.ts`.
+     */
+    return (
+      `construcția de probă a randat ${stare.sectiuni} săptămână(i), nu cel puțin două.\n` +
+      '    Sub două săptămâni bara selectorului rămâne ascunsă, axe o sare, și acest pas ' +
+      'nu verifică absolut nimic — deși ar trece.\n' +
+      '    NU ȘTERGE PASUL ȘI NU SLĂBI VERIFICAREA. Adaugă zile în ZILE_FIXTURA din ' +
+      'src/lib/fixturi.ts, în cel puțin două săptămâni ISO diferite care nu s-au încheiat încă.'
+    );
+  }
+  if (stare.faraBara) {
+    return (
+      `pagina randează ${stare.sectiuni} săptămâni, dar nu conține deloc bara .ss.\n` +
+      '    Componenta SelectorSaptamana nu mai este pusă pe pagina principală.'
+    );
   }
   if (stare.baraAscunsa || stare.baraAfisata === 'none') {
     return `bara selectorului a rămas ascunsă (hidden=${stare.baraAscunsa}, display=${stare.baraAfisata}) — axe nu o vede.`;

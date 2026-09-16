@@ -20,10 +20,22 @@
  *     `390,844` on macOS measured `innerWidth === 500`.
  *   - It has no way to stop the page's own scripts from running.
  *
+ * THE CLAMP HAS NOW COST THIS PROJECT TWICE. Task 9's first responsive
+ * measurement asked for 375px, silently got 500px, and measured a layout nobody
+ * had asked about; its report records the same conclusion this file reached
+ * independently - Chrome refuses a window narrower than about 500px, so
+ * `Emulation.setDeviceMetricsOverride` is the only way to ask for a phone width,
+ * and the width must be PRINTED beside every result rather than assumed. Both
+ * halves are here: the override in `pregateste`, and `innerWidth` on every line
+ * of output, checked against what the condition asked for.
+ *
  * `Emulation.setDeviceMetricsOverride` and `Emulation.setScriptExecutionDisabled`
  * do both exactly, and both are CDP-only. So the driver is `selenium-webdriver`
  * and the engine is `axe-core` injected directly - the same axe-core the CLI
- * used, at the same version.
+ * used, at the same version. Replacing a checker is the easiest place in a
+ * project to lose coverage without anyone noticing, so the swap was not trusted
+ * to "it still passes": both engines were run over the same build and their
+ * passes, violations AND incompletes diffed rule by rule. They were identical.
  * ===========================================================================
  *
  * ---------------------------------------------------------------------------

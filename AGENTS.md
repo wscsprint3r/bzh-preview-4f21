@@ -82,6 +82,14 @@ Every one of these was paid for.
 - **Static reading is the wrong tool for a claim about what a person sees.** Contrast,
   focus rings, the cascade and Content-Security-Policy are all decided by a browser, so a
   browser is what checks them: `scripts/a11y.mjs`.
+- **Ask a browser for a narrow viewport and check you got it.** Chrome refuses a window
+  under about 500px, silently. Task 9 asked for 375px and measured 500px; Task 13 asked for
+  390px and measured 500px, in a different tool, a month apart. `Emulation.setDeviceMetrics`
+  `Override` over CDP is the only thing that honours the request, and `innerWidth` belongs
+  beside every number so a third occurrence cannot hide.
+- **Replacing a checker is where coverage goes to die.** The new one passes, everyone
+  relaxes, and nobody notices it checks less. Run both over the same input and diff the
+  results — for `a11y.mjs` that meant every rule id, in passes, violations *and* incompletes.
 - **An explicit gap beats a vacuous pass.** Where something cannot be checked here — what
   Cloudflare does with `_headers`, what the CMS does after a real sign-in — say so and say
   what to run instead.
