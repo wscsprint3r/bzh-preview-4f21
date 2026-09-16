@@ -3049,6 +3049,12 @@ A single `toEqual` catches every drift that matters: a missing option, an extra 
 Run: `cd web && npx vitest run src/lib/schema.test.ts`
 Expected: PASS, 11 tests.
 
+- [ ] **Step 6b: Exempt the admin shell from the site-page guards**
+
+`public/admin/index.html` is a vendored CMS host page: a `<script>` tag and nothing else, by design. Two pre-existing assertions in `stylesheet.itest.ts` require **every** `dist/**/*.html` to carry CSS and token colours, so the moment a real `dist/admin/index.html` exists they will fail — predicted by Task 9's re-reviewer before this task was dispatched.
+
+Exempt it explicitly and say why, rather than loosening the rule for every page. The exemption must be narrow: `admin/index.html` only, not "anything under `admin/`", and **not** the Romanian diacritics guard, which deliberately keeps `admin/index.html` and `config.yml` in scope — `config.yml` is where this task writes the Romanian labels a volunteer reads.
+
 - [ ] **Step 7: Verify the CMS loads locally**
 
 Run: `cd web && npm run dev`, then open `http://localhost:4321/admin/`.
