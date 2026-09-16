@@ -40,12 +40,19 @@ export const GET: APIRoute = async () => {
    * `idDinNumeFisier`. So `data` (Romanian for date) comes from the id, and
    * that is the whole of why this line exists.
    *
-   * THE ORDER IS NOT LOAD-BEARING TODAY, and a comment here used to claim it
-   * was — that reversing it left `zi.data` undefined and filled the feed with
-   * the word `undefined`. It does not: `ziSchema` is strict and declares no
-   * `data` key, so the spread has nothing to overwrite and both orders produce
-   * the same pairs. Checked by building the site both ways; the feed is
-   * byte-identical apart from DTSTAMP.
+   * DROPPING the override is the mistake that bites, and it bites loudly: the
+   * build dies with `TypeError: Cannot read properties of undefined (reading
+   * 'replace')` inside `laDataIcs`, because there is no date to format. The two
+   * pages fail differently on the same slip — `Dată invalidă: undefined` out of
+   * `partiData` — but all three fail the build rather than shipping. Verified
+   * by doing it in each.
+   *
+   * REVERSING the order is a different thing and is not load-bearing today, and
+   * a comment here used to claim it was — that reversing it left `zi.data`
+   * undefined and filled the feed with the word `undefined`. It does not:
+   * `ziSchema` is strict and declares no `data` key, so the spread has nothing
+   * to overwrite and both orders produce the same pairs. Checked by building
+   * the site both ways; the feed is byte-identical apart from DTSTAMP.
    *
    * What the order does say is which source wins IF the schema ever gains a
    * `data` field: writing it last keeps the filename authoritative over a YAML

@@ -16,12 +16,17 @@ import { acumLaZurich } from '../lib/week';
 
 const intrari = await getCollection('slujbe');
 /*
- * `data` is two different things on this line, exactly as on `/program/`.
- * `e.data` is Astro's parsed frontmatter — every field `ziSchema` validated,
- * which is every field of a day EXCEPT its date; the date is the filename, i.e.
- * `e.id`. Spread first, then set `data` (Romanian for date) from the id.
- * Either order reversed leaves `zi.data` undefined and every day throws
- * `Dată invalidă: undefined` out of `partiData`.
+ * `data` is two different things on this line, exactly as on `/program/`, where
+ * the full reasoning lives. `e.data` is Astro's parsed frontmatter — every
+ * field `ziSchema` validated, which is every field of a day EXCEPT its date;
+ * the date is the filename, i.e. `e.id`.
+ *
+ * DROPPING the override fails the build with `Dată invalidă: undefined` out of
+ * `partiData`. REVERSING the order does nothing at all — `ziSchema` declares no
+ * `data` key, so both orders build byte-identical output, checked both ways.
+ * This comment used to claim the reverse crashed; it does not. `data` goes last
+ * to keep the validated filename authoritative if the schema ever gains that
+ * field, which is a reason that survives being tested.
  */
 const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
 

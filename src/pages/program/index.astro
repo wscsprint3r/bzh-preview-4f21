@@ -8,14 +8,22 @@ import { aziLaZurich, cheieSaptamana, inceputSaptamana } from '../../lib/week';
 
 const intrari = await getCollection('slujbe');
 /*
- * `data` is two different things on this line, and getting them the wrong way
- * round is the likeliest mistake on this page. `e.data` is Astro's parsed
+ * `data` is two different things on this line. `e.data` is Astro's parsed
  * frontmatter — everything `ziSchema` validated, which is every field of a day
- * EXCEPT its date. The date is the filename, i.e. `e.id`, checked by
- * `idDinNumeFisier`. So: spread the parsed object first, then set `data` (the
- * Romanian word for date) from the id. Spreading in the other order, or
- * dropping the override, leaves `zi.data` undefined and every day renders as
- * a thrown `Dată invalidă: undefined` from `partiData`.
+ * EXCEPT its date, because Zod is handed a file's contents and never its name.
+ * The date is the filename, i.e. `e.id`, validated by `idDinNumeFisier`.
+ *
+ * DROPPING the override is the mistake that bites: `zi.data` is then undefined
+ * and the build fails with `Dată invalidă: undefined` out of `partiData`.
+ * Verified by doing it.
+ *
+ * REVERSING the order is not that mistake, and this comment used to say it was.
+ * `ziSchema` is strict and declares no `data` key, so the spread has nothing to
+ * overwrite and `{ data: e.id, ...e.data }` builds byte-identical output —
+ * checked both ways round. Writing `data` last still says the right thing,
+ * which is which source wins if the schema ever gains that field: the filename,
+ * the one that was validated as a date, over a YAML field that could contradict
+ * it. Keep the line; the reason is that, not a crash that does not happen.
  */
 const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
 
