@@ -3218,6 +3218,14 @@ Add a second pass at a phone width (390px) as **`npm run a11y:mobil`** — the C
 
 Then add both to the CI job below. What axe covers and what it does not is documented in `a11y.mjs`; do not restate it here, and do not widen the claim.
 
+- [ ] **Step 2c: Audit the week picker, which nothing else ever sees**
+
+The picker's bar un-hides only when a page renders two or more weeks. The homepage is now its only home, and the parish's real schedule is one week — so on every real build `sectiuni.length > 1` is false, the bar stays `hidden`, and axe skips it. Its focus ring, its disabled-arrow colour and its label contrast are checked by nothing.
+
+Add a fixture-driven pass: build into a scratch directory with `src/lib/fixturi.ts`'s multi-week days as content, audit that build, discard it. The fixtures are already parsed through `ziSchema`, so they can only contain days the CMS could produce — and because the build is temporary, no invented liturgical content reaches the seeds, which remain the parish's real published schedule.
+
+This is the only way the bar is ever audited. Do not let it be quietly dropped as redundant with the other two passes; it covers what neither of them can reach.
+
 - [ ] **Step 3: Write CI**
 
 Create `web/.github/workflows/ci.yml`:
