@@ -1,10 +1,12 @@
 /**
  * The calendar feed, at `/program.ics`.
  *
- * Three places already point here — the `<link rel="alternate">` in
- * `Base.astro`, the footer's "Abonare la program (.ics)" and the button at the
- * foot of `/program/` — so until this file existed the link was broken on every
- * page of the site.
+ * Three places in the source already point here. Two of them are in the shared
+ * layout and so land on every page: the `<link rel="alternate">` in
+ * `Base.astro` and the footer's "Abonare la program (.ics)". The third is the
+ * button at the foot of `/program/`. So the built site carries two references
+ * on the homepage and three on `/program/`, and until this file existed every
+ * one of them was broken. `build-output.itest.ts` pins those counts per page.
  *
  * All this route does is join two things that are each tested on their own:
  * the collection (`content.config.ts` + `schema.ts`) and the generator
@@ -31,12 +33,26 @@ const LOCATIE = 'Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich';
 export const GET: APIRoute = async () => {
   const intrari = await getCollection('slujbe');
   /*
-   * `data` is two different things on this line, exactly as on both pages.
-   * `e.data` is Astro's parsed frontmatter — every field `ziSchema` validated,
-   * which is every field of a day EXCEPT its date; the date is the filename,
-   * i.e. `e.id`, checked by `idDinNumeFisier`. Spread first, then set `data`
-   * (Romanian for date) from the id. Either order reversed leaves `zi.data`
-   * undefined and every UID and DTSTART in the feed reads `undefined`.
+   * `data` is two different things on this line. `e.data` is Astro's parsed
+   * frontmatter — every field `ziSchema` validated, which is every field of a
+   * day EXCEPT its date, because Zod is handed a file's contents and never its
+   * name. The date is the filename, i.e. `e.id`, validated by
+   * `idDinNumeFisier`. So `data` (Romanian for date) comes from the id, and
+   * that is the whole of why this line exists.
+   *
+   * THE ORDER IS NOT LOAD-BEARING TODAY, and a comment here used to claim it
+   * was — that reversing it left `zi.data` undefined and filled the feed with
+   * the word `undefined`. It does not: `ziSchema` is strict and declares no
+   * `data` key, so the spread has nothing to overwrite and both orders produce
+   * the same pairs. Checked by building the site both ways; the feed is
+   * byte-identical apart from DTSTAMP.
+   *
+   * What the order does say is which source wins IF the schema ever gains a
+   * `data` field: writing it last keeps the filename authoritative over a YAML
+   * field that could contradict it, and the filename is the one that was
+   * validated as a date. That is a real reason and it is the one to keep. A
+   * comment that threatens a failure nobody can reproduce teaches the next
+   * reader to discount the comments that are accurate.
    */
   const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
 

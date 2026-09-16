@@ -109,6 +109,46 @@ function paginiConstruite(): string[] {
   return gasite.sort();
 }
 
+/**
+ * Fiecare referință către feed dintr-o pagină construită.
+ *
+ * `.ics` ORIUNDE în href, nu neapărat lipit de ghilimeaua de închidere. Forma
+ * strânsă — `\.ics"` — a fost chiar gaura pe care acest fișier o astupa cu un
+ * nivel mai devreme: `href="/program.ics/"` nu se mai potrivea, deci o
+ * referință STRICATĂ ieșea din mulțimea verificată în loc să o facă să pice.
+ * Numărul de potriviri scădea de la 2 la 1 și toate testele rămâneau verzi.
+ *
+ * Regula pe care o lasă în urmă: un tipar care alege ce să verifice trebuie să
+ * prindă și formele greșite, altfel „nu s-a potrivit” devine sinonim cu „e în
+ * regulă”. Perechea lui este `REFERINTE_ICS` de mai jos, care închide mulțimea
+ * numărând — fără el, orice referință care încetează să se potrivească dispare
+ * în tăcere, oricât de larg ar fi tiparul.
+ */
+function referinteIcs(html: string): string[] {
+  return [...html.matchAll(/href="([^"]*\.ics[^"]*)"/g)].map((m) => m[1] as string);
+}
+
+/**
+ * Câte referințe către feed poartă fiecare pagină construită.
+ *
+ * Un număr exact per pagină, nu un minim și nu „măcar una undeva în sit”. Un
+ * minim este mulțumit de `<link rel="alternate">` din `<head>`-ul lui
+ * `Base.astro`, care ajunge pe fiecare pagină, deci nu poate să vadă nici
+ * butonul șters, nici legătura din subsol stricată.
+ *
+ * MULȚIMEA ESTE ÎNCHISĂ: testul cere ca paginile din `dist` să fie exact
+ * cheile de aici. O pagină nouă pică până când cineva îi scrie numărul —
+ * inclusiv `admin/index.html` din Task 12, care probabil merită `0`, fiindcă
+ * shell-ul CMS-ului nu se construiește din `Base.astro`. Acela este un răspuns
+ * care se dă o dată, nu o slăbire a regulii.
+ */
+const REFERINTE_ICS: Record<string, number> = {
+  // `<link rel="alternate">` din `<head>` + „Abonare la program (.ics)” din subsol.
+  'index.html': 2,
+  // Aceleași două, plus butonul de abonare de la piciorul paginii.
+  'program/index.html': 3,
+};
+
 /** Zilele pe care le are colecția, citite din numele fișierelor — cheia ei primară. */
 function zileleDinColectie(): string[] {
   return readdirSync(CONTINUT)
@@ -244,6 +284,20 @@ describe('feed-ul respectă formatul iCalendar', () => {
     expect(/\r[^\n]/.test(ics), 'CR fără LF după el').toBe(false);
   });
 
+  /*
+   * CE NU DOVEDEȘTE ACEST TEST: că împăturirea funcționează. Cea mai lungă
+   * linie din feed-ul construit are 69 de octeți (`PRODID:`), iar liniile de
+   * continuare sunt ZERO — conținutul parohiei nu se apropie de limită. Deci
+   * aici scrie „nimic nu e prea lung”, nu „lucrurile lungi se împăturesc”, iar
+   * dacă `impatureste` s-ar strica, acest test ar rămâne verde.
+   *
+   * Împăturirea este acoperită unde poate fi provocată, în `ics.test.ts`:
+   * „continuă liniile împăturite cu un spațiu” (un `praznic` de 200 de
+   * caractere, cere continuări), „nu rupe un caracter multi-octet în două
+   * linii”, și cazul de trei și patru octeți (liniuță lungă, CJK, emoji).
+   * Rostul liniei de aici este celălalt: că un `praznic` scris de un voluntar
+   * nu poate face feed-ul REAL să depășească limita fără să se observe.
+   */
   it('nu depășește 75 de octeți pe linie', () => {
     const ics = citeste('program.ics');
     const linii = ics.split(CRLF);
@@ -296,6 +350,21 @@ describe('feed-ul respectă formatul iCalendar', () => {
       expect(bloc.find((l) => l.startsWith('DTEND;'))).toMatch(
         /^DTEND;TZID=Europe\/Zurich:\d{8}T\d{6}$/,
       );
+      /*
+       * Și ORDINEA lor, nu doar forma. RFC 5545 §3.6.1 cere ca DTEND să fie
+       * după DTSTART, iar un eveniment de lungime zero se desenează
+       * imprevizibil — pentru o parohie, ca o slujbă care pare că nu are loc.
+       * Aserțiunea de formă de mai sus este la fel de mulțumită de două
+       * ștampile egale.
+       *
+       * Comparație de șiruri: ambele sunt `YYYYMMDDTHHMMSS`, lățime fixă și în
+       * același TZID, deci `>` este chiar ordinea cronologică a ceasului de
+       * perete. Aritmetica de peste miezul nopții și cea de peste schimbarea
+       * orei stau în `ics.test.ts`, unde pot fi construite anume.
+       */
+      const start = (bloc.find((l) => l.startsWith('DTSTART;')) as string).split(':')[1] as string;
+      const sfarsit = (bloc.find((l) => l.startsWith('DTEND;')) as string).split(':')[1] as string;
+      expect(sfarsit > start, `DTEND ${sfarsit} nu este după DTSTART ${start}`).toBe(true);
       uiduri.push(bloc.find((l) => l.startsWith('UID:')) as string);
     }
     // UID-uri identice fac ca două slujbe să se topească într-un singur eveniment
@@ -337,36 +406,66 @@ describe('paginile construite', () => {
   });
 
   /*
-   * Legăturile către feed au existat de la Task 6 și nu au dus nicăieri până la
-   * Task 11 — nu doar butonul de pe `/program/`, ci și `<link rel="alternate">`
-   * din `Base.astro` și „Abonare la program (.ics)” din subsol, adică de trei
-   * ori pe FIECARE pagină a sitului.
+   * TREI GENERAȚII ALE ACELEIAȘI GREȘELI, pentru cine scrie a patra.
    *
-   * Deci legătura se urmărește până la fișier, în loc să se caute șirul
-   * „/program.ics” în pagină: un `toContain` pe text ar fi trecut cu brio în
-   * toată perioada în care legătura era ruptă. Și se caută pe toate paginile
-   * construite, nu pe una aleasă dinainte, ca o pagină nouă cu o legătură
-   * greșită să nu treacă neobservată.
+   * 1. „href-ul apare în pagină” — `toContain('/program.ics')`. Verde tot timpul
+   *    cât legătura a fost moartă, fiindcă atributul exista și fișierul nu.
+   * 2. „href-ul pe care îl găsesc duce undeva” — se urmărea fiecare potrivire
+   *    până la fișier. Mai bine, dar tiparul cerea `.ics` lipit de ghilimea:
+   *    `href="/program.ics/"` nu se mai potrivea, deci IEȘEA din mulțimea
+   *    verificată. Potrivirile scădeau de la 2 la 1 și nimic nu pica.
+   * 3. Acesta. Tiparul prinde și formele greșite (`referinteIcs`), iar numărul
+   *    de referințe al fiecărei pagini este fixat (`REFERINTE_ICS`), deci o
+   *    referință care încetează să se potrivească PICĂ în loc să dispară.
+   *
+   * De fiecare dată aserțiunea vorbea despre referințele găsite, nu despre
+   * referințele care ar trebui să existe. Numărul este cel care închide
+   * mulțimea; urmărirea până la fișier este cea care o leagă de realitate.
+   * Trebuie amândouă: fără număr, un tipar larg tot pierde în tăcere ce nu se
+   * potrivește; fără urmărire, numărul e mulțumit de o cale care nu există.
    */
-  it('fiecare legătură .ics din ieșire duce la un fișier real', () => {
+  it('poartă exact referințele așteptate către feed, pe fiecare pagină', () => {
     const pagini = paginiConstruite();
     expect(pagini.length, 'dist/ nu conține nicio pagină').toBeGreaterThan(0);
-    const perechi: [string, string][] = [];
+    expect(pagini, 'o pagină construită nedeclarată în REFERINTE_ICS').toEqual(
+      Object.keys(REFERINTE_ICS).sort(),
+    );
     for (const pagina of pagini) {
-      for (const m of citeste(pagina).matchAll(/href="(\/[^"]*\.ics)"/g)) {
-        perechi.push([pagina, m[1] as string]);
-      }
+      expect(referinteIcs(citeste(pagina)).length, pagina).toBe(REFERINTE_ICS[pagina]);
     }
-    expect(perechi.length, 'nicio legătură .ics în tot situl').toBeGreaterThan(0);
+  });
+
+  it('fiecare referință .ics din ieșire duce la un fișier real', () => {
+    const perechi: [string, string][] = [];
+    for (const pagina of paginiConstruite()) {
+      for (const href of referinteIcs(citeste(pagina))) perechi.push([pagina, href]);
+    }
+    expect(perechi.length, 'nicio referință .ics în tot situl').toBeGreaterThan(0);
     for (const [pagina, href] of perechi) {
-      expect(citeste(href.slice(1)), `${href} de pe ${pagina}`).toContain('BEGIN:VCALENDAR');
+      // Absolută de la rădăcină, altfel `dist` + href nu este calea servită și
+      // aserțiunea de mai jos ar întreba altceva decât pare că întreabă.
+      expect(href.startsWith('/'), `${href} de pe ${pagina} nu este absolută`).toBe(true);
+      /*
+       * Interogarea și fragmentul se taie, fiindcă nu fac parte din calea pe
+       * care o servește gazda: `/program.ics?v=2` livrează chiar acest fișier.
+       * Tiparul de mai sus trebuie să fie LARG, ca o referință stricată să nu
+       * scape neverificată; aici trebuie să fie EXACT, ca o referință corectă
+       * să nu pice degeaba. Lărgimea și severitatea nu se pun în același loc.
+       * `/program.ics/` nu este atins de tăietura asta și pică în continuare —
+       * o cale de director nu este un fișier.
+       */
+      const cale = href.slice(1).split(/[?#]/)[0] as string;
+      expect(citeste(cale), `${href} de pe ${pagina}`).toContain('BEGIN:VCALENDAR');
     }
   });
 
   /*
-   * Aserțiunea de mai sus spune că legăturile care EXISTĂ duc undeva; aceasta
-   * spune că ele există. Și sunt numite după textul lor, nu după pagină: o
-   * mutație a arătat că „pagina de program are o legătură .ics” este adevărată
+   * Cele două de mai sus numără referințele și le urmăresc până la fișier.
+   * Niciuna nu poate deosebi o ancoră de un `<link>`: butonul șters și un
+   * `<link>` rătăcit pus în locul lui țin numărul tot la trei și tot rezolvă.
+   * Aceasta numește ancorele după TEXTUL lor, adică după ce apasă cineva.
+   *
+   * Prima formă a ei — „pagina de program are o legătură .ics” — era adevărată
    * și cu butonul șters cu totul, fiindcă `<link rel="alternate">` din
    * `Base.astro` stă în `<head>`-ul fiecărei pagini. O aserțiune care nu poate
    * să pice este mai rea decât niciuna: pare că păzește ceva.
