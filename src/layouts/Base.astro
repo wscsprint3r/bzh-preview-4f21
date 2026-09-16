@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import { INDEXABIL } from '../lib/site';
 
 interface Props {
   titlu: string;
@@ -20,7 +21,19 @@ const { titlu, descriere = 'Parohia Ortodoxă Română Sfântul Nicolae din Zür
     <meta name="description" content={descriere} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
-    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    {/*
+      Both of these are `INDEXABIL` in `lib/site.ts`, which explains why it is
+      false during Phase 1 and says flipping it is a cutover step. In short: this
+      build is served from `<project>.pages.dev` while `www.bor-zh.ch` still
+      answers with the compromised WordPress, so there is no canonical URL worth
+      emitting — the one `Astro.site` gives points search engines at that install
+      — and the temporary host should not be indexed at all.
+    */}
+    {INDEXABIL ? (
+      <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    ) : (
+      <meta name="robots" content="noindex" />
+    )}
     <link rel="alternate" type="text/calendar" href="/program.ics" title="Program liturgic" />
   </head>
   <body>

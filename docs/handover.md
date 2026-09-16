@@ -33,6 +33,16 @@ sees — and that bound silently becomes "until somebody publishes something".
 every pull request, and on the manual button. A push to some other branch runs CI only via
 a pull request or by hand.
 
+**And there is a second way to lose the same bound, which has nothing to do with the
+branch. GitHub disables a `schedule` trigger after 60 days without repository activity.**
+A quiet two months — the priest away, no schedule published, nobody pushing — and the
+six-hourly rebuild simply stops, by exactly the route A1 describes and for an unrelated
+reason. GitHub does email the repository admin when it happens, so it is not wholly
+silent, and this parish publishes most weeks, so it is unlikely; but the six-hour bound is
+the product's promise, and this is the other way to lose it. If you ever find the rebuild
+has stopped and the branch is right, look here: re-enable it from the Actions tab, and any
+push or manual dispatch resets the clock.
+
 The work is on `phase-1`; `public/admin/config.yml` says `branch: main`. So either:
 
 - **merge `phase-1` into `main` and keep `main` as the default** — simplest, and it needs no
@@ -98,6 +108,30 @@ driver it will never run. Verified locally that the build is correct without it.
 is missing, stop** — the policy shipped without the hash and the site's JavaScript is dead,
 with no visible symptom, because the page without JavaScript is the designed fallback. Then
 `https://<project>.pages.dev/` serves the homepage.
+
+**B6. This deployment is deliberately invisible to search engines, and un-hiding it is a
+step of the DNS cutover — not of this checklist.** Every visitor page carries
+`<meta name="robots" content="noindex">` and **no** `rel=canonical`, both decided by
+`INDEXABIL` in `src/lib/site.ts`.
+
+Two things were wrong before that flag existed, and they are worth understanding rather
+than just checking: Cloudflare marks *preview* deployments noindex but not the production
+one, so the parish's real schedule was indexable at a hostname that will cease to exist;
+and every page declared its canonical URL to be `https://www.bor-zh.ch/…`, which today is
+the compromised WordPress install — an instruction to every crawler that the real copy of
+this page is over there.
+
+*Good answer:* `curl -s https://<project>.pages.dev/ | grep -i -E 'robots|canonical'`
+returns the `noindex` meta and **no** canonical link.
+
+> **At the cutover** (spec §15), set `INDEXABIL = true` and redeploy, in the same change
+> that moves DNS. `build-output.itest.ts` asserts the two consequences agree, so the flag
+> cannot be half-flipped — but nothing in this repository can tell that the domain has
+> moved. Leaving it `false` afterwards gives you a site that is live, correct and invisible
+> to every search engine, with nothing failing anywhere. There is deliberately **no**
+> `robots.txt` with `Disallow: /`: disallowing the path stops a crawler fetching the page,
+> so it never reads the `noindex` it was sent to obey, and a URL already known can stay
+> indexed with no content at all.
 
 ## C — the OAuth Worker and the GitHub app
 
@@ -260,6 +294,40 @@ date diferite` (the guard working). **Write down which**, and put it on the edit
 **H8.** Lighthouse on the deployed homepage.
 
 *Good answer:* accessibility **100**, performance **≥95**.
+
+**H9. Subscribe to the same feed in Google Calendar, specifically.**
+<https://calendar.google.com> → Other calendars **+** → *From URL* →
+`https://<project>.pages.dev/program.ics` → Add calendar. Google polls on its own
+schedule and can take hours the first time; do this step before H10 and leave it.
+
+*Good answer:* the services appear at the right local times, as in H6. H6 is a phone
+client; this one is Google, and the two are separate answers — H10 is why.
+
+**H10. Cancel a test day, and write down what a subscriber actually sees.** This is the
+one behaviour on the whole list that decides whether a parishioner learns a Liturgy is
+cancelled, and **it has never been observed** — only reported.
+
+1. In `/admin/`, open a future test day, tick **„Slujbele sunt anulate”**, keep the times,
+   and press **Save**.
+2. Wait for the rebuild, then confirm the feed itself first:
+   `curl -s https://<project>.pages.dev/program.ics | grep -A6 -B6 CANCELLED` — the events
+   for that day carry `STATUS:CANCELLED` and a `SUMMARY` beginning `ANULAT:`.
+3. Refresh Google Calendar (H9) and the phone client (H6), and **write down, for each**,
+   which of these you see:
+   - the day still shown, struck through or otherwise marked — the good case;
+   - the day still shown with the `ANULAT:` prefix and no other marking — also fine, and
+     the reason that prefix exists;
+   - **the day gone entirely** — the case that matters. A subscriber who had last
+     Sunday's Liturgy in their calendar then sees it vanish with no explanation, which is
+     indistinguishable from never having been published.
+
+*Why both belts:* ruling #28 shipped an explicit `ANULAT:` marker in the summary **and**
+`STATUS:CANCELLED`, precisely because Google's handling of the second was reported rather
+than verified. This step is what settles it. If the day vanishes in Google, the `ANULAT:`
+prefix is doing all the work and that fact belongs on the editors' card; if both clients
+show it, nothing needs changing and the belt-and-braces was cheap.
+
+Then untick and save again, so the test day is not left cancelled.
 
 ## I — finish
 

@@ -38,12 +38,21 @@ e-mailul primit de la GitHub, care spune ce fișier are problema.
 
 ```bash
 npm install
-npm run dev        # http://localhost:4321
+npm run dev        # http://localhost:4321 · CMS-ul la http://localhost:4321/admin/
 npm test           # teste unitare
 npm run check      # verificarea de tipuri (astro check)
 npm run test:all   # build + integrare + patru treceri cu un browser adevărat
 npm run budget     # verifică bugetul de performanță
 ```
+
+**Adresa locală a CMS-ului este `/admin/`, cu bară la final.** Serverul de
+dezvoltare al lui Astro servește `public/` ca fișiere statice și nu rezolvă
+singur indexul unui director, așa că `/admin/` răspundea 404, iar
+`/admin/index.html` răspundea 200 — în timp ce Cloudflare Pages și serverul din
+`scripts/a11y.mjs` rezolvau amândouă directorul, deci nici producția, nici
+auditurile nu vedeau nimic. Integrarea `indexe-directoare` din
+`astro.config.mjs` rescrie cererea numai în `astro dev`. `/admin` fără bară
+rămâne 404, fiindcă `trailingSlash: 'always'` spune că adresa este cea cu bară.
 
 **CI rulează `npm run check` pe lângă `npm run test:all`**
 (`.github/workflows/ci.yml`), iar `test:all` nu îl conține: o eroare de tipuri

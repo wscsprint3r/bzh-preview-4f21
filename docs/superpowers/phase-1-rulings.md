@@ -369,20 +369,37 @@ file being deleted or malformed, not to imply it has been verified.
 
 ## Still open
 
-Six things are decided provisionally and not verified here. Each is in the launch checklist.
+Six things are decided provisionally and not verified here. **Five are steps of the launch
+checklist, `docs/handover.md`, and each names its step below; the sixth is not a launch step and
+says why.**
 
-1. **Google Calendar and `STATUS:CANCELLED`** (#28) — reported, not verified. Subscribe to the
-   real feed after launch and cancel a test day.
+This sentence used to read "Each is in the launch checklist." It was false for two of the six,
+and the one that stung was the first: ruling #28 shipped both an explicit marker *and*
+`STATUS:CANCELLED` precisely **because** Google's behaviour was reported rather than verified,
+and made a real subscription after launch the thing that settles it. Claiming that check was
+scheduled somewhere it was not is how it would simply never have happened. The steps are named
+by id now rather than asserted to exist, and `src/lib/referinte-doc.test.ts` fails if an id here
+stops resolving in `handover.md` — assert that a reference resolves, not that its text appears.
+
+1. **Google Calendar and `STATUS:CANCELLED`** (#28) — reported, not verified. `checklist:H9`
+   subscribes the feed in Google Calendar specifically; `checklist:H10` cancels a test day and
+   writes down what each subscriber actually sees.
 2. **What Cloudflare does with `_headers`** (#55) — nothing in this repository can see it.
-   `curl -sI` against the deployed site.
+   `curl -sI` against the deployed site: `checklist:F1`.
 3. **`connect-src` almost certainly needs the OAuth Worker's origin** — the CMS sign-in will fail
-   until it is added, and the failure lands on you, not on a test.
+   until it is added, and the failure lands on you, not on a test. `checklist:G`.
 4. **CI has never run.** There is no remote. Chrome/chromedriver version skew is absorbed by
-   `DETECT_CHROMEDRIVER_VERSION`, itself unverified.
+   `DETECT_CHROMEDRIVER_VERSION`, itself unverified. `checklist:A4`.
 5. **The CMS placeholders were accepted, not rejected** — `/admin/` loads the config and renders a
    sign-in screen echoing "select the root directory of the <REPO> repository". The failure lands
-   at the sign-in attempt, where you meet it.
+   at the sign-in attempt, where you meet it. `checklist:D1`.
 6. **German is a Phase 2 blocker, not a note** (#38) — `Donnerstag` breaks the phone day-name row.
+   **Deliberately NOT in the launch checklist, and that is the ruling rather than an oversight.**
+   It is a design constraint on a phase that has not been planned, not something anybody can do or
+   check at launch: there is no German copy to break the row with until Phase 2 adds it. Putting
+   it on a checklist somebody works through in an evening would mean a step that cannot be
+   completed, and a step that cannot be completed is how a checklist stops being worked through.
+   It belongs to whoever writes the Phase 2 plan, which is why it is here and not there.
 
 ---
 

@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import { copiazaCms } from './scripts/copy-cms.mjs';
 import { hashuriCsp } from './scripts/csp-hash.mjs';
+import { indexeDirectoare } from './scripts/dev-index.mjs';
 
 /**
  * Puts the Sveltia CMS bundle under `public/admin/` before anything reads that
@@ -36,7 +37,7 @@ const copiereaCms = {
  * `_headers` to nothing. The file only means anything on Cloudflare Pages.
  */
 export default defineConfig({
-  integrations: [copiereaCms, hashuriCsp],
+  integrations: [copiereaCms, hashuriCsp, indexeDirectoare],
   site: 'https://www.bor-zh.ch',
   output: 'static',
   trailingSlash: 'always',

@@ -126,7 +126,7 @@ describe('măturarea chiar are ce mătura', () => {
 
   it('fiecare cale din BINARE chiar este un fișier urmărit', () => {
     // Cealaltă direcție: o excepție pentru un fișier care nu mai există rămâne în
-    // cod arătând ca o regulă, gata să scuze altceva cu acelaşi nume.
+    // cod arătând ca o regulă, gata să scuze altceva cu același nume.
     for (const cale of BINARE) expect(URMARITE, cale).toContain(cale);
   });
 

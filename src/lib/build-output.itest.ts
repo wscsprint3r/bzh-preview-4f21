@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { CEDILE, VIRGULA_DEDESUBT } from './cedile';
+import { INDEXABIL } from './site';
 
 /*
  * WHAT THIS PROVES: that the content collection, the schema, the generator and
@@ -45,16 +47,15 @@ function citeste(cale: string): string {
  * decoded into the literal character on the way to disk in this repo (see
  * CLAUDE.md), so the escape form is not a way round it either.
  *
- * `diacritice.itest.ts` owns the project-wide sweep, and `.ics` is in its
- * extension list, so the feed is covered there too. These two lines exist
- * because that coverage is silent: nothing in this file would notice if the
- * feed dropped out of that sweep, and the feed is the one artefact where a
+ * `diacritice.itest.ts` owns the project-wide sweep over `dist/`, and `.ics` is
+ * in its extension list, so the feed is covered there too. The assertions below
+ * exist because that coverage is silent: nothing in this file would notice if
+ * the feed dropped out of that sweep, and the feed is the one artefact where a
  * volunteer's `praznic:` reaches a subscriber's phone unedited.
+ *
+ * The four numbers themselves now come from `./cedile`, which is the only place
+ * in this repository that writes them down. They were a third copy here.
  */
-/** Turkish cedilla forms: capital/small S, capital/small T. */
-const CEDILE = [0x015e, 0x015f, 0x0162, 0x0163];
-/** The Romanian comma-below forms they are mistaken for. */
-const VIRGULA_DEDESUBT = [0x0218, 0x0219, 0x021a, 0x021b];
 
 function areVreunul(text: string, coduri: readonly number[]): boolean {
   for (let i = 0; i < text.length; i += 1) {
@@ -478,6 +479,54 @@ describe('paginile construite', () => {
    * `Base.astro` stă în `<head>`-ul fiecărei pagini. O aserțiune care nu poate
    * să pice este mai rea decât niciuna: pare că păzește ceva.
    */
+  /*
+   * INDEXAREA ȘI CANONICUL SUNT O SINGURĂ DECIZIE CU DOUĂ CONSECINȚE, iar o
+   * construcție întoarsă pe jumătate este ce se previne aici.
+   *
+   * În Faza 1 situl stă la `<project>.pages.dev`, în timp ce `www.bor-zh.ch`
+   * răspunde încă cu instalarea WordPress compromisă. Deci nu există un canonic
+   * care merită emis — cel pe care îl dădea `Astro.site` trimitea motoarele de
+   * căutare chiar la instalarea aceea — și gazda temporară nu are ce căuta într-un
+   * index. `INDEXABIL` din `lib/site.ts` decide amândouă, iar testul acesta
+   * verifică amândouă direcțiile: cu steagul pe `false` fiecare pagină are meta
+   * noindex și niciun canonic, cu el pe `true` exact invers. Așa nu se poate
+   * întoarce una fără cealaltă la mutarea domeniului.
+   */
+  it('fiecare pagină de vizitator se potrivește cu INDEXABIL, în ambele direcții', () => {
+    /*
+     * `admin/index.html` este în afara acestui test, pe cale, și rămâne așa. Nu
+     * trece prin `Base.astro`, poartă propriul `noindex, nofollow` plus
+     * `X-Robots-Tag` din `_headers`, și trebuie să rămână neindexată PENTRU
+     * TOTDEAUNA — inclusiv după mutarea domeniului, când steagul se întoarce.
+     * Fără excluderea asta, testul ar cere la mutare un canonic pe shell-ul
+     * CMS-ului și niciun noindex pe el, adică exact pe dos.
+     */
+    const pagini = paginiConstruite().filter((p) => p !== 'admin/index.html');
+    expect(pagini.length, 'dist/ nu conține nicio pagină de vizitator').toBeGreaterThan(0);
+    expect(paginiConstruite(), 'admin/index.html chiar trebuie să existe, ca excluderea să însemne ceva')
+      .toContain('admin/index.html');
+    const canonice: string[] = [];
+    for (const pagina of pagini) {
+      const html = citeste(pagina);
+      const canonic = [...html.matchAll(/<link\b[^>]*rel="canonical"[^>]*href="([^"]*)"/g)].map((m) => m[1] as string);
+      const noindex = /<meta\b[^>]*name="robots"[^>]*content="[^"]*noindex/.test(html);
+      expect(canonic.length, `canonice pe ${pagina}`).toBe(INDEXABIL ? 1 : 0);
+      expect(noindex, `meta robots noindex pe ${pagina}`).toBe(!INDEXABIL);
+      canonice.push(...canonic);
+    }
+    /*
+     * Nu se verifică aici ce GAZDĂ numește canonicul. După mutarea domeniului
+     * `www.bor-zh.ch` va fi chiar situl acesta, deci ar fi gazda corectă; astăzi
+     * ar fi cea compromisă. Diferența nu este în ieșire, ci în ce servește DNS-ul,
+     * și niciun test din depozitul acesta nu poate să o vadă. Ce se poate ține
+     * este cuplarea: cât timp nu suntem indexabili, nu se emite niciun canonic.
+     */
+    process.stdout.write(
+      `\nINDEXABIL=${INDEXABIL} peste ${pagini.length} pagină(i) de vizitator: ` +
+        `${canonice.length} canonic(e), ${INDEXABIL ? 0 : pagini.length} meta noindex.\n`,
+    );
+  });
+
   it('păstrează ancorele de abonare pe care le apasă cineva', () => {
     const etichete = [
       ...citeste('program/index.html').matchAll(/<a\b[^>]*href="\/program\.ics"[^>]*>([\s\S]*?)<\/a>/g),
