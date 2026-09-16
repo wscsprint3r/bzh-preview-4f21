@@ -85,6 +85,20 @@ Every task's requirements implicitly include this section.
   another got 21.7. Runs that agree with each other are not evidence of a property; state a
   range, and say which part is the invariant (here, the ordering) and which is merely the
   margin observed.
+- **Check each claim in a comment separately; a true half makes a false half look verified.**
+  Three comments here fused two claims into one sentence — "spreading in the other order, *or
+  dropping the override*, leaves `zi.data` undefined". Reversing the spread does nothing at
+  all (byte-identical output); dropping the override kills the build. Fused, the sentence read
+  as checked because half of it was, and was unfalsifiable as written.
+- **Deleting an overclaim is not the fix if it takes a true warning with it.** The first
+  correction removed both halves, leaving the endpoint with no record that dropping the
+  override breaks the build — the failure a reader most needs warned about. **Under-claiming
+  leaves the same wrong model as over-claiming and is harder to spot, because nothing in it is
+  false.**
+- **Quote failures from a run, not from memory.** The three files fail differently — `Dată
+  invalidă: undefined` from `partiData` on the pages, `TypeError: Cannot read properties of
+  undefined (reading 'replace')` inside `laDataIcs` for the feed — and two of the three
+  original comments named the wrong one.
 - **A guard that derives its subject from the artifact it is checking can only check the subset
   it recognised.** This is the general shape behind most of the defects found on this project.
   Any corruption that breaks *recognition* removes the subject rather than failing the check,
