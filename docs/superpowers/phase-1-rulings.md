@@ -9,10 +9,10 @@ revisit one:
 
 - **Ruling** — I decided something the documents left open, or decided against them.
 - **My defect** — the plan or spec said something false and the ruling is the correction.
-  Seventeen of the fifty-five are marked this way. They are the reason to distrust a confident
+  Twenty-one of the seventy-eight are marked this way. They are the reason to distrust a confident
   sentence in this repository that no test stands behind.
-- **Open** — decided provisionally, still unverified. Two rulings are marked so inline; the
-  "Still open" section at the end lists all six things nothing here can verify.
+- **Open** — decided provisionally, still unverified. The "Still open" section at the end lists
+  everything nothing here can check.
 
 ---
 
@@ -367,14 +367,216 @@ file being deleted or malformed, not to imply it has been verified.
 
 ---
 
+## Task 13, after review — the fix round
+
+**56. `script-src` accepted a hash nothing generated.**
+The headers test asserted every hash the build computed appears in the policy, and never the
+converse. An invented `sha256-…` pasted beside the placeholder built green, passed the headers
+suite 19/19, passed the browser audit — and then shipped to every page `/*` covers, `/admin/`
+included. `AGENTS.md` forbade hand-writing a hash there; nothing enforced it. Now equality in
+both directions, and `public/_headers` must contain no `sha256-` token at all.
+*Cost if wrong:* an equality assertion that a legitimate second inline script would trip — which
+is the notification we want.
+
+**57. The audit's breakpoints were transcribed from the CSS, not derived from it.**
+`a11y.mjs` hardcoded `34rem` and `62rem`. Move `RandZi.astro`'s breakpoint to `48rem` and all four
+browser passes stay green while the default 756px pass silently audits the phone branch — the
+claim the extra passes exist to make is then false, with nothing saying so. This project's
+signature defect, found inside the audit built to catch it.
+
+**58. My fix for #57 would have passed #57's own defect.** — *my defect, and the worst-shaped one here*
+I specified "at least one viewport strictly below each breakpoint and at least one at or above
+it". On that same mutation, 48rem is 768px: 390 and 756 are below it, 1100 is above it — green.
+The unaudited region is the **band** 769–991px, and a per-breakpoint test structurally cannot see
+a band. I wrote a check that would have gone green on the exact defect it was written to catch,
+inside the ruling correcting an instance of that same failure.
+Replaced with band coverage: the breakpoints cut the width axis into bands, and every band must
+hold an audited viewport. Strictly stronger — it implies my criterion at every breakpoint — and it
+actually goes red on the mutation. Its second control is the part I would not have asked for:
+*add* a breakpoint nobody moved, and watch the band alone fail. That is what makes it a guard
+rather than a regression test for one mutation.
+
+**59. The handover checklist was not in the repository.**
+`.gitignore` excludes `.superpowers/`, yet `_headers` pointed a cloner there for "the exact
+commands". They would fall back to the plan's pre-implementation text and be told about
+`nightly.yml`, a `Publish` button and the script-killing `_headers` — the three things Task 13
+exists to have changed. Now `docs/handover.md`, tracked, with a test asserting it is tracked: a
+pointer to an untracked file is the same failure one level up.
+
+**60. The docs told people to `curl` the compromised host.**
+`README.md` sent the volunteer and the developer to `https://www.bor-zh.ch/…`, which serves the
+WordPress install for the whole of Phase 1. The dangerous half is not the link: the CSP
+verification step would have returned headers from a server this branch has never touched, and
+**read as a pass**. Now the Pages deployment, with one sentence saying the domain proves nothing
+until the DNS cutover.
+
+**61. The six-hourly rebuild cannot fire from a non-default branch.**
+GitHub runs `schedule` triggers only from the default branch, and the handover offered "use
+`phase-1` everywhere" as an equal option — under which the workflow never fires and the six-hour
+staleness bound silently becomes "until someone publishes".
+
+**62. The axe differential was doctrine with nothing behind it — and reconstructing it was refused.**
+`AGENTS.md` stated "run both checkers over the same input and diff the results" as a rule, with no
+script, no procedure, and a table living only in a report inside the workspace that gets deleted
+with the branch. Ruling: do not re-add `@axe-core/cli` — a dependency kept so a one-time
+comparison can be re-run is a dependency that rots. The table moves into `docs/a11y-differential.md`.
+Then the implementer declined the rest of my ruling, correctly: the old side's per-rule lists were
+never recorded, only six aggregate counts plus a prose claim. A differential table whose old side
+is *inferred* rather than recorded is exactly the "reads as a running guard" failure this item
+exists to remove, one level deeper. It shipped what exists, said plainly what is missing, and
+added this side's full per-rule inventory as a real baseline.
+
+**63. Ask whether every non-ASCII character is one this project expects.**
+The diacritics sweep was a four-codepoint denylist — which is why every scan called a commit
+message containing U+5DEE clean. The inverse question is the stronger one and, at a 16-codepoint
+inventory in our own output, the cheaper one. Both now run; the denylist stays because it produces
+the better message for the case it covers.
+*Cost if wrong:* a new Romanian word with a new character fails the build until someone reviews
+it, which is the intent.
+
+**64. A fourth way the tooling here lies.**
+Vitest 5's default reporter swallows `console.log` from a **passing** test — it appears only under
+`--reporter=verbose`. So "print what was measured, not only the verdict", which this project
+states as a rule, is unfollowable by the obvious means: you read a green run and conclude it
+printed. `process.stdout.write` passes through. Found by the implementer, not by me, and not in
+any ruling I gave it.
+
+---
+
+## The final review, and what it took to close it
+
+**65. A fifth way the tooling lies, and the one that lies about content.**
+`rtk`'s `grep` silently drops `-v` and truncates at terminal width, so it returns the lines that
+*do* match when asked for the ones that do not. Worse, **any `rtk <cmd> | wc -l` counts the
+rendering rather than the data**: `rtk git log --oneline main..HEAD | wc -l` gives 50 against an
+honest 138. I hit this myself — a ruling count of 28 one way and a larger number the other, from
+one unchanged file — assumed a formatting difference and moved on.
+It is worse than the other four in one respect worth naming: `diff` and the JSON reporter lie
+about a **verdict**, which someone might think to double-check. `grep` lies about **content** —
+the list you are reading is not the list you asked for, and there is no verdict to be suspicious
+of.
+
+**66. A number in the section about numbers that was never measured.**
+The `diff` entry claimed the two `_headers` files "differ on a 330-character line". Neither file
+has ever had one: the line is the policy header, 317 characters in the source and 352 in the
+built copy, and it was 317 at every commit in that section's history. An inherited measurement
+inside the paragraph warning against inherited measurements, surviving two review rounds. The
+correction is left visible in the file — a reader who sees that one number was wrong calibrates
+the others correctly.
+
+**67. The coverage guard credited widths nothing ran.**
+The band check proved every band between breakpoints held an audited viewport — but took the
+audited widths from a *declaration* rather than from what a pass executed. Add a condition to the
+table and nothing else, and the guard goes green while nothing runs at that width. Its own failure
+message said "add a condition (and put it in the scripts)": it instructed two things and checked
+the first, so someone following it exactly closes the guard without closing the gap.
+The second arrangement was worse in what it hid: the fixture pass ran only two widths but was
+credited the whole matrix, leaving the Holy Week row **with the week-picker bar visible** audited
+by nothing at all — the one build where that bar is not `hidden`, on the week with the most
+services and the most visitors of the year.
+*Ruling:* the guarantee belongs to the suite, not to a declaration. Derive audited widths from
+what each pass runs against the pages it loads, make an unreferenced key a failure, and add a wide
+pass to the fixture build rather than exempting it.
+
+**68. Enforce a limit rather than document it.**
+The guard that checks references in `_headers` only looks inside backticks. Offered the choice
+between fixing one bare filename and recording that the limit was chosen, the implementer took a
+third option and enforced it: a file-shaped token outside backticks and outside a URL now fails,
+with route and URL lines exempt structurally rather than by a list of names. A documented limit
+decays into an excuse, and this is the file the policy lives in.
+
+**69. The homepage grew without bound, and broke on a volunteer's ordinary save.**
+The JSON island carried every future service day. Past roughly eleven months of published
+schedule the page crossed its budget: the site still deployed, but CI went red on **every
+subsequent save**, and the volunteer received a failure email about content that was entirely
+valid, with no way to understand it or fix it. The first symptom would be a parish publishing
+further ahead than usual — a sign of a well-organised parish.
+Also a defect in the plan: a deviation dropped the separate data file on the grounds that the
+client script "only toggles `hidden`", then a later task reinstated the payload inline to make the
+card recompute, and nobody revisited the deviation that its absence had justified.
+*Ruling:* bound the island to what the client can use — derived from how long the site can
+plausibly go unrebuilt — and pin the bound with a far-future fixture. The page is now flat at
+26 KB whether the schedule holds 48 weeks or 260.
+
+**70. The repository violated its own central rule.**
+All four forbidden codepoints were printed as glyphs in four tracked files — a test and three plan
+lines. `CLAUDE.md` states that a file spelling them out could not be swept for them; that was
+exactly the situation, so the repo-wide sweep the rule exists to enable could not be run. Rebuilt
+from `String.fromCodePoint`, and the sweep extended to **tracked source files**, not only build
+output. Inputs are where a corrupted expectation sits quietly agreeing with a corrupted source.
+
+**71. My rulings document claimed a check that was scheduled nowhere.** — *my defect*
+Of the six open items this file said "Each is in the launch checklist." It was false for two of
+six. Ruling 28 shipped both a cancellation marker and `STATUS:CANCELLED` *because* Google's
+behaviour was reported rather than verified, and made a real subscription the thing that settles
+it — and my sentence then claimed that check lived somewhere it did not, so it would simply never
+have happened.
+
+**72. The feed's sort was a silent no-op under its own tests.**
+Remove it and the whole calendar suite passes. The counter-example is ordinary — services at
+17:00, 19:00 and 18:00 produce overlapping end times — and a suitable fixture already existed that
+the feed's tests never used. The second silent `sort` on this project; the first was caught at
+25/25 green.
+
+**73. The JavaScript-off audit could be deleted with everything staying green.**
+Delete all three of those conditions and four browser passes and 266 unit tests pass — while the
+only audit that renders the weeks the picker hides is gone. The band check proved every *width*
+was audited; nothing proved the *modes* were.
+
+**74. I conflated two different 404s and would have sent someone hunting.** — *my defect*
+Told that `/admin/` 404s under the dev server, I wrote that ruling 46's evidence must therefore
+have been wrong. Both were true at once. Ruling 46 concerned a 404 *for the CMS bundle*, which was
+fixed and stayed fixed; the remaining one is a second mechanism — Astro's dev server does not
+resolve a directory index, so `/admin/index.html` was fine while `/admin/` was not. Cloudflare and
+the audit's own server both resolve it, which is why nothing saw it. Acting on my inference would
+have meant hunting a defect that was not there.
+
+**75. I passed on a reviewer's byte count as though it were a property.** — *my defect*
+I wrote that the homepage budget breaks at 44 weeks. The next measurement said 48. The difference
+is the invented parish week — about 133 bytes a day against 145 — and neither number is a property
+of this repository; the only one that is, is the constant part of the page. This project already
+had that rule for timing figures, and I broke it while quoting someone else's number.
+
+**76. The island was sliced before cancelled days were discarded.**
+At 39 consecutive cancelled days the server-rendered card and the client agreed; at 40 they did
+not, with the server rendering a correct card and the client then hiding it. It costs the card
+rather than a wrong time — the right side of this project's line — but forty cancelled days is a
+vacancy, a closure or an illness, not a hypothetical.
+
+**77. A message written for the volunteer reached only the CI log.**
+A failed page budget was made to explain, in Romanian, that the failure is probably not the
+editor's file and whom to tell. It printed to the build log, which GitHub's failure email does not
+carry — and the README told the volunteer that the email names the file. A good fix aimed at the
+wrong surface: the one person it existed for was the one who would not see it. It now reaches the
+run-summary page, the README's promise is corrected, and what the email actually contains became a
+handover step, because nothing here can see it.
+
+**78. The coverage guard was blind six times, and then the class closed.**
+Hardcoded breakpoints; declared-but-never-run widths; the JavaScript-off axis; an empty media
+map; a one-directional assertion; and a sixth the implementer found *before* closing the fifth.
+Three different reviewers found the first five, and every fix until the last closed the
+arrangement it was shown and left the next one open.
+*Ruling:* stop patching arrangements and ask why the axes keep arriving. Each escape was a
+dimension the guard indexed on one side only, or not at all — width, mode, page-set, direction.
+Restated as *everything the built CSS demands against everything the suite runs, in both
+directions, with anything unindexable named in words or red*, the class closed rather than the
+instance. The restatement immediately fired on something that had been standing all along: a
+`prefers-reduced-motion` query present in the built CSS through every previous version of the
+guard, indexed by nothing and printed nowhere. A further hunt found three more subject-narrowings
+and closed those too.
+This is the single most useful thing on the project. Five rounds of patching bought five green
+runs; one round of asking what the arrangements had in common bought the property.
+
+---
+
 ## Still open
 
-Six things are decided provisionally and not verified here. **Five are steps of the launch
-checklist, `docs/handover.md`, and each names its step below; the sixth is not a launch step and
-says why.**
+Eight things are decided provisionally and not verified here. **Six are steps of the launch
+checklist, `docs/handover.md`, and each names its step below; the other two are not launch steps
+and say why.**
 
 This sentence used to read "Each is in the launch checklist." It was false for two of the six,
-and the one that stung was the first: ruling #28 shipped both an explicit marker *and*
+and the one that stung was the first: ruling #71 records how, and #28 shipped both an explicit marker *and*
 `STATUS:CANCELLED` precisely **because** Google's behaviour was reported rather than verified,
 and made a real subscription after launch the thing that settles it. Claiming that check was
 scheduled somewhere it was not is how it would simply never have happened. The steps are named
@@ -393,7 +595,18 @@ stops resolving in `handover.md` — assert that a reference resolves, not that 
 5. **The CMS placeholders were accepted, not rejected** — `/admin/` loads the config and renders a
    sign-in screen echoing "select the root directory of the <REPO> repository". The failure lands
    at the sign-in attempt, where you meet it. `checklist:D1`.
-6. **German is a Phase 2 blocker, not a note** (#38) — `Donnerstag` breaks the phone day-name row.
+6. **What GitHub's build-failure email actually contains** (#77) — the explanation written for
+   the volunteer reaches the run-summary page; whether any of it survives into the email is not
+   observable from here. `checklist:H11` asks you to fail one build on purpose and write down
+   what arrives, because the whole point of that message is the person who reads the email.
+7. **One arrangement of the coverage guard is open, and named rather than half-closed** (#78) —
+   a pass's page-set label is free text and the audit takes its directory independently, so
+   nothing inside a run ties a label to a build. **Deliberately NOT in the launch checklist.**
+   It is not reachable by editing the table — both callers hardcode their directory beside their
+   key — and the two builds share page names, so the label cannot be derived. Nothing a person can
+   do at launch changes it; it is a note for whoever next touches `scripts/a11y.mjs`, and an
+   honest eighth beats a seventh patched silent.
+8. **German is a Phase 2 blocker, not a note** (#38) — `Donnerstag` breaks the phone day-name row.
    **Deliberately NOT in the launch checklist, and that is the ruling rather than an oversight.**
    It is a design constraint on a phase that has not been planned, not something anybody can do or
    check at launch: there is no German copy to break the row with until Phase 2 adds it. Putting
