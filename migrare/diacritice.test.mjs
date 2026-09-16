@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INLOCUIRI, normalizeaza, raportCodepoints } from './diacritice.mjs';
+import { DE_STERS, INLOCUIRI, normalizeaza, raportCodepoints } from './diacritice.mjs';
 import { CEDILE, VIRGULA_DEDESUBT, uPlus } from '../src/lib/cedile.ts';
 
 // Built from numbers, never written as glyphs: a test file that spelled these
@@ -10,6 +10,16 @@ const [S_MARE_VIRGULA, S_VIRGULA, T_MARE_VIRGULA, T_VIRGULA] =
   VIRGULA_DEDESUBT.map((c) => String.fromCodePoint(c));
 const A_TILDA = String.fromCodePoint(0x00e3);
 const A_BREVE = String.fromCodePoint(0x0103);
+
+// The five invisible characters measured in the corpus, by number.
+//
+// Written out HERE rather than imported from `diacritice.mjs`, on purpose: this
+// list is the fixed end. A test that took its subject from the set under test
+// would go vacuous exactly when that set lost an entry - which is not a
+// hypothetical, it is what the property test below did before its positive
+// control was added, measured.
+const CRATIMA_MOALE = 0x00ad;
+const INVIZIBILE = [CRATIMA_MOALE, 0x2068, 0x2069];
 
 describe('normalizarea diacriticelor', () => {
   it('schimba toate cele patru forme cu sedila', () => {
@@ -36,6 +46,34 @@ describe('normalizarea diacriticelor', () => {
 
   it('inlocuieste spatiul neseparabil cu spatiu obisnuit', () => {
     expect(normalizeaza(`a${String.fromCodePoint(0x00a0)}b`)).toBe('a b');
+  });
+
+  it('sterge caracterele invizibile, iar literele din jur se lipesc', () => {
+    for (const c of INVIZIBILE) {
+      expect(normalizeaza(`a${String.fromCodePoint(c)}b`), uPlus(c)).toBe('ab');
+      expect(DE_STERS.has(c), uPlus(c)).toBe(true);
+    }
+  });
+
+  it('reface cuvantul rupt de cratima moale, fara sa inventeze o cratima', () => {
+    // Masurat in corpus: `rugaciune` rupt mid-cuvant de o cratima moale. Nu
+    // este o cratima obisnuita - cuvantul este unul singur, iar o cratima
+    // adevarata ar inventa o scriere pe care nu a folosit-o nimeni.
+    const rupt = `rug${A_BREVE}ciu${String.fromCodePoint(CRATIMA_MOALE)}ne`;
+    expect(normalizeaza(rupt)).toBe(`rug${A_BREVE}ciune`);
+    expect(normalizeaza(rupt)).not.toContain('-');
+  });
+
+  it('nu lasa niciun caracter invizibil in urma, pentru tot setul', () => {
+    // Property over the whole exported set, so a character added to `DE_STERS`
+    // later is covered without anybody remembering to add a case. `INVIZIBILE`
+    // is the positive control: without it, emptying `DE_STERS` would empty
+    // `toate` and make the assertion below true of a string with nothing in it.
+    const toate = [...DE_STERS].map((c) => String.fromCodePoint(c)).join('');
+    for (const c of INVIZIBILE) {
+      expect(toate.includes(String.fromCodePoint(c)), uPlus(c)).toBe(true);
+    }
+    expect(normalizeaza(`x${toate}y`)).toBe('xy');
   });
 
   it('NU adauga diacritice lipsa - asta este treaba unui om', () => {
@@ -71,7 +109,8 @@ describe('normalizarea diacriticelor', () => {
   });
 
   it('este idempotenta', () => {
-    const intrare = S_CEDILA + T_CEDILA + A_TILDA + 'text';
+    const intrare =
+      S_CEDILA + T_CEDILA + A_TILDA + String.fromCodePoint(CRATIMA_MOALE) + 'text';
     expect(normalizeaza(normalizeaza(intrare))).toBe(normalizeaza(intrare));
   });
 });

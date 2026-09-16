@@ -36,6 +36,32 @@ export const INLOCUIRI = new Map([
 const SPATIU_NESEPARABIL = 0x00a0;
 
 /**
+ * Invisible characters deleted outright rather than replaced.
+ *
+ * Five occurrences, all measured in the 2026-08-27 dump, and every one of them
+ * residue rather than writing. Three soft hyphens (U+00AD) sitting MID-WORD,
+ * where a word processor's hyphenation left them: in `rugăciune`, in `lângă`
+ * and in `face`. One bidi isolate pair (U+2068 FIRST STRONG ISOLATE, U+2069 POP
+ * DIRECTIONAL ISOLATE) wrapping a person's name - markup from whatever editor
+ * produced the paragraph, not something anybody typed.
+ *
+ * DELETED, NOT SUBSTITUTED, and the soft hyphen is where that matters. It is
+ * not a hyphen: `rugăciune` is one word, and putting a real hyphen in its place
+ * would invent a spelling nobody used. Removing it RESTORES the word. That is
+ * what separates these from the parish's guillemets and German umlauts, which
+ * this file deliberately leaves alone - converting those would restyle writing
+ * a person chose, where this closes up a break a machine inserted.
+ *
+ * WHY THEY GO AT ALL, given that nobody can see them: they corrupt search,
+ * screen readers and any word matching, while changing nothing a reader sees -
+ * which is the cedilla's shape exactly. No screenshot or careful read finds
+ * one. All five were found by dumping the corpus's codepoint inventory, which
+ * is the only thing that can, and that is the tool to reach for when this list
+ * next needs revisiting.
+ */
+export const DE_STERS = new Set([0x00ad, 0x2068, 0x2069]);
+
+/**
  * Normalises one string.
  *
  * WHAT THIS DOES NOT DO, and must not start doing: add missing diacritics.
@@ -44,11 +70,17 @@ const SPATIU_NESEPARABIL = 0x00a0;
  * script rewriting the parish's own words in a language it cannot read, and
  * getting it wrong somewhere nobody would notice for years. Those are left
  * exactly as written, for a person to fix in the CMS or leave alone.
+ *
+ * Three things happen here and they are different operations: a character is
+ * re-encoded (`INLOCUIRI`), folded to a plain space (`SPATIU_NESEPARABIL`), or
+ * dropped entirely (`DE_STERS`). Dropping comes first so that a deleted
+ * character cannot also be looked up.
  */
 export function normalizeaza(text) {
   let rezultat = '';
   for (const ch of text) {
     const c = ch.codePointAt(0);
+    if (DE_STERS.has(c)) continue;
     if (c === SPATIU_NESEPARABIL) { rezultat += ' '; continue; }
     const inlocuitor = INLOCUIRI.get(c);
     rezultat += inlocuitor === undefined ? ch : String.fromCodePoint(inlocuitor);
