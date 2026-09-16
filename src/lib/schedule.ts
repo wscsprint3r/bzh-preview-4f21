@@ -245,8 +245,24 @@ export function grupeazaPeSaptamani(zile: ZiSlujba[]): Saptamana[] {
         zile: sortate,
       };
     })
-    // By Monday, not by `cheie`: the Monday is a real date, so this stays right
-    // across the New Year, where 2026-W53 runs into 2027-01-03.
+    /*
+     * Ascending by Monday. This is NOT a New-Year fix, and it used to say it
+     * was: "sorting by `cheie` would break where 2026-W53 runs into 2027-01-03"
+     * describes a failure that cannot happen. Measured over 1,095 consecutive
+     * weeks (Mondays 2020-01-06 to 2040-12-24, the boundary above among them):
+     * the two orders are IDENTICAL and all 1,095 keys are distinct, because
+     * `cheieSaptamana` zero-pads the week number, which makes `YYYY-Www` a
+     * strictly monotone function of the Monday. Sorting by `a.cheie` here is a
+     * mutation the suite does not kill, correctly, since it is equivalent.
+     *
+     * What the line does do is put the ordering on a real date compared with
+     * `inainte` - this module's single comparison semantics for date strings -
+     * instead of on the key's SPELLING. The key's monotonicity is a separate
+     * property, asserted where it is actually relied upon: `alegeSaptamana` in
+     * `week-picker.ts` compares keys lexically, and `schedule.test.ts` pins that
+     * the rendered keys come out sorted. Dropping the padding would break those
+     * and leave this line right.
+     */
     .sort((a, b) => inainte(a.luni, b.luni));
 }
 

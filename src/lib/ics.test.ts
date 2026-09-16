@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ZiSlujba } from './schema';
 import { NUME_SLUJBE } from './schema';
+import { ZILE_FIXTURA } from './fixturi';
+import { slujbeInOrdine } from './schedule';
 import { genereazaIcs } from './ics';
 
 function zi(data: string, slujbe: Array<[string, string]>, extra: Partial<ZiSlujba> = {}): ZiSlujba {
@@ -163,6 +165,66 @@ describe('ora de început și de sfârșit', () => {
       ['20260919T170000', '20260919T183000'],
       ['20260919T170000', '20260919T183000'],
     ]);
+  });
+});
+
+/*
+ * SORTAREA SLUJBELOR DINTR-O ZI, care până acum era un no-op sub propriile teste.
+ *
+ * `ics.ts` trece fiecare zi prin `slujbeInOrdine`. Ștergerea acelui apel lăsa tot
+ * fișierul acesta verde: fiecare exemplu de mai sus scrie slujbele deja în ordine,
+ * iar invariantul „DTEND strict după DTSTART" rămâne adevărat și pe un feed în care
+ * o slujbă de la 17:00 se termină la 19:00 peste una de la 18:00. `ziSchema` nici nu
+ * sortează `slujbe`, nici nu le cere sortate — ordinea din YAML este ordinea în care
+ * a scris voluntarul, iar cine adaugă întâi slujba de seară produce exact asta.
+ *
+ * `fixturi.ts` conține deja ziua de care era nevoie (2026-09-16: 18:30, 17:00, 17:00)
+ * și feed-ul nu o folosea niciodată. Se verifică proprietatea, nu un exemplu: orele de
+ * început ale unei zile sunt nedescrescătoare, și un feed construit dintr-o zi
+ * neordonată este identic cu unul construit din aceeași zi ordonată de mână.
+ */
+describe('ordinea slujbelor dintr-o zi', () => {
+  const ziuaNeordonata = ZILE_FIXTURA.find((z) => z.data === '2026-09-16')!;
+
+  /** Orele de început ale evenimentelor, ca HHMM, în ordinea din feed. */
+  const oreleDinFeed = (out: string) => intervale(out).map(([inceput]) => inceput.slice(9, 13));
+
+  it('control: fixtura chiar este neordonată', () => {
+    // Fără asta, tot ce urmează ar putea trece fiindcă nu are ce sorta.
+    expect(ziuaNeordonata.slujbe.map((s) => s.ora)).toEqual(['18:30', '17:00', '17:00']);
+  });
+
+  it('scrie orele unei zile în ordine nedescrescătoare, oricum ar fi scrise în YAML', () => {
+    const ore = oreleDinFeed(ics([ziuaNeordonata]));
+    expect(ore).toHaveLength(ziuaNeordonata.slujbe.length);
+    expect(ore).toEqual([...ore].sort());
+  });
+
+  it('feed-ul unei zile neordonate este identic cu al aceleiași zile ordonate', () => {
+    const ordonataDeMana = { ...ziuaNeordonata, slujbe: slujbeInOrdine(ziuaNeordonata.slujbe) };
+    expect(ics([ziuaNeordonata])).toBe(ics([ordonataDeMana]));
+  });
+
+  it('o zi neordonată nu primește durate care se suprapun', () => {
+    /*
+     * Contraexemplul, cu trei ore distincte, fiindcă perechea de la aceeași oră din
+     * fixtură ascunde jumătate din efect: fără sortare, slujba de la 17:00 primește
+     * DTEND 19:00 — adică ține peste cea de la 18:00 — iar cea de la 18:00 se termină
+     * la 19:30, după începutul celei de la 19:00. Un abonat vede trei slujbe care se
+     * calcă una pe alta.
+     */
+    const out = ics([zi('2026-09-16', [['17:00', 'Spovedanie'], ['19:00', 'Acatist'], ['18:00', 'Vecernie']])]);
+    expect(intervale(out)).toEqual([
+      ['20260916T170000', '20260916T180000'],
+      ['20260916T180000', '20260916T190000'],
+      ['20260916T190000', '20260916T203000'],
+    ]);
+  });
+
+  it('nu modifică ziua primită', () => {
+    const inainteDeFeed = ziuaNeordonata.slujbe.map((s) => s.ora);
+    ics([ziuaNeordonata]);
+    expect(ziuaNeordonata.slujbe.map((s) => s.ora)).toEqual(inainteDeFeed);
   });
 });
 

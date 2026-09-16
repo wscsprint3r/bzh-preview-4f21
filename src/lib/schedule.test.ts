@@ -448,6 +448,15 @@ describe('ordinea slujbelor dintr-o zi', () => {
     expect(ziuaNeordonata.slujbe).toEqual(inainteDeSortare);
   });
 
+  it('compară minute, nu text', () => {
+    // Aceeași verificare pe care o are sora ei, `slujbeLaAceeasiOra`, și pentru
+    // același motiv: `ziSchema` padează `ora` înainte ca funcția să o vadă, așa
+    // că o comparație de șiruri ar fi de acord astăzi. Nepadat, „10:00" sortează
+    // lexical înaintea lui „9:30", adică fix invers decât se întâmplă.
+    const nepadate = [{ ora: '10:00', slujba: 'Sfânta Liturghie' }, { ora: '9:30', slujba: 'Utrenia' }] as Slujba[];
+    expect(slujbeInOrdine(nepadate).map((s) => s.ora)).toEqual(['9:30', '10:00']);
+  });
+
   it('ambele pagini o primesc ordonată, fiindcă amândouă citesc prin grupare', () => {
     // /program/ cheamă grupeazaPeSaptamani direct, pagina de start prin
     // saptamaniViitoare. Un singur loc le acoperă pe amândouă.

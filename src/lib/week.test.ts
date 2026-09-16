@@ -138,6 +138,61 @@ describe('oraLaZurich', () => {
     // this as "24:30" under hour12:false - which would break time comparison.
     expect(oraLaZurich(new Date('2026-09-14T22:30:00Z'))).toBe('00:30');
   });
+
+  /*
+   * THE h23 DEFENCE, WITH A CONTROL - it was the one clock defence without one.
+   *
+   * `hour12: false` in place of `hourCycle: 'h23'` SURVIVES every test above,
+   * because this machine's ICU resolves the two the same way. That is not a
+   * property of the code and it is not a property this repository can assert by
+   * behaviour: the difference only shows on an ICU build that resolves
+   * `hour12: false` to the h24 cycle, and the comment in `week.ts` says so.
+   *
+   * What CAN be measured here is both halves of the claim, and they are the two
+   * cases below: that the h24 cycle really does write this instant as `24:30` on
+   * this very ICU - so the hazard is demonstrated rather than asserted - and that
+   * `oraLaZurich` asks for h23 by name. The second is a test of what is
+   * REQUESTED rather than of what comes back, which is unusual here and is the
+   * point: it is the only thing that separates the two spellings on a machine
+   * where their answers agree.
+   */
+  const MIEZUL_NOPTII = new Date('2026-09-14T22:30:00Z');
+
+  it('control: ciclul h24 chiar scrie acest moment ca 24:30 pe acest ICU', () => {
+    const cu = (optiuni: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit',
+        numberingSystem: 'latn', ...optiuni,
+      }).format(MIEZUL_NOPTII);
+    const h24 = cu({ hourCycle: 'h24' });
+    const h23 = cu({ hourCycle: 'h23' });
+    // Măsurat, nu presupus: numărul de mai jos este cel pe care îl verifică un
+    // cititor de mai târziu dacă un comentariu îl contrazice. `console.log` nu
+    // se vede pe rularea verde; `process.stdout.write` trece prin reporter.
+    process.stdout.write(`\n22:30 UTC la Zürich: h23 -> ${h23} · h24 -> ${h24} · hour12:false -> ${cu({ hour12: false })}\n`);
+    expect(h24).toBe('24:30');
+    expect(h23).toBe('00:30');
+  });
+
+  it('oraLaZurich cere ciclul h23 pe nume, nu hour12', () => {
+    const Original = Intl.DateTimeFormat;
+    const tinta = Intl as unknown as { DateTimeFormat: unknown };
+    const cerute: Intl.DateTimeFormatOptions[] = [];
+    tinta.DateTimeFormat = function (local?: unknown, optiuni?: Intl.DateTimeFormatOptions) {
+      cerute.push(optiuni ?? {});
+      return new Original(local as string | undefined, optiuni);
+    };
+    try {
+      expect(oraLaZurich(MIEZUL_NOPTII)).toBe('00:30');
+    } finally {
+      tinta.DateTimeFormat = Original;
+    }
+    expect(cerute).toHaveLength(1);
+    expect(cerute[0].hourCycle).toBe('h23');
+    // Și cealaltă jumătate: cele două nu au voie să fie cerute împreună, fiindcă
+    // `hour12` are prioritate asupra lui `hourCycle` și ar șterge tocmai apărarea.
+    expect(cerute[0].hour12).toBeUndefined();
+  });
 });
 
 describe('validarea datelor', () => {
