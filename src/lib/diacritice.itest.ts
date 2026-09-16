@@ -51,6 +51,98 @@ const CEDILE = [0x015e, 0x015f, 0x0162, 0x0163];
 /** The Romanian comma-below forms they are mistaken for. */
 const VIRGULA_DEDESUBT = [0x0218, 0x0219, 0x021a, 0x021b];
 
+/*
+ * ===========================================================================
+ * THE STRONGER QUESTION: IS EVERY NON-ASCII CHARACTER ONE WE EXPECT?
+ *
+ * The sweep below the fold asks "is this one of the four wrong characters?".
+ * That is a denylist, and a denylist can only list what somebody remembered.
+ * Measured, on this project: a commit message here carries a stray U+5DEE, a
+ * CJK ideograph, where the word `axe` should be - and every cedilla scan ever
+ * run over it answered `clean`, correctly and uselessly.
+ *
+ * So the same files are asked the inverse question against the list below.
+ * It is affordable because the answer is small: the entire non-ASCII inventory
+ * of this site's own output is eighteen characters.
+ *
+ * BUILT FROM NUMBERS, like everything else here. An escape sequence of the form
+ * backslash-u-then-four-hex-digits does not survive being written to disk in
+ * this repository (see CLAUDE.md), so a list spelled that way would land on disk
+ * as the literal characters - and a corrupted entry would then agree with a
+ * corrupted file. The glyph in each comment is a reader's aid and is not what is
+ * compared; the four forbidden ones appear in neither, by construction.
+ *
+ * THE DENYLIST STAYS. This check subsumes it - none of the four is in the list -
+ * but "Turkish cedilla where Romanian wants a comma below" is a far better
+ * sentence to meet at 2 a.m. than "unexpected codepoint U+015F", and it is the
+ * one mistake here that a person cannot see.
+ *
+ * ADDING TO THIS LIST IS A DECISION, and that is the point. A new character in
+ * the output fails the build until somebody looks at it and says what it is.
+ * ===========================================================================
+ */
+const PERMISE: ReadonlyArray<readonly [number, string]> = [
+  // Romanian. Both cases, including the four capitals — a sentence or a heading
+  // starts with one sooner or later, and being absent from today's output is no
+  // reason to make that a build failure.
+  [0x0102, 'Ă  A cu breve'],
+  [0x0103, 'ă  a cu breve'],
+  [0x00c2, 'Â  A cu circumflex'],
+  [0x00e2, 'â  a cu circumflex'],
+  [0x00ce, 'Î  I cu circumflex'],
+  [0x00ee, 'î  i cu circumflex'],
+  [0x0218, 'Ș  S cu VIRGULĂ dedesubt'],
+  [0x0219, 'ș  s cu VIRGULĂ dedesubt'],
+  [0x021a, 'Ț  T cu VIRGULĂ dedesubt'],
+  [0x021b, 'ț  t cu VIRGULĂ dedesubt'],
+  // German. The lowercase only: the u in Zurich is never word-initial here.
+  [0x00fc, 'ü  u cu umlaut, din Zürich'],
+  // Typography. Every one of these was measured in the output, not assumed.
+  [0x00a7, '§  paragraf, din trimiterile la specificație'],
+  [0x00b7, '·  punct median, separator în subtitluri'],
+  [0x2013, '–  linie de dialog scurtă, în intervale de dată'],
+  [0x2014, '—  linie de pauză'],
+  [0x201d, '”  ghilimea română de închidere'],
+  [0x201e, '„  ghilimea română de deschidere'],
+  [0x2020, '†  cruce, marcaj de zi de sărbătoare'],
+  [0x2026, '…  puncte de suspensie'],
+  [0x2039, '‹  săgeata „săptămâna trecută” din selector'],
+  [0x203a, '›  săgeata „săptămâna viitoare” din selector'],
+  [0x2192, '→  săgeată, în textul de pornire al CMS-ului'],
+];
+
+const PERMISE_CP = new Set(PERMISE.map(([cp]) => cp));
+
+/**
+ * Every non-ASCII character in `text` that this project does not expect, each
+ * reported with its codepoint by number, its position and its surroundings.
+ * Empty means clean.
+ */
+export function neasteptateIn(text: string): string[] {
+  const gasite: string[] = [];
+  let i = 0;
+  // Iterated by CODEPOINT, not by UTF-16 unit, so an astral character is judged
+  // once and reported by its real number rather than as two surrogates.
+  for (const caracter of text) {
+    const cp = caracter.codePointAt(0) as number;
+    if (cp > 0x7f && !PERMISE_CP.has(cp)) {
+      const context = text.slice(Math.max(0, i - 40), i + 40).replace(/\s+/g, ' ');
+      gasite.push(`${uPlus(cp)} la ${i}: …${context}…`);
+    }
+    i += caracter.length;
+  }
+  return gasite;
+}
+
+/** How many times each non-ASCII codepoint occurs in `text`. */
+export function inventarNonAscii(text: string, acumulator = new Map<number, number>()): Map<number, number> {
+  for (const caracter of text) {
+    const cp = caracter.codePointAt(0) as number;
+    if (cp > 0x7f) acumulator.set(cp, (acumulator.get(cp) ?? 0) + 1);
+  }
+  return acumulator;
+}
+
 function uPlus(cp: number): string {
   return `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
 }
@@ -240,5 +332,79 @@ describe('nicio sedilă turcească în ieșirea construită', () => {
   it('paginile construite conțin virgulă dedesubt, nu doar restul ieșirii', () => {
     const paginiText = PAGINI.map((p) => readFileSync(DIST + p, 'utf8')).join('');
     expect(areVirgulaDedesubt(paginiText)).toBe(true);
+  });
+});
+
+describe('detectorul de caractere neașteptate', () => {
+  /*
+   * Control pozitiv, și nu unul inventat: U+5DEE este ideograma CJK care a
+   * ajuns chiar în mesajul unui commit al acestui proiect, în locul cuvântului
+   * `axe`. Nu e printre cele patru sedile, deci toate scanările de atunci au
+   * răspuns „curat”, corect și fără folos. Asta caută lista permisă.
+   */
+  it('prinde un caracter din afara listei', () => {
+    const rau = `regula pe care ${String.fromCodePoint(0x5dee)} a predat-o`;
+    expect(neasteptateIn(rau)).toHaveLength(1);
+    expect(neasteptateIn(rau)[0]).toContain(uPlus(0x5dee));
+    expect(neasteptateIn(rau)[0]).toContain('regula pe care');
+  });
+
+  it.each(CEDILE)('prinde și sedila %i, pe care oricum o prinde și cealaltă gardă', (cp) => {
+    expect(neasteptateIn(String.fromCodePoint(cp))).toHaveLength(1);
+  });
+
+  /*
+   * Cele două garzi nu au voie să se contrazică: o sedilă pe lista permisă ar
+   * face ca „nicio sedilă" să depindă numai de cealaltă verificare, iar aceasta
+   * ar trece peste ea în tăcere.
+   */
+  it('nicio sedilă nu este pe lista permisă', () => {
+    for (const cp of CEDILE) expect(PERMISE_CP.has(cp), uPlus(cp)).toBe(false);
+  });
+
+  it('nu se declanșează pe literele românești, pe ü sau pe ASCII', () => {
+    const bun =
+      [...VIRGULA_DEDESUBT, 0x0102, 0x0103, 0x00c2, 0x00e2, 0x00ce, 0x00ee, 0x00fc]
+        .map((cp) => String.fromCodePoint(cp))
+        .join('') + ' Sfantul Maslu 08:45';
+    expect(neasteptateIn(bun)).toEqual([]);
+  });
+
+  it('numără pe coduri, nu pe unități UTF-16', () => {
+    // Un caracter din afara planului de bază ocupă două unități; raportat o
+    // singură dată și cu numărul lui adevărat, nu ca două surogate.
+    const astral = String.fromCodePoint(0x1f600);
+    expect(astral.length).toBe(2);
+    expect(neasteptateIn(astral)).toHaveLength(1);
+    expect(neasteptateIn(astral)[0]).toContain('U+1F600');
+  });
+});
+
+describe('niciun caracter non-ASCII neașteptat în ieșirea construită', () => {
+  it.each(FISIERE)('%s', (fisier) => {
+    expect(neasteptateIn(readFileSync(DIST + fisier, 'utf8'))).toEqual([]);
+  });
+
+  /*
+   * Inventarul se tipărește la fiecare rulare, nu doar la picare: numărul din
+   * lista permisă trebuie să poată fi verificat față de o măsurătoare, nu doar
+   * față de un verdict verde. Scris direct pe stdout — reporterul implicit al
+   * lui vitest nu arată `console.log` din testele care trec.
+   */
+  it('inventarul măsurat încape în lista permisă', () => {
+    const inventar = new Map<number, number>();
+    for (const f of FISIERE) inventarNonAscii(readFileSync(DIST + f, 'utf8'), inventar);
+    const nume = new Map(PERMISE);
+    const linii = [...inventar]
+      .sort((a, b) => a[0] - b[0])
+      .map(([cp, n]) => `  ${uPlus(cp)} x${String(n).padStart(4)}  ${nume.get(cp) ?? 'NEAȘTEPTAT'}`);
+    process.stdout.write(
+      `\nInventar non-ASCII peste ${FISIERE.length} fișier(e) din dist/ ` +
+        `— ${inventar.size} caracter(e) distinct(e), din ${PERMISE.length} permise:\n${linii.join('\n')}\n`,
+    );
+    // A guard that reads files must prove it read something.
+    expect(inventar.size, 'ieșirea nu conține niciun caracter non-ASCII').toBeGreaterThan(0);
+    const neasteptate = [...inventar.keys()].filter((cp) => !PERMISE_CP.has(cp)).map(uPlus);
+    expect(neasteptate, `caractere pe care nimeni nu le-a prevăzut: ${neasteptate.join(', ')}`).toEqual([]);
   });
 });
