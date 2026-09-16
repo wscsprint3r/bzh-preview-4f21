@@ -66,6 +66,16 @@ Every task's requirements implicitly include this section.
   `outline` defeats the ring silently. Task 10's `.ss button` is the first non-link the focus
   rule has to defend, and a swept audit found only four scoped link-colour rules in the whole
   project — so the margin here is thin rather than comfortable.
+- **Normalise for presentation at presentation time; never mutate stored data to fix how it
+  reads.** Canonicalising `ora` to `HH:MM` is the legitimate case — one value, one spelling,
+  no information lost. Stripping a trailing full stop from a free-text `locatie` is the other
+  kind: it turns `Capela Sf.` into `Capela Sf`, and it changes what ships in the `.ics`
+  `LOCATION`, which a calendar client stores as data rather than prose. Trim whitespace in the
+  schema, because whitespace carries no meaning; compose punctuation where the sentence is
+  built.
+- **A guard that names forbidden characters as glyphs cannot be scanned for them.** It lights
+  up every future sweep for the thing it forbids and trains people to wave that sweep through
+  — worse than no rule. Name them by codepoint.
 - **`locatie` must render wherever the schedule renders.** It is in the schema, exposed by the
   CMS, and written into the `.ics` `LOCATION`. A day held in a different chapel would
   otherwise produce a calendar that says so and a website that does not — sending a
