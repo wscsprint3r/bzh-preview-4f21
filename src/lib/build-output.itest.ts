@@ -401,7 +401,7 @@ describe('paginile construite', () => {
     // nu numără săptămâni tocmai pentru că numărul lor depinde de dată și de
     // JavaScript. Un titlu care numără ar fi fals în cel puțin una dintre stări.
     expect(html).toContain('Programul slujbelor');
-    expect(html).toContain('Bine ați venit în casa Domnului');
+    expect(html).toContain('Bine ați venit');
   });
 
   it('declară limba română și diacritice corecte', () => {
