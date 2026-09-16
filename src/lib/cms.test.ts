@@ -60,7 +60,17 @@ const CONFIG = parse(CONFIG_TEXT) as Record<string, unknown>;
 
 const PACHET_PROPRIU = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
-) as { dependencies: Record<string, string> };
+) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+
+/*
+ * Looked up in BOTH sections on purpose. Which one `@sveltia/cms` belongs in is
+ * a judgement - it is needed at build time and never at run time, and a static
+ * site has no run time to speak of - and this file has no opinion on it. Pinning
+ * it exactly is the thing being asserted, and moving the entry must not look
+ * like breaking that.
+ */
+const VERSIUNEA_CERUTA =
+  PACHET_PROPRIU.dependencies?.['@sveltia/cms'] ?? PACHET_PROPRIU.devDependencies?.['@sveltia/cms'];
 
 /*
  * `strict: false` turns off Ajv's own complaints about vocabulary it does not
@@ -126,9 +136,9 @@ describe('versiunea CMS-ului', () => {
    * nimeni nu se uită - iar prima dovadă ar fi un `/admin/` care nu mai pornește.
    */
   it('este fixată exact, fără plajă', () => {
-    const ceruta = PACHET_PROPRIU.dependencies['@sveltia/cms'];
-    expect(ceruta, '@sveltia/cms lipsește din dependencies').toBeDefined();
-    expect(ceruta).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(VERSIUNEA_CERUTA, '@sveltia/cms nu este cerut în package.json').toBeDefined();
+    // Nicio plajă: fără `^`, fără `~`, fără `*`, fără `x`.
+    expect(VERSIUNEA_CERUTA).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it('se citește chiar pachetul @sveltia/cms', () => {
@@ -141,6 +151,6 @@ describe('versiunea CMS-ului', () => {
   it('este chiar versiunea instalată', () => {
     // Altfel `package.json` ar putea să fixeze o versiune, iar schema după care
     // s-a validat configurația de mai sus să vină din alta.
-    expect(PACHET.version).toBe(PACHET_PROPRIU.dependencies['@sveltia/cms']);
+    expect(PACHET.version).toBe(VERSIUNEA_CERUTA);
   });
 });
