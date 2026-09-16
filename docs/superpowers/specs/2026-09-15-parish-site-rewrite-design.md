@@ -248,6 +248,8 @@ categorie (Noutăți | Anunțuri | Cateheză), publicat, body (markdown)
 
 Rendering the index from this collection is what eliminates the seven-step Elementor ritual: a published post appears on `/noutati` and on the homepage automatically.
 
+**`publicat: false` is the archive's holding pen, not a draft state.** §11 imports 31 posts whose dates were destroyed by a bulk import. They are real parish writing and they are not publishable as dated news, so they arrive unpublished with `data` set to the import stamp they carry. Two consequences the build must honour: an unpublished post is absent from `/noutati`, from the homepage and from `/rss.xml`, and it has **no page of its own** — otherwise "unpublished" would mean "reachable by anyone with the link", which is not what the parish was offered.
+
 ### 6.3 `evenimente`
 
 ```yaml
@@ -346,9 +348,17 @@ Scripted and repeatable, not retyped. Rerunning must produce identical output.
 ### Steps
 
 1. **Load** the dump into a disposable MariaDB container. Import `wpoi_*` only — `r15e_*` is dead residue from a previous install.
-2. **Posts** — `wpoi_posts` where `post_type = 'post'` and `post_status = 'publish'` (48 rows). These use normal `post_content`; convert HTML → Markdown with Turndown, stripping Elementor wrapper markup.
-3. **Pages** — the hard part. Elementor stores page content in the `_elementor_data` postmeta as a nested JSON tree, **not** in `post_content`. A tree-walker extracts `heading`, `text-editor`, `image`, `icon-box` and `button` widgets in document order. Expect this to be lossy: the layout *is* the content on several of these pages. Plan on hand-reviewing all ~12 real pages; the extractor gets the text across, a human restores the meaning.
-4. **Media** — 653 original images (282 MB) plus 6,535 WordPress thumbnail variants (628 MB). Discard every file matching `-WxH.ext`; keep originals; downscale to a 2400px long edge and re-encode. Expected result: **80–100 MB**, comfortably repo-sized. Astro regenerates responsive AVIF/WebP at build.
+2. **Posts** — `wpoi_posts` where `post_type = 'post'` and `post_status = 'publish'`. **Measured 2026-09-16: 45 rows, not 48.** These use normal `post_content`; convert HTML → Markdown with Turndown, stripping Elementor wrapper markup.
+
+   **The archive has lost its dates, and that is a content decision rather than a bug.** 20 posts are stamped `2024-06-08` and 11 more `2024-05-21` — bulk-import timestamps, not publication dates. Several are the same annual feast written fresh each year: three *Hristos a înviat!*, three *Postul Paștelui*, three *Moșii de toamnă*. Only two pairs are byte-identical (`sarbatorirea-sfantului-ierarh-nicolae` with `sfantul-ierarh-nicolae`, and `mosii-de-toamna` with `mosii-de-toamna-2`); the rest are genuinely different texts. **Ruling: migrate all 45. The ~14 carrying a genuine date publish; the 31 undated ones import with `publicat: false`**, so the parish dates, merges or discards them in the CMS. Publishing them as-is would open `/noutati` with twenty posts sharing one day and three near-identical Easter articles; dropping them would discard a decade of parish writing that survives nowhere else once the old site goes.
+
+3. **Pages** — **not the hard part, and this section used to say it was.** The claim was that Elementor keeps page content in `_elementor_data` and **not** in `post_content`, so a lossy tree-walker would be needed and a human would have to restore the meaning. **Measured across all ten real prose pages on 2026-09-16: `post_content` carries the full prose in clean HTML**, behind a constant preamble — `<p>Layouts: Popup</p>`, then a breadcrumb line like `Parohia noastră > Istoric` — which strips mechanically. `istoric` alone is 6,994 characters of real paragraphs.
+
+   So the text needs Turndown and a preamble strip, not a tree-walk. `_elementor_data` is still read, but only for **image placement**, and only where `post_content`'s own `<img>` tags do not already carry it. Hand-review is still wanted — headings and ordering deserve a human eye — but it restores polish rather than meaning.
+
+4. **Media** — **measured 2026-09-16: 457 attachments**, not 653: 409 images (266 jpg, 129 png, 13 jpeg, 1 webp), 24 SVG, 10 PDF, 9 `.doc`, 2 MP4, 2 TTF, 1 MP3. Discard every file matching `-WxH.ext`; keep originals; downscale to a 2400px long edge and re-encode. Astro regenerates responsive AVIF/WebP at build.
+
+   **Re-encoding is also the sanitisation step, and that is why it is not optional.** This media comes off a server compromised twice. Decoding and re-encoding every raster through `sharp` destroys anything embedded in a file that merely looks like an image, and a file that fails to decode is not an image and is dropped by name. **SVG is not re-encodable and is a script-injection vector: SVGs are dropped unless individually reviewed**, and `.doc` files are not migrated at all.
 5. **Rewrite** `wp-content/uploads/...` URLs to `src/assets/...` paths.
 6. **Emit** frontmatter matching the Zod schemas, then run `astro check` and a full build. **A build failure is a migration bug**, not something to fix by loosening the schema.
 7. **URL map** — emit `old path → new path` as CSV, which generates `_redirects` (§12).
@@ -467,7 +477,7 @@ That last one matters. When a build fails, the editor sees nothing happen and ha
 
 **Phase 1 — Foundation.** Astro skeleton, design system, `slujbe` collection, `/program`, program-first homepage, Sveltia CMS + OAuth worker, deploy to preview. *At the end of this phase the parish can already edit the schedule.*
 
-**Phase 2 — Content.** Migration scripts, 48 posts, `/noutati`, the ~12 prose pages, media pipeline.
+**Phase 2 — Content.** Migration scripts, 45 posts (§11), `/noutati` and `/rss.xml`, the homepage's news section, nine prose pages, the `setari` singleton, and the media pipeline. The nine are Istoric, Consiliul, Catehism, Studii, Doxologia, Link-uri, Școala, Pictură and Servicii liturgice; `/contact` and `/doneaza` wait for Phase 3, which owns the form and the QR-bill their pages are mostly about.
 
 **Phase 3 — The rest.** Events, galleries, pastorale/PDFs, donations with QR-bill, contact form.
 
