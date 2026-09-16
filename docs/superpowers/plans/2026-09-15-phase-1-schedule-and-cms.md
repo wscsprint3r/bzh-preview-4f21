@@ -47,10 +47,13 @@ Every task's requirements implicitly include this section.
   times falling 4.67:1 to 2.96:1 — and `--gold-text` is unusable below opacity 0.981. Every
   static guard passed it; axe caught it. Say "not happening" with a strike or a label, never
   by fading the text.
-- **A component that colours a link owns that link's hover and focus states.** Astro's scoping
-  attribute puts a component rule at (0,3,1), which outranks a global `a:hover` at (0,1,1) —
-  so every scoped `.x a { color }` silently loses its hover, with no test, no axe violation
-  and no build failure to say so.
+- **A scoped component rule defeats a global one only where both set the same property.**
+  Astro's scoping attribute puts a component rule at (0,3,1), outranking a global `a:hover`
+  at (0,1,1) — so a scoped `.x a { color }` silently loses its hover colour, with no test, no
+  axe violation and no build failure to say so. **Focus rings are not affected** where the
+  component never declares `outline`: measured, `:focus-visible` still matches and the global
+  ring still lands. So the rule is narrower than "own every state" — a component that sets a
+  property on a link owns that property's interactive states, and only those.
 - **`locatie` must render wherever the schedule renders.** It is in the schema, exposed by the
   CMS, and written into the `.ics` `LOCATION`. A day held in a different chapel would
   otherwise produce a calendar that says so and a website that does not — sending a
