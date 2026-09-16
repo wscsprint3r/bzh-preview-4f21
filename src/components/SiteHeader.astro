@@ -41,4 +41,23 @@ const linkuri = [
   .sh-nav { display: flex; gap: 1.25rem; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }
   .sh-nav a { color: var(--muted); text-decoration: none; }
   .sh-nav a[aria-current='page'] { color: var(--oxblood); border-bottom: 1.5px solid var(--gold-lt); padding-bottom: 2px; }
+  /* A component that colours a link owns that link's hover, and both rules above
+     do. This is the third site of the same trap — after `.abonare a` on
+     `/program/` — and the worst placed, because the header is on every page.
+     Astro adds a `data-astro-cid-…` attribute to each compound, so
+     `.sh-nav a` ships at (0,3,1) and the `[aria-current]` rule at (0,4,1),
+     against global.css's `a:hover` at (0,1,1). Both won, silently: measured in a
+     real browser before the fix, the computed colour did not change on hover for
+     either link.
+
+     BOTH selectors are listed on purpose rather than relying on source order.
+     `.sh-nav a:hover` is (0,4,1) — a tie with the `[aria-current]` rule, which a
+     later reordering of this block would flip. `.sh-nav a[aria-current='page']:hover`
+     is (0,5,1) and wins outright, whatever the order.
+
+     Focus needs no rule here: `outline` is declared nowhere in this project but
+     global.css, so `:focus-visible` has nothing to beat. Verified on the built
+     page — the ring computes to `rgb(107,31,38) solid 2px`, i.e. `--oxblood`. */
+  .sh-nav a:hover,
+  .sh-nav a[aria-current='page']:hover { color: var(--oxblood-dk); }
 </style>
