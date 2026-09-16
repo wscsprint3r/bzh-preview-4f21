@@ -42,6 +42,18 @@ Every task's requirements implicitly include this section.
   pass claimed all nine mutants survived; re-running without the redirect killed all nine.
   Read mutation results off the test runner's own output, never off a report file you did not
   watch it write, and sanity-check that the baseline is green before trusting any SURVIVED.
+- **Do not re-implement the cascade. Assert contrast with a real engine.** Task 7 spent three
+  fix rounds on a guard parsing CSS for unsafe text colours. Nine escapes were found across
+  three reviews, the last four proven with `getComputedStyle` in headless Chrome:
+  `html:root` winning on specificity, an unlayered rule beating `@layer`, a `@media` nested
+  inside `:root`, and a `<link>` after the inline `<style>`. "Document order, later wins" is
+  not the cascade. Worse, the guard covered 2 of the 12 colour rules shipping — the other 10
+  take their ground from an ancestor — while reading as the project's central safety
+  guarantee. A guard at 17% coverage presenting as 100% is worse than none.
+  The guarantee belongs to axe over the built pages. What static tests legitimately own:
+  the palette's own contrast maths, and the source-hygiene rule that colours come from tokens.
+- **State what a guard proves, where it is defined.** Every failure in this task was a guard
+  whose stated scope exceeded its real one.
 - **Derive the forbidden set; never enumerate it.** A denylist can only list what someone
   remembered. Task 7 shipped a derived *allowlist* of safe text colours beside a hardcoded
   two-item denylist of forbidden golds — so footer text at `var(--rule)` (1.30:1) and a raw
