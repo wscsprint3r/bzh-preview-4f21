@@ -2,10 +2,9 @@
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import RandZi from '../../components/RandZi.astro';
-import SelectorSaptamana from '../../components/SelectorSaptamana.astro';
 import { formatIntervalSaptamana } from '../../lib/date-ro';
 import { grupeazaPeSaptamani } from '../../lib/schedule';
-import { aziLaZurich, inceputSaptamana } from '../../lib/week';
+import { aziLaZurich, cheieSaptamana, inceputSaptamana } from '../../lib/week';
 
 const intrari = await getCollection('slujbe');
 /*
@@ -20,7 +19,24 @@ const intrari = await getCollection('slujbe');
  */
 const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
 
-const lunea = inceputSaptamana(aziLaZurich());
+// One clock read; the Monday and the week key are both derived from it.
+const azi = aziLaZurich();
+const lunea = inceputSaptamana(azi);
+
+/*
+ * THIS PAGE SHOWS EVERY WEEK, AND MUST GO ON DOING SO.
+ *
+ * The homepage is a glance: space is scarce there and one week is the right
+ * answer, which is what the week picker is for. This page is the full
+ * schedule, where browsing ahead IS the point - so hiding weeks would cost a
+ * visitor the thing they came for, break Ctrl+F, and leave a screen reader
+ * meeting one week of a page that promises the programme. It would also take
+ * every hidden week out of `npm run a11y`, which skips hidden elements.
+ *
+ * So there is no picker here and no script at all. The current week is marked
+ * instead, so a visitor lands oriented without anything being taken away.
+ */
+const cheieAzi = cheieSaptamana(azi);
 const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
 ---
 
@@ -32,15 +48,16 @@ const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
     {saptamani.length === 0 ? (
       <p class="gol">Programul următoarei perioade nu a fost încă publicat.</p>
     ) : (
-      <>
-        <SelectorSaptamana />
-        {saptamani.map((s) => (
-          <section data-saptamana={s.cheie} aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}>
-            <h2 class="sapt">{formatIntervalSaptamana(s.luni, s.duminica)}</h2>
-            {s.zile.map((z) => <RandZi zi={z} />)}
-          </section>
-        ))}
-      </>
+      saptamani.map((s) => (
+        <section
+          data-saptamana={s.cheie}
+          class:list={[s.cheie === cheieAzi && 'sapt-curenta']}
+          aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}
+        >
+          <h2 class="sapt">{formatIntervalSaptamana(s.luni, s.duminica)}</h2>
+          {s.zile.map((z) => <RandZi zi={z} />)}
+        </section>
+      ))
     )}
 
     <p class="abonare"><a href="/program.ics">† Adaugă programul în calendarul telefonului</a></p>
@@ -48,6 +65,31 @@ const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
 </Base>
 
 <style>
+  /* Every section carries the same box, so marking one below cannot shift the
+     page. No top padding on purpose: the `.sapt` heading's 2rem top margin
+     collapses through, so the mark hugs the heading instead of opening with
+     2rem of empty band. The negative inline margin keeps the text on the same
+     line it sits on in every other section; the container's gutter is
+     `clamp(1rem, 4vw, 2.25rem)`, so 1rem can never pull past the viewport. */
+  section[data-saptamana] { padding: 0 1rem 1rem; margin-inline: -1rem; }
+  /* The week the visitor is in, marked so this page opens oriented while still
+     showing everything.
+
+     A RULE, NOT A GROUND. `RandZi` already marks a feast day with
+     `background: var(--raised)`; putting a ground on the section would erase
+     that distinction inside the one week a visitor is most likely to be
+     reading. A 3px bar on the leading edge is a positional signal rather than
+     colour alone, and it is a border, so the 4.5:1 text rule does not apply to
+     it - the same exemption `.rule` takes in global.css.
+
+     DELIBERATELY WORDLESS. This is computed at BUILD time, and a static
+     build's idea of „today” goes stale: between Sunday midnight and the next
+     rebuild - at most six hours, per Task 13 - it sits on the week that has
+     just ended. A bar briefly on the wrong week is a hint that is briefly
+     unhelpful; the words „săptămâna aceasta” would be a statement that is
+     briefly false, and this site does not make those. The `<h2>` carries the
+     dates, which are true whenever they are read. */
+  .sapt-curenta { box-shadow: inset 3px 0 0 var(--gold-lt); }
   .sapt { font-size: 1.375rem; margin-block: 2rem 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rule); }
   .gol { color: var(--muted); font-style: italic; }
   .abonare { margin-block: 2rem; }

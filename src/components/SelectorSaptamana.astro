@@ -9,6 +9,11 @@
  * EVERY week it knows about, correct without a line of JavaScript, and this
  * script narrows that to the one a visitor came for.
  *
+ * THE HOMEPAGE ONLY. `/program/` renders every week and mounts nothing of this,
+ * deliberately: that page IS the full schedule, so browsing ahead is the point,
+ * Ctrl+F has to work and a screen reader has to meet all of it. The reasoning
+ * lives in that page, next to the mark it uses instead.
+ *
  * So: no props. The component reads the week sections already in the DOM
  * (`section[data-saptamana]`) and the schedule the homepage embedded next to its
  * card, which is what stops it from ever disagreeing with what the page
@@ -31,13 +36,13 @@
  * from ONE reading of the clock, which is what stops them disagreeing about
  * which day it is at one minute past midnight.
  *
- * Measured rather than assumed: at 2,982 bytes this lands under Vite's 4 KB
- * inline threshold, so Astro writes it into the page instead of emitting
- * `dist/_astro/*.js`. It therefore costs NO request - the homepage stays at the
- * 10 Task 9 measured, against spec §13's cap of 12 - and is paid for in HTML
- * instead, on both pages, uncached. Grow it past 4 KB and that reverses: a file,
- * a request, and a cache entry. `/program/` carries the card half for nothing,
- * which is the price of the single clock read.
+ * Measured rather than assumed: this lands under Vite's 4 KB inline threshold,
+ * so Astro writes it into the homepage instead of emitting `dist/_astro/*.js`.
+ * It therefore costs NO request - the page stays at the 10 Task 9 measured,
+ * against spec §13's cap of 12 - and is paid for in HTML instead, uncached.
+ * Grow it past 4 KB and that reverses: a file, a request, and a cache entry.
+ * `npm run budget` reads both numbers out of the built page and fails on
+ * either, so neither the size nor the flip can happen quietly.
  */
 ---
 
@@ -49,7 +54,7 @@
 
 <script>
   import { alegeSaptamana } from '../lib/week-picker';
-  import { aziLaZurich, cheieSaptamana, oraLaZurich } from '../lib/week';
+  import { acumLaZurich, cheieSaptamana } from '../lib/week';
   import {
     listaRomaneasca,
     slujbeLaAceeasiOra,
@@ -57,10 +62,12 @@
     type ZiPentruCard,
   } from '../lib/schedule';
 
-  // The only clock read on the client, exactly as `aziLaZurich`/`oraLaZurich`
-  // are the only two on the server. Read once so the week band and the card
-  // cannot answer for two different minutes.
-  const azi = aziLaZurich();
+  // The only clock read on the client, and it produces the date and the time
+  // TOGETHER. Two calls would be two `new Date()`s: across midnight the first
+  // answers the 20th and the second `00:00` on the 21st, and the card then
+  // announces a Liturgy fifteen hours past. `acumLaZurich` is the pair, and
+  // taking it apart again is the bug.
+  const { azi, ora } = acumLaZurich();
 
   /* ------------------------------------------------------------------ *
    * 1. Reveal the week that contains today.
@@ -87,8 +94,8 @@
 
       const arata = () => {
         sectiuni.forEach((s, j) => { s.hidden = j !== i; });
-        const titlu = sectiuni[i].getAttribute('aria-label') ?? '';
-        eticheta.textContent = titlu.replace(/^Săptămâna\s*/, '');
+        // The interval as the page wrote it, not that string minus a prefix.
+        eticheta.textContent = sectiuni[i].dataset.interval ?? '';
         prev.disabled = i === 0;
         next.disabled = i === sectiuni.length - 1;
       };
@@ -128,18 +135,22 @@
 
   if (card && insula) {
     const program = JSON.parse(insula.textContent || '[]') as ZiPentruCard[];
-    const urm = urmatoareaSlujba(program, azi, oraLaZurich());
+    const urm = urmatoareaSlujba(program, azi, ora);
 
-    if (!urm) {
-      // The schedule ran out since the build. The card would otherwise name a
-      // service that has already happened; nothing is better than that.
+    const ziua = urm && program.find((z) => z.data === urm.data);
+
+    if (!urm || !ziua) {
+      // Either the schedule ran out since the build, or the island cannot
+      // answer for the day it just named. Both mean this card can no longer be
+      // trusted, and a card that is gone beats one that states a time which has
+      // passed. One branch rather than two, so there is no path that rewrites
+      // half of it.
       card.hidden = true;
     } else {
-      const ziua = program.find((z) => z.data === urm.data);
       // Names as `etichetaSlujba` already wrote them; only the CHOICE of which
       // ones is made here, by the same function the build called.
-      const nume = slujbeLaAceeasiOra(ziua?.slujbe ?? [urm], urm.ora).map((s) => s.nume);
-      const unde = ziua?.locatie ?? '';
+      const nume = slujbeLaAceeasiOra(ziua.slujbe, urm.ora).map((s) => s.nume);
+      const unde = ziua.locatie ?? '';
 
       const pune = (cheie: string, text: string) => {
         const el = card.querySelector<HTMLElement>(`[data-urm-${cheie}]`);
@@ -147,9 +158,8 @@
       };
 
       // The heading the server already wrote for that day, not a second
-      // rendering of it. `ziua` is always found - `urm` came out of `program` -
-      // so the guard only keeps a malformed island from blanking the date.
-      if (ziua) pune('zi', ziua.titlu);
+      // rendering of it.
+      pune('zi', ziua.titlu);
       pune('ora', urm.ora);
       pune('nume', listaRomaneasca(nume));
       pune('unde', unde);

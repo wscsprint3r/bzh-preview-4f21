@@ -131,3 +131,27 @@ export function oraLaZurich(acum: Date = new Date()): string {
   }).formatToParts(acum);
   return `${parte(parti, 'hour')}:${parte(parti, 'minute')}`;
 }
+
+/**
+ * The date and the time in Europe/Zurich, from ONE reading of the clock.
+ *
+ * The two functions above are safe on their own and dangerous together. Calling
+ * `aziLaZurich()` and then `oraLaZurich()` is two separate `new Date()`s, and a
+ * page that loads across midnight gets a pair from two different days: the
+ * first returns the 20th, the second returns `00:00` on the 21st, and the pair
+ * describes a moment more than twenty-four hours wide. `urmatoareaSlujba` then
+ * searches the 20th from `00:00`, finds that morning's Liturgy and announces it
+ * as the next service - fifteen hours after it ended, under a heading promising
+ * the next one.
+ *
+ * Neither function is wrong. The PAIR is, which is why the fix is a pair rather
+ * than a repair. It is also why no test could catch it from the inside: a test
+ * that hands in one `Date` is a test of one clock reading, and this is a race
+ * between two.
+ *
+ * So the pair is produced here, once, and callers get no way to split it again.
+ * Both pages and the client script take their clock from this and nothing else.
+ */
+export function acumLaZurich(acum: Date = new Date()): { azi: string; ora: string } {
+  return { azi: aziLaZurich(acum), ora: oraLaZurich(acum) };
+}

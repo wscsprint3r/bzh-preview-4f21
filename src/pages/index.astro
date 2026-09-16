@@ -12,7 +12,7 @@ import {
   urmatoareaSlujba,
   type ZiPentruCard,
 } from '../lib/schedule';
-import { aziLaZurich, oraLaZurich } from '../lib/week';
+import { acumLaZurich } from '../lib/week';
 
 const intrari = await getCollection('slujbe');
 /*
@@ -25,7 +25,13 @@ const intrari = await getCollection('slujbe');
  */
 const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
 
-const azi = aziLaZurich();
+/*
+ * The date and the time from ONE reading of the clock. Two calls would be two
+ * `new Date()`s, and a build that straddled midnight would stamp the 20th with
+ * `00:00` on the 21st onto the card - rarer than the client's window, and the
+ * same fifteen-hour-past Liturgy when it happens.
+ */
+const { azi, ora } = acumLaZurich();
 /*
  * Three weeks, not the whole schedule: spec §13 budgets this page at 30 KB of
  * HTML and `/program/` carries the full list. `saptamaniViitoare` counts weeks
@@ -34,7 +40,7 @@ const azi = aziLaZurich();
  * prints its own interval, which is the only range that is true.
  */
 const saptamani = saptamaniViitoare(zile, azi, 3);
-const urmatoarea = urmatoareaSlujba(zile, azi, oraLaZurich());
+const urmatoarea = urmatoareaSlujba(zile, azi, ora);
 
 /*
  * The card names every service that starts at the same minute, not only the one
@@ -190,12 +196,23 @@ const insula = JSON.stringify(program).replaceAll('<', `${String.fromCharCode(92
     ) : (
       <>
         <SelectorSaptamana />
-        {saptamani.map((s) => (
-          <section data-saptamana={s.cheie} aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}>
-            <p class="interval">{formatIntervalSaptamana(s.luni, s.duminica)}</p>
-            <BandaSaptamanii saptamana={s} />
-          </section>
-        ))}
+        {saptamani.map((s) => {
+          /*
+           * One call, three uses. `data-interval` is what the week picker puts
+           * in its bar, so the control and the heading it selects are the same
+           * string by construction - the script used to recover it by stripping
+           * "Săptămâna " off the aria-label, which broke silently if either the
+           * wording or the space ever changed, and put a Romanian word in the
+           * bundle to do it.
+           */
+          const interval = formatIntervalSaptamana(s.luni, s.duminica);
+          return (
+            <section data-saptamana={s.cheie} data-interval={interval} aria-label={`Săptămâna ${interval}`}>
+              <p class="interval">{interval}</p>
+              <BandaSaptamanii saptamana={s} />
+            </section>
+          );
+        })}
       </>
     )}
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { indiceZi } from './date-ro';
 import {
   adaugaZile,
+  acumLaZurich,
   aziLaZurich,
   cheieSaptamana,
   inceputSaptamana,
@@ -226,5 +227,62 @@ describe('independența de locala de rezervă', () => {
 
   it('restaurează Intl.DateTimeFormat după fiecare test', () => {
     expect(aziLaZurich(instant)).toBe('2026-09-15');
+  });
+});
+
+describe('acumLaZurich', () => {
+  it('dă data și ora aceluiași moment', () => {
+    expect(acumLaZurich(new Date('2026-09-15T12:05:00Z'))).toEqual({
+      azi: '2026-09-15',
+      ora: '14:05',
+    });
+  });
+
+  it('trece miezul nopții ca o pereche', () => {
+    // 23:59:59.999 la Zürich, apoi o milisecundă mai târziu.
+    expect(acumLaZurich(new Date('2026-09-20T21:59:59.999Z'))).toEqual({
+      azi: '2026-09-20',
+      ora: '23:59',
+    });
+    expect(acumLaZurich(new Date('2026-09-20T22:00:00.000Z'))).toEqual({
+      azi: '2026-09-21',
+      ora: '00:00',
+    });
+  });
+
+  it('perechea imposibilă pe care o înlocuiește chiar era posibilă', () => {
+    // Bugul, scris pe față: nicio funcție nu greșește, perechea greșește.
+    // aziLaZurich citește ceasul înaintea miezului nopții, oraLaZurich după.
+    expect(aziLaZurich(new Date('2026-09-20T21:59:59.999Z'))).toBe('2026-09-20');
+    expect(oraLaZurich(new Date('2026-09-20T22:00:00.000Z'))).toBe('00:00');
+    // „2026-09-20 la 00:00" e un moment trecut cu aproape o zi, iar
+    // urmatoareaSlujba îl ia drept acum.
+  });
+
+  it('citește ceasul exact o dată', () => {
+    /*
+     * Garda propriu-zisă, și singura formă în care se poate scrie. Testele de
+     * mai sus primesc un `Date` și dovedesc doar că funcția îl folosește pe
+     * acela; nu pot vedea o a doua citire, fiindcă nu există un al doilea
+     * moment. Aici ceasul întoarce un alt moment la fiecare citire, așa că
+     * despărțirea perechii la loc schimbă și numărul, și rezultatul.
+     */
+    const Original = globalThis.Date;
+    const momente = ['2026-09-20T21:59:59.999Z', '2026-09-20T22:00:00.000Z'];
+    let citiri = 0;
+    globalThis.Date = new Proxy(Original, {
+      construct(tinta, argumente) {
+        if (argumente.length > 0) return new tinta(...(argumente as [string]));
+        const m = momente[Math.min(citiri, momente.length - 1)];
+        citiri += 1;
+        return new tinta(m);
+      },
+    });
+    try {
+      expect(acumLaZurich()).toEqual({ azi: '2026-09-20', ora: '23:59' });
+      expect(citiri).toBe(1);
+    } finally {
+      globalThis.Date = Original;
+    }
   });
 });
