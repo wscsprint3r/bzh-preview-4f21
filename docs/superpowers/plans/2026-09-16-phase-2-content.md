@@ -19,7 +19,7 @@ Every task's requirements implicitly include this section. Phase 1's constraints
 still bind; these are the ones this phase adds or sharpens.
 
 - **Node 22.12.0+, Astro 7.x, `output: 'static'`, Zod 4 imported as `astro/zod`.** Never a direct `zod` dependency — a second copy breaks `instanceof`.
-- **The four forbidden codepoints are U+015E, U+015F, U+0162 and U+0163** (S/s and T/t with cedilla). Romanian's letters are U+0218/U+0219 and U+021A/U+021B, comma below. **They are never written as glyphs in any tracked file, including this plan** — `src/lib/diacritice-surse.test.ts` sweeps `git ls-files`, so a plan or a test that spelled them out could not be swept. Build them with `String.fromCodePoint(0x015f)`.
+- **The four forbidden codepoints are U+015E, U+015F, U+0162 and U+0163** (S/s and T/t with cedilla). Romanian's letters are U+0218/U+0219 and U+021A/U+021B, comma below. **They are never written as glyphs in any tracked file, including this plan** — `src/lib/diacritice-surse.test.ts` sweeps `git ls-files`, so a plan or a test that spelled them out could not be swept. Build them from `CEDILE`, exported by `src/lib/cedile.ts` — **the only tracked file allowed to write the four numbers.** That same sweep also forbids their hexadecimal spelling everywhere else, this plan included, so no file below writes one: they are imported, and `VIRGULA_DEDESUBT` carries Romanian's four in the matching order, which is what makes the pairing below a zip rather than a table somebody can mistype.
 - **The migrated content contains 684 of them today** — measured 2026-09-16 across all published posts and pages: 362 U+015F, 317 U+0163, 5 U+015E, 0 U+0162. It also contains **312 U+00E3** (`a` with tilde), which is not a Romanian letter. Normalisation is therefore a hard requirement, not a nicety: without it `src/lib/diacritice.itest.ts` fails the build on the first migrated file. That guard is Phase 1's, and this phase is the first thing that ever tested it against real input.
 - **Escape sequences of the form backslash-u followed by four hex digits do not survive being written to disk** — the Bash heredoc (even quoted) and the file-writing tools both decode them silently. Build such characters from numbers, or write a placeholder and post-process it.
 - **Verdicts come from the process exit code**, never `.vitest/json/output.json`. `rtk proxy npx vitest run …` for readable output.
@@ -336,18 +336,14 @@ git commit -m "feat(migrare): a disposable database that fails loudly when the s
 // migrare/diacritice.test.mjs
 import { describe, expect, it } from 'vitest';
 import { INLOCUIRI, normalizeaza, raportCodepoints } from './diacritice.mjs';
+import { CEDILE, VIRGULA_DEDESUBT } from '../src/lib/cedile.ts';
 
 // Built from numbers, never written as glyphs: a test file that spelled these
 // out could not be swept for them, and `src/lib/diacritice-surse.test.ts`
 // sweeps every tracked file.
-const S_CEDILA = String.fromCodePoint(0x015f);
-const T_CEDILA = String.fromCodePoint(0x0163);
-const S_MARE_CEDILA = String.fromCodePoint(0x015e);
-const T_MARE_CEDILA = String.fromCodePoint(0x0162);
-const S_VIRGULA = String.fromCodePoint(0x0219);
-const T_VIRGULA = String.fromCodePoint(0x021b);
-const S_MARE_VIRGULA = String.fromCodePoint(0x0218);
-const T_MARE_VIRGULA = String.fromCodePoint(0x021a);
+const [S_MARE_CEDILA, S_CEDILA, T_MARE_CEDILA, T_CEDILA] = CEDILE.map((c) => String.fromCodePoint(c));
+const [S_MARE_VIRGULA, S_VIRGULA, T_MARE_VIRGULA, T_VIRGULA] =
+  VIRGULA_DEDESUBT.map((c) => String.fromCodePoint(c));
 const A_TILDA = String.fromCodePoint(0x00e3);
 const A_BREVE = String.fromCodePoint(0x0103);
 
@@ -389,15 +385,15 @@ describe('normalizarea diacriticelor', () => {
     // The property, not an example. Every forbidden codepoint, in one string.
     const toate = [...INLOCUIRI.keys()].map((c) => String.fromCodePoint(c)).join('');
     const dupa = normalizeaza(toate);
-    for (const interzis of [0x015e, 0x015f, 0x0162, 0x0163]) {
+    for (const interzis of CEDILE) {
       expect(dupa.includes(String.fromCodePoint(interzis))).toBe(false);
     }
   });
 
   it('raportul numara ce a gasit, ca sa poata fi citit intr-o rulare', () => {
     const r = raportCodepoints(S_CEDILA + S_CEDILA + T_CEDILA);
-    expect(r.get(0x015f)).toBe(2);
-    expect(r.get(0x0163)).toBe(1);
+    expect(r.get(CEDILE[1])).toBe(2);
+    expect(r.get(CEDILE[3])).toBe(1);
   });
 
   it('este idempotenta', () => {
@@ -432,10 +428,13 @@ Expected: FAIL — module not found.
  * they are what a Portuguese-ish fallback produced where the breve belonged.
  */
 export const INLOCUIRI = new Map([
-  [0x015e, 0x0218],
-  [0x015f, 0x0219],
-  [0x0162, 0x021a],
-  [0x0163, 0x021b],
+  // The four are zipped from the two exported arrays rather than typed out as
+  // pairs: `src/lib/cedile.ts` is the one file allowed to write the numbers, and
+  // a hand-written table here would be a second copy to keep in step AND a
+  // chance to pair the capital with the wrong small letter. The arrays are
+  // declared in matching order, which is the property this relies on.
+  ...CEDILE.map((c, i) => [c, VIRGULA_DEDESUBT[i]]),
+  // `A`/`a` with tilde are not among the swept four, so they are written here.
   [0x00c3, 0x0102],
   [0x00e3, 0x0103],
 ]);
@@ -492,13 +491,13 @@ Expected: PASS, 8 tests.
 
 ```bash
 node -e "
-Promise.all([import('./migrare/db.mjs'), import('./migrare/diacritice.mjs')]).then(async ([db, d]) => {
+Promise.all([import('./migrare/db.mjs'), import('./migrare/diacritice.mjs'), import('./src/lib/cedile.ts')]).then(async ([db, d, cedile]) => {
   await db.porneste();
   const r = await db.interogheaza(\"SELECT post_content FROM wpoi_posts WHERE post_type IN ('post','page') AND post_status='publish'\");
   const tot = r.map((x) => x[0]).join('');
   const inainte = d.raportCodepoints(tot);
   const dupa = d.raportCodepoints(d.normalizeaza(tot));
-  for (const c of [0x015e, 0x015f, 0x0162, 0x0163, 0x00e3]) {
+  for (const c of [...cedile.CEDILE, 0x00e3]) {
     console.log('U+' + c.toString(16).toUpperCase().padStart(4,'0'), 'inainte', inainte.get(c) ?? 0, 'dupa', dupa.get(c) ?? 0);
   }
   await db.opreste();
@@ -538,6 +537,7 @@ git commit -m "feat(migrare): normalise the 684 forbidden characters the old con
 // migrare/html-md.test.mjs
 import { describe, expect, it } from 'vitest';
 import { dezbracaPreambul, imaginiDin, laMarkdown } from './html-md.mjs';
+import { CEDILE, VIRGULA_DEDESUBT } from '../src/lib/cedile.ts';
 
 const PREAMBUL_REAL =
   '<p>Layouts: Popup</p>\t\t\n\t\tParohia noastra &gt; <u><b>Istoric</b></u>\t\t\n\t\t\t';
@@ -572,8 +572,8 @@ describe('conversia la Markdown', () => {
   });
 
   it('normalizeaza diacriticele pe drum', () => {
-    const cedila = String.fromCodePoint(0x015f);
-    const virgula = String.fromCodePoint(0x0219);
+    const cedila = String.fromCodePoint(CEDILE[1]);
+    const virgula = String.fromCodePoint(VIRGULA_DEDESUBT[1]);
     expect(laMarkdown(`<p>Mo${cedila}ii</p>`)).toContain(`Mo${virgula}ii`);
   });
 
@@ -1396,8 +1396,11 @@ Then the positive control that matters most in this whole phase:
 node -e "
 const fs=require('fs');
 const f='src/content/pagini/istoric.md';
-const t=fs.readFileSync(f,'utf8');
-fs.writeFileSync(f, t.replace('a', String.fromCodePoint(0x015f)));
+// \`node -e\` is CommonJS, so this is a .then() rather than a top-level await.
+import('./src/lib/cedile.ts').then(({ CEDILE }) => {
+  const t=fs.readFileSync(f,'utf8');
+  fs.writeFileSync(f, t.replace('a', String.fromCodePoint(CEDILE[1])));
+});
 " && TZ=Europe/Zurich npm run test:build; echo "trebuie sa fie 1: $?"
 git checkout src/content/pagini/istoric.md
 TZ=Europe/Zurich npm run test:build; echo "trebuie sa fie 0: $?"
