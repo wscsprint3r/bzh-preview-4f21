@@ -23,8 +23,9 @@ Două lucruri care se uită ușor:
 
 - **Data este și numele fișierului și nu se schimbă singură.** Dacă o zi
   publicată are data greșită, ștergeți-o și adăugați-o din nou.
-- **Dacă slujbele se anulează, păstrați orele și bifați „Slujbele sunt anulate”.** Dacă ștergeți rândurile, cei abonați la calendar rămân cu
-  vechiul program și nu află de anulare.
+- **Dacă slujbele se anulează, păstrați orele și bifați „Slujbele sunt
+  anulate”.** Dacă ștergeți rândurile, cei abonați la calendar rămân cu vechiul
+  program și nu află de anulare.
 
 Dacă ceva nu apare pe site după câteva minute, construcția a eșuat — verificați
 e-mailul primit de la GitHub, care spune ce fișier are problema.
