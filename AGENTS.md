@@ -162,15 +162,26 @@ rather than of the file. Every count in this file was taken with `node` reading 
 directly, for that reason.
 
 **It is not only `grep`, and the cap is not one number.** The rule is about the *filter*, so
-it applies to every command `rtk` renders. Measured on this repository's own history:
-`rtk git log --oneline main..HEAD | wc -l` is **50**, `rtk proxy git log --oneline main..HEAD
-| wc -l` is **137**, and `rtk proxy git rev-list --count main..HEAD` — which counts rather
-than lists, so there is nothing to render — is **137**. So `git log` truncates at a different
-place from `grep`'s twenty-five, and neither number is worth memorising: what is worth
-memorising is that a piped count of a filtered command is a fact about the renderer. Ask for a
-count from something that counts. `rtk git status --short` has the same shape in the other
-direction — it prints `ok` for a clean tree rather than nothing, so a script testing for empty
-output sees a non-empty answer and concludes the tree is dirty.
+it applies to every command `rtk` renders. `rtk git log --oneline | wc -l` is **50** for this
+repository's whole history, where `rtk proxy git rev-list --count HEAD` — which counts rather
+than lists, so there is nothing to render — says **146** on the day this was measured. It is a
+cap and not a fixed rendering: `rtk git log --oneline -3 | wc -l` and the honest one are both
+**3**. So `git log` truncates somewhere other than `grep`'s twenty-five, and a piped count of a
+filtered command is a fact about the renderer. Ask for a count from something that counts.
+`rtk git status --short` has the same shape in the other direction — it prints `ok` for a clean
+tree rather than nothing, so a script testing for empty output sees a non-empty answer and
+concludes the tree is dirty.
+
+**The number cited above is the cap, and the previous version of this paragraph cited a branch
+instead.** It said `rtk proxy git rev-list --count main..HEAD` was **137**. It was **138** on
+the day it was written — and by the time anyone read that correction it was 144, because
+commits kept arriving on the branch being counted. So the figure was wrong twice over, and the
+second way is the one worth learning from: **a count of commits on a branch that is still
+receiving commits decays by construction**, exactly like the ledger count corrected the round
+before, in this same section, for this same reason. Three rounds, three rotted numbers, all of
+them in the passage that teaches measurement. **50** does not rot: it is what the renderer does
+to any range longer than fifty, and a history only grows. Prefer a citation that cannot decay,
+and where the honest number is genuinely wanted, quote the command rather than its answer.
 
 ## How this project decides whether something is actually checked
 
