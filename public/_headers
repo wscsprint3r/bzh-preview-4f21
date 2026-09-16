@@ -1,0 +1,140 @@
+# The response headers Cloudflare Pages sends for this site.
+#
+# ---------------------------------------------------------------------------
+# THIS FILE IS NOT SERVED, AND IT IS NOT THE FILE THAT SHIPS.
+#
+# Cloudflare parses `_headers` out of the build output and never serves it
+# ("will not itself be served as a static asset, but will instead be parsed").
+# So nothing you can request from the deployed site shows you this file; the
+# only way to see what it did is to read the response headers of some OTHER
+# URL, with `curl -sI`. The handover checklist in
+# `.superpowers/sdd/.../task-13-report.md` gives the exact commands.
+#
+# And what ships is `dist/_headers`, not this file: `script-src` below carries
+# a PLACEHOLDER that `scripts/csp-hash.mjs` replaces at build time with the
+# SHA-256 of every inline script Astro emitted. See the note on `script-src`.
+# ---------------------------------------------------------------------------
+#
+# TWO RULES MUST NEVER SET THE SAME HEADER NAME. Cloudflare applies every
+# matching rule and, when a header name appears twice, JOINS THE VALUES WITH A
+# COMMA rather than letting the more specific rule win. Two `Cache-Control`
+# rules would therefore produce `Cache-Control: public, max-age=3600, no-store`,
+# which is not either policy. Every header name below appears in exactly one
+# rule; keep it that way. (To drop a header Cloudflare adds by default, prefix
+# the name with `! ` rather than re-declaring it.)
+#
+# Limits: at most 100 rules, and 2,000 characters per line including the name.
+# The `Content-Security-Policy` line is the one that could approach that: each
+# script hash costs about 52 characters.
+
+/*
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: https://avatars.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' {{hash-scripturi}}; connect-src 'self' https://api.github.com; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), interest-cohort=()
+
+# ---------------------------------------------------------------------------
+# `script-src` AND THE PLACEHOLDER. Read this before editing the line above.
+#
+# `script-src 'self'` alone WOULD BREAK THIS SITE, SILENTLY. Task 10's week
+# picker is about 3 KB, which is under Vite's inline threshold, so Astro writes
+# it INTO the homepage as `<script type="module">...</script>`. An inline script
+# is not covered by `'self'`: Chrome refuses it with
+#
+#   Executing inline script violates the following Content Security Policy
+#   directive 'script-src 'self''.
+#
+# and there is no visible symptom, because running without that script is the
+# DESIGNED fallback - every week renders, the picker bar stays hidden, and the
+# next-service card keeps whatever value the build stamped on it. The page looks
+# perfect and tells a parishioner about a Liturgy that finished hours ago.
+# Measured in headless Chrome over the real build, both with and without the
+# hash; see the task 13 report.
+#
+# So the policy names the script BY HASH. `'unsafe-inline'` would also work and
+# is not acceptable here: it would re-admit every injected `<script>` this
+# directive exists to stop. A hash admits exactly one byte sequence, the one we
+# built.
+#
+# The hash changes with every change to the script, which is why it cannot be
+# written here by hand. `scripts/csp-hash.mjs` runs at `astro:build:done`,
+# hashes every inline executable script in every built page, and substitutes
+# them for `{{hash-scripturi}}`. It FAILS THE BUILD if the placeholder is
+# missing, so deleting it does not quietly fall back to a policy that blocks the
+# script - and `src/lib/headers.itest.ts` asserts the shipped `dist/_headers`
+# carries a real hash and no placeholder.
+#
+# `<script type="application/json">` - the homepage's schedule island - is DATA,
+# not code. CSP does not police it and it gets no hash. Verified: the only
+# violation Chrome reported was for the module.
+#
+# `style-src` keeps `'unsafe-inline'` because `astro.config.mjs` sets
+# `inlineStylesheets: 'always'`, so every page's CSS is an inline `<style>`.
+# Hashing those too is possible and was not done: a stylesheet cannot execute,
+# and the hashes would be several per page rather than one.
+# ---------------------------------------------------------------------------
+
+# LOAD-BEARING, AND UNVERIFIABLE FROM THIS REPOSITORY. A static build discards
+# the `Content-Type` the endpoint itself sets (`src/pages/program.ics.ts` sets
+# it, and `astro dev` honours it; `astro build` writes only the body), so what a
+# subscriber's calendar client receives is decided HERE and nowhere else. No
+# test in this repository can see it. Verify against the deployed host:
+#
+#   curl -sI https://<project>.pages.dev/program.ics | grep -i content-type
+#   -> content-type: text/calendar; charset=utf-8
+#
+# If it comes back `text/calendar; charset=utf-8, text/calendar` the comma-join
+# above has happened and some other rule is also setting `Content-Type`.
+#
+# One hour of caching: the feed changes only when a volunteer publishes, and a
+# calendar client polls on its own schedule anyway. Long enough to matter, short
+# enough that a corrected service time is not stuck for a day.
+/program.ics
+  Content-Type: text/calendar; charset=utf-8
+  Cache-Control: public, max-age=3600
+
+# `/admin/` is the page where an editor's GitHub credential lives, so it gets
+# the same `'self'` treatment as the rest of the site rather than an exception:
+# the CMS's three fonts are vendored from npm at the exact versions its own URLs
+# named, and `copy-cms.mjs` asserts each URL is found exactly once so an upgrade
+# that moves them fails the build instead of silently restoring the CDN.
+#
+# FIVE requests are deliberately still blocked here, each measured in a real
+# browser and each failing gracefully - the sign-in screen draws correctly with
+# all five refused:
+#
+#   connect-src  data:                                    the CMS fetching its
+#                                                         own logo as a data:
+#                                                         SVG; console error
+#                                                         only
+#   connect-src  https://unpkg.com/@sveltia/cms/...       an hourly update
+#                                                         check; the version is
+#                                                         pinned on purpose
+#   connect-src  https://www.githubstatus.com/api/...     the incident banner;
+#                                                         pornire.mjs already
+#                                                         tells a volunteer what
+#                                                         they need
+#   img-src      blob:  (x2)                              image data the CMS
+#                                                         wraps in a blob URL.
+#                                                         Not in the task 12
+#                                                         report - found by
+#                                                         measuring. If an
+#                                                         editor ever reports a
+#                                                         missing thumbnail in
+#                                                         the media library,
+#                                                         this is why, and
+#                                                         `blob:` in `img-src`
+#                                                         is the fix.
+#
+# `scripts/csp-browser.mjs` holds that list as the EXPECTED set and fails when a
+# sixth appears, so a CMS upgrade that reaches for a new origin cannot do it
+# quietly.
+#
+# UNVERIFIED until the first real sign-in, which needs credentials no agent has:
+# `img-src avatars.githubusercontent.com` for the editor's avatar, and whatever
+# the OAuth flow needs - the Worker origin in `connect-src`, possibly
+# github.com. Watch the browser console on that first attempt; the task 13
+# report says what to do with each message.
+/admin/*
+  X-Robots-Tag: noindex

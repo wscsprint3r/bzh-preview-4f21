@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import { copiazaCms } from './scripts/copy-cms.mjs';
+import { hashuriCsp } from './scripts/csp-hash.mjs';
 
 /**
  * Puts the Sveltia CMS bundle under `public/admin/` before anything reads that
@@ -27,8 +28,15 @@ const copiereaCms = {
   },
 };
 
+/*
+ * `hashuriCsp` runs at `astro:build:done`, which is after `public/` has been
+ * copied into `dist/` — so it rewrites the copy and never touches the source.
+ * It is a build-only integration: `astro dev` serves `public/_headers` with its
+ * placeholder intact, which costs nothing, because a dev server applies
+ * `_headers` to nothing. The file only means anything on Cloudflare Pages.
+ */
 export default defineConfig({
-  integrations: [copiereaCms],
+  integrations: [copiereaCms, hashuriCsp],
   site: 'https://www.bor-zh.ch',
   output: 'static',
   trailingSlash: 'always',

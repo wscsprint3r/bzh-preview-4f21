@@ -1,0 +1,42 @@
+# NOT "nightly", and the name is the point. The homepage's next-service card
+# falls back to its build-time value when JavaScript does not run, so the
+# rebuild interval IS the worst-case staleness a no-JS visitor sees. Four builds
+# a day bounds that at six hours; one a day would bound it at twenty-four.
+name: Reconstruire la fiecare șase ore
+
+on:
+  schedule:
+    # 01:00, 07:00, 13:00 and 19:00 UTC — 03:00/09:00/15:00/21:00 in Zürich
+    # during summer time, an hour earlier in winter. Nothing depends on the
+    # exact hours; what matters is that one of them falls after midnight, so the
+    # date the pages were built with rolls over.
+    #
+    # About 120 of Cloudflare Pages' 500 free builds a month.
+    - cron: '0 1,7,13,19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconstruieste:
+    runs-on: ubuntu-latest
+    steps:
+      # The secret is checked by name first. `curl -X POST ""` fails too, but it
+      # fails with a usage message about a URL, which is not what a person
+      # reading a red build at 03:00 needs to see.
+      - name: Declanșează build-ul Cloudflare Pages
+        env:
+          CARLIG: ${{ secrets.CF_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$CARLIG" ]; then
+            echo "Secretul CF_DEPLOY_HOOK nu este configurat."
+            echo "Settings -> Secrets and variables -> Actions -> New repository secret."
+            echo "Valoarea este URL-ul deploy hook-ului din Cloudflare Pages"
+            echo "(Settings -> Builds & deployments -> Deploy hooks)."
+            exit 1
+          fi
+          # -f so an HTTP error is a failed job rather than a silent success:
+          # without it curl prints the error body and exits 0, and a rebuild
+          # that stopped happening would look exactly like one that works.
+          curl -fsS -X POST "$CARLIG"

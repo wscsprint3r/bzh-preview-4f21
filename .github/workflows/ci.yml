@@ -1,0 +1,78 @@
+name: CI
+
+# `main` and every pull request, plus a manual button. The manual trigger is not
+# decoration: the work is on `phase-1` and the first push will be that branch, so
+# without it nobody could see this workflow go green before Cloudflare Pages is
+# connected — and a workflow that has never run is not evidence of anything.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+    env:
+      # `aziLaZurich` is explicit about its timezone, but pinning the runner
+      # removes any doubt about what "today" meant during a build — and the
+      # audits below render pages whose content depends on the date.
+      TZ: Europe/Zurich
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # DETECT_CHROMEDRIVER_VERSION makes the `chromedriver` package download the
+      # driver that matches the Chrome ALREADY ON THE RUNNER, instead of the one
+      # its own version number names. Without it this job breaks the first time
+      # GitHub bumps Chrome in the image, with
+      # "This version of ChromeDriver only supports Chrome version N" — which is
+      # a matter of weeks, and has nothing to do with any change in this
+      # repository. If it ever fails during install instead, drop the line and
+      # run `npm i -D chromedriver@latest` to realign by hand.
+      - run: npm ci
+        env:
+          DETECT_CHROMEDRIVER_VERSION: 'true'
+
+      - run: npm run check
+      - run: npm test
+
+      # Builds, then the dist/ integration tests, then the default-width axe and
+      # CSP pass, then the performance budget.
+      - run: npm run test:build
+      - run: npm run budget
+
+      # ---------------------------------------------------------------------
+      # Three more browser passes, because the one inside `test:build` cannot
+      # reach what they reach. Contrast is guaranteed by axe over the built
+      # pages, not by any static check: specificity, @layer, media context and
+      # stylesheet order are cascade rules, and a parser asserting over CSS text
+      # loses to them.
+      #
+      #   a11y:mobil     — 390px. The default audit viewport measures 756px, so
+      #                    the 34rem phone breakpoint, where the day row drops
+      #                    its month name, is otherwise never audited. Most of
+      #                    the parish reads this on a phone.
+      #   a11y:larg      — 1100px, above the 62rem breakpoint where the week band
+      #                    regrids to fit a seven-day Holy Week. Unaudited for
+      #                    the same reason and by the same measurement.
+      #   a11y:selector  — the week picker's bar un-hides only at two or more
+      #                    weeks, and the parish's real schedule is one, so on
+      #                    every real build it stays hidden and axe skips it.
+      #                    This builds a throwaway site from `src/lib/fixturi.ts`
+      #                    and is the ONLY pass that ever sees the bar, its
+      #                    label, its arrows or its focus ring.
+      #
+      # Each of these also runs with the page's scripts disabled, which is the
+      # only state in which every week is rendered and therefore auditable.
+      # ---------------------------------------------------------------------
+      - run: npm run a11y:mobil
+      - run: npm run a11y:larg
+      - run: npm run a11y:selector

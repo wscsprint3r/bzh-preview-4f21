@@ -47,6 +47,21 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
+/*
+ * Script types the BROWSER EXECUTES, and script types it merely reads, live in
+ * `scripts/scripturi.mjs`. Anything in neither list stops the build rather than
+ * being skipped: a `<script>` shape this file has never seen is precisely what a
+ * budget must not wave through, and it is the mistake the old file-walking check
+ * made in a different costume.
+ *
+ * SHARED WITH `csp-hash.mjs` RATHER THAN COPIED, because the two must agree.
+ * This file weighs every executed script; that one puts a hash of every inline
+ * executed script into `script-src`. The same misreading makes this one
+ * under-count and that one lock the script out of the deployed site — which has
+ * no visible symptom at all here, since running without JavaScript is the
+ * designed fallback. One classification, one place.
+ */
+import { ATRIBUT, scripturi } from './scripturi.mjs';
 
 const DIST = 'dist';
 
@@ -153,24 +168,12 @@ if (faraBuget.length > 0) {
   );
 }
 
-const ATRIBUT = (attrs, nume) =>
-  attrs.match(new RegExp(`\\b${nume}\\s*=\\s*["']([^"']*)["']`, 'i'))?.[1] ?? null;
-
 /** A `/`-rooted URL as a path inside `dist/`, or null when it points elsewhere. */
 function inDist(url) {
   if (url === null || !url.startsWith('/')) return null;
   const cale = decodeURIComponent(url.split('?')[0].split('#')[0]).slice(1);
   return existsSync(join(DIST, cale)) ? cale : null;
 }
-
-/*
- * Script types the BROWSER EXECUTES, and script types it merely reads. Anything
- * in neither list stops the build rather than being skipped: a `<script>` shape
- * this file has never seen is precisely what a budget must not wave through,
- * and it is the mistake the old file-walking check made in a different costume.
- */
-const TIPURI_EXECUTATE = new Set(['', 'module', 'text/javascript', 'application/javascript']);
-const TIPURI_DATE = new Set(['application/json', 'application/ld+json', 'importmap', 'speculationrules']);
 
 /** Bytes of one emitted module plus every module it statically pulls in. */
 function octetiModul(cale, vazute) {
@@ -247,20 +250,19 @@ for (const pagina of PAGINI) {
   const detalii = [];
   const vazuteAici = new Set();
 
-  for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-    const [, atribute, continut] = m;
-    const tip = (ATRIBUT(atribute, 'type') ?? '').trim().toLowerCase();
-    const src = ATRIBUT(atribute, 'src');
+  const scripturilePaginii = scripturi(html);
 
-    if (TIPURI_DATE.has(tip)) {
+  for (const { atribute, continut, src, fel } of scripturilePaginii) {
+    if (fel === 'date') {
+      const tip = (ATRIBUT(atribute, 'type') ?? '').trim().toLowerCase();
       detalii.push(`date ${tip} ${Buffer.byteLength(continut)} B (neexecutat)`);
       continue;
     }
-    if (!TIPURI_EXECUTATE.has(tip)) {
+    if (fel === 'necunoscut') {
       opreste(
-        `${pagina}: <script type="${tip}"> nu e nici cod, nici date cunoscute.\n` +
-          'Adaugă-l în TIPURI_EXECUTATE sau în TIPURI_DATE. Un buget care sare peste ' +
-          'ce nu recunoaște nu e un buget.',
+        `${pagina}: <script${atribute}> nu e nici cod, nici date cunoscute.\n` +
+          'Adaugă-l în TIPURI_EXECUTATE sau în TIPURI_DATE din scripts/scripturi.mjs. ' +
+          'Un buget care sare peste ce nu recunoaște nu e un buget.',
       );
     }
     if (src === null) {
@@ -320,8 +322,9 @@ for (const pagina of PAGINI) {
       cereri.push(`${rel} ${ATRIBUT(m[0], 'href')}`);
     }
   }
-  for (const m of html.matchAll(/<script\b([^>]*)>/gi)) {
-    const src = ATRIBUT(m[1], 'src');
+  // The same list the JS weighing used, so a `<script>` written inside an HTML
+  // comment cannot be counted as a request here while being ignored there.
+  for (const { src } of scripturilePaginii) {
     if (src !== null) cereri.push(`script ${src}`);
   }
   for (const m of html.matchAll(/<(img|iframe|video|audio|source|embed)\b([^>]*)>/gi)) {

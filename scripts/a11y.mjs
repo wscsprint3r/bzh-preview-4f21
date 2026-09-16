@@ -1,52 +1,73 @@
 /*
- * Runs axe-core over every built page in a real headless Chrome.
+ * Loads the built site in a real headless Chrome and checks two things nothing
+ * else in this repository can see: what axe-core says about it, and what the
+ * Content-Security-Policy in `_headers` does to it.
  *
- * This is the guard that owns contrast on this site. A static scan of CSS text
- * cannot do it: specificity, @layer, media context and source order across
- * stylesheets are cascade rules, and anything asserting over CSS text is
- * re-implementing the cascade. A browser is the only correct implementation of
- * it, so a browser is what checks.
+ * ===========================================================================
+ * WHY A BROWSER, AND WHY THIS BROWSER RATHER THAN THE axe CLI.
  *
- * WHAT IT DOES: for the elements axe evaluates, it reads the computed colour
- * and the computed background — including one inherited from an ancestor, which
- * is where most of this site's rules get theirs — and compares them. It does
- * not visit every text node; the exclusions below are the ones that matter.
+ * Contrast is owned here. A static scan of CSS text cannot do it: specificity,
+ * `@layer`, media context and source order across stylesheets are cascade
+ * rules, and anything asserting over CSS text is re-implementing the cascade.
+ *
+ * This file used to drive `@axe-core/cli`. It cannot any more, and the reason
+ * is measured rather than argued:
+ *
+ *   - The CLI parses `--chrome-options` with `val.split(/[,;]/)`, so
+ *     `window-size=390,844` arrives as `--window-size=390` and `--844`. There
+ *     is no escape.
+ *   - Even passed correctly, `window-size` is clamped: launching with
+ *     `390,844` on macOS measured `innerWidth === 500`.
+ *   - It has no way to stop the page's own scripts from running.
+ *
+ * `Emulation.setDeviceMetricsOverride` and `Emulation.setScriptExecutionDisabled`
+ * do both exactly, and both are CDP-only. So the driver is `selenium-webdriver`
+ * and the engine is `axe-core` injected directly - the same axe-core the CLI
+ * used, at the same version.
+ * ===========================================================================
  *
  * ---------------------------------------------------------------------------
- * HONEST SCOPE. A green run means exactly this and no more:
+ * HONEST SCOPE. A green run means this and no more:
  *
  *   No failing text reaches a visitor IN THE DEFAULT STATE, ON A FLAT
- *   BACKGROUND, AT ~750px, DARK-SCHEME, ON A BUILT PAGE.
+ *   BACKGROUND, AT EACH AUDITED VIEWPORT, DARK-SCHEME, ON A BUILT PAGE - and
+ *   no page provokes a CSP violation the policy did not already expect.
  *
  * It does NOT cover:
  *   - text over a gradient or a background-image. axe reports those as
- *     `incomplete` rather than as a pass, and the CLI still exits 0 — so this
- *     script fails on any `incomplete` for color-contrast and prints the
- *     selector. "Could not determine" is a decision someone makes, not a
- *     silence.
+ *     `incomplete` rather than as a pass, so this script fails on any
+ *     `incomplete` for color-contrast and prints the selector. "Could not
+ *     determine" is a decision someone makes, not a silence.
  *   - :hover, :focus and :active states
- *   - anything display:none, visibility:hidden, opacity:0 or [hidden]. Task 10's
- *     week picker hides all but one week with `hidden`, so the content that task
- *     exists to manage is invisible to this guarantee.
- *   - off-screen text
- *   - media queries outside the audit viewport. It measures at 701-800 CSS px,
- *     so this site's 34rem phone breakpoint is never audited here.
+ *   - anything display:none, visibility:hidden, opacity:0 or [hidden]. This is
+ *     why the JavaScript-off condition exists at all: with scripts running, the
+ *     week picker hides every week but one and axe skips them.
+ *   - viewports other than the ones listed in `CONDITII`. Every `@media` branch
+ *     outside them is unaudited.
  *   - colour-scheme branches other than dark
  *   - ::before / ::after content, and SVG <text>
  *   - pages that were not built when the audit ran
  *   - non-hex colour literals, which neither this nor the hex guard catches
+ *   - whether Cloudflare actually applies `_headers`. This serves the file's
+ *     rules itself; only `curl -sI` against the deployed host can say what the
+ *     host does with them.
  * ---------------------------------------------------------------------------
  *
- * Run with `npm run a11y`, or as the last step of `npm run test:build`.
+ * Run with `npm run a11y`, `npm run a11y:mobil`, `npm run a11y:selector`, or as
+ * a step of `npm run test:build`.
  */
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { extname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { Builder } from 'selenium-webdriver';
+import chrome from 'selenium-webdriver/chrome.js';
+import chromedriver from 'chromedriver';
+import { anteteleRutei, parseazaHeaders } from './headers.mjs';
 
-const DIST = 'dist';
-const NUME_REZULTATE = 'rezultate.json';
+const AXE = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
+
 const TIPURI = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -57,155 +78,409 @@ const TIPURI = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
   '.ics': 'text/calendar',
+  '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.webp': 'image/webp',
 };
 
-function paginile(dir = DIST) {
+/*
+ * THE ONE PAGE THE AXE AUDIT DOES NOT COVER, and why measuring it would be
+ * worse than skipping it.
+ *
+ * `admin/index.html` is the host page for Sveltia CMS: a `<script>` tag and a
+ * `<noscript>`, nothing else. Everything an editor sees is drawn by the bundle
+ * after load, so what axe measures is the empty shell - which is why a run
+ * across it reports `landmark-one-main` and `page-has-heading-one` against
+ * `<html>` itself, and why `color-contrast` never runs at all.
+ *
+ * The tempting fix is to give the page a `<main>` and an `<h1>` so the rules
+ * have something to bite on. That would be worse: the markup is replaced a
+ * second later by markup we did not write and cannot change, so the green would
+ * be about a placeholder while reading as a guarantee about the CMS.
+ *
+ * SO `/admin/` IS UNAUDITED BY axe, and its accessibility is Sveltia's. It is
+ * NOT exempt from the CSP check below - it is the page where an editor's GitHub
+ * credential lives, which makes it the page whose policy matters most.
+ *
+ * Excluded BY EXACT PATH, not by folder - the same rule `stylesheet.itest.ts`
+ * follows - so the next page put under `admin/` is audited like any other.
+ */
+const FARA_AXE = ['admin/index.html'];
+
+/*
+ * The CSP violations `/admin/` is EXPECTED to provoke, each measured in a real
+ * browser and each verified to fail gracefully - the sign-in screen draws
+ * correctly with all five refused. `public/_headers` explains every one.
+ *
+ * THE EXPECTED SET IS WRITTEN HERE, NOT DERIVED FROM THE RUN. A list rebuilt
+ * from whatever the browser reported would accept anything the CMS decided to
+ * fetch next, which is the one thing this check exists to notice: a Sveltia
+ * upgrade reaching for a new origin from the page that holds a credential.
+ *
+ * Keyed `directive <- blockedURI`, which is what Chrome reports.
+ */
+const CSP_ASTEPTAT = {
+  'admin/index.html': [
+    'connect-src <- data',
+    'connect-src <- https://unpkg.com/@sveltia/cms/package.json',
+    'connect-src <- https://www.githubstatus.com/api/v2/status.json',
+    'img-src <- blob',
+  ],
+};
+
+/** Every `.html` in a build, as paths relative to it. */
+export function paginile(radacina, relativ = '') {
   const gasite = [];
-  for (const intrare of readdirSync(dir, { withFileTypes: true })) {
-    const cale = join(dir, intrare.name);
-    if (intrare.isDirectory()) gasite.push(...paginile(cale));
+  for (const intrare of readdirSync(join(radacina, relativ), { withFileTypes: true })) {
+    const cale = relativ === '' ? intrare.name : `${relativ}/${intrare.name}`;
+    if (intrare.isDirectory()) gasite.push(...paginile(radacina, cale));
     else if (intrare.name.endsWith('.html')) gasite.push(cale);
   }
   return gasite.sort();
 }
 
 /*
- * THE ONE PAGE THIS AUDIT DOES NOT COVER, and why measuring it would be worse
- * than skipping it.
+ * The harness's own control page, served from memory and NOT from the build.
  *
- * `admin/index.html` is the host page for Sveltia CMS: a `<script>` tag and a
- * `<noscript>`, nothing else. Everything an editor sees is drawn by the bundle
- * after load, so what axe measures is the empty shell — which is why a run
- * across it reports `landmark-one-main` and `page-has-heading-one` against
- * `<html>` itself, and why `color-contrast` never runs at all. The check below
- * that turns "the rule never ran" into a failure is right, and it fires here
- * for the honest reason that there was nothing to measure.
+ * It answers one question that the audit cannot answer about itself: is the
+ * JavaScript-off condition actually off? Without it, a broken switch would turn
+ * every "with scripts disabled" pass into a second copy of the pass above it,
+ * and the weeks the picker hides would go back to being audited by nothing
+ * while the output still said they were.
  *
- * The tempting fix is to give the page a `<main>` and an `<h1>` so the rules
- * have something to bite on. That would be worse than this exclusion: the
- * markup is replaced a second later by markup we did not write and cannot
- * change, so the green would be about a placeholder while reading as a
- * guarantee about the CMS. An explicit gap beats a vacuous pass.
- *
- * SO `/admin/` IS UNAUDITED, and its accessibility is Sveltia's. That is a real
- * gap, written down rather than papered over: the people it affects are the
- * parish's editors, behind a GitHub sign-in, not visitors.
- *
- * Excluded BY EXACT PATH, not by folder — the same rule `stylesheet.itest.ts`
- * follows — so the next page put under `admin/` is audited like any other.
+ * Served WITHOUT the site's CSP, deliberately: the policy admits exactly the
+ * hashes of the scripts the build produced, so this page's script would be
+ * refused and the control would report "scripts did not run" in both
+ * conditions - agreeing with a broken switch instead of catching it.
  */
-const EXCLUSE = ['admin/index.html'];
-const caleRelativa = (cale) => cale.slice(DIST.length + 1);
+const CALE_CONTROL = '/__control__.html';
+const CONTROL = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>inainte</title></head>
+<body><p id="p">inainte</p><script>document.title = 'dupa'; document.getElementById('p').textContent = 'dupa';</script></body></html>`;
 
-// A guard that reads files must prove it read something: without this, a
-// missing build would make an empty page list pass silently.
-if (!existsSync(DIST)) {
-  console.error(`${DIST}/ nu există — rulează mai întâi build-ul.`);
-  process.exit(1);
+function serveste(dist, reguli) {
+  return createServer((req, res) => {
+    const cale = decodeURIComponent(req.url.split('?')[0]);
+    if (cale === CALE_CONTROL) {
+      res.writeHead(200, { 'Content-Type': TIPURI['.html'] });
+      res.end(CONTROL);
+      return;
+    }
+    const fisier = join(dist, cale.endsWith('/') ? `${cale}index.html` : cale);
+    if (!existsSync(fisier) || !statSync(fisier).isFile()) {
+      res.writeHead(404);
+      res.end('404');
+      return;
+    }
+    const antete = { 'Content-Type': TIPURI[extname(fisier)] ?? 'application/octet-stream' };
+    // Matched against the REQUEST path, which is what Cloudflare matches, not
+    // against the file it resolved to: `/` and `/index.html` are different
+    // strings to a rule like `/index.html`.
+    for (const [nume, valoare] of anteteleRutei(reguli, cale)) antete[nume] = valoare;
+    res.writeHead(200, antete);
+    res.end(readFileSync(fisier));
+  });
 }
-const toatePaginile = paginile();
-if (toatePaginile.length === 0) {
-  console.error(`${DIST}/ nu conține nicio pagină .html.`);
-  process.exit(1);
+
+/**
+ * The conditions an audit runs under.
+ *
+ * `latime: null` means "whatever headless Chrome gives by default", measured at
+ * 756 CSS px - which is why `34rem` (544px) and `62rem` (992px), the site's two
+ * breakpoints, both need naming explicitly. `js: false` means the page's own
+ * scripts never ran.
+ */
+export const CONDITII = {
+  birou: { eticheta: 'birou, JS pornit', latime: null, js: true },
+  birouFaraJs: { eticheta: 'birou, JS oprit', latime: null, js: false },
+  telefon: { eticheta: 'telefon 390px, JS pornit', latime: 390, inaltime: 844, js: true },
+  telefonFaraJs: { eticheta: 'telefon 390px, JS oprit', latime: 390, inaltime: 844, js: false },
+  larg: { eticheta: 'larg 1100px, JS pornit', latime: 1100, inaltime: 900, js: true },
+  largFaraJs: { eticheta: 'larg 1100px, JS oprit', latime: 1100, inaltime: 900, js: false },
+};
+
+function deschide() {
+  return new Builder()
+    .forBrowser('chrome')
+    .setChromeOptions(new chrome.Options().addArguments('headless=new', 'no-sandbox', 'disable-gpu'))
+    .setChromeService(new chrome.ServiceBuilder(chromedriver.path))
+    .build();
+}
+
+/** Puts the driver into one condition. Takes effect on the NEXT navigation. */
+async function pregateste(driver, conditie) {
+  if (conditie.latime === null) {
+    await driver.sendDevToolsCommand('Emulation.clearDeviceMetricsOverride', {});
+  } else {
+    await driver.sendDevToolsCommand('Emulation.setDeviceMetricsOverride', {
+      width: conditie.latime,
+      height: conditie.inaltime,
+      deviceScaleFactor: 0,
+      // `mobile: false`, so the layout viewport IS the width asked for. With
+      // `true` the page is laid out at 980px unless it carries a viewport meta
+      // tag, which would make the audited width a property of the page rather
+      // than of this file. Measured both ways.
+      mobile: false,
+    });
+  }
+  await driver.sendDevToolsCommand('Emulation.setScriptExecutionDisabled', { value: !conditie.js });
 }
 
 /*
- * O excepție pentru o pagină care nu mai există nu scutește nimic: rămâne în cod
- * arătând ca o regulă și e gata să scuze altceva cu același nume.
+ * axe itself needs to run, even when the PAGE's scripts must not.
+ *
+ * Measured: with `setScriptExecutionDisabled` still true, `axe.run` never
+ * settles and the call times out - the flag stops the timers and promise jobs
+ * axe depends on. Re-enabling AFTER the page has loaded does not resurrect the
+ * page's own scripts: a module script skipped during parsing is not queued, so
+ * the DOM stays exactly as a visitor without JavaScript sees it. Verified with
+ * a page whose script rewrites its own title and body - unchanged under this
+ * sequence, changed in the control with scripts enabled.
  */
-const lipsa = EXCLUSE.filter((e) => !toatePaginile.some((p) => caleRelativa(p) === e));
-if (lipsa.length > 0) {
-  console.error(`Excepții pentru pagini care nu există: ${lipsa.join(', ')}. Șterge-le.`);
-  process.exit(1);
-}
-
-const pagini = toatePaginile.filter((p) => !EXCLUSE.includes(caleRelativa(p)));
-if (pagini.length === 0) {
-  console.error(`Excepțiile au cuprins toate paginile — auditul nu ar verifica nimic.`);
-  process.exit(1);
-}
-console.log(`Pagini excluse din audit: ${EXCLUSE.join(', ')}`);
-
-const dirIesire = mkdtempSync(join(tmpdir(), 'axe-'));
-
-const server = createServer((req, res) => {
-  let cale = decodeURIComponent(req.url.split('?')[0]);
-  if (cale.endsWith('/')) cale += 'index.html';
-  const fisier = join(DIST, cale);
-  if (!existsSync(fisier) || !statSync(fisier).isFile()) {
-    res.writeHead(404);
-    res.end('404');
-    return;
-  }
-  res.writeHead(200, { 'Content-Type': TIPURI[extname(fisier)] ?? 'application/octet-stream' });
-  res.end(readFileSync(fisier));
-});
-
-server.listen(0, () => {
-  const port = server.address().port;
-  const urls = pagini.map((p) => `http://localhost:${port}${p.slice(DIST.length).replace(/index\.html$/, '')}`);
-
-  console.log(`axe peste ${urls.length} pagină(i):`);
-  for (const u of urls) console.log(`  ${u}`);
-
-  // spawn, not spawnSync: spawnSync blocks the event loop, so the server above
-  // could never answer axe and the two would deadlock.
-  const proces = spawn(
-    'node_modules/.bin/axe',
-    [
-      ...urls,
-      '--chrome-options=headless,no-sandbox,disable-gpu',
-      '--exit',
-      '--save',
-      NUME_REZULTATE,
-      '--dir',
-      dirIesire,
-    ],
-    { stdio: 'inherit' },
+async function ruleazaAxe(driver) {
+  await driver.sendDevToolsCommand('Emulation.setScriptExecutionDisabled', { value: false });
+  await driver.executeScript(AXE);
+  return driver.executeAsyncScript(
+    'const gata = arguments[arguments.length - 1];' +
+      'axe.run(document).then((r) => gata({ ok: true, r })).catch((e) => gata({ ok: false, e: String(e) }));',
   );
+}
 
-  proces.on('close', (cod) => {
-    server.close();
-    let esec = cod !== 0;
+const SURSA_CSP = `window.__csp = [];
+document.addEventListener('securitypolicyviolation', (e) => {
+  window.__csp.push(e.effectiveDirective + ' <- ' + (e.blockedURI || '(inline)'));
+});`;
 
-    const fisier = join(dirIesire, NUME_REZULTATE);
-    if (!existsSync(fisier)) {
-      console.error('axe nu a scris niciun rezultat — auditul nu a rulat.');
-      rmSync(dirIesire, { recursive: true, force: true });
-      process.exit(1);
+/*
+ * Waits for the page to stop provoking CSP violations, and returns them.
+ *
+ * READING THEM STRAIGHT AFTER `driver.get` MEASURES NOTHING, and looks exactly
+ * like a pass. Chrome's load event fires long before Sveltia has booted, so the
+ * first version of this check reported `0 violations` for `/admin/` and printed
+ * all four expected ones as "no longer appearing" - a clean bill of health for a
+ * page whose CMS had not yet run a line. It was caught only because the missing
+ * ones were printed; a check that had merely said "0 unexpected" would have been
+ * green and empty.
+ *
+ * So: poll until the list has been unchanged for `LINISTE` and every expected
+ * violation has arrived, up to `PLAFON`. Quiet pages leave after one quiet
+ * second; `/admin/` takes as long as the bundle takes.
+ */
+const LINISTE = 1000;
+const PLAFON = 20000;
+
+async function asteaptaCsp(driver, asteptat) {
+  const pornire = Date.now();
+  let ultimele = [];
+  let schimbat = Date.now();
+  for (;;) {
+    const acum = (await driver.executeScript('return window.__csp')) ?? null;
+    if (acum === null) return null;
+    if (acum.length !== ultimele.length) {
+      ultimele = acum;
+      schimbat = Date.now();
     }
+    const toateVenite = asteptat.every((a) => acum.includes(a));
+    if (toateVenite && Date.now() - schimbat >= LINISTE) return acum;
+    if (Date.now() - pornire >= PLAFON) return acum;
+    await driver.sleep(200);
+  }
+}
 
-    const rezultate = JSON.parse(readFileSync(fisier, 'utf8'));
-    const audituri = Array.isArray(rezultate) ? rezultate : [rezultate];
-    if (audituri.length !== urls.length) {
-      console.error(`axe a raportat ${audituri.length} audit(uri) pentru ${urls.length} pagină(i).`);
-      esec = true;
-    }
+/**
+ * Runs the audit and returns true when everything passed.
+ *
+ * `cerinta` is an optional check run on the first condition's first page, for
+ * things only one build can show - the week picker's bar, which needs two
+ * rendered weeks.
+ */
+export async function auditeaza({ dist, conditii, eticheta, cerinta = null, spune = console.log }) {
+  if (!existsSync(dist)) {
+    spune(`${dist}/ nu există — rulează mai întâi build-ul.`);
+    return false;
+  }
+  const toate = paginile(dist);
+  if (toate.length === 0) {
+    spune(`${dist}/ nu conține nicio pagină .html.`);
+    return false;
+  }
 
-    for (const audit of audituri) {
-      const rulate = [...(audit.passes ?? []), ...(audit.violations ?? []), ...(audit.incomplete ?? [])];
-      // If color-contrast never ran, "0 violations" says nothing at all.
-      if (!rulate.some((r) => r.id === 'color-contrast')) {
-        console.error(`\nRegula color-contrast nu a rulat pe ${audit.url} — un rezultat curat nu ar dovedi nimic.`);
-        esec = true;
+  // An exception for a page that no longer exists excuses nothing: it stays in
+  // the code looking like a rule, ready to excuse something else of that name.
+  const lipsa = FARA_AXE.filter((e) => !toate.includes(e));
+  if (lipsa.length > 0) {
+    spune(`Excepții axe pentru pagini care nu există: ${lipsa.join(', ')}. Șterge-le.`);
+    return false;
+  }
+  const deAuditat = toate.filter((p) => !FARA_AXE.includes(p));
+  if (deAuditat.length === 0) {
+    spune('Excepțiile au cuprins toate paginile — auditul nu ar verifica nimic.');
+    return false;
+  }
+
+  const fisierHeaders = join(dist, '_headers');
+  if (!existsSync(fisierHeaders)) {
+    spune(`${fisierHeaders} lipsește — politica de securitate nu ar fi verificată deloc.`);
+    return false;
+  }
+  const reguli = parseazaHeaders(readFileSync(fisierHeaders, 'utf8'));
+
+  const server = serveste(dist, reguli);
+  await new Promise((gata) => server.listen(0, gata));
+  const port = server.address().port;
+  const url = (pagina) => `http://localhost:${port}/${pagina.replace(/index\.html$/, '')}`;
+
+  spune(`\n=== ${eticheta} ===`);
+  spune(`${dist}/ · ${toate.length} pagină(i) · ${conditii.length} condiție(i)`);
+  spune(`axe sare peste: ${FARA_AXE.join(', ')} (CSP le verifică pe toate)`);
+
+  let esec = false;
+  const nereusit = (mesaj) => {
+    esec = true;
+    spune(mesaj);
+  };
+
+  const driver = await deschide();
+  try {
+    await driver.sendDevToolsCommand('Page.enable', {});
+    await driver.sendDevToolsCommand('Page.addScriptToEvaluateOnNewDocument', { source: SURSA_CSP });
+
+    for (const conditie of conditii) {
+      spune(`\n--- ${conditie.eticheta} ---`);
+      await pregateste(driver, conditie);
+
+      // The control first, so a broken switch is reported before any result
+      // that depends on it.
+      await driver.get(`http://localhost:${port}${CALE_CONTROL}`);
+      const aRulat = (await driver.getTitle()) === 'dupa';
+      if (aRulat !== conditie.js) {
+        nereusit(
+          `Controlul spune că scripturile paginii ${aRulat ? 'AU' : 'NU au'} rulat, ` +
+            `dar condiția cere ${conditie.js ? 'să ruleze' : 'să nu ruleze'}.`,
+        );
+      } else {
+        spune(`  control: scripturile paginii ${aRulat ? 'rulează' : 'nu rulează'}, cum se cere`);
       }
-      for (const nedecis of audit.incomplete ?? []) {
-        if (nedecis.id !== 'color-contrast') continue;
-        esec = true;
-        console.error(`\nContrast nedeterminat pe ${audit.url} (de obicei text peste un gradient sau o imagine):`);
-        for (const nod of nedecis.nodes ?? []) {
-          console.error(`  ${(nod.target ?? []).join(' ')}`);
-          const motiv = (nod.any ?? []).map((a) => a.message).filter(Boolean).join('; ');
-          if (motiv) console.error(`    ${motiv}`);
+      await pregateste(driver, conditie);
+
+      for (const pagina of toate) {
+        await driver.get(url(pagina));
+        const latime = await driver.executeScript('return window.innerWidth');
+        if (conditie.latime !== null && latime !== conditie.latime) {
+          nereusit(`  ${pagina}: lățimea măsurată este ${latime}px, nu ${conditie.latime}px.`);
         }
+
+        /*
+         * With the page's scripts disabled, NOTHING may be refused - the CMS
+         * bundle never runs, and neither does anything else that could fetch.
+         * So the expected set belongs to the scripts-on condition only, and
+         * this doubles as a second control on the switch: an expected
+         * violation appearing here would mean the page's scripts ran after all.
+         */
+        const asteptat = conditie.js ? (CSP_ASTEPTAT[pagina] ?? []) : [];
+        const violari = await asteaptaCsp(driver, asteptat);
+        if (violari === null) {
+          nereusit(`  ${pagina}: ascultătorul de CSP nu s-a instalat — nu s-a verificat nimic.`);
+        } else {
+          const neasteptate = violari.filter((v) => !asteptat.includes(v));
+          const lipsuri = asteptat.filter((a) => !violari.includes(a));
+          spune(`  ${pagina} @ ${latime}px · CSP: ${violari.length} violare(ări), ${neasteptate.length} neașteptată(e)`);
+          if (neasteptate.length > 0) {
+            nereusit(
+              `  ${pagina}: politica din _headers respinge ceva ce nimeni nu a prevăzut:\n` +
+                neasteptate.map((v) => `    ${v}`).join('\n') +
+                '\n    Dacă e legitim, adaugă-l în CSP_ASTEPTAT sau în politică — cu un motiv.',
+            );
+          }
+          /*
+           * A MISSING EXPECTED VIOLATION FAILS, and that is deliberate even
+           * though one of the two explanations is good news.
+           *
+           * Either the CMS stopped reaching for that origin - worth a human
+           * deciding, and one line to record - or the page never reached the
+           * state where it tries, in which case this check proved nothing at
+           * all while printing a clean result. The second is how the first
+           * version of this file passed `/admin/` without the bundle having
+           * run. A red build that costs a line beats a green one that means
+           * nothing.
+           */
+          if (lipsuri.length > 0) {
+            nereusit(
+              `  ${pagina}: aceste violări așteptate nu au apărut în ${PLAFON} ms:\n` +
+                lipsuri.map((v) => `    ${v}`).join('\n') +
+                '\n    Ori CMS-ul nu mai cere acele origini — scoate-le din CSP_ASTEPTAT —, ' +
+                'ori pagina nu a apucat să pornească, și atunci verificarea nu a dovedit nimic.',
+            );
+          }
+        }
+
+        if (FARA_AXE.includes(pagina)) continue;
+
+        const raspuns = await ruleazaAxe(driver);
+        if (!raspuns?.ok) {
+          nereusit(`  ${pagina}: axe nu a rulat — ${raspuns?.e ?? 'niciun rezultat'}`);
+          await pregateste(driver, conditie);
+          continue;
+        }
+        const audit = raspuns.r;
+        const rulate = [...(audit.passes ?? []), ...(audit.violations ?? []), ...(audit.incomplete ?? [])];
+        // If color-contrast never ran, "0 violations" says nothing at all.
+        if (!rulate.some((r) => r.id === 'color-contrast')) {
+          nereusit(`  ${pagina}: regula color-contrast nu a rulat — un rezultat curat nu ar dovedi nimic.`);
+        }
+        spune(
+          `    axe: ${audit.violations.length} violare(ări), ${audit.incomplete.length} nedecis(e), ` +
+            `${audit.passes.length} regulă(i) trecute`,
+        );
+        for (const v of audit.violations) {
+          nereusit(`  ${pagina} [${v.impact ?? 'n/a'}] ${v.id}: ${v.help}`);
+          for (const nod of v.nodes ?? []) spune(`      ${(nod.target ?? []).join(' ')}`);
+        }
+        for (const nedecis of audit.incomplete ?? []) {
+          if (nedecis.id !== 'color-contrast') continue;
+          nereusit(`  ${pagina}: contrast nedeterminat (de obicei text peste un gradient sau o imagine):`);
+          for (const nod of nedecis.nodes ?? []) {
+            spune(`      ${(nod.target ?? []).join(' ')}`);
+            const motiv = (nod.any ?? []).map((a) => a.message).filter(Boolean).join('; ');
+            if (motiv) spune(`        ${motiv}`);
+          }
+        }
+
+        // `ruleazaAxe` re-enabled script execution to run axe; put the
+        // condition back before the next page loads.
+        await pregateste(driver, conditie);
+      }
+
+      if (cerinta) {
+        const rezultat = await cerinta(driver, conditie, url);
+        if (rezultat !== null) nereusit(`  ${rezultat}`);
+        await pregateste(driver, conditie);
       }
     }
+  } finally {
+    await driver.quit();
+    server.close();
+  }
 
-    rmSync(dirIesire, { recursive: true, force: true });
-    if (esec) console.error('\naxe: contrastul nu este dovedit pentru toate elementele.');
-    process.exit(esec ? 1 : 0);
-  });
-});
+  spune(esec ? '\nAUDIT PICAT.' : '\nAudit trecut.');
+  return !esec;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Command line: `node scripts/a11y.mjs [--mobil|--larg]`.
+ * -------------------------------------------------------------------------- */
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const mobil = process.argv.includes('--mobil');
+  const larg = process.argv.includes('--larg');
+  const conditii = mobil
+    ? [CONDITII.telefon, CONDITII.telefonFaraJs]
+    : larg
+      ? [CONDITII.larg, CONDITII.largFaraJs]
+      : [CONDITII.birou, CONDITII.birouFaraJs];
+  const eticheta = mobil
+    ? 'axe la lățime de telefon (390px)'
+    : larg
+      ? 'axe peste pragul de 62rem (1100px)'
+      : 'axe la lățimea implicită';
+  process.exit((await auditeaza({ dist: 'dist', conditii, eticheta })) ? 0 : 1);
+}

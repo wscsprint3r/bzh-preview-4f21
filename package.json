@@ -14,9 +14,12 @@
     "test:watch": "vitest",
     "astro": "astro",
     "test:build": "astro build && vitest run --config vitest.itest.config.ts && node scripts/a11y.mjs && node scripts/check-budget.mjs",
-    "test:all": "npm run test && npm run test:build",
+    "test:all": "npm run test && npm run test:build && npm run a11y:mobil && npm run a11y:larg && npm run a11y:selector",
     "a11y": "astro build && node scripts/a11y.mjs",
-    "budget": "node scripts/check-budget.mjs"
+    "budget": "node scripts/check-budget.mjs",
+    "a11y:mobil": "astro build && node scripts/a11y.mjs --mobil",
+    "a11y:larg": "astro build && node scripts/a11y.mjs --larg",
+    "a11y:selector": "node scripts/a11y-selector.mjs"
   },
   "dependencies": {
     "@fontsource-variable/material-symbols-outlined": "5.3.1",
@@ -32,9 +35,12 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@axe-core/cli": "^4.13.0",
     "@types/node": "^22.20.3",
     "ajv": "^8.20.0",
+    "axe-core": "4.13.0",
+    "chromedriver": "153.0.0",
+    "esbuild": "0.28.2",
+    "selenium-webdriver": "4.44.0",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1",
     "yaml": "^2.9.1"
