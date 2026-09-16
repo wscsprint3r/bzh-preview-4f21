@@ -77,6 +77,27 @@ const BUGET_JS = 3800;
 const BUGET_CERERI = 12;
 
 /*
+ * THE SCRIPT IS INLINED, AND THAT IS A DECISION - so it is asserted, not
+ * inferred.
+ *
+ * `BUGET_JS` sits at 3,800 precisely because Astro inlines below roughly 4,096
+ * bytes, so the ceiling is what keeps the script inside the page. But that is
+ * arithmetic about a Vite default, not a fact about this build. Raise
+ * `vite.build.assetsInlineLimit`, take an upgrade that moves the threshold, or
+ * add a second entry that makes Rollup hoist a shared chunk, and a script well
+ * under the ceiling becomes a file anyway.
+ *
+ * Nothing else here would notice. Measured: flipping this build to an emitted
+ * file takes the homepage from 11 requests to 12, which PASSES - one under the
+ * cap - while the page quietly gains a request and a cache entry, which is the
+ * exact silent change this whole file exists to prevent.
+ *
+ * Set it to `true` when a file is what you want, and give BUGET_CERERI the room
+ * it then needs.
+ */
+const JS_EMIS_PERMIS = false;
+
+/*
  * The Sveltia CMS bundle lives under dist/admin/. It is a few hundred KB of
  * third-party code that only a signed-in editor ever loads, behind a login, and
  * it is not part of what a visitor downloads - so that whole subtree is outside
@@ -327,6 +348,16 @@ console.log(
         'Peste pragul de 4096 de octeți al Vite asta se inversează: un fișier, o cerere, o intrare de cache.'
     : 'Scriptul e emis ca fișier, deci costă o cerere și se păstrează în cache între pagini.',
 );
+
+if (!JS_EMIS_PERMIS && fisiereVazute.size > 0) {
+  esec = true;
+  console.error(
+    `\nScript emis ca fișier, deși JS_EMIS_PERMIS este false: ${[...fisiereVazute].join(', ')}.\n` +
+      'Scriptul acestui sit este inline, ceea ce îl ține la zero cereri și e motivul ' +
+      'pentru care plafonul de JS stă sub pragul de 4096 al Vite. Dacă schimbarea e ' +
+      'intenționată, pune JS_EMIS_PERMIS pe true și lasă loc în bugetul de cereri.',
+  );
+}
 
 if (esec) {
   console.error('\nBugetul de performanță a fost depășit (specificație §13).');
