@@ -62,8 +62,31 @@ export function hexuriInStil(css: string): string[] {
   );
 }
 
-/** Token definitions are the one place a literal belongs; everywhere else uses var(). */
-const BLOCURI_TOKENURI = /:root\s*\{[^}]*\}/g;
+/**
+ * Token definitions are the one place a colour literal belongs.
+ *
+ * Matched by SELECTOR, not by a `:root` substring. `/:root\s*\{[^}]*\}/` also
+ * matches the tail of `html:root{color:#DEADBE}`, which would strip — and so
+ * silently exempt — a block it ought to report. That is the same shape as the
+ * specificity escape that ended the colour guard, and leaving it in the code
+ * that replaced it would be a poor joke.
+ */
+const REGULA = /([^{}]*)\{([^{}]*)\}/g;
+
+function esteBlocDeTokenuri(selector: string): boolean {
+  return selector.trim() === ':root';
+}
+
+export function faraBlocurileDeTokenuri(css: string): string {
+  return css.replace(REGULA, (intreg, selector: string) => (esteBlocDeTokenuri(selector) ? ' ' : intreg));
+}
+
+export function blocurileDeTokenuri(css: string): string {
+  return [...css.matchAll(REGULA)]
+    .filter((m) => esteBlocDeTokenuri(m[1] as string))
+    .map((m) => m[2] as string)
+    .join(';');
+}
 
 const PAGINI = fisiereDist('.html');
 const FOI = fisiereDist('.css');
@@ -98,20 +121,39 @@ describe('hexuriInStil', () => {
   });
 });
 
+describe('blocul de tokenuri este recunoscut după selector', () => {
+  it.each([
+    [':root { --a: #FAF6EE; }', true],
+    [':root{--a:#FAF6EE}', true],
+    ['  :root  {--a:#FAF6EE}', true],
+    // the escape: a higher-specificity selector merely ENDING in :root
+    ['html:root { color: #DEADBE; }', false],
+    ['.tema:root { color: #DEADBE; }', false],
+    ['body { color: #DEADBE; }', false],
+  ] as [string, boolean][])('%s', (css, exceptat) => {
+    // exempted blocks vanish from the scan; everything else keeps its literal
+    expect(hexuriInStil(faraBlocurileDeTokenuri(css)).length === 0).toBe(exceptat);
+  });
+
+  it('html:root nu este tratat ca bloc de tokenuri', () => {
+    expect(hexuriInStil(faraBlocurileDeTokenuri('html:root{color:#DEADBE}'))).toEqual(['color: #DEADBE']);
+  });
+});
+
 describe('culorile vin din tokenuri, nu din literali hex', () => {
   it.each(PAGINI)('%s', (pagina) => {
     const css = cssPagina(readFileSync(DIST + pagina, 'utf8'));
     expect(css.length).toBeGreaterThan(0);
-    // The token block itself must contain literals, or stripping it would be
-    // an exemption for nothing rather than an exclusion of the one legal place.
-    expect(hexuriInStil(css.match(BLOCURI_TOKENURI)?.join('') ?? '').length).toBeGreaterThan(0);
-    expect(hexuriInStil(css.replace(BLOCURI_TOKENURI, ''))).toEqual([]);
+    // The token block must contain literals, or exempting it would be an
+    // exemption for nothing rather than an exclusion of the one legal place.
+    expect(hexuriInStil(blocurileDeTokenuri(css)).length).toBeGreaterThan(0);
+    expect(hexuriInStil(faraBlocurileDeTokenuri(css))).toEqual([]);
   });
 
   it.each(FOI.length > 0 ? FOI : ['(nicio foaie separată)'])('%s', (foaie) => {
     if (foaie.startsWith('(')) return;
     const css = readFileSync(DIST + foaie, 'utf8');
     expect(css.length).toBeGreaterThan(0);
-    expect(hexuriInStil(css.replace(BLOCURI_TOKENURI, ''))).toEqual([]);
+    expect(hexuriInStil(faraBlocurileDeTokenuri(css))).toEqual([]);
   });
 });

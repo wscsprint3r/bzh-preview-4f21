@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "astro": "astro",
-    "test:build": "astro build && vitest run --config vitest.itest.config.ts",
+    "test:build": "astro build && vitest run --config vitest.itest.config.ts && node scripts/a11y.mjs",
     "a11y": "astro build && node scripts/a11y.mjs"
   },
   "dependencies": {
