@@ -3,8 +3,13 @@ dist/
 .astro/
 node_modules/
 
-# Sveltia CMS bundle, copied from node_modules by scripts/copy-cms.mjs
+# Sveltia CMS bundle, copied from node_modules by scripts/copy-cms.mjs.
+# Listed path by path rather than as `public/admin/*`: everything else in that
+# folder - index.html, config.yml - is this repository's own and must stay
+# tracked, and a chunk that a CMS upgrade adds should show up in `git status`
+# and be decided on, not disappear into a wildcard.
 public/admin/sveltia-cms.mjs
+public/admin/chunks/
 
 # superpowers scratch: brainstorm mockups and the SDD ledger
 .superpowers/

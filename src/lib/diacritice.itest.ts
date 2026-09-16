@@ -1,4 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -90,13 +92,46 @@ const EXTENSII_TEXT = [
 ];
 
 /*
- * The Sveltia CMS bundle (Task 13) is a few hundred KB of third-party code
- * carrying its own i18n tables, so a cedilla inside it is Turkish text doing
- * its job rather than our defect. Excluded by filename rather than by folder,
- * so that `admin/index.html` and `admin/config.yml` - which are ours, and which
- * Task 12 fills with Romanian field labels - stay covered.
+ * The Sveltia CMS bundle is a few hundred KB of third-party code carrying its
+ * own i18n tables - it contains a transliteration map that turns U+0163 into
+ * `t`, which is Turkish text doing its job rather than our defect - so it is
+ * outside this sweep.
+ *
+ * EXCLUDED BY PATH, AND THE PATHS COME FROM THE PACKAGE. The list used to be a
+ * single filename, `sveltia-cms.mjs`, written here by hand. That was right on
+ * the day it was written and stopped being right as soon as `copy-cms.mjs`
+ * started vendoring the lazily-imported chunks beside it: a second vendored file
+ * appeared, nothing excluded it, and the sweep passed only because React happens
+ * to contain no Turkish. Reading the installed package instead means an upgrade
+ * that adds a chunk is excluded without anyone remembering to.
+ *
+ * It is a SUPERSET of what `copy-cms.mjs` actually copies (that script skips
+ * `.map` files and the classic-script build), and the extra entries name files
+ * that are not in `dist/` at all. That is the safe direction: a path listed here
+ * and never built excuses nothing, while a vendored path missing from here stays
+ * in the sweep and fails loudly.
+ *
+ * `admin/index.html`, `admin/config.yml` and `admin/pornire.mjs` are NOT in the
+ * package, so they cannot end up here however this list grows - they are ours.
+ * `config.yml` holds the field labels a volunteer reads and `pornire.mjs` holds
+ * the sentence they get when the CMS fails to start, which makes both of them
+ * exactly the kind of file a cedilla would reach unseen. The tests under `ce
+ * intră și ce nu intră în măturare` check both halves of that sentence rather
+ * than leaving it as a promise in a comment.
  */
-const VENDORIZATE = ['sveltia-cms.mjs'];
+const RADACINA_CMS = dirname(createRequire(import.meta.url).resolve('@sveltia/cms'));
+
+function caiVendorizate(relativ = ''): string[] {
+  const gasite: string[] = [];
+  for (const intrare of readdirSync(join(RADACINA_CMS, relativ), { withFileTypes: true })) {
+    const cale = posix.join(relativ, intrare.name);
+    if (intrare.isDirectory()) gasite.push(...caiVendorizate(cale));
+    else gasite.push(`admin/${cale}`);
+  }
+  return gasite;
+}
+
+const VENDORIZATE = new Set(caiVendorizate());
 
 function fisiereText(): string[] {
   const gasite: string[] = [];
@@ -104,7 +139,7 @@ function fisiereText(): string[] {
     for (const intrare of readdirSync(DIST + relativ, { withFileTypes: true })) {
       const cale = relativ + intrare.name;
       if (intrare.isDirectory()) mergi(cale + '/');
-      else if (EXTENSII_TEXT.some((e) => intrare.name.endsWith(e)) && !VENDORIZATE.includes(intrare.name)) {
+      else if (EXTENSII_TEXT.some((e) => intrare.name.endsWith(e)) && !VENDORIZATE.has(cale)) {
         gasite.push(cale);
       }
     }
@@ -159,6 +194,30 @@ describe('detectorul de sedile', () => {
   it('raportează fiecare apariție, nu doar prima', () => {
     const doua = `${String.fromCodePoint(0x015f)}i ${String.fromCodePoint(0x0163)}i`;
     expect(cedileIn(doua)).toHaveLength(2);
+  });
+});
+
+describe('ce intră și ce nu intră în măturare', () => {
+  /*
+   * Excepția chiar se declanșează. Fără asta, „bundle-ul este exceptat" ar putea
+   * fi adevărat fiindcă tiparul nu se mai potrivește cu nimic, iar sedilele din
+   * el ar pica sweep-ul la următorul build.
+   */
+  it('lasă afară fișierele vendorizate, care chiar sunt în dist/', () => {
+    const inDist = [...VENDORIZATE].filter((c) => existsSync(DIST + c));
+    expect(inDist.length, 'niciun fișier vendorizat în dist/').toBeGreaterThan(0);
+    for (const cale of inDist) expect(FISIERE, cale).not.toContain(cale);
+  });
+
+  /*
+   * Și cealaltă jumătate, care este chiar rostul excluderii pe cale: fișierele
+   * noastre din `admin/` rămân măturate. `config.yml` este formularul pe care îl
+   * citește un voluntar, deci este exact genul de fișier în care o sedilă ar
+   * ajunge nevăzută.
+   */
+  it.each(['admin/index.html', 'admin/config.yml', 'admin/pornire.mjs'])('mătură %s', (cale) => {
+    expect(existsSync(DIST + cale), `${cale} lipsește din dist/`).toBe(true);
+    expect(FISIERE).toContain(cale);
   });
 });
 

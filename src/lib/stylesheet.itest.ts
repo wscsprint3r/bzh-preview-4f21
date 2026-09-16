@@ -91,15 +91,44 @@ export function blocurileDeTokenuri(css: string): string {
 const PAGINI = fisiereDist('.html');
 const FOI = fisiereDist('.css');
 
+/*
+ * THE ONE PAGE ON THIS SITE THAT SHIPS NO CSS, and the only one allowed to.
+ *
+ * `public/admin/index.html` is the host page for Sveltia CMS: a `<script>` tag,
+ * a `<noscript>` and nothing else, by design. Everything visible on it is drawn
+ * by the CMS bundle at run time, so it carries no stylesheet and no token
+ * block, and the two rules below - every page ships CSS, every colour in it
+ * comes from a token - are false of it in a way that is not a defect.
+ *
+ * EXEMPTED BY EXACT PATH, not by folder. `admin/` also holds `config.yml`, and
+ * a rule reading "anything under admin/" would be an open invitation to put the
+ * next unstyled page there too. One file, named, with a reason - and
+ * `pagina exceptată există` below fails if that file ever stops existing, so the
+ * exemption cannot outlive the thing it excuses.
+ *
+ * It is NOT exempt from `diacritice.itest.ts`: the Romanian in this page and in
+ * `config.yml` is read by a volunteer, and that guard covers both on purpose.
+ */
+const FARA_CSS = 'admin/index.html';
+const PAGINI_CU_CSS = PAGINI.filter((p) => p !== FARA_CSS);
+
 describe('ieșirea build-ului există', () => {
   // A guard that reads files must prove it read something. Without this, a
   // missing dist/ makes every case below pass vacuously.
   it('dist/ conține pagini', () => {
     expect(existsSync(DIST)).toBe(true);
     expect(PAGINI.length).toBeGreaterThan(0);
+    // And the exemption must not have eaten the whole set.
+    expect(PAGINI_CU_CSS.length).toBeGreaterThan(0);
   });
 
-  it.each(PAGINI)('%s are CSS', (pagina) => {
+  it('pagina exceptată există', () => {
+    // O excepție pentru un fișier care nu mai există nu scutește nimic: rămâne
+    // în cod arătând ca o regulă, gata să scuze altceva cu același nume.
+    expect(PAGINI, `${FARA_CSS} nu mai există, deci excepția nu mai are rost`).toContain(FARA_CSS);
+  });
+
+  it.each(PAGINI_CU_CSS)('%s are CSS', (pagina) => {
     const html = readFileSync(DIST + pagina, 'utf8');
     expect(html.length).toBeGreaterThan(0);
     expect(cssPagina(html).length).toBeGreaterThan(0);
@@ -141,7 +170,7 @@ describe('blocul de tokenuri este recunoscut după selector', () => {
 });
 
 describe('culorile vin din tokenuri, nu din literali hex', () => {
-  it.each(PAGINI)('%s', (pagina) => {
+  it.each(PAGINI_CU_CSS)('%s', (pagina) => {
     const css = cssPagina(readFileSync(DIST + pagina, 'utf8'));
     expect(css.length).toBeGreaterThan(0);
     // The token block must contain literals, or exempting it would be an

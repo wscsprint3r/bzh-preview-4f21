@@ -1,5 +1,15 @@
 {
   "extends": "astro/tsconfigs/strict",
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  /*
+   * `dist/` is build output. `public/admin/` is the Sveltia CMS bundle, copied
+   * out of node_modules by `scripts/copy-cms.mjs` — 2 MB of minified
+   * third-party JavaScript that `include: ["**\/*"]` otherwise pulls into the
+   * type-check. It is not merely noise: `astro check` runs out of heap and dies
+   * with SIGABRT, and `tsc --noEmit` reports seven parse errors inside code
+   * nobody here wrote. Excluding the folder rather than the file so that a chunk
+   * added by a CMS upgrade does not bring the failure back; nothing
+   * type-checkable belongs under `public/`, which Astro copies verbatim.
+   */
+  "exclude": ["dist", "public/admin"]
 }

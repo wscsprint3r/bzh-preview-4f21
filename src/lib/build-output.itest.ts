@@ -147,6 +147,14 @@ const REFERINTE_ICS: Record<string, number> = {
   'index.html': 2,
   // Aceleași două, plus butonul de abonare de la piciorul paginii.
   'program/index.html': 3,
+  /*
+   * Zero, și este un răspuns, nu o omisiune. `public/admin/index.html` este
+   * pagina-gazdă a CMS-ului: o etichetă `<script>` și atât, nu trece prin
+   * `Base.astro`, deci nu are `<head>`-ul care poartă `<link rel="alternate">`
+   * pe celelalte pagini. Un editor care intră acolo se abonează la calendar de
+   * pe `/program/`, ca oricine altcineva.
+   */
+  'admin/index.html': 0,
 };
 
 /** Zilele pe care le are colecția, citite din numele fișierelor — cheia ei primară. */

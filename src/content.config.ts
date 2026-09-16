@@ -15,7 +15,12 @@ const slujbe = defineCollection({
     // so it is validated rather than handed to github-slugger. A throw here
     // fails the build - which is the point, because Zod only ever sees a file's
     // contents, never its name.
-    generateId: ({ entry }) => idDinNumeFisier(entry),
+    // `data` is the file's PARSED, UNVALIDATED contents - Zod has not run yet.
+    // It is passed in so that a `data:` field written by the CMS can be checked
+    // against the filename, which is the only place the two are visible at once:
+    // the loader knows the name, the schema knows the contents, and neither
+    // knows both.
+    generateId: ({ entry, data }) => idDinNumeFisier(entry, data),
   }),
   schema: ziSchema,
 });

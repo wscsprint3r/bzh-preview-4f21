@@ -7,20 +7,23 @@
   },
   "scripts": {
     "dev": "astro dev",
+    "predev": "node scripts/copy-cms.mjs",
     "build": "astro build",
+    "prebuild": "node scripts/copy-cms.mjs",
     "preview": "astro preview",
     "check": "astro check",
     "test": "vitest run",
     "test:watch": "vitest",
     "astro": "astro",
-    "test:build": "astro build && vitest run --config vitest.itest.config.ts && node scripts/a11y.mjs && node scripts/check-budget.mjs",
+    "test:build": "npm run build && vitest run --config vitest.itest.config.ts && node scripts/a11y.mjs && node scripts/check-budget.mjs",
     "test:all": "npm run test && npm run test:build",
-    "a11y": "astro build && node scripts/a11y.mjs",
+    "a11y": "npm run build && node scripts/a11y.mjs",
     "budget": "node scripts/check-budget.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
     "@fontsource/spectral": "^5.3.0",
+    "@sveltia/cms": "0.213.0",
     "astro": "^7.3.2"
   },
   "allowScripts": {
@@ -30,7 +33,9 @@
     "@astrojs/check": "^0.9.10",
     "@axe-core/cli": "^4.13.0",
     "@types/node": "^22.20.3",
+    "ajv": "^8.20.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "yaml": "^2.9.1"
   }
 }

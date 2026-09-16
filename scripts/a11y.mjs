@@ -72,17 +72,62 @@ function paginile(dir = DIST) {
   return gasite.sort();
 }
 
+/*
+ * THE ONE PAGE THIS AUDIT DOES NOT COVER, and why measuring it would be worse
+ * than skipping it.
+ *
+ * `admin/index.html` is the host page for Sveltia CMS: a `<script>` tag and a
+ * `<noscript>`, nothing else. Everything an editor sees is drawn by the bundle
+ * after load, so what axe measures is the empty shell — which is why a run
+ * across it reports `landmark-one-main` and `page-has-heading-one` against
+ * `<html>` itself, and why `color-contrast` never runs at all. The check below
+ * that turns "the rule never ran" into a failure is right, and it fires here
+ * for the honest reason that there was nothing to measure.
+ *
+ * The tempting fix is to give the page a `<main>` and an `<h1>` so the rules
+ * have something to bite on. That would be worse than this exclusion: the
+ * markup is replaced a second later by markup we did not write and cannot
+ * change, so the green would be about a placeholder while reading as a
+ * guarantee about the CMS. An explicit gap beats a vacuous pass.
+ *
+ * SO `/admin/` IS UNAUDITED, and its accessibility is Sveltia's. That is a real
+ * gap, written down rather than papered over: the people it affects are the
+ * parish's editors, behind a GitHub sign-in, not visitors.
+ *
+ * Excluded BY EXACT PATH, not by folder — the same rule `stylesheet.itest.ts`
+ * follows — so the next page put under `admin/` is audited like any other.
+ */
+const EXCLUSE = ['admin/index.html'];
+const caleRelativa = (cale) => cale.slice(DIST.length + 1);
+
 // A guard that reads files must prove it read something: without this, a
 // missing build would make an empty page list pass silently.
 if (!existsSync(DIST)) {
   console.error(`${DIST}/ nu există — rulează mai întâi build-ul.`);
   process.exit(1);
 }
-const pagini = paginile();
-if (pagini.length === 0) {
+const toatePaginile = paginile();
+if (toatePaginile.length === 0) {
   console.error(`${DIST}/ nu conține nicio pagină .html.`);
   process.exit(1);
 }
+
+/*
+ * O excepție pentru o pagină care nu mai există nu scutește nimic: rămâne în cod
+ * arătând ca o regulă și e gata să scuze altceva cu același nume.
+ */
+const lipsa = EXCLUSE.filter((e) => !toatePaginile.some((p) => caleRelativa(p) === e));
+if (lipsa.length > 0) {
+  console.error(`Excepții pentru pagini care nu există: ${lipsa.join(', ')}. Șterge-le.`);
+  process.exit(1);
+}
+
+const pagini = toatePaginile.filter((p) => !EXCLUSE.includes(caleRelativa(p)));
+if (pagini.length === 0) {
+  console.error(`Excepțiile au cuprins toate paginile — auditul nu ar verifica nimic.`);
+  process.exit(1);
+}
+console.log(`Pagini excluse din audit: ${EXCLUSE.join(', ')}`);
 
 const dirIesire = mkdtempSync(join(tmpdir(), 'axe-'));
 

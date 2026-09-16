@@ -1,0 +1,176 @@
+# Sveltia CMS — the form a parish volunteer fills in instead of editing YAML.
+#
+# WHAT THIS FILE IS. It is the only description of the schedule that a
+# non-developer ever sees, so every label, hint and description here is Romanian
+# and is read as prose, not as a field name. Comments are for whoever maintains
+# it and stay in English, the same split the rest of this repository uses.
+#
+# THE ONE RULE THAT IS NOT NEGOTIABLE. The `options:` under `slujba` must stay
+# identical — same strings, same order — to `NUME_SLUJBE` in `src/lib/schema.ts`.
+# `src/lib/schema.test.ts` fails if they drift, because the alternative is a
+# dropdown that offers a value the build then rejects: the volunteer picks an
+# option this file gave them and gets a failed deploy for it.
+#
+# Decap-compatible on purpose (spec §17): if Sveltia — pre-1.0, one maintainer —
+# ever has to be swapped out, this is a config change, not a rewrite.
+
+backend:
+  name: github
+  # TODO(out-of-repo): replace with the real values once the GitHub repository
+  # and the OAuth worker exist. Until then `/admin/` can render but cannot sign
+  # in. The steps are in `.superpowers/sdd/.../task-12-report.md`.
+  repo: <OWNER>/<REPO>
+  branch: main
+  base_url: https://sveltia-cms-auth.<SUBDOMAIN>.workers.dev
+
+publish_mode: simple
+
+# Shown on the sign-in screen and in the browser tab — the first Romanian a
+# volunteer sees, and the only part of the CMS chrome we can put in Romanian at
+# all. Sveltia ships 29 UI translations and Romanian is not one of them, so the
+# buttons themselves read "Save", "Publish", "Duplicate" in English.
+app_title: Parohia Sfântul Nicolae — administrare
+site_url: https://www.bor-zh.ch
+
+# Nothing in Phase 1 uses these: the schedule has no image or file field, so no
+# upload can reach them. They are declared because `media_folder` is required.
+# Phase 2 adds the first real media field and must revisit the pair together —
+# `src/assets/uploads` is where Astro's image pipeline wants files, and a file
+# there is NOT served at `/uploads`.
+media_folder: src/assets/uploads
+public_folder: /uploads
+
+# HOW THE FILES ARE WRITTEN, and why both of these are load-bearing.
+#
+# `quote: double` — Sveltia writes string values unquoted by default, and Astro
+# parses these files with js-yaml's default schema. Unquoted, `data: 2026-09-27`
+# comes back as a JavaScript Date rather than the string the schema expects, and
+# the entry a volunteer just published fails the build. Double-quoting every
+# string value also keeps `ora: "07:30"` a string, which is how the hand-written
+# files in `src/content/slujbe/` are already spelled.
+#
+# `omit_empty_optional_fields` — without it every optional field is written as an
+# empty string, so a plain weekday gains `praznic: ""`, `note: ""`, `locatie: ""`
+# and every service gains `detaliu: ""`. The files stay as short as the ones a
+# person would write.
+output:
+  omit_empty_optional_fields: true
+  yaml:
+    quote: double
+
+collections:
+  - name: slujbe
+    label: Program liturgic
+    label_singular: Zi de slujbă
+    folder: src/content/slujbe
+    extension: yml
+    format: yaml
+    create: true
+    delete: true
+    # The filename IS the date, and everything downstream joins on it:
+    # `idDinNumeFisier` in `src/lib/schema.ts` rejects a name that is not one,
+    # the weeks on `/program/` are grouped by it, and the calendar feed's UIDs
+    # are built from it. Changing this template renames every future file.
+    slug: "{{fields.data}}"
+    identifier_field: data
+    # Newest first, so last week's day is the first thing on screen to duplicate
+    # (spec §6.1). The default is oldest-first, which puts the least useful day
+    # at the top and gets worse every week.
+    sortable_fields:
+      fields: [data]
+      default:
+        field: data
+        direction: descending
+    summary: "{{data}} — {{praznic}}"
+    description: >
+      Fiecare intrare este o zi cu slujbe. Pentru o săptămână obișnuită,
+      deschideți ziua din săptămâna trecută, apăsați „Duplicate” și schimbați
+      data. Zilele trecute dispar singure de pe site.
+    fields:
+      - name: data
+        label: Data
+        widget: datetime
+        date_format: YYYY-MM-DD
+        time_format: false
+        picker_utc: false
+        hint: >
+          Data este și numele fișierului, iar numele nu se schimbă singur după ce
+          ziua a fost publicată. Dacă ați greșit data unei zile deja publicate,
+          ștergeți ziua și adăugați-o din nou cu data bună.
+      - name: praznic
+        label: Praznic sau sărbătoare
+        widget: string
+        required: false
+        hint: Lăsați gol pentru o zi obișnuită.
+      - name: praznic_mare
+        label: Praznic mare
+        widget: boolean
+        default: false
+        required: false
+        hint: Marchează ziua cu cruce și chenar auriu. Necesită numele praznicului.
+      - name: zi_de_post
+        label: Zi de post
+        widget: boolean
+        default: false
+        required: false
+      - name: anulat
+        label: Slujbele sunt anulate
+        widget: boolean
+        default: false
+        required: false
+        hint: >
+          Păstrați orele și bifați aici. Dacă ștergeți orele, cei abonați la
+          calendar rămân cu vechiul program și nu află de anulare.
+      - name: note
+        label: Observații
+        widget: text
+        required: false
+      - name: locatie
+        label: Alt loc decât capela obișnuită
+        widget: string
+        required: false
+        hint: >
+          Numele locului, fără punct la final. Textul apare ca atare pe site și în
+          calendarul la care sunt abonați credincioșii.
+      - name: slujbe
+        label: Slujbe
+        label_singular: Slujbă
+        widget: list
+        summary: "{{fields.ora}} {{fields.slujba}}"
+        hint: >
+          Verificați ziua săptămânii înainte de a publica: duminica are de obicei
+          Utrenia și Sfânta Liturghie. Nimic din site nu poate verifica asta
+          în locul dumneavoastră.
+        fields:
+          - name: ora
+            label: Ora
+            widget: string
+            pattern: ['^([01]?\d|2[0-3]):[0-5]\d$', 'Scrieți ora ca 08:30']
+          - name: slujba
+            label: Slujba
+            widget: select
+            # IDENTICAL TO `NUME_SLUJBE` IN `src/lib/schema.ts`. See the note at
+            # the top of this file before changing a single character here.
+            options:
+              - Utrenia
+              - Sfânta Liturghie
+              - Vecernie
+              - Spovedanie
+              - Acatist
+              - Paraclisul Maicii Domnului
+              - Sfântul Maslu
+              - Litie
+              - Parastas
+              - Priveghere
+              - Denie
+              - Liturghia Darurilor mai înainte sfințite
+              - Botez
+              - Cununie
+              - Altceva
+          - name: detaliu
+            label: Detaliu
+            widget: string
+            required: false
+            hint: >
+              De exemplu „și Parastas”. Pentru „Altceva”, scrieți aici numele
+              slujbei — altfel pe program scrie chiar cuvântul „Altceva”.

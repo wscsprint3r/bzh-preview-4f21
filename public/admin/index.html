@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Belt and braces with the `X-Robots-Tag: noindex` that Task 13 sets on
+      `/admin/*` in `_headers`: the header is what a crawler that never parses
+      the document obeys, this is what survives if the header rule is ever
+      edited. Neither is a security control — the CMS is protected by GitHub
+      sign-in, not by being unlisted.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Administrare · Parohia Sfântul Nicolae</title>
+  </head>
+  <body>
+    <!--
+      This page is the CMS host, and a `<script>` is deliberately all it is.
+      Everything visible is drawn by Sveltia at run time, which is why
+      `stylesheet.itest.ts` exempts this ONE file — see the note there.
+
+      `pornire.mjs` is ours and is three lines: it imports the bundle and calls
+      `init()`. Pointing this tag straight at `sveltia-cms.mjs` instead leaves
+      the page blank and silent — the bundle only auto-starts when it is loaded
+      as a classic script. The reasoning is written out in `pornire.mjs`.
+
+      The bundle itself is copied out of `node_modules` by
+      `scripts/copy-cms.mjs` and is git-ignored. Nothing here is loaded from a
+      CDN, so `script-src 'self'` holds on this page too (spec §14).
+    -->
+    <script type="module" src="/admin/pornire.mjs"></script>
+    <noscript>
+      <p lang="ro">
+        Administrarea programului are nevoie de JavaScript. Porniți JavaScript în browser
+        și reîncărcați pagina.
+      </p>
+    </noscript>
+  </body>
+</html>

@@ -27,6 +27,9 @@ import { partiData } from './date-ro';
 
 const NUME_FISIER = /^(\d{4}-\d{2}-\d{2})\.yml$/;
 
+/** The same date, as it may also appear INSIDE a file that the CMS wrote. */
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * Validates a schedule filename and returns the date it encodes.
  *
@@ -42,7 +45,7 @@ const NUME_FISIER = /^(\d{4}-\d{2}-\d{2})\.yml$/;
  * codebase, already tested against every date it accepts, now guarding the key
  * as well as the contents. A regex alone would wave `2026-02-30` through.
  */
-export function idDinNumeFisier(entry: string): string {
+export function idDinNumeFisier(entry: string, continut?: Record<string, unknown>): string {
   const m = NUME_FISIER.exec(entry);
   if (!m) {
     throw new Error(
@@ -58,6 +61,39 @@ export function idDinNumeFisier(entry: string): string {
     throw new Error(
       `Fișier de program cu dată inexistentă: "${entry}". Ziua aceasta nu există în calendar.`,
       { cause: cauza },
+    );
+  }
+  /*
+   * And now the other half of the same key, which only exists because the CMS
+   * puts it there.
+   *
+   * Sveltia writes EVERY declared field into the file, including the one it
+   * names the file after - so a day created through `/admin/` carries its own
+   * date as well as wearing it. The two can disagree: the slug is computed when
+   * an entry is CREATED, and afterwards the date field and the filename are
+   * edited through different controls. A volunteer who opens a published day and
+   * corrects a wrong date changes the contents and not the name.
+   *
+   * Nothing downstream would notice. All three consumers build their day as
+   * `{ ...e.data, data: e.id }`, filename last and winning, so the correction
+   * would have NO effect on the site and produce no error anywhere - the
+   * quietest possible outcome for the one edit a volunteer is most likely to
+   * make in a hurry. Hence a build error, here, where the filename is already
+   * the thing being judged.
+   */
+  const scrisa = continut?.data;
+  if (scrisa instanceof Date) {
+    throw new Error(
+      `Fișier de program cu data scrisă fără ghilimele: "${entry}". YAML citește ` +
+        `2026-09-14 ca dată calendaristică, nu ca text. Scrieți data: "${m[1]}".`,
+    );
+  }
+  if (scrisa !== undefined && scrisa !== m[1]) {
+    throw new Error(
+      `Fișier de program cu două date diferite: "${entry}" are înăuntru ` +
+        `data: ${JSON.stringify(scrisa)}. Numele fișierului decide ce apare pe site, ` +
+        `deci cele două trebuie să fie identice. Ștergeți ziua din administrare și ` +
+        `adăugați-o din nou cu data bună.`,
     );
   }
   return m[1];
@@ -141,6 +177,26 @@ export const slujbaSchema = z.strictObject(
 export const ziSchema = z
   .strictObject(
     {
+      /*
+       * THE FILENAME IS STILL THE PRIMARY KEY. This field is only allowed here.
+       *
+       * The CMS has to declare a `data` field - `slug: "{{fields.data}}"` and
+       * `identifier_field: data` in `public/admin/config.yml` both name it, and
+       * that is what makes the filename the date. Sveltia then writes it into
+       * the file like any other field, and this object is strict, so without
+       * this line the FIRST day a volunteer publishes fails the build with
+       * "Câmp necunoscut: data".
+       *
+       * Optional, because the hand-written seed files in `src/content/slujbe/`
+       * do not carry it and should not have to. When it is present,
+       * `idDinNumeFisier` requires it to equal the filename; the schema cannot
+       * check that itself, because Zod is handed a file's contents and never
+       * its name.
+       */
+      data: z
+        .string()
+        .regex(DATA, 'Data trebuie scrisă ca 2026-09-14, între ghilimele.')
+        .optional(),
       praznic: z.string().optional(),
       praznic_mare: z.boolean().default(false),
       zi_de_post: z.boolean().default(false),
