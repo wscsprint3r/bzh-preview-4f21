@@ -4,10 +4,12 @@ import { formatIntervalSaptamana } from './date-ro';
 import { adaugaZile } from './week';
 import { AZI_FIXTURA, ZILE_FIXTURA } from './fixturi';
 import {
+  ZILE_INSULA,
   etichetaSlujba,
   grupeazaPeSaptamani,
   listaRomaneasca,
   minute,
+  programPentruInsula,
   punctFinal,
   saptamaniViitoare,
   slujbeInOrdine,
@@ -556,5 +558,169 @@ describe('listaRomaneasca', () => {
     const legat = listaRomaneasca(['A', 'B']);
     expect(legat).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
     expect(legat).toMatch(/\u0219/);
+  });
+});
+
+/*
+ * ===========================================================================
+ * INSULA DE DATE A PAGINII DE START, ȘI DE CE ARE O MARGINE.
+ *
+ * `index.astro` a purtat multă vreme TOATE zilele viitoare în insula ei JSON, așa
+ * că greutatea paginii era o funcție de cât de departe publică parohia. Măsurat pe
+ * construcții de probă cu o săptămână parohială realistă (miercuri, vineri,
+ * sâmbătă, duminică): pagina fără insulă este constantă la 20.693 de octeți, iar
+ * insula costă circa 133 de octeți pe zi de slujbă. La 47 de săptămâni publicate
+ * pagina are 45.567 de octeți și bugetul trece; la 48 are 46.093 și pică — cu
+ * treisprezece octeți — pentru un conținut perfect valid.
+ *
+ * Ce costă nu este o cădere a sitului: Cloudflare nu rulează bugetul, deci situl
+ * se publică mai departe. Costă faptul că, din ziua aceea, FIECARE salvare a
+ * voluntarului produce o rulare roșie de CI și un e-mail de eșec adresat lui,
+ * despre un conținut corect, fără să numească vreun fișier și fără nimic ce ar
+ * putea face.
+ *
+ * Testele de mai jos fixează marginea cu un program construit mult în viitor, ca
+ * pragul să devină de neatins, nu doar depărtat. Ele nu măsoară pagina — asta face
+ * `scripts/check-budget.mjs`, pe artefactul adevărat — ci proprietatea din care
+ * rezultă: insula nu crește cu orizontul publicat.
+ * ===========================================================================
+ */
+describe('insula de date a paginii de start', () => {
+  /** N săptămâni de program parohial obișnuit, începând din lunea lui `de la`. */
+  function programLung(dela: string, saptamani: number): ZiSlujba[] {
+    const zile: ZiSlujba[] = [];
+    for (let s = 0; s < saptamani; s += 1) {
+      for (const [offset, slujbe] of [
+        [2, [{ ora: '18:30', slujba: 'Acatist' }]],
+        [4, [{ ora: '18:00', slujba: 'Vecernie' }]],
+        [5, [{ ora: '17:00', slujba: 'Spovedanie' }, { ora: '17:00', slujba: 'Vecernie' }]],
+        [6, [{ ora: '08:30', slujba: 'Utrenia' }, { ora: '10:00', slujba: 'Sfânta Liturghie' }]],
+      ] as Array<[number, Slujba[]]>) {
+        zile.push({
+          data: adaugaZile(dela, s * 7 + offset),
+          praznic_mare: false, zi_de_post: false, anulat: false,
+          slujbe,
+        } as ZiSlujba);
+      }
+    }
+    return zile;
+  }
+
+  const AZI = '2026-09-14'; // o luni
+  const DOI_ANI = programLung(AZI, 104);
+
+  it('control: programul construit chiar este mult mai lung decât marginea', () => {
+    // Fără asta, tot ce urmează ar putea trece fiindcă nu are ce tăia.
+    expect(DOI_ANI.length).toBe(416);
+    expect(DOI_ANI.length).toBeGreaterThan(ZILE_INSULA * 4);
+  });
+
+  it('se oprește la ZILE_INSULA zile, oricât de departe ar publica parohia', () => {
+    expect(programPentruInsula(DOI_ANI, AZI)).toHaveLength(ZILE_INSULA);
+  });
+
+  it('a publica mai departe nu schimbă insula deloc', () => {
+    // Proprietatea, spusă direct: doi ani publicați și zece săptămâni publicate
+    // produc aceeași insulă, octet cu octet.
+    const zeceSaptamani = programLung(AZI, 10);
+    expect(zeceSaptamani.length).toBeGreaterThanOrEqual(ZILE_INSULA);
+    expect(programPentruInsula(DOI_ANI, AZI)).toEqual(programPentruInsula(zeceSaptamani, AZI));
+  });
+
+  it('rămâne mult sub buget serializată, chiar cu doi ani publicați', () => {
+    const octeti = Buffer.byteLength(JSON.stringify(programPentruInsula(DOI_ANI, AZI)));
+    const nemarginit = Buffer.byteLength(JSON.stringify(programPentruInsula(DOI_ANI, AZI, DOI_ANI.length)));
+    // Tipărit, nu doar verificat: numărul de mai jos este cel pe care îl verifică
+    // un cititor de mai târziu dacă un comentariu îl contrazice.
+    process.stdout.write(
+      `\nInsula la 104 săptămâni publicate: ${octeti} octeți (${ZILE_INSULA} zile)` +
+        ` — nemărginită ar fi ${nemarginit} octeți (${DOI_ANI.length} zile).\n` +
+        `Pagina fără insulă a măsurat 20693 octeți; bugetul este ${45 * 1024}.\n`,
+    );
+    // Marginea de aici este generoasă fiindcă o zi poate purta mai multe slujbe,
+    // o `locatie` sau un `detaliu` mai lung decât cele de mai sus. Bugetul adevărat
+    // se măsoară pe pagina construită, în scripts/check-budget.mjs.
+    expect(octeti).toBeLessThan(20 * 1024);
+    // Și controlul pozitiv: fără margine, aceleași date chiar depășesc.
+    expect(20693 + nemarginit).toBeGreaterThan(45 * 1024);
+  });
+
+  it('cardul dă același răspuns ca peste tot programul, pentru orice ceas din fereastră', () => {
+    /*
+     * Asta este proprietatea de care depinde tăierea. Insula trebuie să răspundă
+     * exact ce ar fi răspuns lista întreagă, pentru orice moment de la construcție
+     * înainte — singura direcție în care merge un ceas.
+     *
+     * Comparate sunt răspunsurile pe care le pune cardul pe pagină — ziua, ora și
+     * numele slujbelor care încep atunci — nu obiectele întregi: proiecția poartă
+     * `nume` deja randat acolo unde ziua din colecție poartă `slujba`, fiindcă
+     * browserului i se trimite decizia, nu regula de randare.
+     */
+    const insula = programPentruInsula(DOI_ANI, AZI);
+    const raspuns = <S extends { ora: string; data: string }>(
+      zile: Array<{ data: string; anulat: boolean; slujbe: Array<{ ora: string }> }>,
+      urm: S | null,
+      eticheta: (s: never) => string,
+    ) => {
+      if (urm === null) return null;
+      const ziua = zile.find((z) => z.data === urm.data)!;
+      return {
+        data: urm.data,
+        ora: urm.ora,
+        nume: slujbeLaAceeasiOra(ziua.slujbe, urm.ora).map((s) => eticheta(s as never)),
+      };
+    };
+    let verificate = 0;
+    for (let zi = 0; zi < 60; zi += 1) {
+      const cand = adaugaZile(AZI, zi);
+      for (const ora of ['00:00', '09:00', '17:30', '23:59']) {
+        const dinInsula = raspuns(insula, urmatoareaSlujba(insula, cand, ora), (s: never) => (s as { nume: string }).nume);
+        const dinTot = raspuns(DOI_ANI, urmatoareaSlujba(DOI_ANI, cand, ora), etichetaSlujba);
+        expect(dinInsula, `${cand} ${ora}`).toEqual(dinTot);
+        verificate += 1;
+      }
+    }
+    // O gardă care citește ceva trebuie să dovedească faptul că a citit ceva.
+    expect(verificate).toBe(240);
+  });
+
+  it('dincolo de fereastră cardul dispare, în loc să spună altceva decât pagina', () => {
+    // Direcția sigură, și singura degradare pe care o are tăierea: scriptul
+    // găsește lista goală și ascunde cardul. Pentru asta situl trebuie să fi stat
+    // nereconstruit mai mult decât fereastra, adică mult peste bariera de 60 de
+    // zile după care GitHub oprește oricum reconstrucția programată.
+    const insula = programPentruInsula(DOI_ANI, AZI);
+    const dupaFereastra = adaugaZile(insula[insula.length - 1].data, 1);
+    expect(urmatoareaSlujba(insula, dupaFereastra, '00:00')).toBeNull();
+    expect(urmatoareaSlujba(DOI_ANI, dupaFereastra, '00:00')).not.toBeNull();
+  });
+
+  it('nu poartă zile trecute și nu pierde anulat', () => {
+    const cuAnulat: ZiSlujba[] = [
+      { data: '2026-09-12', praznic_mare: false, zi_de_post: false, anulat: false,
+        slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] } as ZiSlujba,
+      { data: '2026-09-20', praznic_mare: false, zi_de_post: false, anulat: true,
+        slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] } as ZiSlujba,
+    ];
+    const insula = programPentruInsula(cuAnulat, AZI);
+    expect(insula.map((z) => z.data)).toEqual(['2026-09-20']);
+    expect(insula[0].anulat).toBe(true);
+    // Numele sunt randate aici, nu în browser: `etichetaSlujba` deține portița
+    // `Altceva`, iar cuvântul acela nu are voie să ajungă pe pagină.
+    expect(insula[0].slujbe).toEqual([{ ora: '10:00', nume: 'Sfânta Liturghie' }]);
+    expect(insula[0].titlu).toBe('Duminică, 20 septembrie');
+  });
+
+  it('o dată de azi stricată pică, în loc să pornească insula în trecut', () => {
+    // Aceeași pază ca la `urmatoareaSlujba`, și din același motiv: „15/09/2026"
+    // sortează sub orice dată stocată, deci fiecare zi ar trece de filtru.
+    expect(() => programPentruInsula(DOI_ANI, '15/09/2026')).toThrow();
+  });
+
+  it('păstrează ordinea cronologică, oricum ar veni colecția', () => {
+    const amestecat = [...DOI_ANI].reverse();
+    const date = programPentruInsula(amestecat, AZI).map((z) => z.data);
+    expect(date).toEqual([...date].sort());
+    expect(date).toEqual(programPentruInsula(DOI_ANI, AZI).map((z) => z.data));
   });
 });

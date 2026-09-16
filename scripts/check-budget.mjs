@@ -96,6 +96,41 @@ const DIST = 'dist';
  * while the HTML check would fail for carrying weight the spec had allotted to
  * CSS. The honest translation of those two numbers under inlining is one
  * combined 45 KB limit on the document.
+ *
+ * ---------------------------------------------------------------------------
+ * THESE PAGES GROW WITH CONTENT, AND ONE OF THEM USED TO GROW WITHOUT BOUND.
+ *
+ * Nothing else in this file says so, and it is the only way a green build turns
+ * red without anybody changing a line of code. Measured on scratch builds with a
+ * realistic parish week (Wed/Fri/Sat/Sun, four service days):
+ *
+ *   - `index.html` was a constant 20,693 bytes plus the JSON island, and the
+ *     island carried EVERY future day at about 133 bytes each. 47 weeks
+ *     published ahead -> 45,567 B, exit 0. 48 weeks -> 46,093 B, exit 1, by
+ *     thirteen bytes. The first symptom is a parish publishing further ahead
+ *     than usual.
+ *   - `/program/` renders the whole schedule by design and STILL GROWS: 136,943 B
+ *     at 57 weeks published (exit 0), 139,171 B at 58 (exit 1). That page IS the
+ *     full list - browsing ahead is the point, Ctrl+F has to work - so its weight
+ *     is the feature rather than a defect, and the limit is what says how much of
+ *     a future somebody can publish before the page stops being a page. It is a
+ *     GAP, stated rather than closed: `EXPLICATIA_PAGINII` below is what a
+ *     volunteer meets if it is ever reached.
+ *
+ * The island is now bounded - `ZILE_INSULA` days in `src/lib/schedule.ts`, about
+ * 5.3 KB - so the homepage no longer tracks the published horizon at all. The
+ * `date application/json NNN B (neexecutat)` line every run prints beside
+ * `index.html` is that island, measured; it is the number to read if anything
+ * here disagrees with it.
+ *
+ * WHICH ONE GOVERNS IF THEY DISAGREE: this limit does. It is a measurement of the
+ * artifact, and `ZILE_INSULA` is an argument about what the artifact will weigh -
+ * a day can always carry more services, a longer `locatie` or a longer `detaliu`
+ * than the arithmetic assumed. So a red build here is a real red build even with
+ * the island inside its window: the bound is what keeps this limit out of reach
+ * of CONTENT, and it is not a licence to disbelieve the limit. The direction that
+ * must never be taken is the other one - raising 45 KB because a page grew.
+ * ---------------------------------------------------------------------------
  */
 const BUGET_PAGINI = {
   'index.html': 45 * 1024,
@@ -148,11 +183,36 @@ const EXCLUSE = ['admin'];
 
 let esec = false;
 
-function raporteaza(eticheta, valoare, limita, unitate = 'octeți') {
+function raporteaza(eticheta, valoare, limita, unitate = 'octeți', explicatie = '') {
   const ok = valoare <= limita;
   if (!ok) esec = true;
   console.log(`${ok ? 'OK       ' : 'PREA MARE'} ${eticheta}: ${valoare} / ${limita} ${unitate}`);
+  if (!ok && explicatie !== '') console.log(explicatie);
 }
+
+/*
+ * WHO READS A FAILED PAGE BUDGET, and why the number alone is the wrong thing to
+ * hand them.
+ *
+ * The CMS commits to the build branch and `ci.yml` runs on that push, so a red
+ * run here sends a GitHub failure email to WHOEVER SAVED LAST - a volunteer, who
+ * `README.md` has already told that a red build means their file has a problem
+ * and that the email says which file. This failure names no file, because there
+ * is nothing wrong with any of them. Spec §16 exists to prevent exactly that
+ * conversation, so the message says which of the two things happened and who has
+ * to decide.
+ */
+const EXPLICATIA_PAGINII = [
+  '          Cel mai probabil NU este o greșeală într-un fișier de program.',
+  '          Ori pagina a căpătat ceva nou (markup, un stil, un script), ori a crescut',
+  '          cu ce s-a publicat: /program/ ține fiecare zi publicată, iar limita spune',
+  '          cât de departe poate publica parohia înainte ca pagina să înceteze a mai fi',
+  '          o pagină. Măsurat pe o săptămână parohială obișnuită: /program/ trece de',
+  '          limită în jurul a 58 de săptămâni publicate înainte.',
+  '          Dacă tocmai ați salvat o zi în /admin/: ziua s-a publicat și situl este în',
+  '          regulă. Anunțați persoana care se ocupă de site; nu este ceva de reparat',
+  '          din CMS.',
+].join('\n');
 
 function opreste(mesaj) {
   console.error(mesaj);
@@ -273,7 +333,7 @@ const fisiereVazute = new Set();
 
 for (const pagina of PAGINI) {
   const html = readFileSync(join(DIST, pagina), 'utf8');
-  raporteaza(pagina, statSync(join(DIST, pagina)).size, BUGET_PAGINI[pagina]);
+  raporteaza(pagina, statSync(join(DIST, pagina)).size, BUGET_PAGINI[pagina], 'octeți', EXPLICATIA_PAGINII);
 
   // ---- JavaScript, inlined or emitted ----
   let js = 0;

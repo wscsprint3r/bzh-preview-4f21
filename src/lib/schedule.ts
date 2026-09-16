@@ -25,7 +25,7 @@
  * `schedule.test.ts` asserts that by codepoint.
  */
 
-import { partiData } from './date-ro';
+import { partiData, titluZi } from './date-ro';
 import type { Slujba, ZiSlujba } from './schema';
 import { cheieSaptamana, inceputSaptamana, sfarsitSaptamana } from './week';
 
@@ -359,4 +359,99 @@ export function saptamaniViitoare(zile: ZiSlujba[], azi: string, nr: number): Sa
   return grupeazaPeSaptamani(zile)
     .filter((s) => s.luni >= lunea)
     .slice(0, Math.max(0, nr));
+}
+
+/* -------------------------------------------------------------------------- *
+ * THE HOMEPAGE'S DATA ISLAND, AND WHY IT IS BOUNDED BY A COUNT.
+ *
+ * The homepage embeds a projection of the schedule so the client script can
+ * recompute the next-service card once the build's clock has stopped being now.
+ * It used to carry EVERY future day - `zile.filter((z) => z.data >= azi)` - which
+ * is a page that grows without bound with how far ahead the parish publishes,
+ * and the first symptom of that is a parish publishing further ahead than usual,
+ * which is a sign of a well-organised one.
+ *
+ * Measured, on scratch builds with a realistic parish week (Wed/Fri/Sat/Sun):
+ * the homepage without the island is a CONSTANT 20,693 bytes and the island is
+ * about 133 bytes per future service day. 47 weeks published -> 45,567 B, exit 0;
+ * 48 weeks -> 46,093 B, exit 1 against the 45 KB budget, by thirteen bytes.
+ * `/program/` crosses its own 135 KB limit at about the same distance.
+ *
+ * That is not an outage - Cloudflare's build command does not run the budget, so
+ * the site keeps deploying - and it is worse than one for the person it lands on.
+ * `ci.yml` runs on push to the build branch and the CMS commits there, so from
+ * that day EVERY save a volunteer makes produces a red run and a GitHub failure
+ * email addressed to them, about content that is entirely valid, naming no file
+ * and offering nothing they could act on. `README.md` has already told them a red
+ * build means their file has a problem.
+ *
+ * WHY A COUNT OF DAYS AND NOT A DATE WINDOW. Spec §7 sized this payload as "60
+ * days past to 365 days future", and that was right for what it described: a
+ * SEPARATE, CACHEABLE, GZIPPED `/program/date.json`. Deviation 1 dropped that
+ * file, Task 10 reinstated the same data INLINE in the document, and the window
+ * came with it unexamined. A date window does not bound bytes - a year of a busy
+ * parish is 30 KB uncompressed inside every homepage response - whereas a count
+ * of days does, whatever the publishing rhythm. The number of services per day is
+ * bounded by what a day can hold; how far ahead somebody publishes is not.
+ *
+ * WHY 40. The card only ever needs the FIRST future day with a service that has
+ * not started yet, so one day would serve a fresh build; the rest is staleness
+ * margin. The designed bound on staleness is six hours (`rebuild.yml`). The
+ * realistic worst case is that schedule dying quietly: GitHub disables a
+ * `schedule` trigger after 60 days without repository activity, and 60 days at
+ * the parish's four service days a week is about 34 days of schedule. 40 covers
+ * that window whole, at roughly 5.3 KB.
+ *
+ * WHAT HAPPENS PAST THE BOUND, and it is the safe direction: the client finds no
+ * future service in the island and HIDES the card - `SelectorSaptamana`'s one
+ * branch for "this card can no longer be trusted". A card that is gone beats one
+ * that states a time which has passed. For that to happen the site must have gone
+ * unrebuilt for longer than the window, by which point every rendered week is in
+ * the past as well and the picker reveals nothing either.
+ *
+ * It also comfortably contains the three weeks the page renders, so the island
+ * can always answer for a day the visitor can see. That is a consequence rather
+ * than the reason: `saptamaniViitoare` counts weeks WITH ENTRIES and can span
+ * further than 40 service days if the schedule is sparse enough, and the card's
+ * answer may legitimately lie outside the rendered weeks anyway.
+ * -------------------------------------------------------------------------- */
+
+/** How many future days with services the homepage's island carries. */
+export const ZILE_INSULA = 40;
+
+/**
+ * The days the client script can actually use, as the homepage embeds them:
+ * from `azi` forward, in order, at most `nr` of them.
+ *
+ * A projection rather than the days themselves - a `praznic` or a `note` would be
+ * bytes on every homepage for fields the card never renders - and `ZiPentruCard`
+ * is what stops it quietly losing `anulat`, which is the field that keeps a
+ * cancelled Liturgy from being announced as the next service.
+ *
+ * Every word the card displays is rendered HERE, by the server that was going to
+ * render it anyway: `etichetaSlujba` owns the `Altceva` escape hatch, and the
+ * card must never be the one place that word reaches a page. The browser gets the
+ * DECISION - `urmatoareaSlujba` and `slujbeLaAceeasiOra`, the same functions on
+ * both sides - and never a second copy of the rendering.
+ */
+export function programPentruInsula(
+  zile: ZiSlujba[],
+  azi: string,
+  nr: number = ZILE_INSULA,
+): ZiPentruCard[] {
+  // Validated for the same reason `urmatoareaSlujba` validates it: a malformed
+  // `azi` sorts below every stored date, so every day would clear the filter and
+  // the island would silently start in the past.
+  partiData(azi);
+  return zile
+    .filter((z) => z.data >= azi)
+    .sort((a, b) => inainte(a.data, b.data))
+    .slice(0, Math.max(0, nr))
+    .map((z) => ({
+      data: z.data,
+      anulat: z.anulat,
+      locatie: z.locatie,
+      slujbe: z.slujbe.map((s) => ({ ora: s.ora, nume: etichetaSlujba(s) })),
+      titlu: titluZi(z.data),
+    }));
 }

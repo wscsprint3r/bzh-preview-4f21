@@ -80,6 +80,21 @@ export function ziuaDinLuna(data: string): number {
   return partiData(data).zi;
 }
 
+/**
+ * A day's heading as the homepage writes it: "Duminică, 20 septembrie".
+ *
+ * One composition, used twice - by the next-service card the server renders and
+ * by the projection it embeds for the client script to rewrite that card from.
+ * It was an arrow function inside `index.astro` when those were its only two
+ * callers and the projection was built on the same page; it moved here when the
+ * projection did, so the two cannot come to be formatted differently.
+ *
+ * No year: the card only ever names a day inside the schedule's own window.
+ */
+export function titluZi(data: string): string {
+  return `${numeZi(data)}, ${ziuaDinLuna(data)} ${numeLuna(data)}`;
+}
+
 export function formatIntervalSaptamana(luni: string, duminica: string): string {
   const a = partiData(luni);
   const b = partiData(duminica);

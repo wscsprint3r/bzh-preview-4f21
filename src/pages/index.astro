@@ -3,10 +3,11 @@ import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import BandaSaptamanii from '../components/BandaSaptamanii.astro';
 import SelectorSaptamana from '../components/SelectorSaptamana.astro';
-import { formatIntervalSaptamana, numeLuna, numeZi, ziuaDinLuna } from '../lib/date-ro';
+import { formatIntervalSaptamana, titluZi } from '../lib/date-ro';
 import {
   etichetaSlujba,
   listaRomaneasca,
+  programPentruInsula,
   saptamaniViitoare,
   slujbeLaAceeasiOra,
   urmatoareaSlujba,
@@ -88,40 +89,24 @@ const impreuna = listaRomaneasca(nume);
 const undeUrmatoarea = ziuaUrmatoare?.locatie ?? '';
 
 /*
- * One composition of the day's heading, used by the card below and carried in
- * the island for the script that rewrites it. Written once so the two can never
- * be formatted differently.
- */
-const titluZi = (d: string) => `${numeZi(d)}, ${ziuaDinLuna(d)} ${numeLuna(d)}`;
-
-/*
  * The schedule the card can still be recomputed from, embedded for the week
  * picker's script — spec §7, the half of it the week band does not cover.
  *
- * Everything from today onward and nothing else. `urmatoareaSlujba` never looks
- * behind `azi`, so this projection yields exactly the answer the full list
- * would, for any clock at or after this build's — which is the only direction a
- * clock moves. It is NOT the three weeks rendered below: were every day in those
- * weeks cancelled, the card's answer would lie outside them.
+ * From today forward, and BOUNDED: `ZILE_INSULA` days, not every future day the
+ * collection holds. This page used to embed the whole future, which made its
+ * weight a function of how far ahead the parish publishes — 48 weeks of an
+ * ordinary parish week put it over §13's budget, on content that is entirely
+ * valid. `programPentruInsula` owns the bound and the reasoning; the projection
+ * lives there rather than here because it is the thing being bounded, and a
+ * bound stated in one file and applied in another is how the two come apart.
  *
- * A projection rather than the days themselves: a `praznic` or a `note` would be
- * bytes on every homepage for fields the card never renders, and `ZiPentruCard`
- * is what stops the projection quietly losing `anulat` — which is the field that
- * keeps a cancelled Liturgy from being announced as the next service.
+ * `urmatoareaSlujba` never looks behind `azi`, so within the window this yields
+ * exactly the answer the full list would, for any clock at or after this build's
+ * — the only direction a clock moves. It is NOT the three weeks rendered below:
+ * were every day in those weeks cancelled, the card's answer would lie outside
+ * them.
  */
-const program: ZiPentruCard[] = zile
-  .filter((z) => z.data >= azi)
-  .map((z) => ({
-    data: z.data,
-    anulat: z.anulat,
-    locatie: z.locatie,
-    // Rendered here, not in the browser: `etichetaSlujba` owns the `Altceva`
-    // escape hatch, and the card must never be the one place that word reaches
-    // a page. Shipping the rule instead of its output would put a second copy
-    // of it behind the one guard that cannot see it.
-    slujbe: z.slujbe.map((s) => ({ ora: s.ora, nume: etichetaSlujba(s) })),
-    titlu: titluZi(z.data),
-  }));
+const program: ZiPentruCard[] = programPentruInsula(zile, azi);
 
 /*
  * `<` escaped, so that a `locatie` or a `detaliu` a volunteer typed can never
