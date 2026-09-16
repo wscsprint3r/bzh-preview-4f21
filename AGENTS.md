@@ -106,15 +106,23 @@ misreport an *answer*, and an answer is something you might think to check twice
 no verdict sitting beside it to be suspicious of. Two agents hit it in one session, an hour
 apart, on different flags:
 
-- **`-v` is dropped.** `rtk grep -v REGULI <file>` printed `12 matches in 1 files:` followed
-  by the twelve lines that *do* match — on a 38-line file whose honest answer is the other
-  twenty-six. Every line was also cut at terminal width, mid-word.
-- **Piping counts the display, not the matches.** `rtk grep -n Ruling <ledger> | wc -l` gives
-  **28**, because unpiped that same call prints a header, twenty-five lines and `[+44 more]`.
-  `rtk proxy grep -c` on the same unchanged file gives **69**. The other agent got 28 one way
-  and a different, larger number the other way, concluded that something must have been
-  reformatted between the two calls, and moved on — which is the behaviour this paragraph
-  exists to stop.
+- **`-v` is dropped.** `rtk grep -v X <file>` announces `N matches in 1 files:` and then
+  lists the lines that *do* match — the inverse of what was asked, silently. Lines are also
+  cut at terminal width, mid-word. First measured on a throwaway 38-line file (twelve
+  reported, twenty-six the honest answer), re-taken against a tracked one so a reader can
+  reproduce it from a clone: `rtk grep -v '#' public/_headers` announced 146 and listed
+  matching lines, where `rtk proxy grep -vc` says 15.
+- **Piping counts the display, not the matches.** Piped, `rtk grep` still emits its
+  *rendering*: a header line, a blank, at most **twenty-five** result lines, and one
+  `[+N more]`. So `rtk grep -n X <file> | wc -l` is **28** for any file with more than
+  twenty-five matches, and 28 is a fact about the cap rather than about the file. Measured
+  four times now, on a ledger at 69 matches, at 70, at 73, and on `public/_headers` at 146:
+  **28 every time.** The honest count comes from `rtk proxy grep -c`, or from `node`. The
+  earlier version of this bullet cited that ledger's 69 as if it were the point; the ledger
+  is appended to between rounds, so the citation decayed — inside the section about citations
+  that decay. What does not decay is the 28 and the reason for it. An agent got 28 one way
+  and a larger number the other, concluded a file must have been reformatted between the two
+  calls, and moved on, which is the behaviour this paragraph exists to stop.
 
 Use `rtk proxy grep` and read the whole output. And treat anything downstream of a filtered
 `grep` — a `wc -l`, a `head`, a count quoted in a report — as a measurement of the filter
