@@ -117,11 +117,13 @@ const DIST = 'dist';
  *     GAP, stated rather than closed: `EXPLICATIA_PAGINII` below is what a
  *     volunteer meets if it is ever reached.
  *
- * The island is now bounded - `ZILE_INSULA` days in `src/lib/schedule.ts`, about
- * 5.3 KB - so the homepage no longer tracks the published horizon at all. The
- * `date application/json NNN B (neexecutat)` line every run prints beside
- * `index.html` is that island, measured; it is the number to read if anything
- * here disagrees with it.
+ * THE HOMEPAGE NO LONGER CARRIES AN ISLAND AT ALL. It was there to feed a
+ * next-service card, and the card was removed at the parish's request - the week
+ * bands below it say the same thing - so the page stopped tracking the published
+ * horizon by losing the thing that tracked it, rather than by being bounded.
+ * `ZILE_INSULA` and `programPentruInsula` remain in `src/lib/schedule.ts`, tested
+ * and unused by any page; if a next-service surface ever returns, the bound is
+ * already argued for there and this limit is what it answers to.
  *
  * WHICH ONE GOVERNS IF THEY DISAGREE: this limit does. It is a measurement of the
  * artifact, and `ZILE_INSULA` is an argument about what the artifact will weigh -

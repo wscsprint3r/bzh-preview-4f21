@@ -1,13 +1,13 @@
 ---
 /**
- * The 3 KB that makes a frozen build tell the truth about today.
+ * The script that makes a frozen build tell the truth about which week it is.
  *
  * A static site is correct at deploy time and drifts from then on: "this week"
- * and "the next service" both depend on the clock, and the build's clock stops.
- * Spec §7 is that problem. The answer here is deliberately NOT a date stamped
- * into the page at build time and compared later - it is that the server renders
- * EVERY week it knows about, correct without a line of JavaScript, and this
- * script narrows that to the one a visitor came for.
+ * depends on the clock, and the build's clock stops. Spec §7 is that problem.
+ * The answer here is deliberately NOT a date stamped into the page at build time
+ * and compared later - it is that the server renders EVERY week it knows about,
+ * correct without a line of JavaScript, and this script narrows that to the one
+ * a visitor came for.
  *
  * THE HOMEPAGE ONLY. `/program/` renders every week and mounts nothing of this,
  * deliberately: that page IS the full schedule, so browsing ahead is the point,
@@ -15,9 +15,8 @@
  * lives in that page, next to the mark it uses instead.
  *
  * So: no props. The component reads the week sections already in the DOM
- * (`section[data-saptamana]`) and the schedule the homepage embedded next to its
- * card, which is what stops it from ever disagreeing with what the page
- * rendered.
+ * (`section[data-saptamana]`), which is what stops it from ever disagreeing with
+ * what the page rendered.
  *
  * PROGRESSIVE ENHANCEMENT IS THE CONTRACT, AND HIDING IS THE ENHANCEMENT.
  * Without JavaScript every week is visible, this bar is not, and the page is
@@ -31,10 +30,14 @@
  *   hidden elements and drives Chrome with JavaScript ON. Task 13's
  *   JavaScript-off pass is what covers them. Neither pass alone is the guarantee.
  *
- * ONE SCRIPT, TWO JOBS, ON PURPOSE. The card and the week band are the same
- * problem - a build-time answer to a question about now - and they answer it
- * from ONE reading of the clock, which is what stops them disagreeing about
- * which day it is at one minute past midnight.
+ * ONE JOB. This script used to have a second: recomputing a next-service card
+ * on the homepage, from a JSON island of the coming days embedded beside it.
+ * The card was removed at the parish's request - the full schedule below it
+ * says the same thing without a second surface to keep true - and the island,
+ * its bound (`ZILE_INSULA`) and the client-side recomputation went with it.
+ * `urmatoareaSlujba`, `slujbeLaAceeasiOra`, `listaRomaneasca` and
+ * `programPentruInsula` remain in `lib/schedule.ts`, tested and unused by any
+ * page; they are what a future "next service" anywhere would be built from.
  *
  * Measured rather than assumed: this lands under Vite's 4 KB inline threshold,
  * so Astro writes it into the homepage instead of emitting `dist/_astro/*.js`.
@@ -55,23 +58,15 @@
 <script>
   import { alegeSaptamana } from '../lib/week-picker';
   import { acumLaZurich, cheieSaptamana } from '../lib/week';
-  import {
-    listaRomaneasca,
-    slujbeLaAceeasiOra,
-    urmatoareaSlujba,
-    type ZiPentruCard,
-  } from '../lib/schedule';
 
-  // The only clock read on the client, and it produces the date and the time
-  // TOGETHER. Two calls would be two `new Date()`s: across midnight the first
-  // answers the 20th and the second `00:00` on the 21st, and the card then
-  // announces a Liturgy fifteen hours past. `acumLaZurich` is the pair, and
-  // taking it apart again is the bug.
-  const { azi, ora } = acumLaZurich();
+  // The only clock read on the client. `acumLaZurich` returns the date and the
+  // time together from ONE `new Date()` and keeps doing so even though only the
+  // date is wanted here: two calls across midnight answer the 20th and `00:00`
+  // on the 21st, and any future reader of the time must get it from this pair
+  // rather than reading the clock a second time.
+  const { azi } = acumLaZurich();
 
-  /* ------------------------------------------------------------------ *
-   * 1. Reveal the week that contains today.
-   * ------------------------------------------------------------------ */
+  // Reveal the week that contains today.
   const bara = document.querySelector<HTMLElement>('.ss');
   const sectiuni = [...document.querySelectorAll<HTMLElement>('section[data-saptamana]')];
 
@@ -116,66 +111,6 @@
     }
   }
 
-  /* ------------------------------------------------------------------ *
-   * 2. Recompute the next-service card.
-   *
-   * The card is the first thing on the homepage and the one a visitor reads to
-   * answer "when is the next service". Built at 03:00 it announces whatever was
-   * next at 03:00, so at 20:00 on a Sunday it names a Liturgy that ended ten
-   * hours earlier, under a heading promising the next one. A wrong time stated
-   * confidently is the worst output this site can produce.
-   *
-   * The decision is not re-implemented here: `urmatoareaSlujba`,
-   * `slujbeLaAceeasiOra` and `listaRomaneasca` are the very functions
-   * `index.astro` called at build time, so the two answers can differ only
-   * because the clock moved. The RENDERING is not here at all - the day heading
-   * and every service name arrive already written, and every Romanian word on
-   * the card stays in the page's markup. This only moves values into the spans
-   * that hold them.
-   *
-   * Without JavaScript the card keeps its build-time value. That is a real
-   * limit, bounded by Task 13 rebuilding every six hours, and it is a decision
-   * rather than an oversight: the alternative is a card that is blank until a
-   * script runs, which is worse for the reader it is meant to serve.
-   * ------------------------------------------------------------------ */
-  const card = document.querySelector<HTMLElement>('[data-urm]');
-  const insula = document.querySelector<HTMLElement>('[data-program]');
-
-  if (card && insula) {
-    const program = JSON.parse(insula.textContent || '[]') as ZiPentruCard[];
-    const urm = urmatoareaSlujba(program, azi, ora);
-
-    const ziua = urm && program.find((z) => z.data === urm.data);
-
-    if (!urm || !ziua) {
-      // Either the schedule ran out since the build, or the island cannot
-      // answer for the day it just named. Both mean this card can no longer be
-      // trusted, and a card that is gone beats one that states a time which has
-      // passed. One branch rather than two, so there is no path that rewrites
-      // half of it.
-      card.hidden = true;
-    } else {
-      // Names as `etichetaSlujba` already wrote them; only the CHOICE of which
-      // ones is made here, by the same function the build called.
-      const nume = slujbeLaAceeasiOra(ziua.slujbe, urm.ora).map((s) => s.nume);
-      const unde = ziua.locatie ?? '';
-
-      const pune = (cheie: string, text: string) => {
-        const el = card.querySelector<HTMLElement>(`[data-urm-${cheie}]`);
-        if (el) el.textContent = text;
-      };
-
-      // The heading the server already wrote for that day, not a second
-      // rendering of it.
-      pune('zi', ziua.titlu);
-      pune('ora', urm.ora);
-      pune('nume', listaRomaneasca(nume));
-      pune('unde', unde);
-
-      const loc = card.querySelector<HTMLElement>('[data-urm-loc]');
-      if (loc) loc.hidden = unde === '';
-    }
-  }
 </script>
 
 <style>

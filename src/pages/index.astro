@@ -3,16 +3,8 @@ import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import BandaSaptamanii from '../components/BandaSaptamanii.astro';
 import SelectorSaptamana from '../components/SelectorSaptamana.astro';
-import { formatIntervalSaptamana, titluZi } from '../lib/date-ro';
-import {
-  etichetaSlujba,
-  listaRomaneasca,
-  programPentruInsula,
-  saptamaniViitoare,
-  slujbeLaAceeasiOra,
-  urmatoareaSlujba,
-  type ZiPentruCard,
-} from '../lib/schedule';
+import { formatIntervalSaptamana } from '../lib/date-ro';
+import { saptamaniViitoare } from '../lib/schedule';
 import { acumLaZurich } from '../lib/week';
 
 const intrari = await getCollection('slujbe');
@@ -32,12 +24,13 @@ const intrari = await getCollection('slujbe');
 const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
 
 /*
- * The date and the time from ONE reading of the clock. Two calls would be two
- * `new Date()`s, and a build that straddled midnight would stamp the 20th with
- * `00:00` on the 21st onto the card - rarer than the client's window, and the
- * same fifteen-hour-past Liturgy when it happens.
+ * Only the date is needed here. `acumLaZurich` still returns the pair from ONE
+ * reading of the clock and must keep doing so: the week picker's script reads
+ * the same function in the browser, and taking the pair apart is how a build or
+ * a browser straddling midnight comes to answer the 20th and `00:00` on the
+ * 21st in the same breath.
  */
-const { azi, ora } = acumLaZurich();
+const { azi } = acumLaZurich();
 /*
  * Three weeks, not the whole schedule: spec §13 budgets this page at 30 KB of
  * HTML and `/program/` carries the full list. `saptamaniViitoare` counts weeks
@@ -46,77 +39,6 @@ const { azi, ora } = acumLaZurich();
  * prints its own interval, which is the only range that is true.
  */
 const saptamani = saptamaniViitoare(zile, azi, 3);
-const urmatoarea = urmatoareaSlujba(zile, azi, ora);
-
-/*
- * The card names every service that starts at the same minute, not only the one
- * `urmatoareaSlujba` returned — the rule and its reasoning live in
- * `slujbeLaAceeasiOra`, which is tested against a fixture with a `17:00`
- * Spovedanie beside a `17:00` Vecernie.
- *
- * The day is looked up once and used twice, for its services here and for its
- * `locatie` below. The `?? [urmatoarea]` is unreachable — the date is the
- * collection's primary key, so the day the helper read from is always found —
- * and exists so this list is never empty while the card is rendered.
- */
-const ziuaUrmatoare = urmatoarea ? zile.find((z) => z.data === urmatoarea.data) : undefined;
-const deopotriva = urmatoarea
-  ? slujbeLaAceeasiOra(ziuaUrmatoare?.slujbe ?? [urmatoarea], urmatoarea.ora)
-  : [];
-const nume = deopotriva.map(etichetaSlujba);
-/*
- * Romanian list: "A", "A și B", "A, B și C". This was an expression on this
- * line until Task 10; it is a function in `schedule.ts` because the week
- * picker's script composes the same sentence in the browser once the clock has
- * moved past this service, and one sentence rule written twice is exactly how
- * two renderings of the same evening come to disagree.
- */
-const impreuna = listaRomaneasca(nume);
-
-/*
- * The card names the place only when the day has one, so on an ordinary day it
- * stays as short as it is meant to be and the exception is what announces
- * itself.
- *
- * It has to name it at all for the same reason the band does, only more so:
- * this card is the first thing on the page, it is what someone checking "when
- * is the next service" reads, and `ics.ts` writes this value into the feed's
- * LOCATION. Without it the card is confidently wrong on exactly the day when
- * being wrong costs a wasted journey — the reader of the page drives to Zürich
- * while the subscriber to the calendar drives to Winterthur. Not in the brief;
- * the brief asked only that the band carry it.
- */
-const undeUrmatoarea = ziuaUrmatoare?.locatie ?? '';
-
-/*
- * The schedule the card can still be recomputed from, embedded for the week
- * picker's script — spec §7, the half of it the week band does not cover.
- *
- * From today forward, and BOUNDED: `ZILE_INSULA` days, not every future day the
- * collection holds. This page used to embed the whole future, which made its
- * weight a function of how far ahead the parish publishes — 48 weeks of an
- * ordinary parish week put it over §13's budget, on content that is entirely
- * valid. `programPentruInsula` owns the bound and the reasoning; the projection
- * lives there rather than here because it is the thing being bounded, and a
- * bound stated in one file and applied in another is how the two come apart.
- *
- * `urmatoareaSlujba` never looks behind `azi`, so within the window this yields
- * exactly the answer the full list would, for any clock at or after this build's
- * — the only direction a clock moves. It is NOT the three weeks rendered below:
- * were every day in those weeks cancelled, the card's answer would lie outside
- * them.
- */
-const program: ZiPentruCard[] = programPentruInsula(zile, azi);
-
-/*
- * `<` escaped, so that a `locatie` or a `detaliu` a volunteer typed can never
- * close this script element early. Built from `String.fromCharCode(92)` rather
- * than written as an escape sequence: a backslash followed by u and four hex
- * digits is decoded into the character it names on the way to disk in this repo
- * (see CLAUDE.md), so the literal form would land here as a bare `<` and do the
- * exact opposite of its job.
- */
-const insula = JSON.stringify(program).replaceAll('<', `${String.fromCharCode(92)}u003C`);
 ---
 
 <Base titlu="Bine ați venit">
@@ -131,43 +53,12 @@ const insula = JSON.stringify(program).replaceAll('<', `${String.fromCharCode(92
   */}
   <section class="hero">
     <div class="container hero-in">
-      <p class="hero-kick">Wehntalerstrasse 451 · 8046 Zürich</p>
-      <h1>Bine ați venit în casa Domnului</h1>
+      <h1>Bine ați venit</h1>
       <p class="hero-verset">„Căutați mai întâi împărăția lui Dumnezeu și dreptatea Lui” — Matei 6:33</p>
     </div>
   </section>
 
   <div class="container">
-    {urmatoarea && (
-      <>
-        <p class="urm" data-urm>
-          <span class="eyebrow">Următoarea slujbă</span>
-          <b data-urm-zi>{titluZi(urmatoarea.data)}</b>
-          {/*
-            Three spans where one used to do, because the week picker's script
-            rewrites this card in the browser. Every Romanian word and every
-            separator on it — the em dash here, the "la" below — exists exactly
-            once, in this file, where a reader can see it; the script only writes
-            values into the spans that hold them. A script composing the same
-            line itself would be a second copy of this sentence, and the two
-            would drift the first time anyone edited one of them.
-          */}
-          <span class="urm-slujbe"><span data-urm-ora>{urmatoarea.ora}</span> — <span data-urm-nume>{impreuna}</span></span>
-          {/*
-            Always rendered and `hidden` when the day has no location, rather
-            than rendered conditionally: the script then has a span to fill
-            instead of an element to build, and with JavaScript off `hidden`
-            leaves exactly what the conditional used to produce.
-          */}
-          <span class="urm-loc" data-urm-loc hidden={!undeUrmatoarea}>la <span data-urm-unde>{undeUrmatoarea}</span></span>
-        </p>
-        {/* `is:inline` is the point, not a concession: this is data, not a
-            module for Astro to bundle. Stated explicitly so the intent is a
-            decision in the source rather than a hint in the build log. */}
-        <script is:inline type="application/json" data-program set:html={insula}></script>
-      </>
-    )}
-
     {/*
       Not "Programul săptămânii", and not any heading that counts weeks.
       `saptamaniViitoare` counts weeks WITH ENTRIES, so this section renders
@@ -213,7 +104,6 @@ const insula = JSON.stringify(program).replaceAll('<', `${String.fromCharCode(92
 <style>
   .hero { background: var(--oxblood); color: var(--parchment); }
   .hero-in { padding-block: clamp(2.5rem, 7vw, 4.5rem); }
-  .hero-kick { font-size: 0.625rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold-lt); margin: 0 0 0.75rem; }
   /* Scoped, so this ships at (0,2,1) and defeats global.css's `h1` at (0,0,1).
      That is the intended direction here — the heading must leave the oxblood
      ground it would otherwise inherit from. It is the same mechanism that
@@ -225,27 +115,6 @@ const insula = JSON.stringify(program).replaceAll('<', `${String.fromCharCode(92
      adding one costs two requests, which would put this page over spec §13's
      limit of 12 once Task 10's script lands. See Task 7's request arithmetic. */
   .hero-verset { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
-  /* The user-agent/author-origin trap `SelectorSaptamana` documents, in its
-     second place: an author `display: flex` beats the UA stylesheet's
-     `[hidden] { display: none }` outright — author origin wins over UA origin
-     whatever the specificity — so without this rule the script could not hide a
-     card whose service has already happened. It would set the attribute and
-     nothing at all would change on screen. Measured in a browser, both ways
-     round; see the report. */
-  .urm[hidden] { display: none; }
-  .urm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; border: 1px solid var(--gold-lt); background: var(--raised); padding: 1rem 1.25rem; margin-block: 1.75rem 0; }
-  .urm b { font-family: var(--display); font-size: 1.25rem; color: var(--oxblood); }
-  /* By class, not `> span:last-child`. The location span below is shown only
-     on the days that have a `locatie`, so a positional selector would mean "the
-     service times" on most days and "the address" on those, and would hand the
-     times the colour of whichever element happened to come last. Since Task 10
-     that span is always PRESENT and merely `hidden`, which makes a positional
-     selector wrong every day rather than most days. */
-  .urm-slujbe { color: var(--muted); }
-  /* Oxblood, not muted: this line only appears when the service has moved, and
-     it is the one fact on the card that a regular cannot supply from memory.
-     11.17:1 on `--raised`. */
-  .urm-loc { color: var(--oxblood); }
   .titlu-sect { font-size: 1.375rem; margin-block: 2rem 0.25rem; }
   .interval { font-family: var(--display); font-size: 1.0625rem; color: var(--faint); margin: 0 0 0.75rem; }
   .gol { color: var(--muted); font-style: italic; }

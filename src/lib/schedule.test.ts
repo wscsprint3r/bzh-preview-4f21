@@ -563,7 +563,17 @@ describe('listaRomaneasca', () => {
 
 /*
  * ===========================================================================
- * INSULA DE DATE A PAGINII DE START, ȘI DE CE ARE O MARGINE.
+ * INSULA DE DATE, ȘI DE CE ARE O MARGINE.
+ *
+ * NIMIC NU O MAI FOLOSEȘTE. Cardul „următoarea slujbă" de pe pagina de start a
+ * fost scos la cererea parohiei — programul de dedesubt spune același lucru — și
+ * odată cu el au plecat insula JSON și recalcularea din browser.
+ * `programPentruInsula`, `urmatoareaSlujba`, `slujbeLaAceeasiOra` și
+ * `listaRomaneasca` au rămas în `schedule.ts`, testate și nefolosite de nicio
+ * pagină: ele sunt din ce s-ar construi un „următoarea slujbă" oriunde altundeva.
+ * Ce urmează este deci o proprietate a unei funcții de bibliotecă, NU o măsură
+ * a paginii de start de azi — numerele de mai jos descriu pagina de atunci, și
+ * sunt păstrate fiindcă ele sunt argumentul pentru care marginea există.
  *
  * `index.astro` a purtat multă vreme TOATE zilele viitoare în insula ei JSON, așa
  * că greutatea paginii era o funcție de cât de departe publică parohia. Măsurat pe
@@ -585,7 +595,7 @@ describe('listaRomaneasca', () => {
  * rezultă: insula nu crește cu orizontul publicat.
  * ===========================================================================
  */
-describe('insula de date a paginii de start', () => {
+describe('insula de date (nefolosită de nicio pagină; vezi nota de mai sus)', () => {
   /** N săptămâni de program parohial obișnuit, începând din lunea lui `de la`. */
   function programLung(dela: string, saptamani: number): ZiSlujba[] {
     const zile: ZiSlujba[] = [];
@@ -635,7 +645,7 @@ describe('insula de date a paginii de start', () => {
     process.stdout.write(
       `\nInsula la 104 săptămâni publicate: ${octeti} octeți (${ZILE_INSULA} zile)` +
         ` — nemărginită ar fi ${nemarginit} octeți (${DOI_ANI.length} zile).\n` +
-        `Pagina fără insulă a măsurat 20693 octeți; bugetul este ${45 * 1024}.\n`,
+        `Pagina de atunci, fără insulă, măsura 20693 octeți; bugetul este ${45 * 1024}.\n`,
     );
     // Marginea de aici este generoasă fiindcă o zi poate purta mai multe slujbe,
     // o `locatie` sau un `detaliu` mai lung decât cele de mai sus. Bugetul adevărat
