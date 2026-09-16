@@ -28,7 +28,7 @@ const { saptamana } = Astro.props;
 
 <div class="bs">
   {saptamana.zile.map((z) => (
-    <div class:list={['bs-zi', (z.praznic_mare || z.praznic) && 'bs-praznic']}>
+    <div class:list={['bs-zi', (z.praznic_mare || z.praznic) && 'bs-praznic', z.anulat && 'bs-anulat']}>
       <div class="bs-cap">
         <span class="bs-nume">{numeZi(z.data)}</span>
         <span class="bs-nr">{ziuaDinLuna(z.data)}</span>
@@ -47,24 +47,37 @@ const { saptamana } = Astro.props;
         the cell is ~10rem wide.
       */}
       {!z.anulat && z.locatie && <p class="bs-loc">Slujbele au loc la {z.locatie}.</p>}
-      {z.anulat ? (
-        <p class="bs-anulat">Anulat</p>
-      ) : (
-        z.slujbe.map((s) => (
-          /*
-            The explicit space is load-bearing, and `margin-right` below is not
-            a substitute for it. JSX puts no whitespace between `</b>` and the
-            next expression, so without it the accessibility tree and a
-            copy-paste both read `07:30Utrenia` — which looks perfect on screen,
-            because the margin draws the gap the space does not. Exactly the
-            shape Task 8 fixed between a feast name and its fast tag: no
-            screenshot and no axe run can see it, a screen reader says it.
-            Measured on the built page: `innerText` is "07:30 Utrenia", and the
-            visible gap is 9.65px — 6.4px of margin plus a 3.25px space.
-          */
-          <p class="bs-slujba"><b>{s.ora}</b>{' '}{etichetaSlujba(s)}</p>
-        ))
-      )}
+      {/*
+        A cancelled day keeps its times, struck through, exactly as `/program/`
+        renders it. The band used to replace them with the word "Anulat", and
+        two pages describing the same day in different shapes is how a reader
+        decides one of them is stale.
+
+        The sentence carries the fact and the line-through only illustrates it:
+        `text-decoration` never reaches the accessibility tree, so a screen
+        reader hears the times and nothing else unless a sentence says so. That
+        is also why the sentence comes FIRST — it has to be heard before the
+        times it applies to, not after them.
+
+        Abbreviated from `/program/` by the same two words `.bs-loc` drops, so
+        the band's two exception sentences stay parallel to the page's two:
+        "Slujbele acestei zile sunt anulate." → "Slujbele sunt anulate."
+      */}
+      {z.anulat && <p class="bs-anulat-txt">Slujbele sunt anulate.</p>}
+      {z.slujbe.map((s) => (
+        /*
+          The explicit space is load-bearing, and `margin-right` below is not a
+          substitute for it. JSX puts no whitespace between `</b>` and the next
+          expression, so without it the accessibility tree and a copy-paste both
+          read `07:30Utrenia` — which looks perfect on screen, because the margin
+          draws the gap the space does not. Exactly the shape Task 8 fixed
+          between a feast name and its fast tag: no screenshot and no axe run can
+          see it, a screen reader says it. Measured on the built page:
+          `innerText` is "07:30 Utrenia", and the visible gap is 9.65px — 6.4px
+          of margin plus a 3.25px space.
+        */
+        <p class="bs-slujba"><b>{s.ora}</b>{' '}{etichetaSlujba(s)}</p>
+      ))}
       {z.praznic && <p class="bs-praznic-txt">{z.praznic_mare && <span aria-hidden="true">† </span>}{z.praznic}</p>}
       {z.zi_de_post && <p class="bs-post">Zi de post</p>}
     </div>
@@ -102,13 +115,44 @@ const { saptamana } = Astro.props;
   .bs-slujba b { color: var(--gold-text); font-weight: 600; margin-right: 0.4rem; }
   .bs-praznic-txt { font-family: var(--display); font-style: italic; font-size: 0.8125rem; color: var(--oxblood); margin: 0.4rem 0 0; }
   .bs-post { font-size: 0.5625rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.35rem; display: inline-block; margin: 0.4rem 0 0; }
-  /* `--muted`, and no `opacity`. The obvious way to say "this is off" is to dim
-     the cell, and this palette has no room for it: `opacity` below 1 blends
-     text toward the page, so `--muted` leaves AA at 0.879 on the page and at
-     0.860 on a feast cell — a dimming anyone would reach for, not a rounding
-     error. Same ruling as `RandZi`, whose `opacity: .75` measured 2.96:1.
-     `--gold-lt` is out for the other reason: 2.18:1 on this ground. At full
-     strength `--muted` is 5.90:1 on the page and 6.25:1 on a feast cell. */
-  .bs-anulat { margin: 0; font-size: 0.8125rem; color: var(--muted); font-style: italic; }
+  /* A cancelled day is marked by the sentence above and by a line through its
+     times — deliberately NOT by dimming the cell, which is the obvious thing to
+     reach for and the one this palette has no room for. `opacity` below 1 blends
+     text toward the page, and `--muted` leaves AA at 0.879 on the page and 0.860
+     on a feast cell: that is a dimming anyone would actually use, not a rounding
+     error. `RandZi` measured the same trap at `opacity: .75` and got 2.96:1.
+     `--gold-lt` is out for the other reason — 2.18:1 on this ground. At full
+     strength `--muted` is 5.90:1 on the page and 6.25:1 on a feast cell.
+
+     One selector rather than `RandZi`'s two: there the time and the label are
+     grid items, and `text-decoration` does not propagate into those. Here the
+     label is a text node inside the `<p>`, so the decoration reaches both it and
+     the `<b>`. Verified in a browser, not assumed — see the report. */
+  .bs-anulat-txt { margin: 0 0 0.4rem; font-size: 0.75rem; line-height: 1.45; color: var(--muted); }
+  .bs-anulat .bs-slujba { text-decoration: line-through; }
   .bs-loc { margin: 0 0 0.4rem; font-size: 0.75rem; line-height: 1.45; color: var(--muted); }
+  /* Seven days, kept on one row, because the week that has seven is Holy Week —
+     the most services, the most visitors, and a Sunday that is Easter. At the
+     base 10rem minimum the 1016px container fits only six tracks, so that week
+     wrapped 6 + 1 and stranded Easter on a row of its own.
+
+     A breakpoint rather than a smaller minimum everywhere, so this buys the
+     desktop case without spending the phone one. Lowering the base to 8rem would
+     also fix the wrap, and would drag the 3-column threshold down with it: the
+     band goes to three columns once the content box reaches 3 × the minimum,
+     which is 522px of viewport today — measured, 2 columns at 520px and 3 at
+     522px — and would be about 418px at 8rem. Large phones in landscape would
+     get three 130px columns instead of two 171.5px ones. Below 62rem this rule
+     does not apply and nothing changes at all.
+
+     62rem (992px) is the narrowest viewport where seven tracks still hold their
+     content: the container is 920px there, so each cell is 131.4px with a
+     103.4px content box, against a widest day name of 64.4px and a widest
+     service word of 65.4px. Above 68rem the container caps at 1016px, which is
+     seven tracks and never eight (8 × 128 = 1024 > 1016), so a five-day week
+     still renders as five equal columns — `auto-fit` collapses the two spare
+     tracks and `1fr` redistributes. Measured at 992, 1088, 1280 and 1440. */
+  @media (min-width: 62rem) {
+    .bs { grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
+  }
 </style>
