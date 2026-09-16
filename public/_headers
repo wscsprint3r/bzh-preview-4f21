@@ -114,9 +114,10 @@
 #                                                         check; the version is
 #                                                         pinned on purpose
 #   connect-src  https://www.githubstatus.com/api/...     the incident banner;
-#                                                         pornire.mjs already
-#                                                         tells a volunteer what
-#                                                         they need
+#                                                         the start-up page
+#                                                         already tells a
+#                                                         volunteer what they
+#                                                         need
 #   img-src      blob:  (x2)                              image data the CMS
 #                                                         wraps in a blob URL.
 #                                                         Not in the task 12
@@ -138,6 +139,18 @@
 # script that has never existed. `src/lib/headers.itest.ts` now resolves every
 # path named here, because an instruction naming a file that does not exist
 # reads exactly like an instruction that works.
+#
+# The start-up page named in the table above is `public/admin/pornire.mjs`.
+#
+# EVERY REPOSITORY PATH IN THIS FILE IS WRITTEN IN BACKTICKS, and that is a
+# chosen limit rather than an oversight. The resolver looks only inside
+# backticks, because outside them there is no way to tell a path from a route
+# pattern or a URL - both of which this file is full of. So the convention is
+# what makes "every path here resolves" a complete claim, and the same test
+# enforces it: a file-shaped token in a comment, outside backticks and outside
+# a URL, fails. The table above named that start-up script bare for two rounds
+# - correct, resolvable, and invisible to the guard, which is the whole reason
+# the convention is now enforced rather than merely followed.
 #
 # UNVERIFIED until the first real sign-in, which needs credentials no agent has:
 # `img-src avatars.githubusercontent.com` for the editor's avatar, and whatever

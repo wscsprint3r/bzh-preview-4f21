@@ -117,13 +117,46 @@ function tokenuriSha(text: string): string[] {
  * inferred from a green.
  */
 export function caiMentionate(text: string): string[] {
-  const EXTENSII = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
   const gasite: string[] = [];
   for (const m of text.matchAll(/`([^`]+)`/g)) {
     const token = m[1] as string;
     if (!/^[A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@-]+)*$/.test(token)) continue;
-    if (!token.includes('/') && !EXTENSII.test(token)) continue;
+    if (!token.includes('/') && !EXTENSII_SURSA.test(token)) continue;
     gasite.push(token);
+  }
+  return unic(gasite);
+}
+
+const EXTENSII_SURSA = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
+
+/*
+ * The other half of that scope, and the reason the first half is a CHOICE.
+ *
+ * Looking only inside backticks is right: outside them this file is full of
+ * things shaped like paths that are not paths - the route patterns it exists to
+ * declare, and the URLs in its own `curl` examples. A resolver that took those
+ * would fail on `/program.ics`, which is a rule, not a file.
+ *
+ * But a backtick-only resolver is complete only if the file really does put
+ * every path in backticks, and for two rounds it did not: the refusal table read
+ * `pornire.mjs already tells a volunteer what they need` with no backticks, so
+ * the guard could not see it and the round-1 report claimed it had been fixed
+ * when it had not. Nothing was broken, because the file existed - which is the
+ * whole problem with that class: it rots silently.
+ *
+ * So the convention is enforced rather than stated. A COMMENT line that names a
+ * file-shaped token outside backticks fails. Route lines are exempt because they
+ * are not prose, and a line carrying a URL is exempt because the token belongs
+ * to the URL - both structural, neither a list of names somebody has to maintain.
+ */
+export function caiFaraApostrofuri(text: string): string[] {
+  const gasite: string[] = [];
+  const tipar = /[A-Za-z0-9_@.-]+\.(?:mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)\b/g;
+  for (const linie of text.split('\n')) {
+    if (!linie.startsWith('#')) continue; // a route line declares rules, not paths
+    if (linie.includes('://')) continue; // the token belongs to a URL on this line
+    const faraApostrofuri = linie.replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
+    for (const m of faraApostrofuri.matchAll(tipar)) gasite.push(m[0]);
   }
   return unic(gasite);
 }
@@ -323,6 +356,25 @@ describe('referințele din public/_headers', () => {
       'scripts/csp-browser.mjs',
     ]);
     expect(existsSync(`${RADACINA}scripts/csp-browser.mjs`)).toBe(false);
+  });
+
+  /*
+   * Fiindcă rezolvarea se uită numai între apostrofuri inverse, singurul lucru
+   * care face „toate căile de aici se rezolvă" o afirmație întreagă este
+   * convenția că toate căile de aici sunt scrise între apostrofuri inverse.
+   * Convenția se verifică, nu se promite.
+   */
+  it('nu numește nicio cale în afara apostrofurilor inverse', () => {
+    const bare = caiFaraApostrofuri(SURSA);
+    expect(bare, `scrie-le între apostrofuri inverse, altfel rezolvarea nu le vede: ${bare.join(', ')}`).toEqual([]);
+  });
+
+  it('detectorul de căi fără apostrofuri chiar se declanșează, și lasă rutele și URL-urile în pace', () => {
+    expect(caiFaraApostrofuri('#   pornire.mjs deja îi spune voluntarului')).toEqual(['pornire.mjs']);
+    expect(caiFaraApostrofuri('#   `public/admin/pornire.mjs` deja îi spune')).toEqual([]);
+    // O rută nu e un fișier, iar un token dintr-un URL îi aparține URL-ului.
+    expect(caiFaraApostrofuri('/program.ics')).toEqual([]);
+    expect(caiFaraApostrofuri('#   curl -sI https://x.pages.dev/program.ics')).toEqual([]);
   });
 
   it.each(CAI)('`%s` există', (cale) => {
