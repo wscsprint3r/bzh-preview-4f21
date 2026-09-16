@@ -57,12 +57,20 @@ export const ZILE_FIXTURA: ZiSlujba[] = [
     ],
   }),
   zi('2026-09-16', {
+    // DELIBERATELY OUT OF ORDER, and it must stay that way. `ziSchema` neither
+    // sorts `slujbe` nor requires them sorted, so this is what a volunteer who
+    // adds the evening service first and remembers confession afterwards
+    // actually produces. `slujbeInOrdine` is what both pages see instead.
+    //
+    // It also pins the stability of that sort: Spovedanie is written before
+    // Vecernie and they share a minute, so any ordering that swapped them would
+    // be reordering a same-time pair, which carries meaning the code cannot see.
     slujbe: [
+      { ora: '18:30', slujba: 'Paraclisul Maicii Domnului' },
       // Same minute, different services. The schema permits exactly this and
       // forbids only the same service twice at one time.
       { ora: '17:00', slujba: 'Spovedanie' },
       { ora: '17:00', slujba: 'Vecernie' },
-      { ora: '18:30', slujba: 'Paraclisul Maicii Domnului' },
     ],
   }),
   zi('2026-09-20', { slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] }),

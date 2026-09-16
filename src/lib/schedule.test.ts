@@ -8,6 +8,7 @@ import {
   grupeazaPeSaptamani,
   minute,
   saptamaniViitoare,
+  slujbeInOrdine,
   slujbeLaAceeasiOra,
   urmatoareaSlujba,
 } from './schedule';
@@ -403,5 +404,63 @@ describe('fereastra de trei săptămâni a paginii de start', () => {
     // 7 octombrie, nu să anunțe o slujbă care nu are loc.
     const u = urmatoareaSlujba(ZILE_FIXTURA, '2026-10-04', '00:00');
     expect(u?.data).toBe('2026-10-07');
+  });
+});
+
+/*
+ * `ziSchema` neither sorts a day's services nor requires them sorted, so the
+ * order in the YAML is whatever the volunteer typed. `urmatoareaSlujba` and
+ * `ics.ts` have always sorted their own copy; the two pages did not, and both
+ * read the schedule through `grupeazaPeSaptamani`.
+ */
+describe('ordinea slujbelor dintr-o zi', () => {
+  const ziuaNeordonata = ZILE_FIXTURA.find((z) => z.data === '2026-09-16')!;
+
+  it('control: fixtura chiar este neordonată', () => {
+    // Fără asta, testele de mai jos ar putea trece fiindcă nu au ce sorta.
+    expect(ziuaNeordonata.slujbe.map((s) => s.ora)).toEqual(['18:30', '17:00', '17:00']);
+  });
+
+  it('slujbeInOrdine le pune în ordinea în care se întâmplă', () => {
+    expect(slujbeInOrdine(ziuaNeordonata.slujbe).map((s) => s.ora)).toEqual([
+      '17:00',
+      '17:00',
+      '18:30',
+    ]);
+  });
+
+  it('păstrează perechea de la aceeași oră în ordinea redactorului', () => {
+    // Sortarea e stabilă din ES2019. Spovedania scrisă înaintea vecerniei
+    // rămâne înaintea ei: a le inversa ar fi o decizie pe care codul nu o poate
+    // lua, fiindcă nu vede ce înseamnă perechea.
+    expect(slujbeInOrdine(ziuaNeordonata.slujbe).map((s) => s.slujba)).toEqual([
+      'Spovedanie',
+      'Vecernie',
+      'Paraclisul Maicii Domnului',
+    ]);
+  });
+
+  it('nu modifică lista primită', () => {
+    const inainteDeSortare = [...ziuaNeordonata.slujbe];
+    slujbeInOrdine(ziuaNeordonata.slujbe);
+    expect(ziuaNeordonata.slujbe).toEqual(inainteDeSortare);
+  });
+
+  it('ambele pagini o primesc ordonată, fiindcă amândouă citesc prin grupare', () => {
+    // /program/ cheamă grupeazaPeSaptamani direct, pagina de start prin
+    // saptamaniViitoare. Un singur loc le acoperă pe amândouă.
+    const prinGrupare = grupeazaPeSaptamani(ZILE_FIXTURA)
+      .flatMap((s) => s.zile)
+      .find((z) => z.data === '2026-09-16');
+    const prinFereastra = saptamaniViitoare(ZILE_FIXTURA, AZI_FIXTURA, 3)
+      .flatMap((s) => s.zile)
+      .find((z) => z.data === '2026-09-16');
+    expect(prinGrupare?.slujbe.map((s) => s.ora)).toEqual(['17:00', '17:00', '18:30']);
+    expect(prinFereastra?.slujbe.map((s) => s.ora)).toEqual(['17:00', '17:00', '18:30']);
+  });
+
+  it('gruparea nu strică ziua originală din colecție', () => {
+    grupeazaPeSaptamani(ZILE_FIXTURA);
+    expect(ziuaNeordonata.slujbe.map((s) => s.ora)).toEqual(['18:30', '17:00', '17:00']);
   });
 });

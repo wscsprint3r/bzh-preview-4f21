@@ -79,11 +79,43 @@ export function etichetaSlujba(s: Slujba): string {
 }
 
 /**
+ * A day's services in the order they happen.
+ *
+ * `ziSchema` neither sorts `slujbe` nor requires them sorted - YAML keeps the
+ * order the volunteer typed - so an editor who adds an 18:30 Acatist and then
+ * remembers the 17:00 Spovedanie has a day whose times run backwards. This is
+ * the one place that decides what "in order" means, and there are three
+ * callers: `urmatoareaSlujba` (which has always sorted), `ics.ts` (which has
+ * always sorted) and `grupeazaPeSaptamani`, through which both pages read the
+ * schedule and which did not. Three copies of `sort((a, b) => minute(a.ora) -
+ * minute(b.ora))` is how they came to disagree, exactly as two spellings of a
+ * date comparison would - see `inainte`.
+ *
+ * Copies rather than sorting in place: the caller's array is never reordered.
+ *
+ * Stable, which is load-bearing rather than incidental. `Array.prototype.sort`
+ * has been required to be stable since ES2019, so two services at the SAME
+ * minute keep the order the editor wrote - `17:00 Spovedanie` stays above
+ * `17:00 Vecernie` if that is how the day was entered. Ordering by time must not
+ * become an excuse to reorder a same-time pair, which carries meaning this
+ * module cannot see.
+ */
+export function slujbeInOrdine(slujbe: Slujba[]): Slujba[] {
+  return [...slujbe].sort((a, b) => minute(a.ora) - minute(b.ora));
+}
+
+/**
  * Buckets days into ISO weeks, ascending, dropping weeks that have no entries.
  *
- * `z.slujbe` is passed through untouched - not sorted, not de-duplicated - so
- * two services at the same time both survive, in the order the editor wrote
- * them. Only the days are reordered, and only inside their own week.
+ * Days are reordered inside their week, and each day's services are put in the
+ * order they happen by `slujbeInOrdine`. Nothing is de-duplicated and no
+ * same-time pair is merged or dropped: the sort is stable, so two services at
+ * one minute survive in the order the editor wrote them.
+ *
+ * The service sort lives here, and not in the two components that render a day,
+ * because `RandZi` on `/program/` and `BandaSaptamanii` on the homepage are
+ * different components reading the same data through this one function. Fixing
+ * it in each page is how the two pages would drift.
  */
 export function grupeazaPeSaptamani(zile: ZiSlujba[]): Saptamana[] {
   const cos = new Map<string, ZiSlujba[]>();
@@ -97,7 +129,9 @@ export function grupeazaPeSaptamani(zile: ZiSlujba[]): Saptamana[] {
 
   return [...cos.values()]
     .map((grup) => {
-      const sortate = [...grup].sort((a, b) => inainte(a.data, b.data));
+      const sortate = [...grup]
+        .sort((a, b) => inainte(a.data, b.data))
+        .map((z) => ({ ...z, slujbe: slujbeInOrdine(z.slujbe) }));
       // Every date in the bucket shares a week key, hence a Monday, so any one
       // of them yields the same bounds. The first is simply the cheapest.
       const orice = sortate[0].data;
@@ -155,7 +189,7 @@ export function urmatoareaSlujba(
     .sort((a, b) => inainte(a.data, b.data));
 
   for (const z of candidate) {
-    const slujbe = [...z.slujbe].sort((a, b) => minute(a.ora) - minute(b.ora));
+    const slujbe = slujbeInOrdine(z.slujbe);
     for (const s of slujbe) {
       if (z.data > azi || minute(s.ora) >= acum) {
         return { ...s, data: z.data };

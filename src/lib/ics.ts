@@ -1,4 +1,4 @@
-import { etichetaSlujba, inainte, minute } from './schedule';
+import { etichetaSlujba, inainte, minute, slujbeInOrdine } from './schedule';
 import type { Slujba, ZiSlujba } from './schema';
 import { adaugaZile } from './week';
 
@@ -165,7 +165,7 @@ export function genereazaIcs(
   const sortate = [...zile].sort((a, b) => inainte(a.data, b.data));
 
   for (const z of sortate) {
-    const slujbe = [...z.slujbe].sort((a, b) => minute(a.ora) - minute(b.ora));
+    const slujbe = slujbeInOrdine(z.slujbe);
 
     slujbe.forEach((s, i) => {
       // The next service that starts STRICTLY later — not simply the next by
