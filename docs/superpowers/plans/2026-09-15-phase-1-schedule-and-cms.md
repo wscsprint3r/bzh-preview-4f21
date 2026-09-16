@@ -42,6 +42,12 @@ Every task's requirements implicitly include this section.
   pass claimed all nine mutants survived; re-running without the redirect killed all nine.
   Read mutation results off the test runner's own output, never off a report file you did not
   watch it write, and sanity-check that the baseline is green before trusting any SURVIVED.
+- **axe must audit with JavaScript disabled as well as enabled.** `a11y.mjs` drives Chrome with
+  JS on, so from Task 10 onward it audits only the one week the picker leaves visible and
+  silently stops seeing the rest — the guarantee narrowing inside the task whose job is
+  hiding things. The site already supplies the fix: with JS off every week renders, which is
+  Task 10's no-JS baseline. Run both passes; the disabled one covers what the enabled one
+  cannot see.
 - **Opacity on text is not dimming, it is contrast reduction.** The plan's `.rz-anulat`
   `opacity: 0.75` produced six `color-contrast` violations on a genuinely cancelled day —
   times falling 4.67:1 to 2.96:1 — and `--gold-text` is unusable below opacity 0.981. Every
@@ -2596,6 +2602,9 @@ and closing the fragment after the map — the block ends `))}</>`  instead of `
 Apply the identical three changes to `web/src/pages/index.astro`, with the import path `'../components/SelectorSaptamana.astro'`.
 
 - [ ] **Step 7: Verify both paths**
+
+Note for the audit, not an extra step: hiding weeks is what makes `npm run a11y` stop seeing them, because axe skips hidden elements and the script drives Chrome with JavaScript on. The no-JS pass added in Task 13 is what covers the weeks this script hides — so when you verify the JavaScript-off path below, you are also verifying the only view in which the other weeks are ever audited.
+
 
 Run: `cd web && npm run build && npm run preview`
 
