@@ -261,9 +261,29 @@ every set of pages must be audited with **scripts off** by some pass, or be name
 browser passes and the whole unit suite green while removing the only audit that renders the
 weeks the picker hides — axe skips hidden elements and drives Chrome with JavaScript on, so
 with the picker working the homepage band is audited on one week out of three. `proba` is the
-one legitimate exemption: its bar exists only with scripts running. Both directions fail, so an
-exemption for a set that does have a scripts-off pass is red too. Each pass prints the states
-it audited beside the widths.
+one legitimate exemption: its bar exists only with scripts running.
+
+**This guard was green while blind six times, and the sixth was found by the round that closed
+the fifth.** Hardcoded breakpoints; widths declared in `CONDITII` that no pass ran; the
+JavaScript axis, which nothing indexed; `medii: {}`; assertion (a) being one-directional; and
+coverage counted on the page SET rather than on the band, so `telefonFaraJs` could be deleted
+with the unit guard at 28 passed and both `dist` passes at exit 0 while the phone band lost its
+only scripts-off audit — the run still printing `JS pornit · JS oprit`, true of the set and
+false of the band. Each earlier fix closed the arrangement it was shown, and one shape produced
+all six: **the guard compared a declaration against a subject along some axes and not others,
+and was silent about what it did not index.** So it is restated as one sentence with no axis
+implicit — *everything the built CSS demands, matched against everything the suite runs, in both
+directions, and anything the file cannot index is named in words or is a failure* — and the five
+assertions in `verificaPraguri` carry the direction in their labels: (a) declaration->CSS, (a')
+CSS->declaration, (b) CSS->execution on the **pair** (band, script state), (c) every media feature
+that is not a width comparison named in `TRASATURI_NEAUDITATE`, (c') no name there the CSS has
+lost. `@container`, `@import` and a `<link media>` are each read rather than skipped, and
+`FARA_AXE_MOTIVAT` — the one lever that shrinks the subject — carries its reason beside the path.
+(c) was not hypothetical: `prefers-reduced-motion` had been in the built CSS the whole time,
+indexed by nothing and printed nowhere, a seventh arrangement standing while the sixth was being
+found. Each pass prints the widths **per script state** and the non-width features it did not
+vary. Every one of these has a unit-level positive control, because four Chrome launches is the
+wrong place to learn that a table is wrong.
 
 **How long `test:all` takes is a property of the machine, not of this repository.** Well under a
 minute on all three machines it has run on — 36 to 42 s over nine runs — so quote a range or
