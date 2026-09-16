@@ -12,7 +12,8 @@
     "check": "astro check",
     "test": "vitest run",
     "test:watch": "vitest",
-    "astro": "astro"
+    "astro": "astro",
+    "test:build": "astro build && vitest run --config vitest.itest.config.ts"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
