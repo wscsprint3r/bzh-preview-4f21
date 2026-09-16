@@ -184,6 +184,24 @@ const EXTENSII_TEXT = [
 ];
 
 /*
+ * AND THE FILES THAT HAVE NO EXTENSION AT ALL.
+ *
+ * `dist/_headers` is ours, it is text, it carries the Content-Security-Policy
+ * that this whole task turns on, and its comments are the first thing a new
+ * operator reads - which makes it exactly the kind of prose a Romanian sentence
+ * reaches. It matched no entry above, so it sat outside BOTH sweeps: not the
+ * cedilla one, not the allowlist one. Nothing was wrong with it - it is ASCII
+ * today - and that is the point: nothing could have told us if it were not.
+ *
+ * Listed by exact relative path rather than by "files without a dot", so a
+ * binary that happens to arrive without an extension is not scanned as text by
+ * accident. The other half of that - that nothing extensionless slips out of
+ * the sweep unnoticed - is the case below, which fails on any such file this
+ * list does not name.
+ */
+const FARA_EXTENSIE = ['_headers'];
+
+/*
  * The Sveltia CMS bundle is a few hundred KB of third-party code carrying its
  * own i18n tables - it contains a transliteration map that turns U+0163 into
  * `t`, which is Turkish text doing its job rather than our defect - so it is
@@ -225,15 +243,31 @@ function caiVendorizate(relativ = ''): string[] {
 
 const VENDORIZATE = new Set(caiVendorizate());
 
+function esteText(cale: string, nume: string): boolean {
+  return EXTENSII_TEXT.some((e) => nume.endsWith(e)) || FARA_EXTENSIE.includes(cale);
+}
+
 function fisiereText(): string[] {
   const gasite: string[] = [];
   const mergi = (relativ: string): void => {
     for (const intrare of readdirSync(DIST + relativ, { withFileTypes: true })) {
       const cale = relativ + intrare.name;
       if (intrare.isDirectory()) mergi(cale + '/');
-      else if (EXTENSII_TEXT.some((e) => intrare.name.endsWith(e)) && !VENDORIZATE.has(cale)) {
-        gasite.push(cale);
-      }
+      else if (esteText(cale, intrare.name) && !VENDORIZATE.has(cale)) gasite.push(cale);
+    }
+  };
+  if (existsSync(DIST)) mergi('');
+  return gasite.sort();
+}
+
+/** Every file in the build whose name carries no extension at all. */
+function fisiereFaraExtensie(): string[] {
+  const gasite: string[] = [];
+  const mergi = (relativ: string): void => {
+    for (const intrare of readdirSync(DIST + relativ, { withFileTypes: true })) {
+      const cale = relativ + intrare.name;
+      if (intrare.isDirectory()) mergi(cale + '/');
+      else if (!intrare.name.includes('.') && !VENDORIZATE.has(cale)) gasite.push(cale);
     }
   };
   if (existsSync(DIST)) mergi('');
@@ -310,6 +344,33 @@ describe('ce intră și ce nu intră în măturare', () => {
   it.each(['admin/index.html', 'admin/config.yml', 'admin/pornire.mjs'])('mătură %s', (cale) => {
     expect(existsSync(DIST + cale), `${cale} lipsește din dist/`).toBe(true);
     expect(FISIERE).toContain(cale);
+  });
+
+  /*
+   * `_headers` nu are extensie, deci nu l-a prins nicio listă de extensii și a
+   * stat în afara ambelor măturări. Este al nostru, este text, poartă politica
+   * de securitate, iar comentariile lui sunt primul lucru pe care îl citește
+   * cineva care pune situl în funcțiune.
+   */
+  it('mătură _headers, care nu are extensie', () => {
+    expect(existsSync(DIST + '_headers'), '_headers lipsește din dist/').toBe(true);
+    expect(FISIERE).toContain('_headers');
+  });
+
+  /*
+   * Și cealaltă jumătate, ca lista de mai sus să nu rămână în urma build-ului:
+   * orice fișier fără extensie pe care nimeni nu l-a numit pică, exact ca un
+   * caracter non-ASCII pe care nimeni nu l-a prevăzut.
+   */
+  it('niciun fișier fără extensie nu rămâne nemăturat', () => {
+    const fara = fisiereFaraExtensie();
+    expect(fara.length, 'niciun fișier fără extensie în dist/ — cazul de mai sus nu ar dovedi nimic').toBeGreaterThan(0);
+    const nematurate = fara.filter((c) => !FISIERE.includes(c));
+    expect(
+      nematurate,
+      `fișiere fără extensie în dist/ pe care nu le citește nimeni: ${nematurate.join(', ')}. ` +
+        'Dacă sunt text, pune-le în FARA_EXTENSIE; dacă nu, scrie aici de ce.',
+    ).toEqual([]);
   });
 });
 

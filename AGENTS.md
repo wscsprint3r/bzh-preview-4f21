@@ -21,6 +21,11 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   Sveltia bundle**, whose own i18n tables legitimately contain Turkish; the exclusion is
   by path, the paths come from the installed package, and the test asserts both halves —
   that the bundle really is excluded and that our own files under `admin/` really are not.
+  "Every text file" means a text extension **or** a named extensionless one. `_headers`
+  has no extension and was outside both sweeps until this was written down: it is ours, it
+  is text, and it carries the policy this project turns on. A second case fails on any
+  extensionless file in `dist/` that nobody has named, so the list cannot fall behind the
+  build the way it did.
   It asks two questions of each file: "is this one of the four wrong characters?", and the
   stronger "is every non-ASCII character one this project expects?" against a list of
   twenty-two. The second exists because a stray U+5DEE once passed every scan the first
