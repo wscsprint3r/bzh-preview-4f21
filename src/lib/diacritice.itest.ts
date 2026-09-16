@@ -297,8 +297,14 @@ describe('detectorul de sedile', () => {
   });
 
   it('raportează fiecare apariție, nu doar prima', () => {
-    const doua = `${String.fromCodePoint(0x015f)}i ${String.fromCodePoint(0x0163)}i`;
+    // Construit din CEDILE, nu din două numere scrise încă o dată aici. `cedile.ts`
+    // este singurul loc din depozit care scrie cele patru numere, iar
+    // `diacritice-surse.test.ts` mătură depozitul ca să rămână așa.
+    const [unu, doi] = CEDILE;
+    const doua = `${String.fromCodePoint(unu)}i ${String.fromCodePoint(doi)}i`;
     expect(cedileIn(doua)).toHaveLength(2);
+    expect(cedileIn(doua)[0]).toContain(uPlus(unu));
+    expect(cedileIn(doua)[1]).toContain(uPlus(doi));
   });
 });
 

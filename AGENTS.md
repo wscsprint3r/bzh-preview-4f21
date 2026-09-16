@@ -40,8 +40,12 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   "is every non-ASCII character expected" check does not transfer to sources, which carry
   over thirty distinct non-ASCII characters between English prose, Romanian comments and
   deliberate astral test fixtures. **That is a real gap**: a look-alike from another
-  alphabet in a source file is not caught. One was introduced and caught by measurement
-  while that file was being written — a Cyrillic U+0435 inside an identifier.
+  alphabet in a source file is not caught. It has now happened twice, both times to the
+  agent writing the very file that guards this, and both times found only by dumping the
+  file's non-ASCII inventory: a Cyrillic U+0435 inside an identifier while
+  `diacritice-surse.test.ts` was being written, and a CJK U+9759 inside a Romanian comment
+  in `scripts/a11y.mjs` one round later. Twice in two rounds is a rate, not an anecdote:
+  dump the inventory of any file you have just written Romanian prose into.
   `src/lib/diacritice.itest.ts` sweeps every text file in `dist/` **except the vendored
   Sveltia bundle**, whose own i18n tables legitimately contain Turkish; the exclusion is
   by path, the paths come from the installed package, and the test asserts both halves —
@@ -108,8 +112,11 @@ file-writing tools decode them into the literal character first, silently. A gua
 as a character class of U+015F and U+0163 lands on disk containing those very characters:
 still functionally correct, but the "correct by construction" property it existed for is
 gone, and a corrupted expectation would then happily agree with a corrupted source. Build
-such characters from numbers — `String.fromCodePoint(0x015f)` — or write a placeholder and
-post-process it with a script that never emits the backslash and the `u` adjacently.
+such characters from numbers — `String.fromCodePoint(0x0219)`, and the example is the
+comma-below s rather than one of the forbidden four on purpose: those four numbers appear
+in `src/lib/cedile.ts` and nowhere else, which `diacritice-surse.test.ts` now enforces — or
+write a placeholder and post-process it with a script that never emits the backslash and
+the `u` adjacently.
 Re-measured: a quoted heredoc carrying `X`, the escape for U+00E9 and `Y` lands on disk as
 three characters, not eight.
 

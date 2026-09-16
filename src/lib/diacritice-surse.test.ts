@@ -168,3 +168,87 @@ describe('nicio sedilă turcească în fișierele urmărite', () => {
     ).toEqual([]);
   });
 });
+
+/*
+ * ===========================================================================
+ * "THE FOUR NUMBERS LIVE IN ONE PLACE" - A SENTENCE UNTIL THIS BLOCK.
+ *
+ * `CLAUDE.md` states it as part of the rule it calls non-negotiable: the four
+ * forbidden codepoints "are named by number" and "the four numbers and the
+ * detector live in one place, `src/lib/cedile.ts`". It was false in three files
+ * at once - `diacritice.itest.ts` carried two of them in a fixture, and
+ * `CLAUDE.md` itself carried one in the example showing how to build a character
+ * from a number. All three were legitimate uses. That is the point: nobody wrote
+ * a second copy on purpose, which is why a sentence was never going to hold it.
+ *
+ * WHAT IT COSTS when it is false is small and specific, and it is the same thing
+ * the glyph rule protects: somebody sweeping the repository for the hex spelling
+ * of one of them, to see where the forbidden set is defined, finds three files,
+ * has to judge each, and learns to wave hits through - which is the habit both
+ * rules exist to prevent.
+ *
+ * SCOPE, SAID RATHER THAN IMPLIED. This looks for the HEXADECIMAL spellings,
+ * which is how every codepoint in this repository is written, and it is built
+ * from `CEDILE` so this file names none of them. A decimal spelling would not be
+ * caught: measured, the four decimal values appear zero times in tracked files
+ * today, and a scan for them would collide with ordinary byte counts in reports -
+ * a check that cries wolf is a check somebody relaxes. `U+015F` IN PROSE IS NOT A
+ * COPY and is deliberately not swept: naming the characters by number in words is
+ * exactly what the rule asks for.
+ * ===========================================================================
+ */
+
+/** Where the four numbers are allowed to be written. */
+const CASA_NUMERELOR = 'src/lib/cedile.ts';
+
+/**
+ * Every hexadecimal spelling of the four codepoints in `text`, with its offset.
+ *
+ * Built from `CEDILE`, like everything else here, so this file can be swept by
+ * its own rule. `0x` then any number of leading zeros then the hex digits, so
+ * the spelling with a leading zero and the one without are both found.
+ */
+export function numereScriseIn(text: string): string[] {
+  const gasite: string[] = [];
+  for (const cp of CEDILE) {
+    const tipar = new RegExp(`0x0*${cp.toString(16)}\\b`, 'gi');
+    for (const m of text.matchAll(tipar)) gasite.push(`${uPlus(cp)} ca ${m[0]} la ${m.index}`);
+  }
+  return gasite.sort();
+}
+
+describe('cele patru numere sunt scrise într-un singur fișier', () => {
+  it('detectorul chiar se declanșează, pe fiecare dintre cele patru', () => {
+    // Control pozitiv, construit din numere ca și setul căutat.
+    for (const cp of CEDILE) {
+      const rau = `const X = [0x${cp.toString(16)}];`;
+      expect(numereScriseIn(rau), uPlus(cp)).toHaveLength(1);
+    }
+    // Și cealaltă direcție: virgula dedesubt nu este unul dintre ele.
+    expect(numereScriseIn('String.fromCodePoint(0x0219)')).toEqual([]);
+    // `U+015F` în proză nu este o copie a numărului și nu se mătură.
+    expect(numereScriseIn(`${uPlus(CEDILE[0])} in prose`)).toEqual([]);
+  });
+
+  it('casa numerelor chiar le conține — altfel regula ar fi despre nimic', () => {
+    expect(DE_MATURAT, CASA_NUMERELOR).toContain(CASA_NUMERELOR);
+    const acasa = numereScriseIn(readFileSync(RADACINA + CASA_NUMERELOR, 'utf8'));
+    expect(acasa.length, `${CASA_NUMERELOR} nu mai scrie cele patru numere`).toBe(CEDILE.length);
+  });
+
+  it('niciun alt fișier urmărit nu le mai scrie', () => {
+    const gasite = DE_MATURAT.filter((cale) => cale !== CASA_NUMERELOR).flatMap((cale) =>
+      numereScriseIn(readFileSync(RADACINA + cale, 'utf8')).map((unde) => `${cale}: ${unde}`),
+    );
+    process.stdout.write(
+      `\nCele patru numere, scrise în hexazecimal: ${CASA_NUMERELOR} le are pe toate ${CEDILE.length}; ` +
+        `restul celor ${DE_MATURAT.length - 1} fișiere urmărite — ${gasite.length} apariție(i).\n`,
+    );
+    expect(
+      gasite,
+      `cele patru numere, scrise în afara lui ${CASA_NUMERELOR}:\n${gasite.join('\n')}\n` +
+        'Importă-le din ./cedile. Un al doilea exemplar face ca o măturare după numărul lor să ' +
+        'întoarcă mai multe fișiere, iar cititorul să se obișnuiască să treacă peste rezultate.',
+    ).toEqual([]);
+  });
+});
