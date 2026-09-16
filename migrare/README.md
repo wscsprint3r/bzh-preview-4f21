@@ -33,7 +33,22 @@ await opreste(); // removes the container
 `interogheaza()` returns rows as arrays of column strings (tab-separated
 `mariadb -N -B` output, split), queried against the `wp` database with
 `--default-character-set=utf8mb4` so Romanian diacritics survive the round
-trip instead of arriving as question marks.
+trip instead of arriving as question marks. `-B`'s own escaping (backslash,
+newline, carriage return, tab, NUL, each printed as a two-character
+backslash sequence) is reversed before rows come back, since every later
+migration task reads `post_content` through this function.
+
+**SQL `NULL` is not distinguishable from the four-character string `NULL`
+here** - `-B` prints both identically. A caller reading a nullable column
+must write `IFNULL(col, <sentinel>)` in the SQL itself and check for the
+sentinel; `interogheaza()` cannot disambiguate the two from its output alone
+and does not pretend to.
+
+`porneste()` verifies its own load before returning: after the pipeline
+finishes, it checks that `wpoi_posts` exists and that the published-post and
+published-page counts still match `ASTEPTAT_POSTARI`/`ASTEPTAT_PAGINI` (45
+and 26). A mismatch throws, naming both the expected and the found numbers,
+rather than handing back a database that loaded "successfully" but short.
 
 ## Destroyed and recreated on every run, not reused
 
@@ -75,3 +90,24 @@ database name, embedded as a string inside a backup plugin's serialized
 configuration. Querying it throws `ERROR 1049 (42000): Unknown database`
 rather than returning a wrong count, which is how the mismatch was caught
 here rather than in a later task. `interogheaza()` queries `wp`.
+
+## A second defect: a partial load could exit 0
+
+The load pipeline was originally `gunzip -c dump.gz | docker exec -i
+CONTAINER mariadb ... --force wp`, run under `/bin/sh`. Two problems compound:
+`--force` makes mariadb log and skip a SQL error and keep going rather than
+stop, and a shell pipeline's exit status - without `set -o pipefail` - is only
+the LAST command's, so gunzip failing partway through is invisible regardless.
+A dump that can only partially decompress - truncated in transit, a corrupted
+copy - would load a valid PREFIX and still exit 0.
+
+Measured on a copy of the real dump truncated to a third of its size: the old
+pipeline (`/bin/sh`, `--force`) exited 0. The fixed one (`/bin/bash`,
+`set -o pipefail`, no `--force`) exited 1 on the same file - `/bin/bash`
+rather than `/bin/sh` because `pipefail` is a bash feature that a typical
+Linux CI runner's `/bin/sh` (dash) does not have. `porneste()` also no longer
+trusts the pipeline's exit code alone even with the fix: it queries the two
+counts above after loading and throws if they do not match, so a load that
+somehow still succeeds while short of the real content does not go unnoticed
+either. See `db.test.mjs` for the fast, container-free test of that
+comparison, and `task-1-report.md` for the full negative-control run.

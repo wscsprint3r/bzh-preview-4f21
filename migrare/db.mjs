@@ -19,8 +19,39 @@ export const SURSA_DUMP =
 /** Named for this project, so a stray container is attributable. */
 export const NUME_CONTAINER = 'bzh-migrare';
 
-const PAROLA = 'migrare';
+// Exported (not a real secret - a disposable local container's root password)
+// so `db.test.mjs` can start its own minimal, dump-free container for the
+// round-trip tests below, using the exact credentials `interogheaza` connects
+// with, rather than a second copy of this string that could drift from it.
+export const PAROLA = 'migrare';
 const BAZA = 'wp';
+
+/**
+ * The two counts this plan is sized from - see `migrare/README.md`'s
+ * "Measured counts". Hard-coded rather than derived from anything the load
+ * itself could get wrong, because they are what `verificaNumerele` checks the
+ * load against.
+ */
+export const ASTEPTAT_POSTARI = 45;
+export const ASTEPTAT_PAGINI = 26;
+
+/**
+ * Throws when the loaded counts do not match `ASTEPTAT_POSTARI`/
+ * `ASTEPTAT_PAGINI`. Pure - no docker, no I/O - so a unit test can prove it
+ * fires without a container: pass numbers, don't run a load. `porneste()`
+ * calls it with real counts after loading; the two are tested separately
+ * because a container is expensive and this comparison is not.
+ */
+export function verificaNumerele(postari, pagini) {
+  if (postari !== ASTEPTAT_POSTARI || pagini !== ASTEPTAT_PAGINI) {
+    throw new Error(
+      `Incarcarea nu se potriveste cu ce astepta planul: ${ASTEPTAT_POSTARI} postari ` +
+        `publicate si ${ASTEPTAT_PAGINI} pagini publicate, dar baza incarcata are ` +
+        `${postari} postari si ${pagini} pagini. Fie incarcarea a esuat partial, fie ` +
+        'dumpul insusi s-a schimbat - in ambele cazuri, nu migra pe baza acestor date.',
+    );
+  }
+}
 
 /**
  * Fails by name when the dump is absent.
@@ -57,9 +88,15 @@ function exista() {
  * rather than reused. Reuse would make the migration's output depend on what a
  * previous run happened to leave behind, and spec 11 requires that rerunning
  * produce identical output.
+ *
+ * Takes an optional dump path, defaulting to `SURSA_DUMP`, symmetrically with
+ * `verificaSursa`'s own default parameter. No real caller passes one; it
+ * exists so the corruption-detection below can be demonstrated against a
+ * deliberately truncated copy without duplicating this function's container
+ * setup in a throwaway script - see `task-1-report.md`'s negative control.
  */
-export async function porneste() {
-  verificaSursa();
+export async function porneste(cale = SURSA_DUMP) {
+  verificaSursa(cale);
   if (exista()) await opreste();
   docker([
     'run', '-d', '--name', NUME_CONTAINER,
@@ -79,17 +116,47 @@ export async function porneste() {
       break;
     } catch {
       if (Date.now() - pornit > 90_000) {
-        throw new Error('MariaDB nu a pornit in 90 de secunde.');
+        throw new Error(
+          `MariaDB nu a pornit in 90 de secunde. Vezi 'docker logs ${NUME_CONTAINER}'.`,
+        );
       }
       await new Promise((r) => setTimeout(r, 500));
     }
   }
 
-  await executa('/bin/sh', [
+  // `set -o pipefail` and no `--force`, both load-bearing. Without either, a
+  // dump gunzip can only partially decompress - truncated in transit, a
+  // corrupted copy, a network hiccup on however this file arrives in future -
+  // feeds mariadb a valid PREFIX of the dump: `--force` makes mariadb log and
+  // skip the SQL error where the stream cuts off and keep going, and without
+  // pipefail a shell pipeline's exit status is only the LAST command's, so
+  // gunzip's own failure is invisible regardless. Measured on a copy of the
+  // real dump truncated to a third of its size: the old combination
+  // (`/bin/sh`, `--force`) exited 0; this one exits 1. `/bin/bash` rather than
+  // `/bin/sh` because `pipefail` is a bash feature - `/bin/sh` is dash on a
+  // typical Linux CI runner, which rejects the option outright.
+  await executa('/bin/bash', [
     '-c',
-    `gunzip -c ${JSON.stringify(SURSA_DUMP)} | ` +
-      `docker exec -i ${NUME_CONTAINER} mariadb -uroot -p${PAROLA} --force ${BAZA}`,
+    `set -o pipefail; gunzip -c ${JSON.stringify(cale)} | ` +
+      `docker exec -i ${NUME_CONTAINER} mariadb -uroot -p${PAROLA} ${BAZA}`,
   ], { maxBuffer: 1024 * 1024 * 64 });
+
+  // Belt and braces beyond the pipeline's own exit code: prove the load
+  // produced the table this project reads and the row counts the plan is
+  // sized from, rather than trusting a clean exit status alone. A clean exit
+  // is necessary but was never sufficient - see the pipefail comment above for
+  // the shape of a load that "succeeds" while short of the real content.
+  const tabele = await interogheaza("SHOW TABLES LIKE 'wpoi_posts'");
+  if (tabele.length === 0) {
+    throw new Error('Incarcarea a esuat: tabelul wpoi_posts nu exista dupa incarcare.');
+  }
+  const [[postari]] = await interogheaza(
+    "SELECT COUNT(*) FROM wpoi_posts WHERE post_type='post' AND post_status='publish'",
+  );
+  const [[pagini]] = await interogheaza(
+    "SELECT COUNT(*) FROM wpoi_posts WHERE post_type='page' AND post_status='publish'",
+  );
+  verificaNumerele(Number(postari), Number(pagini));
 }
 
 /** Removes the container. Safe to call when it does not exist. */
@@ -98,21 +165,42 @@ export async function opreste() {
 }
 
 /**
+ * The characters `-B` (below) escapes on output, and their real values.
+ * Documented by MariaDB/MySQL's own client manual for tab-separated output,
+ * not guessed: NUL, backslash, newline, carriage return and tab each arrive
+ * as two characters, a backslash followed by the letter shown here. Reversed
+ * in one regex pass rather than five sequential `.replace` calls, because a
+ * sequential pass would re-scan a backslash a previous replacement just
+ * produced - unescaping `\\n` (a literal backslash-n, two source characters)
+ * two ways in sequence turns it into a real newline, which is wrong twice
+ * over.
+ */
+const EVADARI_B = { 0: '\0', n: '\n', t: '\t', r: '\r', '\\': '\\' };
+
+/** Reverses exactly the escaping `-B` performs - see `EVADARI_B` - no more. */
+function deescapeaza(camp) {
+  return camp.replace(/\\[0ntr\\]/g, (secventa) => EVADARI_B[secventa[1]]);
+}
+
+/**
  * One query, rows as arrays of column strings.
  *
  * `-N` drops the header, `-B` makes it tab-separated and `--default-character-
  * set=utf8mb4` is what stops every Romanian letter arriving as a question mark -
  * which would not fail anything, it would just quietly migrate mangled text.
+ * `-B`'s own escaping is reversed before rows are returned - see
+ * `deescapeaza` - because every later migration task reads `post_content`
+ * through this function, and a TEXT column's real newlines and tabs must not
+ * arrive as the two-character sequences `-B` prints them as.
  *
- * The database argument is `BAZA` ('wp'), the same name `porneste()` creates
- * via `MARIADB_DATABASE`. The dump has no `CREATE DATABASE` or `USE`
- * statement in it - measured with `grep` over the decompressed file - so
- * every table lands in whatever database the connection defaults to, which is
- * `wp`. The original plan text queried `h164835_wordpress7`, which does not
- * exist here: that string appears in the dump only as *data*, inside a
- * backup plugin's serialized config recording the live host's own database
- * name. Querying it throws `ERROR 1049 (42000): Unknown database`, not a
- * wrong count, which is how this was caught before it reached a later task.
+ * SQL NULL IS NOT DISTINGUISHABLE FROM THE FOUR-CHARACTER STRING `NULL` HERE.
+ * `-B` prints an actual NULL as the literal word `NULL`, unescaped and
+ * unquoted - identical to a column that really contains that text. This
+ * function cannot tell the two apart from the output alone, so it does not
+ * try: a caller reading a nullable column writes `IFNULL(col, <sentinel>)` in
+ * the SQL itself, where `<sentinel>` is a value the real column cannot hold,
+ * and treats a fresh mismatch here as its own bug to fix at the query site,
+ * not a mangling to fix in this function.
  */
 export async function interogheaza(sql) {
   const { stdout } = await executa('docker', [
@@ -120,6 +208,13 @@ export async function interogheaza(sql) {
     '-N', '-B', '--default-character-set=utf8mb4',
     '-e', sql, BAZA,
   ], { maxBuffer: 1024 * 1024 * 512 });
-  if (stdout.trim() === '') return [];
-  return stdout.replace(/\n$/, '').split('\n').map((r) => r.split('\t'));
+  // Not `.trim() === ''`: a real one-row, one-column result whose only value
+  // is the empty string is `'\n'` (the row's own terminator), which `.trim()`
+  // erases before it can be told apart from "no rows at all" (`''`, no
+  // terminator because there was no row to terminate).
+  if (stdout === '') return [];
+  return stdout
+    .replace(/\n$/, '')
+    .split('\n')
+    .map((rand) => rand.split('\t').map(deescapeaza));
 }
