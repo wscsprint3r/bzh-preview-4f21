@@ -46,10 +46,9 @@ const urmatoarea = urmatoareaSlujba(zile, azi, oraLaZurich());
  * collection's primary key, so the day the helper read from is always found —
  * and exists so this list is never empty while the card is rendered.
  */
+const ziuaUrmatoare = urmatoarea ? zile.find((z) => z.data === urmatoarea.data) : undefined;
 const deopotriva = urmatoarea
-  ? (zile.find((z) => z.data === urmatoarea.data)?.slujbe ?? [urmatoarea]).filter(
-      (s) => minute(s.ora) === minute(urmatoarea.ora),
-    )
+  ? (ziuaUrmatoare?.slujbe ?? [urmatoarea]).filter((s) => minute(s.ora) === minute(urmatoarea.ora))
   : [];
 const nume = deopotriva.map(etichetaSlujba);
 // Romanian list: "A", "A și B", "A, B și C". Written out rather than joined
@@ -70,9 +69,7 @@ const impreuna =
  * while the subscriber to the calendar drives to Winterthur. Not in the brief;
  * the brief asked only that the band carry it.
  */
-const undeUrmatoarea = urmatoarea
-  ? (zile.find((z) => z.data === urmatoarea.data)?.locatie ?? '')
-  : '';
+const undeUrmatoarea = ziuaUrmatoare?.locatie ?? '';
 ---
 
 <Base titlu="Bine ați venit">
