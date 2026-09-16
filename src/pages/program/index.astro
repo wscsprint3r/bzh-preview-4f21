@@ -1,0 +1,51 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import RandZi from '../../components/RandZi.astro';
+import { formatIntervalSaptamana } from '../../lib/date-ro';
+import { grupeazaPeSaptamani } from '../../lib/schedule';
+import { aziLaZurich, inceputSaptamana } from '../../lib/week';
+
+const intrari = await getCollection('slujbe');
+/*
+ * `data` is two different things on this line, and getting them the wrong way
+ * round is the likeliest mistake on this page. `e.data` is Astro's parsed
+ * frontmatter — everything `ziSchema` validated, which is every field of a day
+ * EXCEPT its date. The date is the filename, i.e. `e.id`, checked by
+ * `idDinNumeFisier`. So: spread the parsed object first, then set `data` (the
+ * Romanian word for date) from the id. Spreading in the other order, or
+ * dropping the override, leaves `zi.data` undefined and every day renders as
+ * a thrown `Dată invalidă: undefined` from `partiData`.
+ */
+const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
+
+const lunea = inceputSaptamana(aziLaZurich());
+const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
+---
+
+<Base titlu="Program liturgic" descriere="Programul slujbelor la Parohia Ortodoxă Română Sfântul Nicolae din Zürich.">
+  <div class="container">
+    <p class="eyebrow" style="margin-top:2rem">Informații parohiale</p>
+    <h1>Program liturgic</h1>
+
+    {saptamani.length === 0 ? (
+      <p class="gol">Programul următoarei perioade nu a fost încă publicat.</p>
+    ) : (
+      saptamani.map((s) => (
+        <section data-saptamana={s.cheie} aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}>
+          <h2 class="sapt">{formatIntervalSaptamana(s.luni, s.duminica)}</h2>
+          {s.zile.map((z) => <RandZi zi={z} />)}
+        </section>
+      ))
+    )}
+
+    <p class="abonare"><a href="/program.ics">† Adaugă programul în calendarul telefonului</a></p>
+  </div>
+</Base>
+
+<style>
+  .sapt { font-size: 1.375rem; margin-block: 2rem 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rule); }
+  .gol { color: var(--muted); font-style: italic; }
+  .abonare { margin-block: 2rem; }
+  .abonare a { display: inline-block; border: 1px solid var(--gold-lt); color: var(--oxblood); text-decoration: none; font-size: 0.8125rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.75rem 1.25rem; }
+</style>

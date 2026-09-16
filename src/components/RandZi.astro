@@ -1,0 +1,81 @@
+---
+/**
+ * One day of the schedule: the date block on the left, the services on the
+ * right, and whatever marks the day — feast, fast, cancellation, note.
+ *
+ * Rendered by /program/ and by the homepage's week band, so a change here
+ * changes both. Every colour comes from a token in `global.css`; a hex literal
+ * anywhere in this file fails `stylesheet.itest.ts` against `dist`.
+ */
+import type { ZiSlujba } from '../lib/schema';
+import { numeLuna, numeZi, ziuaDinLuna } from '../lib/date-ro';
+import { etichetaSlujba } from '../lib/schedule';
+
+interface Props { zi: ZiSlujba }
+const { zi } = Astro.props;
+const praznic = Boolean(zi.praznic_mare || zi.praznic);
+---
+
+<div class:list={['rz', praznic && 'rz-praznic', zi.anulat && 'rz-anulat']}>
+  <div class="rz-data">
+    <span class="rz-zi">{numeZi(zi.data)}</span>
+    <span class="rz-nr">{ziuaDinLuna(zi.data)}</span>
+    <span class="rz-luna">{numeLuna(zi.data)}</span>
+  </div>
+  <div>
+    {zi.anulat && <p class="rz-anulat-txt">Slujbele acestei zile sunt anulate.</p>}
+    {zi.slujbe.map((s) => (
+      <div class="rz-slujba">
+        <b>{s.ora}</b>
+        <span>{etichetaSlujba(s)}</span>
+      </div>
+    ))}
+    {zi.praznic && (
+      <p class="rz-praznic-txt">
+        {zi.praznic_mare && <span aria-hidden="true">† </span>}{zi.praznic}
+        {zi.zi_de_post && <span class="rz-post">Zi de post</span>}
+      </p>
+    )}
+    {!zi.praznic && zi.zi_de_post && <p class="rz-praznic-txt"><span class="rz-post">Zi de post</span></p>}
+    {zi.note && <p class="rz-note">{zi.note}</p>}
+  </div>
+</div>
+
+<style>
+  .rz { display: grid; grid-template-columns: 7rem 1fr; gap: 1.25rem; padding-block: 1rem; border-bottom: 1px solid var(--rule); }
+  /* Feast days are marked by background AND a rule, never by colour alone.
+     Flat, not a gradient: axe cannot determine contrast over a gradient and reports
+     `incomplete`, which `npm run a11y` treats as a failure — so a gradient here would
+     turn the feast row, the one row that matters most, into an unverifiable surface.
+     The gradient's own contribution measured 1.06:1 against the page, so nothing is lost. */
+  .rz-praznic { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
+  /* A cancelled day is marked by the sentence above and by a line through its
+     times — deliberately NOT by dimming the row.
+
+     `opacity` below 1 blends text toward the page, and this palette has no room
+     for it. Measured with axe over this built page, with the row given
+     `opacity: .75`: the service times fall from 4.67:1 to 2.96:1 and the day
+     name from 4.69:1 to 2.95:1. Nor is there a value to tune it to —
+     `--gold-text` drops below 4.5:1 at any opacity under 0.981 and `--faint`
+     under 0.979, which is not a dimming, it is a rounding error.
+
+     So the first time a volunteer ticks `anulat`, a dimmed row would fail
+     `npm run a11y` and break the build — and it would do it on the one row a
+     parishioner most needs to be able to read. A line-through also survives
+     where opacity does not: it is not a colour, so it still reads at any
+     contrast, and the sentence above carries the same fact to a screen reader,
+     which sees nothing at all in an opacity change. */
+  .rz-anulat .rz-slujba b, .rz-anulat .rz-slujba span { text-decoration: line-through; }
+  .rz-zi { display: block; font-family: var(--display); font-size: 0.6875rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
+  .rz-nr { display: block; font-family: var(--display); font-size: 1.875rem; line-height: 1.05; color: var(--ink); }
+  .rz-luna { display: block; font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+  .rz-slujba { display: grid; grid-template-columns: 3.5rem 1fr; gap: 0.75rem; padding-block: 0.15rem; align-items: baseline; }
+  .rz-slujba b { font-family: var(--display); font-size: 1.0625rem; font-weight: 600; color: var(--gold-text); }
+  .rz-praznic-txt { font-family: var(--display); font-style: italic; font-size: 1.0625rem; color: var(--oxblood); margin: 0.5rem 0 0; }
+  .rz-post { display: inline-block; font-family: var(--body); font-style: normal; font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.4rem; margin-left: 0.5rem; vertical-align: middle; }
+  .rz-note, .rz-anulat-txt { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
+  @media (max-width: 34rem) {
+    .rz { grid-template-columns: 4rem 1fr; gap: 0.75rem; }
+    .rz-luna { display: none; }
+  }
+</style>
