@@ -66,6 +66,14 @@ Every task's requirements implicitly include this section.
   `outline` defeats the ring silently. Task 10's `.ss button` is the first non-link the focus
   rule has to defend, and a swept audit found only four scoped link-colour rules in the whole
   project — so the margin here is thin rather than comfortable.
+- **`hidden` does not hide when the author sets `display`.** An author `display: flex` beats the
+  UA stylesheet's `[hidden]` by origin, so a `hidden` element stays visible. Task 10's week
+  picker shipped its navigation bar — two dead arrows — to every no-JS visitor while looking
+  correct to anyone testing with JavaScript on, which is the state nobody checks. Any
+  component that both sets `display` and relies on `hidden` needs its own `[hidden]` rule.
+- **A verification command that matches no files is a check that always passes.** The plan's
+  JS budget step globbed `dist/_astro/*.js`, which matches nothing once Astro inlines the
+  script — so the budget was never measured. Assert the number, not the absence of an error.
 - **Normalise for presentation at presentation time; never mutate stored data to fix how it
   reads.** Canonicalising `ora` to `HH:MM` is the legitimate case — one value, one spelling,
   no information lost. Stripping a trailing full stop from a free-text `locatie` is the other
@@ -2638,8 +2646,13 @@ With JavaScript off (DevTools → Command Palette → "Disable JavaScript", then
 
 Check the JS budget:
 
-Run: `cd web && du -b dist/_astro/*.js | sort -n | tail -3`
-Expected: the total is under 3,072 bytes.
+Run: `cd web && npm run budget`
+Expected: the JS line is under 3,072 bytes.
+
+Do **not** measure this by globbing `dist/_astro/*.js` — Astro inlines a script below roughly
+4 KB, so that glob matches nothing and the check silently passes. The budget script counts
+inlined and emitted script alike, and derives the request count from the built HTML, so
+crossing the inline threshold fails the build instead of quietly changing how the page loads.
 
 - [ ] **Step 8: Commit**
 
