@@ -2571,6 +2571,14 @@ Create `web/src/components/SelectorSaptamana.astro`:
 </style>
 ```
 
+- [ ] **Step 5b: Recompute the next-service card, not just the week**
+
+Spec §7 exists because a static build cannot know what "next" means. The plan solved that for the week band and left the **card** outside the solution — so it announces whatever was next at build time. At 20:00 on a Sunday it reads "următoarea slujbă · Duminică 20 · 10:00", ten hours after that Liturgy ended. A wrong time under a heading that promises the next one is the worst output this site can produce, and the nightly rebuild does not fix it: from 03:00 onward the card is simply frozen at 03:00.
+
+The script already reads the clock, so it should own this too. Emit the upcoming services as an inline `<script type="application/json">` island — date, `ora`, `slujba`, `detaliu`, `anulat` — and have the script recompute the card the same way `urmatoareaSlujba` does: earliest service at or after now, skipping cancelled days, **including every service that shares that earliest time**. Three weeks of services is well under a kilobyte; measure it against the ≤3 KB JS budget rather than assuming.
+
+Without JavaScript the card keeps its build-time value, which Task 13 bounds by rebuilding every six hours. Say that in a comment so the limit is a decision rather than an oversight.
+
 - [ ] **Step 6: Wire it into both pages**
 
 The component finds the week sections itself via `section[data-saptamana]`, so it takes no props — it only needs to be placed above them.
@@ -3243,7 +3251,11 @@ name: Reconstrucție nocturnă
 # to happen after the date has rolled over.
 on:
   schedule:
-    - cron: '0 1 * * *'
+    # Every six hours, not nightly. The homepage's "next service" card falls back
+    # to its build-time value without JavaScript, so the rebuild interval is the
+    # worst-case staleness for a no-JS visitor. Four builds a day is ~120 of the
+    # 500 free monthly builds.
+    - cron: '0 1,7,13,19 * * *'
   workflow_dispatch:
 
 jobs:
@@ -3254,7 +3266,7 @@ jobs:
         run: curl -fsS -X POST "${{ secrets.CF_DEPLOY_HOOK }}"
 ```
 
-This consumes about 30 of the 500 monthly builds.
+This consumes about 120 of the 500 monthly builds.
 
 - [ ] **Step 6: Replace the scaffold's agent instructions**
 
