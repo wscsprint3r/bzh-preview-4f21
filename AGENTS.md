@@ -223,6 +223,19 @@ own is a declaration, and crediting it cost this project two invisible holes —
 nothing ran at, and the week band's 62rem branch with the picker bar visible, which until this
 round nothing on the project had ever audited.
 
+**Width is not the only axis, and the other two were each a pass that could be deleted with
+nothing going red.** A condition must declare at least one media query: `medii: {}` made the
+"every declared breakpoint still exists" assertion a loop over nothing, and with every `medii`
+emptied you can move a breakpoint from 34rem to 30rem and stay green on all four passes. And
+every set of pages must be audited with **scripts off** by some pass, or be named in
+`FARA_JS_MOTIVAT` with the reason in words. Deleting the three JS-off conditions left four
+browser passes and the whole unit suite green while removing the only audit that renders the
+weeks the picker hides — axe skips hidden elements and drives Chrome with JavaScript on, so
+with the picker working the homepage band is audited on one week out of three. `proba` is the
+one legitimate exemption: its bar exists only with scripts running. Both directions fail, so an
+exemption for a set that does have a scripts-off pass is red too. Each pass prints the states
+it audited beside the widths.
+
 **How long `test:all` takes is a property of the machine, not of this repository.** Well under a
 minute on all three machines it has run on — 36 to 42 s over nine runs — so quote a range or
 nothing. The top of that range moved when the selector pass gained its third condition: 40, 40
