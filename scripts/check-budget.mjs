@@ -255,6 +255,23 @@ for (const pagina of PAGINI) {
     detalii.push(`modulepreload ${cale} ${octeti} B`);
   }
 
+  /*
+   * A ZERO HERE IS A MEASUREMENT, NOT A MISSING ONE. Do not "fix" it into a
+   * failure.
+   *
+   * `/program/` renders every week server-side and mounts no script at all, so
+   * it honestly ships no JavaScript, and this line reads `0 / 3072` beside
+   * `niciun script` - which looks exactly like the vacuous pass this whole file
+   * was written to abolish.
+   *
+   * The difference is where the number comes from. The old check walked
+   * `dist/**\/*.js` and said 0 because it had looked in the wrong place. This
+   * one enumerates every `<script>` element on the page, counts the ones a
+   * browser executes, resolves the ones it fetches, and STOPS THE BUILD on any
+   * it does not recognise. So 0 here means "this page has no executable
+   * script", which is the best result a page can have. A rule that failed on
+   * zero would fail a page for being efficient.
+   */
   raporteaza(`  JS pentru vizitator pe ${pagina}`, js, BUGET_JS);
   console.log(`          ${detalii.length > 0 ? detalii.join(' + ') : 'niciun script'}`);
   for (const f of vazuteAici) {

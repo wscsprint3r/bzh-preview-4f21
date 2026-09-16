@@ -103,8 +103,14 @@
       prev.addEventListener('click', () => { if (i > 0) { i -= 1; arata(); } });
       next.addEventListener('click', () => { if (i < sectiuni.length - 1) { i += 1; arata(); } });
 
-      bara.hidden = false;
+      // Populate, THEN reveal. The label is an `aria-live` region, and making it
+      // visible while empty and filling it a moment later is the ordering most
+      // likely to make a screen reader speak on load - the change then lands on a
+      // region already live and already in the tree. Filling it first cannot be
+      // worse and costs nothing; both still happen in one task, 27 ms before the
+      // first paint this was measured at, so nothing about the page changes.
       arata();
+      bara.hidden = false;
     }
   }
 
