@@ -3199,7 +3199,7 @@ Create `web/public/_headers`:
 
 ```
 /*
-  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: https://avatars.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
@@ -3216,7 +3216,9 @@ Create `web/public/_headers`:
   X-Robots-Tag: noindex
 ```
 
-`connect-src` allows `api.github.com` because Sveltia talks to the GitHub GraphQL API from `/admin/`. `style-src 'unsafe-inline'` is required by Astro's `inlineStylesheets: 'always'`; it is a far smaller concession than inline script would be, and `script-src` stays strict.
+`connect-src` allows `api.github.com` because Sveltia talks to the GitHub GraphQL API from
+`/admin/`, and `img-src` allows `avatars.githubusercontent.com` because that is where it draws
+the signed-in editor's avatar — without it the CMS shows a broken image and nothing says why. `style-src 'unsafe-inline'` is required by Astro's `inlineStylesheets: 'always'`; it is a far smaller concession than inline script would be, and `script-src` stays strict.
 
 - [ ] **Step 2: Write the budget check**
 
