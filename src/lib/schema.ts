@@ -89,11 +89,20 @@ export function idDinNumeFisier(entry: string, continut?: Record<string, unknown
     );
   }
   if (scrisa !== undefined && scrisa !== m[1]) {
+    /*
+     * The message names BOTH dates and then gives a remedy for each direction,
+     * because nothing here can know which of the two is the right one - only the
+     * person who typed it can. Saying "make them match" would leave whoever
+     * reads it guessing which half to edit, and guessing wrong means a service
+     * on the wrong day rather than a build that failed.
+     */
     throw new Error(
-      `Fișier de program cu două date diferite: "${entry}" are înăuntru ` +
-        `data: ${JSON.stringify(scrisa)}. Numele fișierului decide ce apare pe site, ` +
-        `deci cele două trebuie să fie identice. Ștergeți ziua din administrare și ` +
-        `adăugați-o din nou cu data bună.`,
+      `Fișier de program cu două date diferite: numele spune ${m[1]}, iar înăuntru ` +
+        `scrie data: ${JSON.stringify(scrisa)}. Numele fișierului este cel care decide ` +
+        `ce apare pe site. Dacă ziua este ${JSON.stringify(scrisa)}, ștergeți-o din ` +
+        `administrare și adăugați-o din nou cu data aceea, fiindcă redenumirea nu se ` +
+        `face singură. Dacă ziua este ${JSON.stringify(m[1])}, puneți la loc ` +
+        `data: ${JSON.stringify(m[1])}.`,
     );
   }
   return m[1];

@@ -28,12 +28,13 @@
  * IMPORTED DYNAMICALLY so that ONE handler covers both ways this can fail.
  *
  * A static `import` of a bundle that is not there fails before any code in this
- * file runs: the console gets a 404 and the page gets nothing. And the bundle IS
- * missing more often than it looks - it is git-ignored and copied by `prebuild`
- * and `predev`, so a fresh clone, or a dev server started with `astro dev`
- * rather than `npm run dev`, has an `/admin/` with no CMS inside it. With the
- * import inside the promise chain, that case and a failing `init()` land in the
- * same `catch` and produce the same sentence.
+ * file runs: the console gets a 404 and the page gets nothing on it. The bundle
+ * is git-ignored and written by an Astro integration, so it is there whenever
+ * this repository built the page - but that is not the only way to arrive here.
+ * It can be stopped by a Content-Security-Policy, cut short by a half-finished
+ * deploy, or answered with a host's 404 page. With the import inside the promise
+ * chain, every one of those and a failing `init()` land in the same `catch` and
+ * produce the same sentence.
  */
 import('./sveltia-cms.mjs')
   .then(({ init }) => init())

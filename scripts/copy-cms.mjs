@@ -32,12 +32,27 @@
  * No filename is written here, so a chunk that an upgrade adds is copied
  * without anyone remembering to.
  *
- * Run by `prebuild` and `predev`. Everything written here is git-ignored, and
- * `.gitignore` has to keep up: see the Task 12 report.
+ * RUN AS AN ASTRO INTEGRATION, from `astro.config.mjs`, and not from an npm
+ * lifecycle hook. `prebuild` and `predev` are what the plan asked for and they
+ * are bypassed by three of this repository's own commands - `npm run test:build`
+ * and `npm run a11y` both call `astro build` directly, and CLAUDE.md documents
+ * `astro dev --background` as the way to start the dev server. Every one of them
+ * skips npm's hooks, and the result is an `/admin/` whose only script is a 404.
+ * `astro:config:setup` runs for dev, build, sync, check and preview alike, so
+ * the copy is a property of building this site rather than of which command
+ * someone typed.
+ *
+ * Still runnable on its own - `node scripts/copy-cms.mjs` - for when the
+ * question is whether the copy works rather than whether the site builds.
+ *
+ * Everything written here is git-ignored, and `.gitignore` has to keep up: see
+ * the Task 12 report.
  */
 import { copyFileSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, join, posix } from 'node:path';
+import { argv } from 'node:process';
+import { pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
 
@@ -60,43 +75,51 @@ function fisiereDin(relativ) {
   return gasite;
 }
 
+/** The folders the package ships beside its entry file; today just `chunks`. */
 const SUBFOLDERE = readdirSync(SURSA, { withFileTypes: true })
   .filter((intrare) => intrare.isDirectory())
   .map((intrare) => intrare.name);
 
 const DE_COPIAT = [basename(INTRARE), ...SUBFOLDERE.flatMap(fisiereDin)].sort();
 
-/*
- * A step that copies files must prove it copied something. Without this, an
- * empty or moved package folder leaves `/admin/` serving a page whose only
- * script is a 404 — and this step reports success while doing so.
+/**
+ * Puts the bundle where `/admin/` can serve it. Returns the paths it wrote.
+ *
+ * @param {(mesaj: string) => void} [jurnal] Where to report what was copied.
  */
-if (DE_COPIAT.length === 0) {
-  console.error(`Nimic de copiat din ${SURSA} — pachetul @sveltia/cms pare gol.`);
-  process.exit(1);
+export function copiazaCms(jurnal = console.log) {
+  /*
+   * A step that copies files must prove it copied something. Without this, an
+   * empty or moved package folder leaves `/admin/` serving a page whose only
+   * script is a 404 - and this step reports success while doing so.
+   */
+  if (DE_COPIAT.length === 0) {
+    throw new Error(`Nimic de copiat din ${SURSA} - pachetul @sveltia/cms pare gol.`);
+  }
+
+  /*
+   * Stale vendored files go first, but ONLY the folders the package itself
+   * ships. `public/admin/index.html`, `config.yml` and `pornire.mjs` are this
+   * repository's own files, tracked in git, and nothing here may touch them:
+   * they are what a volunteer actually reads.
+   */
+  for (const nume of SUBFOLDERE) {
+    rmSync(join(TINTA, nume), { recursive: true, force: true });
+  }
+
+  let octeti = 0;
+  for (const fisier of DE_COPIAT) {
+    const destinatie = join(TINTA, fisier);
+    mkdirSync(dirname(destinatie), { recursive: true });
+    copyFileSync(join(SURSA, fisier), destinatie);
+    octeti += statSync(destinatie).size;
+  }
+
+  jurnal(`CMS copiat din ${SURSA}: ${DE_COPIAT.length} fișier(e), ${octeti} octeți.`);
+  return DE_COPIAT.map((fisier) => join(TINTA, fisier));
 }
 
-/*
- * Stale vendored files go first, but ONLY the folders the package itself ships.
- * `public/admin/index.html` and `public/admin/config.yml` are this repository's
- * own files, tracked in git, and nothing here may touch them: they are what a
- * volunteer actually reads.
- */
-for (const nume of SUBFOLDERE) {
-  rmSync(join(TINTA, nume), { recursive: true, force: true });
+// Rulat direct, nu importat: `node scripts/copy-cms.mjs`.
+if (argv[1] && import.meta.url === pathToFileURL(argv[1]).href) {
+  for (const cale of copiazaCms()) console.log(`  ${cale}`);
 }
-
-for (const fisier of DE_COPIAT) {
-  const destinatie = join(TINTA, fisier);
-  mkdirSync(dirname(destinatie), { recursive: true });
-  copyFileSync(join(SURSA, fisier), destinatie);
-}
-
-console.log(`CMS copiat din ${SURSA}`);
-let octeti = 0;
-for (const fisier of DE_COPIAT) {
-  const marime = statSync(join(TINTA, fisier)).size;
-  octeti += marime;
-  console.log(`  ${join(TINTA, fisier)} — ${marime} octeți`);
-}
-console.log(`  ${DE_COPIAT.length} fișier(e), ${octeti} octeți în total.`);

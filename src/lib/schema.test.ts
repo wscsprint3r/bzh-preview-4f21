@@ -493,9 +493,20 @@ describe('data din fișier față de data din nume', () => {
     expect(idDinNumeFisier('2026-09-14.yml')).toBe('2026-09-14');
   });
 
+  /*
+   * Mesajul trebuie să spună și CARE dintre cele două se schimbă. Nimic din cod
+   * nu poate ști care dată este cea bună, deci mesajul le numește pe amândouă,
+   * spune care dintre ele decide ce apare pe site și dă câte un leac pentru
+   * fiecare sens. „Faceți-le să coincidă" ar lăsa cititorul să ghicească ce
+   * jumătate să modifice, iar ghicitul greșit înseamnă o slujbă în ziua greșită.
+   */
   it('respinge un fișier cu două date diferite, numind-o pe fiecare', () => {
-    expect(() => idDinNumeFisier('2026-09-14.yml', { data: '2026-09-21' })).toThrow(/2026-09-14/);
-    expect(() => idDinNumeFisier('2026-09-14.yml', { data: '2026-09-21' })).toThrow(/2026-09-21/);
+    const cadere = () => idDinNumeFisier('2026-09-14.yml', { data: '2026-09-21' });
+    expect(cadere).toThrow(/2026-09-14/); // data din nume
+    expect(cadere).toThrow(/2026-09-21/); // data dinăuntru
+    expect(cadere).toThrow(/numele fișierului este cel care decide/i);
+    expect(cadere).toThrow(/ștergeți-o din administrare/i); // leacul dacă ziua e cea dinăuntru
+    expect(cadere).toThrow(/puneți la loc/i); // leacul dacă ziua e cea din nume
   });
 
   /*
