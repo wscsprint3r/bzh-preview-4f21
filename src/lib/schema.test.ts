@@ -307,18 +307,8 @@ describe('locatie, normalizată la graniță', () => {
   const loc = (locatie: unknown) =>
     ziSchema.parse({ locatie, slujbe: [{ ora: '10:00', slujba: 'Utrenia' }] }).locatie;
 
-  it('taie punctul final, ca să nu iasă „Winterthur.." în propoziție', () => {
-    // Ambele pagini compun „Slujbele acestei zile au loc la X." în jurul lui.
-    expect(loc('Winterthur.')).toBe('Winterthur');
-  });
-
-  it('taie și mai multe puncte, și spațiile din jur', () => {
-    expect(loc('Winterthur...')).toBe('Winterthur');
-    expect(loc('  Winterthur .  ')).toBe('Winterthur');
-  });
-
-  it('nu atinge o locație scrisă corect', () => {
-    expect(loc('Capela Sf. Gallus, Winterthur')).toBe('Capela Sf. Gallus, Winterthur');
+  it('taie spațiile din jur', () => {
+    expect(loc('  Capela Sf. Gallus, Winterthur  ')).toBe('Capela Sf. Gallus, Winterthur');
   });
 
   it('transformă un câmp doar cu spații în ceva fals', () => {
@@ -326,6 +316,16 @@ describe('locatie, normalizată la graniță', () => {
     // LOCATION în loc să cadă pe adresa parohiei.
     expect(loc('   ')).toBe('');
     expect(Boolean(loc('   '))).toBe(false);
+  });
+
+  it('NU taie punctul final — acela se rezolvă la compunerea propoziției', () => {
+    // Regula: normalizezi pentru afișare la momentul afișării; nu modifici
+    // datele stocate ca să arate bine. Tăierea punctului ar pierde informație
+    // („Capela Sf." ar deveni „Capela Sf") și ar schimba ce scrie ics.ts în
+    // LOCATION, care e dată păstrată de clientul de calendar, nu propoziție.
+    expect(loc('Capela Sf. Gallus, Winterthur.')).toBe('Capela Sf. Gallus, Winterthur.');
+    expect(loc('Winterthur.')).toBe('Winterthur.');
+    expect(loc('Capela Sf.')).toBe('Capela Sf.');
   });
 
   it('lasă lipsa neatinsă', () => {

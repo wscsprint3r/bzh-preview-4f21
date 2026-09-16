@@ -19,7 +19,7 @@
  * this file fails `stylesheet.itest.ts` against `dist`.
  */
 import type { Saptamana } from '../lib/schedule';
-import { etichetaSlujba } from '../lib/schedule';
+import { etichetaSlujba, punctFinal } from '../lib/schedule';
 import { numeZi, ziuaDinLuna } from '../lib/date-ro';
 
 interface Props { saptamana: Saptamana }
@@ -45,8 +45,14 @@ const { saptamana } = Astro.props;
         feed went to the right one. Shorter than `/program/`'s wording by the
         two words the column heading already supplies ("acestei zile"), because
         the cell is ~10rem wide.
+
+        `punctFinal` rather than a literal ".": the schema keeps the field
+        exactly as the parish typed it, so an editor who ended it with a stop
+        would otherwise read "Winterthur..". The same call is in `RandZi`.
       */}
-      {!z.anulat && z.locatie && <p class="bs-loc">Slujbele au loc la {z.locatie}.</p>}
+      {!z.anulat && z.locatie && (
+        <p class="bs-loc">Slujbele au loc la {z.locatie}{punctFinal(z.locatie)}</p>
+      )}
       {/*
         A cancelled day keeps its times, struck through, exactly as `/program/`
         renders it. The band used to replace them with the word "Anulat", and

@@ -147,31 +147,34 @@ export const ziSchema = z
       anulat: z.boolean().default(false),
       note: z.string().optional(),
       /*
-       * Normalised here, for the same reason `ora` is: the editor types a value
-       * and everything downstream gets a canonical one, rather than four
-       * consumers each tidying it their own way.
+       * Trimmed, and ONLY trimmed.
        *
-       * Both pages compose a sentence around this - "Slujbele acestei zile au
-       * loc la X." - so an editor who ends the field with a full stop gets
-       * "Winterthur..". The card writes it bare and `ics.ts` writes it into
-       * LOCATION, where a trailing stop is merely untidy. One rule at the
-       * boundary fixes all four.
+       * The trim is a real fix and belongs here: whitespace carries no meaning,
+       * a value of "   " used to print "Slujbele acestei zile au loc la  ." and
+       * to put spaces in the feed's LOCATION, and no consumer wants it. Emptying
+       * it makes it falsy, so the sentence is skipped and `ics.ts` falls back to
+       * the parish address.
        *
-       * Trailing stops are stripped, not just one, so "Winterthur..." also
-       * comes out clean. The cost is a location that genuinely ends in an
-       * abbreviation: "Capela Sf." becomes "Capela Sf". That is the same loss a
-       * single-stop rule would take, and it is worth it against a doubled stop
-       * on every sentence the site prints.
+       * A trailing full stop is NOT stripped, and that is a deliberate reversal.
+       * Both pages compose a sentence around this field, so "Winterthur." used
+       * to read "Winterthur..", and the tempting fix was to strip the stop here
+       * alongside the whitespace. It is the wrong place:
        *
-       * The surrounding trim also turns a whitespace-only value into `''`,
-       * which is falsy - so a location field left with a stray space renders
-       * nothing and `ics.ts` falls back to the parish address, instead of
-       * printing "Slujbele acestei zile au loc la  ."
+       *   NORMALISE FOR PRESENTATION AT PRESENTATION TIME; DO NOT MUTATE STORED
+       *   DATA TO FIX HOW IT READS.
+       *
+       * Canonicalising `ora` to `HH:MM` above is the legitimate kind - one
+       * value, one spelling, nothing lost. Stripping punctuation from a
+       * free-text field is the other kind: it loses information ("Capela Sf."
+       * becomes "Capela Sf"), and this field is not only prose. `ics.ts` writes
+       * it into LOCATION, which is data a calendar client stores, not a sentence
+       * we are composing. A presentation problem must not edit the record of
+       * what the parish typed.
+       *
+       * The doubled stop is handled where the sentence is built, by
+       * `punctFinal` in `schedule.ts`.
        */
-      locatie: z
-        .string()
-        .transform((s) => s.trim().replace(/\.+$/, '').trim())
-        .optional(),
+      locatie: z.string().trim().optional(),
       slujbe: z.array(slujbaSchema),
     },
     cheiStricte,

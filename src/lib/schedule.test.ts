@@ -7,6 +7,7 @@ import {
   etichetaSlujba,
   grupeazaPeSaptamani,
   minute,
+  punctFinal,
   saptamaniViitoare,
   slujbeInOrdine,
   slujbeLaAceeasiOra,
@@ -462,5 +463,51 @@ describe('ordinea slujbelor dintr-o zi', () => {
   it('gruparea nu strică ziua originală din colecție', () => {
     grupeazaPeSaptamani(ZILE_FIXTURA);
     expect(ziuaNeordonata.slujbe.map((s) => s.ora)).toEqual(['18:30', '17:00', '17:00']);
+  });
+});
+
+describe('punctFinal', () => {
+  it('adaugă punctul când valoarea nu are unul', () => {
+    expect(punctFinal('Capela Sf. Gallus, Winterthur')).toBe('.');
+    expect(punctFinal('Winterthur')).toBe('.');
+  });
+
+  it('nu adaugă al doilea punct', () => {
+    // Bug-ul: „Slujbele acestei zile au loc la Winterthur.." — două puncte,
+    // fiindcă și redactorul și propoziția pun câte unul.
+    expect(punctFinal('Winterthur.')).toBe('');
+    expect(punctFinal('Capela Sf. Gallus, Winterthur.')).toBe('');
+  });
+
+  it('tratează și punctele de suspensie ca sfârșit de propoziție', () => {
+    expect(punctFinal('și altele…')).toBe('');
+  });
+
+  it('nu ghicește pentru semnul exclamării sau al întrebării', () => {
+    // Nimic din proiect nu compune o propoziție în jurul unei valori care s-ar
+    // putea termina așa; a le trata ca terminatori ar fi o presupunere.
+    expect(punctFinal('Winterthur!')).toBe('.');
+    expect(punctFinal('Winterthur?')).toBe('.');
+  });
+
+  it('pune punct după un șir gol, fără să arunce', () => {
+    expect(punctFinal('')).toBe('.');
+  });
+
+  it('locația din fixtură se termină cu punct, ca să fie ce trebuie de pinuit', () => {
+    // Control: dacă cineva „curăță" fixtura, testul de mai jos nu mai dovedește
+    // nimic, așa că valoarea e afirmată explicit.
+    const zi = ZILE_FIXTURA.find((z) => z.data === '2026-09-30');
+    expect(zi?.locatie).toBe('Capela Sf. Gallus, Winterthur.');
+    expect(punctFinal(zi!.locatie!)).toBe('');
+  });
+
+  it('schema nu taie punctul din fixtură, oricât ar trece prin grupare', () => {
+    // ics.ts scrie exact valoarea asta în LOCATION; pagina e cea care omite
+    // punctul ei, nu datele.
+    const prinGrupare = grupeazaPeSaptamani(ZILE_FIXTURA)
+      .flatMap((s) => s.zile)
+      .find((z) => z.data === '2026-09-30');
+    expect(prinGrupare?.locatie).toBe('Capela Sf. Gallus, Winterthur.');
   });
 });

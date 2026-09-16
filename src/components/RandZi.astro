@@ -9,7 +9,7 @@
  */
 import type { ZiSlujba } from '../lib/schema';
 import { numeLuna, numeZi, ziuaDinLuna } from '../lib/date-ro';
-import { etichetaSlujba } from '../lib/schedule';
+import { etichetaSlujba, punctFinal } from '../lib/schedule';
 
 interface Props { zi: ZiSlujba }
 const { zi } = Astro.props;
@@ -43,7 +43,16 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
       happening anywhere, so one condition suppresses the sentence rather than
       two sentences being reworded to stay consistent with each other.
     */}
-    {!zi.anulat && zi.locatie && <p class="rz-loc">Slujbele acestei zile au loc la {zi.locatie}.</p>}
+    {/*
+      `punctFinal` rather than a literal ".": `ziSchema` trims this field but
+      deliberately does not strip a trailing stop from it, because that would
+      lose information and would change what `ics.ts` writes into LOCATION. The
+      doubled stop is a presentation problem, so it is solved here. The homepage
+      band makes the same call on its own, shorter wording.
+    */}
+    {!zi.anulat && zi.locatie && (
+      <p class="rz-loc">Slujbele acestei zile au loc la {zi.locatie}{punctFinal(zi.locatie)}</p>
+    )}
     {zi.slujbe.map((s) => (
       <div class="rz-slujba">
         <b>{s.ora}</b>

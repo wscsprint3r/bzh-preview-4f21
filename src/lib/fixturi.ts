@@ -79,7 +79,12 @@ export const ZILE_FIXTURA: ZiSlujba[] = [
 
   // 2026-W40 — crosses from September into October.
   zi('2026-09-30', {
-    locatie: 'Capela Sf. Gallus, Winterthur',
+    // ENDS IN A FULL STOP, on purpose, and must keep it. `ziSchema` trims this
+    // field but does not strip punctuation from it: it is free text, and
+    // `ics.ts` writes it into the feed's LOCATION, which a calendar client
+    // stores. The doubled stop the two pages would otherwise print is fixed by
+    // `punctFinal` where the sentence is composed, not here.
+    locatie: 'Capela Sf. Gallus, Winterthur.',
     slujbe: [{ ora: '18:30', slujba: 'Acatist' }],
   }),
   zi('2026-10-04', {

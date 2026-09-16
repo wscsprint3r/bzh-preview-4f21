@@ -79,6 +79,35 @@ export function etichetaSlujba(s: Slujba): string {
 }
 
 /**
+ * The full stop a composed sentence needs after `valoare`, or `''` when the
+ * value already brings its own.
+ *
+ * Two pages wrap `locatie` in a sentence - "Slujbele acestei zile au loc la X."
+ * on `/program/` and "Slujbele au loc la X." in the homepage band - so an editor
+ * who ends the field with a stop used to get "Winterthur..".
+ *
+ * Fixed HERE, at presentation time, and deliberately not in `ziSchema` where
+ * the trim lives: normalise for presentation at presentation time; do not
+ * mutate stored data to fix how it reads. Stripping the stop at the boundary
+ * would lose information - "Capela Sf." would become "Capela Sf" - and would
+ * change what `ics.ts` writes into LOCATION, which is data a calendar client
+ * stores rather than prose this site is composing. Canonicalising `ora` to
+ * `HH:MM` is the legitimate kind of normalisation; editing a free-text field's
+ * punctuation is not.
+ *
+ * One function rather than the same conditional in both components, for the
+ * reason `slujbeInOrdine` exists: two components composing the same sentence
+ * around the same field is how two pages drift apart.
+ *
+ * `…` counts as well as `.`, since it likewise ends a sentence. `!` and `?` do
+ * not: nothing in this project composes a sentence around a value that could
+ * end in one, and treating them as terminators would be a guess.
+ */
+export function punctFinal(valoare: string): string {
+  return /[.…]$/.test(valoare) ? '' : '.';
+}
+
+/**
  * A day's services in the order they happen.
  *
  * `ziSchema` neither sorts `slujbe` nor requires them sorted - YAML keeps the
