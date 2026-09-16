@@ -47,7 +47,8 @@ Every task's requirements implicitly include this section.
   silently stops seeing the rest — the guarantee narrowing inside the task whose job is
   hiding things. The site already supplies the fix: with JS off every week renders, which is
   Task 10's no-JS baseline. Run both passes; the disabled one covers what the enabled one
-  cannot see.
+  cannot see — and they are not redundant in the other direction either, since the JS-on pass
+  is the only one that ever sees the week picker itself. Neither pass alone is the guarantee.
 - **Opacity on text is not dimming, it is contrast reduction.** The plan's `.rz-anulat`
   `opacity: 0.75` produced six `color-contrast` violations on a genuinely cancelled day —
   times falling 4.67:1 to 2.96:1 — and `--gold-text` is unusable below opacity 0.981. Every
