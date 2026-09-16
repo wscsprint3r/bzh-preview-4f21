@@ -32,8 +32,18 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
       the usual one, and the reader of the page went to the wrong address.
       Phrased as a sentence about this day rather than as an address label, so
       it reads as the exception it is.
+
+      Suppressed on a cancelled day, and that guard is the point rather than a
+      detail. The two sentences were deliberately built to look like siblings,
+      which is exactly what makes them read as compatible — "Slujbele acestei
+      zile sunt anulate." followed by "Slujbele acestei zile au loc la
+      Winterthur." is a flat contradiction. The line-through never reaches the
+      accessibility tree, so a screen reader announces both with equal weight
+      and nothing marks which one wins. A day that is not happening is not
+      happening anywhere, so one condition suppresses the sentence rather than
+      two sentences being reworded to stay consistent with each other.
     */}
-    {zi.locatie && <p class="rz-loc">Slujbele acestei zile au loc la {zi.locatie}.</p>}
+    {!zi.anulat && zi.locatie && <p class="rz-loc">Slujbele acestei zile au loc la {zi.locatie}.</p>}
     {zi.slujbe.map((s) => (
       <div class="rz-slujba">
         <b>{s.ora}</b>
@@ -43,7 +53,13 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
     {zi.praznic && (
       <p class="rz-praznic-txt">
         {zi.praznic_mare && <span aria-hidden="true">† </span>}{zi.praznic}
-        {zi.zi_de_post && <span class="rz-post">Zi de post</span>}
+        {/*
+          The explicit space is load-bearing. JSX strips whitespace that spans a
+          line break, so without it the two run together — `innerText` reads
+          `Înălțarea Sfintei CruciZI DE POST`, which no screenshot and no axe run
+          can see, but a screen reader says and a copy-paste keeps.
+        */}
+        {zi.zi_de_post && <>{' '}<span class="rz-post">Zi de post</span></>}
       </p>
     )}
     {!zi.praznic && zi.zi_de_post && <p class="rz-praznic-txt"><span class="rz-post">Zi de post</span></p>}
@@ -98,6 +114,12 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
   .rz-praznic-txt { font-family: var(--display); font-style: italic; font-size: 1.0625rem; color: var(--oxblood); margin: 0.5rem 0 0; }
   .rz-post { display: inline-block; font-family: var(--body); font-style: normal; font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.4rem; margin-left: 0.5rem; vertical-align: middle; }
   .rz-note, .rz-anulat-txt, .rz-loc { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
+  /* The two exception sentences introduce the times rather than follow them, so
+     they need the space below as well; `.rz-note` trails the row and does not.
+     `.rz-anulat-txt` is included because it sits in the identical position — the
+     review named only `.rz-loc`, but fixing one of two identical cases leaves
+     the other looking deliberate. */
+  .rz-anulat-txt, .rz-loc { margin-bottom: 0.5rem; }
   @media (max-width: 34rem) {
     .rz { grid-template-columns: minmax(5rem, auto) 1fr; gap: 0.75rem; }
     .rz-luna { display: none; }
