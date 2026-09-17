@@ -1,6 +1,7 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { idDinNumeFisier, ziSchema } from './lib/schema';
+import { articolSchema, paginaSchema, setariSchema } from './lib/schema-continut';
 
 const slujbe = defineCollection({
   loader: glob({
@@ -25,4 +26,33 @@ const slujbe = defineCollection({
   schema: ziSchema,
 });
 
-export const collections = { slujbe };
+/*
+ * The three content collections of Phase 2. Their rules live in
+ * `./lib/schema-continut.ts` rather than inline here, for the same reason
+ * `ziSchema` does: that file is unit-tested without booting Astro, and it is
+ * imported directly by the migration scripts, which run under plain node.
+ *
+ * Unlike `slujbe`, none of these three has a meaningful primary key of its own,
+ * so none overrides `generateId`. The article slug and the page id come from
+ * the filename by Astro's own slugger, which is what the migration writes and
+ * what the CMS expects.
+ */
+const articole = defineCollection({
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/articole' }),
+  schema: articolSchema,
+});
+
+const pagini = defineCollection({
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/pagini' }),
+  schema: paginaSchema,
+});
+
+const setari = defineCollection({
+  // Both extensions, for the reason spelled out on `slujbe` above: a file saved
+  // as `setari.yaml` would otherwise not be read at all, and the site would
+  // silently fall back to having no settings rather than say so.
+  loader: glob({ pattern: ['**/*.yml', '**/*.yaml'], base: './src/content/setari' }),
+  schema: setariSchema,
+});
+
+export const collections = { slujbe, articole, pagini, setari };
