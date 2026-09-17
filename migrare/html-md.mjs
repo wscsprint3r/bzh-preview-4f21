@@ -14,6 +14,28 @@ import { normalizeaza } from './diacritice.mjs';
  * the nine pages and eats the opening paragraph of every one of the 45 posts,
  * because posts have no preamble at all. So each piece is removed by
  * recognising itself, and a document without them comes back unchanged.
+ *
+ * NOT IDEMPOTENT BY CONSTRUCTION, and that is a real property to know about
+ * rather than a bug to chase: applying this twice is not guaranteed to equal
+ * applying it once, because a second pass strips whatever NOW sits at the top
+ * if that happens to be preamble-shaped - a risk only if real content itself
+ * starts with something that looks like a `Layouts:` line or a breadcrumb.
+ * `laMarkdown` already calls this function, so **callers pass raw HTML to
+ * `laMarkdown` and never call `dezbracaPreambul` themselves first** - calling
+ * both strips twice. Measured against all 71 real published posts and pages,
+ * 2026-09-17 (`migrare/verifica-preambul.mjs`): a second pass changes nothing
+ * a first pass did not already change, on every one of them - 0
+ * non-idempotent. That is a property of this corpus, not of the regexes; it
+ * is checked by that script on demand, not assumed to hold forever.
+ *
+ * A KNOWN BOUNDARY, left alone rather than widened: the breadcrumb's section
+ * name is matched as `[^<>]{0,60}`, which forbids `<` - so a section name
+ * wrapped in its own link (`<a href="...">Parohia noastra</a> &gt; ...`)
+ * would not be recognised and would survive un-stripped. Measured: 5 of the
+ * 71 real documents have an `<a>` in their first 300 characters, and 0 of
+ * them leave preamble residue after one strip - no linked breadcrumb exists
+ * in this corpus. Widening the pattern for a case that does not occur would
+ * only make it more likely to eat something it should not.
  */
 export function dezbracaPreambul(html) {
   let rezultat = html.replace(/^\s*<p>\s*Layouts:[^<]*<\/p>/i, '');

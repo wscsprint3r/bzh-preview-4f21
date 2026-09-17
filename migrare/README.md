@@ -78,6 +78,25 @@ These two numbers are what the rest of Phase 2's task list is sized from. A
 different count on a re-measurement means a different dump, and the plan
 would need to be reconsidered before anything downstream is trusted.
 
+## Verifying `dezbracaPreambul` against the real corpus
+
+`migrare/verifica-preambul.mjs` re-proves Task 3's preamble strip against
+every one of the 71 real published posts and pages, not a synthetic fixture:
+that a changed document has lost BOTH markers it recognises (not just one —
+a weaker "did the string change" check would miss a partial strip), that
+applying it twice never changes anything a first pass did not already
+change, and both directions of the original brief's proof (no post touched,
+every one of the nine target pages touched). It needs Docker and the dump
+like `db.mjs` does, so it is not part of `npm test` — run it by hand:
+
+```
+node migrare/verifica-preambul.mjs
+```
+
+It exits non-zero and names every offending document on any violation, and
+prints the measured counts either way. Re-run whenever `dezbracaPreambul`'s
+regexes change or the dump is refreshed.
+
 ## A defect found while measuring the above
 
 The task plan's original query code queried the database name

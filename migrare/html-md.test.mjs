@@ -80,16 +80,10 @@ describe('conversia la Markdown', () => {
   });
 
   // The ruling this task adds to the brief: normalisation must run AFTER
-  // Turndown, never before. `&nbsp;` is plain ASCII text in `post_content` -
-  // to Task 2's `normalizeaza` it is five ordinary characters, not the
-  // non-breaking space it means. Only Turndown's HTML parser decodes the
-  // entity into the actual character U+00A0. Normalising first and
-  // converting second would let every entity in the corpus turn into exactly
-  // the character normalisation had just removed: measured in the
-  // 2026-08-27 dump at 14,961 `&nbsp;` plus 6 `&#160;`, 14,967 in total,
-  // against the 459 literal non-breaking spaces `normalizeaza` removes - a
-  // 32x regression, invisible to a reader because U+00A0 renders as an
-  // ordinary space.
+  // Turndown, never before - see `laMarkdown`'s docblock in html-md.mjs for
+  // the full reasoning and the measured entity counts. Kept to one line here
+  // on purpose: the two copies of that paragraph used to say the same ten
+  // lines, which is the duplication this project keeps paying for.
   it('nu lasa spatiul neseparabil din &nbsp; sa treaca in Markdown', () => {
     const spatiuNeseparabil = String.fromCodePoint(0x00a0);
     expect(laMarkdown('<p>a&nbsp;b</p>')).not.toContain(spatiuNeseparabil);
@@ -179,6 +173,21 @@ describe('imaginile din HTML', () => {
 
   it('da o lista goala cand nu sunt imagini, nu arunca', () => {
     expect(imaginiDin('<p>x</p>')).toEqual([]);
+  });
+
+  it('pastreaza duplicatele, nu le elimina', () => {
+    // Pins the "duplicates included" claim in the docblock: a de-duping
+    // implementation (a Set, say) would pass every other test in this file
+    // and fail only this one - measured, it does.
+    expect(imaginiDin('<img src="/a.jpg"><img src="/a.jpg">')).toEqual(['/a.jpg', '/a.jpg']);
+  });
+
+  it('da o lista goala pe un sir gol, nu arunca', () => {
+    expect(imaginiDin('')).toEqual([]);
+  });
+
+  it('da o lista goala pentru un <img> fara src, nu arunca', () => {
+    expect(imaginiDin('<img alt="fara sursa">')).toEqual([]);
   });
 
   // Cunoscute si nefixate intentionat: masurate pe cele 71 de documente ale
