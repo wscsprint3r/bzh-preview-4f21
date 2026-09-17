@@ -108,7 +108,7 @@ Taken 2026-09-16 from `backup-2026-08-27/database.sql.gz` loaded into `mariadb:1
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `start()` → `Promise<void>`, `stop()` → `Promise<void>`, `interogheaza(sql: string)` → `Promise<string[][]>` (rows of column strings, tab-separated output split), `DUMP_PATH` (absolute path string), `NUME_CONTAINER = 'bzh-migrare'`.
+- Produces: `start()` → `Promise<void>`, `stop()` → `Promise<void>`, `query(sql: string)` → `Promise<string[][]>` (rows of column strings, tab-separated output split), `DUMP_PATH` (absolute path string), `CONTAINER_NAME = 'bzh-migration'`.
 
 **Why a container rather than parsing the SQL.** The dump is 352 MB of phpMyAdmin output with serialized PHP inside `postmeta`. A regex over `INSERT` statements is a parser that will be wrong on exactly the rows that matter and will look right on the rest. MariaDB is the parser that already exists.
 
@@ -148,7 +148,7 @@ describe('sursa migrarii', () => {
   });
 
   it('numele containerului este al acestui proiect, nu unul generic', () => {
-    expect(CONTAINER_NAME).toBe('bzh-migrare');
+    expect(CONTAINER_NAME).toBe('bzh-migration');
   });
 });
 ```
@@ -181,7 +181,7 @@ export const DUMP_PATH =
   '/Users/stefan/Work/stuff/site-bzh/backup-2026-08-27/database.sql.gz';
 
 /** Named for this project, so a stray container is attributable. */
-export const CONTAINER_NAME = 'bzh-migrare';
+export const CONTAINER_NAME = 'bzh-migration';
 
 const PASSWORD = 'migrare';
 const DATABASE = 'wp';
@@ -1232,7 +1232,7 @@ the allow-list.
 
 **Interfaces:**
 - Consumes: `query`, `toMarkdown`, `imagesIn`, `migrateImages`, `articleSchema`.
-- Produces: `STAMPILE_IMPORT` (the two bulk-import dates), `esteDatat(data: string)` → `boolean`, `numeFisier(slug, data)` → `string`, `extrageArticole()` → `Promise<{scrise: number, publicate: number}>`.
+- Produces: `IMPORT_STAMPS` (the two bulk-import dates), `esteDatat(data: string)` → `boolean`, `numeFisier(slug, data)` → `string`, `extrageArticole()` → `Promise<{scrise: number, publicate: number}>`.
 
 **The date rule is the whole task.** 32 of the 45 posts carry a bulk-import stamp rather than a publication date — 20 at `2024-06-08`, 11 at `2024-05-21`, and one more. Those import with `publicat: false`. The 13 with a genuine date import with `publicat: true`. The parish decides the rest in the CMS.
 
@@ -1570,8 +1570,8 @@ Expected: PASS, 5 tests.
 - `CardArticol.astro` — date, title, category, optional summary. Colours from `TEXT_ROLES`; no gold on text.
 - `ListaArticole.astro` — takes `articles` and an optional `limit`; used by `/noutati` and by the homepage.
 - `noutati/index.astro` — `Base` layout, `<h1>Noutati</h1>`, the list. When the list is empty, the same shape of sentence `/program/` uses for an unpublished schedule.
-- `noutati/[slug].astro` — `getStaticPaths` **from `articolePublicate`**, never from the raw collection. Renders title, date, author, body.
-- `rss.xml.ts` — follow `src/pages/program.ics.ts` for shape: a route that returns a `Response` with the right content type, built from `articolePublicate`.
+- `noutati/[slug].astro` — `getStaticPaths` **from `publishedArticles`**, never from the raw collection. Renders title, date, author, body.
+- `rss.xml.ts` — follow `src/pages/program.ics.ts` for shape: a route that returns a `Response` with the right content type, built from `publishedArticles`.
 
 - [ ] **Step 6: Assert the archive has no pages of its own**
 
@@ -1728,7 +1728,7 @@ After this task, `rtk proxy grep -rn Wehntalerstrasse src/` must find it only in
 `settings.yml`.
 
 **Interfaces:**
-- Consumes: `articolePublicate`, `ListaArticole`, the `settings` collection.
+- Consumes: `publishedArticles`, `ArticleList`, the `settings` collection.
 - Produces: `citesteSetari()` → `Promise<Settings>`.
 
 **Spec §5 defines the homepage as hero, week band, then news.** Phase 1 built the first two and the parish has since removed the hero's address and its next-service card; the news section is the third and last part.
@@ -1771,7 +1771,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write `src/lib/settings.ts`, then wire the footer and the homepage**
 
-`alegeSetari` throws a Romanian message naming `src/content/settings/settings.yml` when the collection is empty, and a different one when it holds more than one entry. `SiteFooter.astro` reads it and drops its hardcoded values. `index.astro` renders `ListaArticole` with `limit={3}` under a heading, and a link to `/noutati/`. When there are no published posts the section renders nothing at all rather than an empty heading.
+`pickSettings` throws a Romanian message naming `src/content/settings/settings.yml` when the collection is empty, and a different one when it holds more than one entry. `SiteFooter.astro` reads it and drops its hardcoded values. `index.astro` renders `ArticleList` with `limit={3}` under a heading, and a link to `/noutati/`. When there are no published posts the section renders nothing at all rather than an empty heading.
 
 - [ ] **Step 4: Run the suite and the budget**
 
@@ -1850,7 +1850,7 @@ Expected: FAIL.
 
 Run: `rtk proxy npx vitest run src/lib/cms.test.ts` — expect PASS.
 
-Then **open `/admin/` and use it**, because a control found in the bundle is not a control this configuration renders. Phase 1 put three buttons that do not exist into its documentation before anyone checked. `astro dev --background`, then `/admin/`, sign in with the `test-repo` backend, and confirm: the three collections appear, `Articole` is sorted newest-first, the category dropdown holds exactly two options, and the settings singleton opens as a form rather than a list.
+Then **open `/admin/` and use it**, because a control found in the bundle is not a control this configuration renders. Phase 1 put three buttons that do not exist into its documentation before anyone checked. `astro dev --background`, then `/admin/`, sign in with the `test-repo` backend, and confirm: the three collections appear, `Articles` is sorted newest-first, the category dropdown holds exactly two options, and the settings singleton opens as a form rather than a list.
 
 - [ ] **Step 5: Commit**
 
@@ -1911,4 +1911,4 @@ git commit -m "feat: the new pages come under the budget, the audit and the code
 
 **Placeholder scan.** No `TBD`, no "add error handling", no "similar to Task N". Tasks 6, 7, 9, 10, 11 and 12 describe some steps in prose rather than full code — deliberately, where the shape is set by an existing file in the repository that the implementer must match (`src/lib/schema.ts`, `src/pages/program.ics.ts`, `public/admin/config.yml`). Each names that file.
 
-**Type consistency.** `articleSchema`/`pageSchema`/`settingsSchema` defined in Task 4 and used in 6, 7, 8, 10, 11. `articolePublicate` defined in Task 8, used in 8 and 10. `toMarkdown`/`imagesIn` defined in Task 3, used in 6 and 7. `migrateImages` defined in Task 5, used in 6 and 7. `CATEGORIES` defined in Task 4, used in 6 and 11. `path` has no leading or trailing slash everywhere it appears.
+**Type consistency.** `articleSchema`/`pageSchema`/`settingsSchema` defined in Task 4 and used in 6, 7, 8, 10, 11. `publishedArticles` defined in Task 8, used in 8 and 10. `toMarkdown`/`imagesIn` defined in Task 3, used in 6 and 7. `migrateImages` defined in Task 5, used in 6 and 7. `CATEGORIES` defined in Task 4, used in 6 and 11. `path` has no leading or trailing slash everywhere it appears.

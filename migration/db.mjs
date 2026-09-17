@@ -23,7 +23,7 @@ export const CONTAINER_NAME = 'bzh-migration';
 // so `db.test.mjs` can start its own minimal, dump-free container for the
 // round-trip tests below, using the exact credentials `query` connects
 // with, rather than a second copy of this string that could drift from it.
-export const PASSWORD = 'migrare';
+export const PASSWORD = 'migration';
 const DATABASE = 'wp';
 
 /**
