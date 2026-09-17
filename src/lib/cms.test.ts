@@ -136,7 +136,7 @@ describe('versiunea CMS-ului', () => {
    * nimeni nu se uită - iar prima dovadă ar fi un `/admin/` care nu mai pornește.
    */
   it('is pinned exactly, with no range', () => {
-    expect(REQUIRED_VERSION, '@sveltia/cms nu este cerut în package.json').toBeDefined();
+    expect(REQUIRED_VERSION, '@sveltia/cms is not required in package.json').toBeDefined();
     // Nicio plajă: fără `^`, fără `~`, fără `*`, fără `x`.
     expect(REQUIRED_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });

@@ -35,9 +35,9 @@ const CMS_SOURCE = dirname(CMS_ENTRY);
 
 /** The file's bytes, having proved there was a file and that it had some. */
 function read(path: string): Buffer {
-  expect(existsSync(path), `${path} lipsește`).toBe(true);
+  expect(existsSync(path), `${path} is missing`).toBe(true);
   const bytes = readFileSync(path);
-  expect(bytes.length, `${path} există dar este gol`).toBeGreaterThan(0);
+  expect(bytes.length, `${path} exists but is empty`).toBeGreaterThan(0);
   return bytes;
 }
 
@@ -109,9 +109,9 @@ describe('the admin page exists', () => {
   it('each of its <script src> leads to a real file in dist/', () => {
     const html = read(join(DIST, 'admin', 'index.html')).toString('utf8');
     const sources = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]*)"/g)].map((m) => m[1] as string);
-    expect(sources.length, 'pagina de administrare nu încarcă niciun script').toBe(1);
+    expect(sources.length, 'the admin page loads no script at all').toBe(1);
     for (const src of sources) {
-      expect(src.startsWith('/'), `${src} nu este absolută`).toBe(true);
+      expect(src.startsWith('/'), `${src} is not absolute`).toBe(true);
       read(join(DIST, src.slice(1).split(/[?#]/)[0] as string));
     }
   });
@@ -128,9 +128,9 @@ describe('the admin page exists', () => {
       ...source.matchAll(/\bfrom\s*'([^']+)'/g),
       ...source.matchAll(/\bimport\(\s*'([^']+)'/g),
     ].map((m) => m[1] as string);
-    expect(imports.length, 'start.mjs nu importă nimic').toBeGreaterThan(0);
+    expect(imports.length, 'start.mjs imports nothing').toBeGreaterThan(0);
     for (const specifier of imports) {
-      expect(specifier.startsWith('./'), `${specifier} nu este relativ`).toBe(true);
+      expect(specifier.startsWith('./'), `${specifier} is not relative`).toBe(true);
       read(join(DIST, 'admin', specifier.slice(2)));
     }
     // Și chiar cheamă init: un import fără apel ar trece testul de mai sus și ar
@@ -206,7 +206,7 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
   it('every font it asks for leads to a real file in dist/', () => {
     const served = read(SERVED_ENTRY).toString('utf8');
     const urls = [...served.matchAll(/url\((\/admin\/[^)]+)\)/g)].map((m) => m[1] as string);
-    expect(urls.length, 'bundle-ul nu cere niciun font local').toBe(FONTS.length);
+    expect(urls.length, 'the bundle asks for no local font').toBe(FONTS.length);
     for (const url of urls) read(join(DIST, url.slice(1)));
   });
 

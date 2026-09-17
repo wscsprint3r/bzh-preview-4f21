@@ -233,7 +233,7 @@ describe('the four numbers are written in one file only', () => {
   it('the codepoints file really does contain them — otherwise the rule would be about nothing', () => {
     expect(TO_SWEEP, CODEPOINTS_FILE).toContain(CODEPOINTS_FILE);
     const inCodepointsFile = hexNumbersIn(readFileSync(ROOT + CODEPOINTS_FILE, 'utf8'));
-    expect(inCodepointsFile.length, `${CODEPOINTS_FILE} nu mai scrie cele patru numere`).toBe(CEDILLAS.length);
+    expect(inCodepointsFile.length, `${CODEPOINTS_FILE} no longer writes the four numbers`).toBe(CEDILLAS.length);
   });
 
   it('no other tracked file writes them any more', () => {

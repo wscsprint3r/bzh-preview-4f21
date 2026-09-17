@@ -33,9 +33,9 @@ const DIST = `${ROOT}dist/`;
 
 /** The file's text, having proved there was a file and that it had text in it. */
 function read(path: string): string {
-  expect(existsSync(DIST + path), `${path} lipsește din dist/`).toBe(true);
+  expect(existsSync(DIST + path), `${path} is missing from dist/`).toBe(true);
   const text = readFileSync(DIST + path, 'utf8');
-  expect(text.length, `${path} există dar este gol`).toBeGreaterThan(0);
+  expect(text.length, `${path} exists but is empty`).toBeGreaterThan(0);
   return text;
 }
 
@@ -182,7 +182,7 @@ describe('_headers reaches the build', () => {
       }
     }
     const duplicated = [...where].filter(([, patterns]) => patterns.length > 1);
-    expect(duplicated, 'Cloudflare ar lipi valorile cu virgulă').toEqual([]);
+    expect(duplicated, 'Cloudflare would join the values with a comma').toEqual([]);
   });
 
   // Cloudflare's documented limits. A file over them is not rejected loudly.
@@ -250,7 +250,7 @@ describe('the security policy', () => {
     const perPage = pages().flatMap((p) => inlineHashes(readFileSync(DIST + p, 'utf8')).map((h) => [p, h]));
     // A guard that reads files must prove it read something: with no inline
     // script anywhere, two empty sets would agree while proving nothing.
-    expect(perPage.length, 'nicio pagină construită nu are script inline').toBeGreaterThan(0);
+    expect(perPage.length, 'no built page has an inline script').toBeGreaterThan(0);
     const built = sortedUnique(perPage.map(([, h]) => h as string));
     const inPolicy = sortedUnique(scriptSrcHashes(CSP));
     // Print what was measured, not only the verdict. Straight to stdout:
@@ -259,7 +259,7 @@ describe('the security policy', () => {
       `\nScripturi inline construite:\n${perPage.map(([p, h]) => `  ${p} -> ${h}`).join('\n')}\n` +
         `script-src numește ${inPolicy.length}: ${inPolicy.join(' ')}\n`,
     );
-    expect(inPolicy, 'hash-urile din script-src nu sunt exact cele ale scripturilor construite').toEqual(
+    expect(inPolicy, 'the hashes in script-src are not exactly those of the built scripts').toEqual(
       built,
     );
   });
@@ -320,12 +320,12 @@ describe('public/_headers, the source file', () => {
    * catching it here catches it where someone typed it.
    */
   it('contains no hand-written hash', () => {
-    expect(shaTokens(SOURCE), 'hash-urile se calculează la build, nu se scriu aici').toEqual([]);
+    expect(shaTokens(SOURCE), 'the hashes are computed at build time, not written here').toEqual([]);
   });
 
   it(`carries ${PLACEHOLDER} on a header line`, () => {
     const headers = SOURCE.split('\n').filter((l) => !l.trimStart().startsWith('#'));
-    expect(headers.filter((l) => l.includes(PLACEHOLDER)).length, `${PLACEHOLDER} apare doar în comentarii`).toBeGreaterThan(0);
+    expect(headers.filter((l) => l.includes(PLACEHOLDER)).length, `${PLACEHOLDER} appears only in comments`).toBeGreaterThan(0);
   });
 });
 
@@ -343,7 +343,7 @@ describe('the references inside public/_headers', () => {
 
   it('really does find paths to check', () => {
     process.stdout.write(`\npublic/_headers menționează ${PATHS.length} cale(i):\n${PATHS.map((c) => `  ${c}`).join('\n')}\n`);
-    expect(PATHS.length, `detectorul de căi a găsit ${PATHS.length} — nu ar verifica nimic mai jos`).toBeGreaterThan(3);
+    expect(PATHS.length, `the path detector found ${PATHS.length} — nothing below would be checked`).toBeGreaterThan(3);
     // Named explicitly so a regex that stopped recognising a shape fails here
     // rather than quietly shrinking the list the cases below iterate.
     expect(PATHS).toContain('scripts/csp-hash.mjs');
@@ -378,7 +378,7 @@ describe('the references inside public/_headers', () => {
   });
 
   it.each(PATHS)('`%s` există', (path) => {
-    expect(existsSync(ROOT + path), `public/_headers trimite la ${path}, care nu există`).toBe(true);
+    expect(existsSync(ROOT + path), `public/_headers points at ${path}, which does not exist`).toBe(true);
   });
 
   /*
@@ -393,7 +393,7 @@ describe('the references inside public/_headers', () => {
       cwd: ROOT,
       encoding: 'utf8',
     }).trim();
-    expect(tracked, 'docs/handover.md nu este urmărit — un clone nu l-ar primi').toBe('docs/handover.md');
+    expect(tracked, 'docs/handover.md is not tracked — a clone would not get it').toBe('docs/handover.md');
   });
 });
 
@@ -406,7 +406,7 @@ describe('the calendar feed', () => {
    * like a rule that works.
    */
   it('gives /program.ics the type text/calendar', () => {
-    expect(existsSync(DIST + 'program.ics'), 'regula are un subiect care nu există').toBe(true);
+    expect(existsSync(DIST + 'program.ics'), 'the rule has a subject that does not exist').toBe(true);
     expect(headersForPath(RULES, '/program.ics').get('Content-Type')).toBe('text/calendar; charset=utf-8');
   });
 
@@ -421,7 +421,7 @@ describe('the calendar feed', () => {
 
 describe('administrarea', () => {
   it('is not indexed', () => {
-    expect(existsSync(DIST + 'admin/index.html'), 'regula are un subiect care nu există').toBe(true);
+    expect(existsSync(DIST + 'admin/index.html'), 'the rule has a subject that does not exist').toBe(true);
     expect(headersForPath(RULES, '/admin/').get('X-Robots-Tag')).toBe('noindex');
   });
 

@@ -67,8 +67,10 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   `src/lib/content-schema.ts`, and `PAGE_EXPLANATION` in `scripts/check-budget.mjs`, which a
   volunteer receives as a CI failure email. The repository was written the other way round
   for the whole of Phase 1 and renamed in one pass; a Romanian identifier added now is a
-  regression, not a variant style. CSS class names and `data-` attributes are a separate
-  question and are still Romanian.
+  regression, not a variant style. CSS class names, `data-` attributes, the skip-link id and
+  the CMS start-up script followed in a second pass, because renaming those changes the
+  built bytes — what did NOT change is the rendered text of every page, which is how that
+  pass was checked.
 - **Dates are `YYYY-MM-DD` strings; times are `HH:MM` local strings.** Never a UTC instant
   for a service — a Liturgy at 10:00 is at 10:00 across a DST change. `todayInZurich()` and
   `timeInZurich()` in `src/lib/week.ts` are the only timezone-aware functions; everything
@@ -209,7 +211,14 @@ Every one of these was paid for.
   the built CSS precisely because a hand-written copy of them went stale without a symptom.
   Say which of the two a list is, and why, beside it.
 - **Assert that a reference resolves, not that its text appears.** A rule for a path that
-  does not exist looks exactly like a rule that works.
+  does not exist looks exactly like a rule that works. This is true of a comment as well as
+  of a rule, and for a long time only `public/_headers` was checked: the 2026-09-17 rename
+  replaced identifiers inside backtick spans, which is right for a name and wrong for a
+  filename, and left fourteen references to files that do not exist across two commits with
+  the whole suite green. `npm test` reads code, not prose. `src/lib/referenced-paths.test.ts`
+  now resolves every backticked path-shaped token in every tracked file, documents included,
+  and the paths that are absent on purpose are listed there by reason and asserted still to
+  be absent.
 - **Print what was measured, not only the verdict.** The number is what a later reader
   trusts when a comment disagrees with it.
 - **Static reading is the wrong tool for a claim about what a person sees.** Contrast,

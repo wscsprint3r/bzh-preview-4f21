@@ -42,7 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { pageScripts } from './page-scripts.mjs';
 
 /** The token in `public/_headers` that this file replaces. */
-export const PLACEHOLDER = '{{hash-scripturi}}';
+export const PLACEHOLDER = '{{script-hashes}}';
 
 /** Every `.html` in a directory tree, as paths relative to it. */
 function htmlPages(root, relative = '') {

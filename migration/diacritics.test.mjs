@@ -156,8 +156,8 @@ describe('normalizarea diacriticelor', () => {
       const ch = String.fromCodePoint(c);
       expect(normalize(ch), uPlus(c)).toBe(ch);
       expect(normalize(`ab${ch}cd`), uPlus(c)).toBe(`ab${ch}cd`);
-      expect(TO_DELETE.has(c), `${uPlus(c)} nu are ce cauta in DE_STERS`).toBe(false);
-      expect(REPLACEMENTS.has(c), `${uPlus(c)} nu are ce cauta in INLOCUIRI`).toBe(false);
+      expect(TO_DELETE.has(c), `${uPlus(c)} has no business in TO_DELETE`).toBe(false);
+      expect(REPLACEMENTS.has(c), `${uPlus(c)} has no business in REPLACEMENTS`).toBe(false);
     }
     // And all seven together, the way they turn up in a real paragraph.
     const all = GROUP_B.map((c) => String.fromCodePoint(c)).join('');

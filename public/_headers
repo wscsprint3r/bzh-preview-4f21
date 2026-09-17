@@ -29,7 +29,7 @@
 # script hash costs about 52 characters.
 
 /*
-  Content-Security-Policy: default-src 'self'; img-src 'self' data: https://avatars.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' {{hash-scripturi}}; connect-src 'self' https://api.github.com; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: https://avatars.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' {{script-hashes}}; connect-src 'self' https://api.github.com; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
@@ -62,7 +62,7 @@
 # The hash changes with every change to the script, which is why it cannot be
 # written here by hand. `scripts/csp-hash.mjs` runs at `astro:build:done`,
 # hashes every inline executable script in every built page, and substitutes
-# them for `{{hash-scripturi}}`. It FAILS THE BUILD if the placeholder is
+# them for `{{script-hashes}}`. It FAILS THE BUILD if the placeholder is
 # missing, so deleting it does not quietly fall back to a policy that blocks the
 # script - and `src/lib/headers.itest.ts` asserts the shipped `dist/_headers`
 # carries a real hash and no placeholder.

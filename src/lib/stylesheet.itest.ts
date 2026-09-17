@@ -125,7 +125,7 @@ describe('the build output exists', () => {
   it('the exempted page exists', () => {
     // O excepție pentru un fișier care nu mai există nu scutește nimic: rămâne
     // în cod arătând ca o regulă, gata să scuze altceva cu același nume.
-    expect(PAGES, `${NO_CSS} nu mai există, deci excepția nu mai are rost`).toContain(NO_CSS);
+    expect(PAGES, `${NO_CSS} no longer exists, so the exception is pointless`).toContain(NO_CSS);
   });
 
   it.each(PAGES_WITH_CSS)('%s are CSS', (page) => {

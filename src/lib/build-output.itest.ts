@@ -34,9 +34,9 @@ const CRLF = '\r\n';
 
 /** The file's text, having proved there was a file and that it had text in it. */
 function read(path: string): string {
-  expect(existsSync(DIST + path), `${path} lipsește din dist/`).toBe(true);
+  expect(existsSync(DIST + path), `${path} is missing from dist/`).toBe(true);
   const text = readFileSync(DIST + path, 'utf8');
-  expect(text.length, `${path} există dar este gol`).toBeGreaterThan(0);
+  expect(text.length, `${path} exists but is empty`).toBeGreaterThan(0);
   return text;
 }
 
@@ -87,12 +87,12 @@ function events(ics: string): string[][] {
   for (const line of unfold(ics)) {
     if (line === 'BEGIN:VEVENT') currentEvent = [];
     else if (line === 'END:VEVENT') {
-      expect(currentEvent, 'END:VEVENT fără BEGIN:VEVENT').not.toBeNull();
+      expect(currentEvent, 'END:VEVENT with no BEGIN:VEVENT').not.toBeNull();
       if (currentEvent) blocks.push(currentEvent);
       currentEvent = null;
     } else if (currentEvent) currentEvent.push(line);
   }
-  expect(currentEvent, 'BEGIN:VEVENT fără END:VEVENT').toBeNull();
+  expect(currentEvent, 'BEGIN:VEVENT with no END:VEVENT').toBeNull();
   return blocks;
 }
 
@@ -289,8 +289,8 @@ describe('the feed respects the iCalendar format', () => {
   it('separates lines with CRLF, not with LF', () => {
     const ics = read('program.ics');
     expect(ics.endsWith(CRLF)).toBe(true);
-    expect(/[^\r]\n/.test(ics), 'LF fără CR înaintea lui').toBe(false);
-    expect(/\r[^\n]/.test(ics), 'CR fără LF după el').toBe(false);
+    expect(/[^\r]\n/.test(ics), 'an LF with no CR before it').toBe(false);
+    expect(/\r[^\n]/.test(ics), 'a CR with no LF after it').toBe(false);
   });
 
   /*
@@ -373,7 +373,7 @@ describe('the feed respects the iCalendar format', () => {
        */
       const start = (block.find((l) => l.startsWith('DTSTART;')) as string).split(':')[1] as string;
       const end = (block.find((l) => l.startsWith('DTEND;')) as string).split(':')[1] as string;
-      expect(end > start, `DTEND ${end} nu este după DTSTART ${start}`).toBe(true);
+      expect(end > start, `DTEND ${end} is not after DTSTART ${start}`).toBe(true);
       uids.push(block.find((l) => l.startsWith('UID:')) as string);
     }
     // UID-uri identice fac ca două slujbe să se topească într-un singur eveniment
@@ -435,8 +435,8 @@ describe('paginile construite', () => {
    */
   it('carries exactly the expected references to the feed, on every page', () => {
     const pages = builtPages();
-    expect(pages.length, 'dist/ nu conține nicio pagină').toBeGreaterThan(0);
-    expect(pages, 'o pagină construită nedeclarată în REFERINTE_ICS').toEqual(
+    expect(pages.length, 'dist/ contains no page at all').toBeGreaterThan(0);
+    expect(pages, 'a built page not declared in ICS_REFERENCES').toEqual(
       Object.keys(ICS_REFERENCES).sort(),
     );
     for (const page of pages) {
@@ -449,11 +449,11 @@ describe('paginile construite', () => {
     for (const page of builtPages()) {
       for (const href of icsReferences(read(page))) pairs.push([page, href]);
     }
-    expect(pairs.length, 'nicio referință .ics în tot situl').toBeGreaterThan(0);
+    expect(pairs.length, 'no .ics reference anywhere on the site').toBeGreaterThan(0);
     for (const [page, href] of pairs) {
       // Absolută de la rădăcină, altfel `dist` + href nu este calea servită și
       // aserțiunea de mai jos ar întreba altceva decât pare că întreabă.
-      expect(href.startsWith('/'), `${href} de pe ${page} nu este absolută`).toBe(true);
+      expect(href.startsWith('/'), `${href} on ${page} is not absolute`).toBe(true);
       /*
        * Interogarea și fragmentul se taie, fiindcă nu fac parte din calea pe
        * care o servește gazda: `/program.ics?v=2` livrează chiar acest fișier.
@@ -464,7 +464,7 @@ describe('paginile construite', () => {
        * o cale de director nu este un fișier.
        */
       const path = href.slice(1).split(/[?#]/)[0] as string;
-      expect(read(path), `${href} de pe ${page}`).toContain('BEGIN:VCALENDAR');
+      expect(read(path), `${href} on ${page}`).toContain('BEGIN:VCALENDAR');
     }
   });
 
@@ -502,16 +502,16 @@ describe('paginile construite', () => {
      * CMS-ului și niciun noindex pe el, adică exact pe dos.
      */
     const pages = builtPages().filter((p) => p !== 'admin/index.html');
-    expect(pages.length, 'dist/ nu conține nicio pagină de vizitator').toBeGreaterThan(0);
-    expect(builtPages(), 'admin/index.html chiar trebuie să existe, ca excluderea să însemne ceva')
+    expect(pages.length, 'dist/ contains no visitor page at all').toBeGreaterThan(0);
+    expect(builtPages(), 'admin/index.html really must exist, or the exclusion means nothing')
       .toContain('admin/index.html');
     const canonicals: string[] = [];
     for (const page of pages) {
       const html = read(page);
       const canonical = [...html.matchAll(/<link\b[^>]*rel="canonical"[^>]*href="([^"]*)"/g)].map((m) => m[1] as string);
       const noindex = /<meta\b[^>]*name="robots"[^>]*content="[^"]*noindex/.test(html);
-      expect(canonical.length, `canonice pe ${page}`).toBe(INDEXABLE ? 1 : 0);
-      expect(noindex, `meta robots noindex pe ${page}`).toBe(!INDEXABLE);
+      expect(canonical.length, `canonicals on ${page}`).toBe(INDEXABLE ? 1 : 0);
+      expect(noindex, `meta robots noindex on ${page}`).toBe(!INDEXABLE);
       canonicals.push(...canonical);
     }
     /*

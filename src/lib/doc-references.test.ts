@@ -70,7 +70,7 @@ const HANDOVER = 'docs/handover.md';
 
 function read(path: string): string {
   const text = readFileSync(ROOT + path, 'utf8');
-  expect(text.length, `${path} este gol`).toBeGreaterThan(0);
+  expect(text.length, `${path} is empty`).toBeGreaterThan(0);
   return text;
 }
 
@@ -156,16 +156,16 @@ describe('the references from rulings to the launch checklist', () => {
     // O gardă care citește ceva trebuie să dovedească faptul că a citit ceva. Fără
     // asta, regula „fiecare element sau trimite, sau se explică" ar fi adevărată
     // despre zero elemente — exact felul de trecere goală plătit aici de două ori.
-    expect(ITEMS.length, `niciun element deschis în ${RULINGS}`).toBeGreaterThan(1);
+    expect(ITEMS.length, `no open item in ${RULINGS}`).toBeGreaterThan(1);
   });
 
   it('rulings really does name checklist steps', () => {
     // Fără asta, „fiecare trimitere rezolvă" ar fi adevărat despre zero trimiteri.
-    expect(REFERENCES.length, `niciun checklist:<ID> în ${RULINGS}`).toBeGreaterThan(0);
+    expect(REFERENCES.length, `no checklist:<ID> in ${RULINGS}`).toBeGreaterThan(0);
   });
 
   it('handover really does have steps', () => {
-    expect(STEPS.length, `niciun pas în ${HANDOVER}`).toBeGreaterThan(10);
+    expect(STEPS.length, `no step in ${HANDOVER}`).toBeGreaterThan(10);
   });
 
   it('no malformed reference: an id that cannot be read must fail, not vanish', () => {
@@ -222,15 +222,15 @@ describe('the references from rulings to the launch checklist', () => {
     ).toEqual([]);
     // Ambele jumătăți trebuie să existe, altfel regula ar fi adevărată despre o
     // listă în care toate elementele sunt scutite, sau în care niciunul nu e.
-    expect(withReference, 'niciun element cu trimitere').toBeGreaterThan(0);
-    expect(exemptCount, 'niciun element scutit în cuvinte').toBeGreaterThan(0);
+    expect(withReference, 'no item carries a reference').toBeGreaterThan(0);
+    expect(exemptCount, 'no item exempted in words').toBeGreaterThan(0);
   });
 
   it('the number written in the prose is the number of items, not a figure from another day', () => {
     // Un număr din proză pe care nu-l compară nimeni este tocmai ce decade. Fraza
     // spune „Six things are decided provisionally"; elementele se numără.
     const fromProse = countInProse(RULINGS_TEXT);
-    expect(fromProse, `fraza de deschidere din ${RULINGS} nu mai numără elementele`).not.toBeNull();
+    expect(fromProse, `the opening sentence of ${RULINGS} no longer counts the items`).not.toBeNull();
     expect(fromProse).toBe(ITEMS.length);
   });
 

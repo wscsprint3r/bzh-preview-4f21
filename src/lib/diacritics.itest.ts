@@ -316,7 +316,7 @@ describe('what the sweep takes in and what it leaves out', () => {
    */
   it('leaves out the vendored files, which really are in dist/', () => {
     const inDist = [...VENDORED].filter((c) => existsSync(DIST + c));
-    expect(inDist.length, 'niciun fișier vendorizat în dist/').toBeGreaterThan(0);
+    expect(inDist.length, 'no vendored file in dist/').toBeGreaterThan(0);
     for (const path of inDist) expect(FILES, path).not.toContain(path);
   });
 
@@ -327,7 +327,7 @@ describe('what the sweep takes in and what it leaves out', () => {
    * ajunge nevăzută.
    */
   it.each(['admin/index.html', 'admin/config.yml', 'admin/start.mjs'])('mătură %s', (path) => {
-    expect(existsSync(DIST + path), `${path} lipsește din dist/`).toBe(true);
+    expect(existsSync(DIST + path), `${path} is missing from dist/`).toBe(true);
     expect(FILES).toContain(path);
   });
 
@@ -338,7 +338,7 @@ describe('what the sweep takes in and what it leaves out', () => {
    * cineva care pune situl în funcțiune.
    */
   it('sweeps _headers, which has no extension', () => {
-    expect(existsSync(DIST + '_headers'), '_headers lipsește din dist/').toBe(true);
+    expect(existsSync(DIST + '_headers'), '_headers is missing from dist/').toBe(true);
     expect(FILES).toContain('_headers');
   });
 
@@ -349,7 +349,7 @@ describe('what the sweep takes in and what it leaves out', () => {
    */
   it('no extensionless file is left unswept', () => {
     const extensionless = extensionlessFiles();
-    expect(extensionless.length, 'niciun fișier fără extensie în dist/ — cazul de mai sus nu ar dovedi nimic').toBeGreaterThan(0);
+    expect(extensionless.length, 'no extensionless file in dist/ — the case above would prove nothing').toBeGreaterThan(0);
     const unswept = extensionless.filter((c) => !FILES.includes(c));
     expect(
       unswept,
@@ -449,7 +449,7 @@ describe('no unexpected non-ASCII character in the built output', () => {
         `— ${inventory.size} caracter(e) distinct(e), din ${ALLOWED.length} permise:\n${lines.join('\n')}\n`,
     );
     // A guard that reads files must prove it read something.
-    expect(inventory.size, 'ieșirea nu conține niciun caracter non-ASCII').toBeGreaterThan(0);
+    expect(inventory.size, 'the output contains no non-ASCII character at all').toBeGreaterThan(0);
     const unexpected = [...inventory.keys()].filter((cp) => !ALLOWED_CP.has(cp)).map(uPlus);
     expect(unexpected, `caractere pe care nimeni nu le-a prevăzut: ${unexpected.join(', ')}`).toEqual([]);
   });

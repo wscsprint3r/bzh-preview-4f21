@@ -759,8 +759,8 @@ describe('the data island (used by no page; see the note above)', () => {
         `  primele ${String(n).padStart(2)} zile anulate → server ${server?.date ?? 'NULL'}` +
           ` | client ${client?.date ?? 'NULL'} | acord: ${server?.date === client?.date}`,
       );
-      expect(server, `n=${n}: programul întreg mai are slujbe`).not.toBeNull();
-      expect(client?.date, `n=${n}: clientul nu răspunde ca serverul`).toBe(server?.date);
+      expect(server, `n=${n}: the whole schedule still has services`).not.toBeNull();
+      expect(client?.date, `n=${n}: the client does not answer as the server does`).toBe(server?.date);
       checked += 1;
     }
     process.stdout.write(`\nInsula cu zile anulate la început:\n${measuredLines.join('\n')}\n`);
