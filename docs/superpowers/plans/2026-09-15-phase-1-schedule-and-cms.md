@@ -18,6 +18,16 @@
 > have been rewritten by codepoint. Nothing else about the plan has been changed, and
 > `src/lib/diacritics-sources.test.ts` now fails on any tracked file that writes one again.
 
+> **A second note, left as a note rather than a rewrite.** Phase 1 was executed before the
+> project-wide rename to English identifiers, and this plan's own code samples predate it too:
+> function, variable and test names below are still the Romanian ones Phase 1 actually shipped
+> with at the time. Phase 1 is complete and merged, so nobody transcribes these samples again —
+> unlike the Phase 2 content plan, whose Tasks 6-12 are not yet written and whose stale identifiers
+> would become tomorrow's Romanian code. Rewriting thirty-odd sites in a document describing work
+> already done would add risk for no reader benefit, so this document is left as it was written.
+> **The code is authoritative for naming, not this plan** — `src/`, `migration/` and their test
+> files are where a real name is found, and `AGENTS.md` states the English-identifiers rule itself.
+
 **Scope:** This plan implements **Phase 1 only** (spec §19). Phases 2 (content migration), 3 (events, galleries, donations, contact form) and 4 (redirects, DNS cutover) get their own plans. Phase 1 is independently shippable: at the end of it the parish can edit the schedule, which is the single biggest win.
 
 ---
