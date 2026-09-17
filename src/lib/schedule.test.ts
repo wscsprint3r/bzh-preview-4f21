@@ -30,8 +30,8 @@ describe('minutes', () => {
   });
 
   it('orders the times numerically, where text would order them the other way', () => {
-    // Exact inversiunea din care se naște bug-ul: alfabetic, „9:30" vine după
-    // „10:00". Numeric, nu.
+    // The exact inversion the bug is born from: alphabetically, "9:30" comes after
+    // "10:00". Numerically, it does not.
     expect('9:30' > '10:00').toBe(true);
     expect(minutes('9:30') > minutes('10:00')).toBe(false);
   });
@@ -63,9 +63,9 @@ describe('serviceLabel', () => {
   });
 
   it('leaves the word „Altceva" in no label at all', () => {
-    // Motivul pentru care funcția aceasta există: „Altceva" este portița din
-    // CMS, nu un nume de slujbă. Niciun nume din listă nu are voie să îl scoată
-    // pe pagină sau în feed-ul de calendar.
+    // The reason this function exists: "Altceva" is the escape hatch from the
+    // CMS, not a service name. No name on the list is allowed to let it out
+    // onto the page or into the calendar feed.
     for (const service of SERVICE_NAMES) {
       const detail = service === 'Altceva' ? 'Cerc de studiu biblic' : undefined;
       expect(serviceLabel({ time: '19:00', service, detail })).not.toContain('Altceva');
@@ -79,15 +79,15 @@ describe('diacriticele etichetelor', () => {
       ...SERVICE_NAMES.map((service) => serviceLabel({ time: '10:00', service })),
       serviceLabel({ time: '10:00', service: 'Sfânta Liturghie', detail: 'și Parastas' }),
     ].join('');
-    // Sedilele turcești, scrise ca escape-uri pentru ca garda să nu poată fi
-    // înfrântă lipind chiar caracterele pe care le respinge:
-    // U+015F, U+0163 și majusculele lor U+015E, U+0162.
+    // The Turkish cedillas, written as escapes so the guard cannot be
+    // defeated by pasting in the very characters it rejects:
+    // U+015F, U+0163 and their uppercase forms U+015E, U+0162.
     expect(allText).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
-    // Și dovada că garda are ce prinde, nu că trece fiindcă șirurile scanate
-    // s-au dovedit a fi ASCII. Primul vine din SERVICE_NAMES, prin serviceLabel.
-    expect(allText).toMatch(/\u021B/); // ț, din „Liturghia Darurilor … sfințite"
-    expect(allText).toMatch(/\u0219/); // ș, din detaliul „și Parastas"
-    // Singurul literal românesc din schedule.ts, afirmat pe codepoint: ă = U+0103.
+    // And the proof that the guard has something to catch, not that it passes because the scanned
+    // strings turned out to be ASCII. The first comes from SERVICE_NAMES, through serviceLabel.
+    expect(allText).toMatch(/\u021B/); // ț, from „Liturghia Darurilor … sfințite"
+    expect(allText).toMatch(/\u0219/); // ș, from the detail „și Parastas"
+    // The only Romanian literal in schedule.ts, asserted by codepoint: ă = U+0103.
     expect(serviceLabel({ time: '19:00', service: 'Altceva' })).toBe('Slujb\u0103');
   });
 });
@@ -151,8 +151,8 @@ describe('groupIntoWeeks', () => {
   });
 
   it('keeps two different services that start at the same time', () => {
-    // O seară obișnuită: spovedania se ține în timpul vecerniei. Gruparea nu
-    // are voie nici să le contopească, nici să piardă ziua.
+    // An ordinary evening: confession is held during vespers. The grouping is not
+    // allowed to either merge them, or lose the day.
     const s = groupIntoWeeks([
       day('2026-09-16', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie'], ['18:30', 'Acatist']]),
     ]);
@@ -166,7 +166,7 @@ describe('groupIntoWeeks', () => {
   });
 
   it('groups by ISO week, not by calendar year', () => {
-    // 2027-01-03 este duminica săptămânii ISO 2026-W53; 2027-01-05 deja W01.
+    // 2027-01-03 is the Sunday of ISO week 2026-W53; 2027-01-05 is already W01.
     const s = groupIntoWeeks([
       day('2027-01-05', [['18:30', 'Acatist']]),
       day('2026-12-30', [['18:30', 'Acatist']]),
@@ -241,12 +241,12 @@ describe('nextService', () => {
   });
 
   it('refuses an invalid date instead of returning the first service in the schedule', () => {
-    // Fără gardă, '15/09/2026' se compară sub orice dată stocată: fiecare zi ar
-    // trece de filtru și funcția ar întoarce, sigură pe ea, slujba de la
-    // 2026-09-14 07:30. O oră greșită, spusă cu toată convingerea.
+    // Without the guard, '15/09/2026' compares below every stored date: every day would
+    // pass the filter and the function would confidently return the service from
+    // 2026-09-14 07:30. A wrong time, stated with full conviction.
     expect(() => nextService(sampleDays, '15/09/2026', '08:00')).toThrow(/invalid/);
     expect(() => nextService(sampleDays, '2026-9-21', '08:00')).toThrow(/invalid/);
-    // Prins de verificarea existenței, nu de regex: 30 februarie trece de formă.
+    // Caught by the existence check, not by the regex: February 30 passes the shape check.
     expect(() => nextService(sampleDays, '2026-02-30', '08:00')).toThrow(/inexistent/);
   });
 });
@@ -277,15 +277,15 @@ describe('upcomingWeeks', () => {
   });
 
   it('refuses an invalid date, just as nextService does', () => {
-    // Cele trei funcții care primesc o dată o resping la fel, ca să nu existe
-    // o singură poartă prin care o dată stricată să intre tăcută în pagină.
+    // The three functions that take a date reject it the same way, so there is no
+    // single gate through which a broken date could enter the page silently.
     expect(() => upcomingWeeks(sampleDays, '15/09/2026', 3)).toThrow(/invalid/);
     expect(() => upcomingWeeks(sampleDays, '2026-02-30', 3)).toThrow(/inexistent/);
   });
 
   it('returns an empty list for a non-positive number of weeks', () => {
     expect(upcomingWeeks(sampleDays, '2026-09-16', 0)).toEqual([]);
-    // Fără gardă, slice(0, -1) ar tăia ultima săptămână și ar întoarce restul.
+    // Without the guard, slice(0, -1) would cut the last week and return the rest.
     expect(upcomingWeeks(sampleDays, '2026-09-16', -1)).toEqual([]);
   });
 });
@@ -319,9 +319,9 @@ describe('servicesAtSameTime', () => {
   });
 
   it('compares minutes, not text', () => {
-    // Schema normalizează ora înainte ca funcția să o vadă, așa că egalitatea de
-    // șiruri ar fi de acord astăzi. Aici se dovedește că acordul nu e o
-    // coincidență de padare: „9:30" și „09:30" sunt același minut.
+    // The schema normalises the time before the function sees it, so string
+    // equality would agree today. Here it is proved that the agreement is not a
+    // padding coincidence: "9:30" and "09:30" are the same minute.
     const unpadded = [{ time: '9:30', service: 'Utrenia' }] as Service[];
     expect(servicesAtSameTime(unpadded, '09:30')).toHaveLength(1);
     expect(servicesAtSameTime(unpadded, '9:30')).toHaveLength(1);
@@ -343,22 +343,22 @@ describe("the homepage's three-week window", () => {
   const three = upcomingWeeks(FIXTURE_DAYS, FIXTURE_TODAY, 3);
 
   it('skips the week with no entries', () => {
-    // 2026-W39 lipsește din fixtură și trebuie să lipsească și de aici.
+    // 2026-W39 is missing from the fixture and must be missing from here too.
     expect(three.map((s) => s.key)).toEqual(['2026-W38', '2026-W40', '2026-W41']);
   });
 
   it('counts weeks with entries, not calendar weeks', () => {
-    // Trei săptămâni afișate, patru săptămâni de calendar acoperite: de luni 14
-    // septembrie până duminică 11 octombrie. De aceea niciun titlu nu are voie
-    // să promită „următoarele trei săptămâni" ca interval de date.
+    // Three weeks shown, four calendar weeks covered: from Monday 14
+    // September to Sunday 11 October. That is why no heading is allowed to
+    // promise "the next three weeks" as a date range.
     const [first] = three;
     const last = three[three.length - 1];
     expect(three).toHaveLength(3);
     expect(first.monday).toBe('2026-09-14');
     expect(last.sunday).toBe('2026-10-11');
-    // Ultima săptămână începe la trei săptămâni după prima, deci intervalul
-    // acoperă patru. Cu `addDays`, nu cu aritmetică pe `Date`: în proiectul
-    // ăsta datele calendaristice nu trec niciodată printr-un instant UTC.
+    // The last week starts three weeks after the first, so the interval
+    // covers four. With `addDays`, not with arithmetic on `Date`: in this
+    // project calendar dates never pass through a UTC instant.
     expect(addDays(first.monday, 21)).toBe(last.monday);
   });
 
@@ -371,7 +371,7 @@ describe("the homepage's three-week window", () => {
   });
 
   it('excludes the week that has already ended', () => {
-    // 2026-09-09 este în fixtură tocmai ca excluderea să fie dovedită pe date.
+    // 2026-09-09 is in the fixture precisely so the exclusion is proved on real dates.
     expect(upcomingWeeks(FIXTURE_DAYS, FIXTURE_TODAY, 9).map((s) => s.key)).not.toContain(
       '2026-W37',
     );
@@ -404,8 +404,8 @@ describe("the homepage's three-week window", () => {
   });
 
   it('skips the cancelled day entirely', () => {
-    // 2026-10-04 este anulată și își păstrează ora; cardul trebuie să treacă la
-    // 7 octombrie, nu să anunțe o slujbă care nu are loc.
+    // 2026-10-04 is cancelled and keeps its time; the card must move on to
+    // 7 October, not announce a service that is not taking place.
     const u = nextService(FIXTURE_DAYS, '2026-10-04', '00:00');
     expect(u?.date).toBe('2026-10-07');
   });
@@ -421,7 +421,7 @@ describe("the order of a day's services", () => {
   const unorderedDay = FIXTURE_DAYS.find((z) => z.date === '2026-09-16')!;
 
   it('control: the fixture really is unordered', () => {
-    // Fără asta, testele de mai jos ar putea trece fiindcă nu au ce sorta.
+    // Without this, the tests below could pass because there is nothing to sort.
     expect(unorderedDay.services.map((s) => s.time)).toEqual(['18:30', '17:00', '17:00']);
   });
 
@@ -434,9 +434,9 @@ describe("the order of a day's services", () => {
   });
 
   it("keeps the same-time pair in the editor's order", () => {
-    // Sortarea e stabilă din ES2019. Spovedania scrisă înaintea vecerniei
-    // rămâne înaintea ei: a le inversa ar fi o decizie pe care codul nu o poate
-    // lua, fiindcă nu vede ce înseamnă perechea.
+    // Sorting has been stable since ES2019. Confession written before vespers
+    // stays before it: reversing them would be a decision the code cannot
+    // make, because it cannot see what the pair means.
     expect(servicesInOrder(unorderedDay.services).map((s) => s.service)).toEqual([
       'Spovedanie',
       'Vecernie',
@@ -451,17 +451,17 @@ describe("the order of a day's services", () => {
   });
 
   it('compares minutes, not text', () => {
-    // Aceeași verificare pe care o are sora ei, `servicesAtSameTime`, și pentru
-    // același motiv: `daySchema` padează `time` înainte ca funcția să o vadă, așa
-    // că o comparație de șiruri ar fi de acord astăzi. Nepadat, „10:00" sortează
-    // lexical înaintea lui „9:30", adică fix invers decât se întâmplă.
+    // The same check its sibling `servicesAtSameTime` has, and for the
+    // same reason: `daySchema` pads `time` before the function sees it, so
+    // a string comparison would agree today. Unpadded, "10:00" sorts
+    // lexically before "9:30", which is exactly the reverse of what happens.
     const unpaddedTimes = [{ time: '10:00', service: 'Sfânta Liturghie' }, { time: '9:30', service: 'Utrenia' }] as Service[];
     expect(servicesInOrder(unpaddedTimes).map((s) => s.time)).toEqual(['9:30', '10:00']);
   });
 
   it('both pages receive it ordered, because both read it through the grouping', () => {
-    // /program/ cheamă groupIntoWeeks direct, pagina de start prin
-    // upcomingWeeks. Un singur loc le acoperă pe amândouă.
+    // /program/ calls groupIntoWeeks directly, the homepage through
+    // upcomingWeeks. A single place covers both.
     const throughGrouping = groupIntoWeeks(FIXTURE_DAYS)
       .flatMap((s) => s.days)
       .find((z) => z.date === '2026-09-16');
@@ -485,8 +485,8 @@ describe('fullStop', () => {
   });
 
   it('does not add a second full stop', () => {
-    // Bug-ul: „Slujbele acestei zile au loc la Winterthur.." — două puncte,
-    // fiindcă și redactorul și propoziția pun câte unul.
+    // The bug: „Slujbele acestei zile au loc la Winterthur.." — two full stops,
+    // because both the editor and the sentence add one each.
     expect(fullStop('Winterthur.')).toBe('');
     expect(fullStop('Capela Sf. Gallus, Winterthur.')).toBe('');
   });
@@ -496,8 +496,8 @@ describe('fullStop', () => {
   });
 
   it('does not guess for an exclamation or question mark', () => {
-    // Nimic din proiect nu compune o propoziție în jurul unei valori care s-ar
-    // putea termina așa; a le trata ca terminatori ar fi o presupunere.
+    // Nothing in the project composes a sentence around a value that could
+    // end that way; treating them as terminators would be an assumption.
     expect(fullStop('Winterthur!')).toBe('.');
     expect(fullStop('Winterthur?')).toBe('.');
   });
@@ -507,16 +507,16 @@ describe('fullStop', () => {
   });
 
   it('the location in the fixture ends with a full stop, so there is something to pin', () => {
-    // Control: dacă cineva „curăță" fixtura, testul de mai jos nu mai dovedește
-    // nimic, așa că valoarea e afirmată explicit.
+    // Control: if someone "cleans up" the fixture, the test below no longer proves
+    // anything, so the value is asserted explicitly.
     const day = FIXTURE_DAYS.find((z) => z.date === '2026-09-30');
     expect(day?.location).toBe('Capela Sf. Gallus, Winterthur.');
     expect(fullStop(day!.location!)).toBe('');
   });
 
   it('the schema does not trim the full stop from the fixture, however far it travels through the grouping', () => {
-    // ics.ts scrie exact valoarea asta în LOCATION; pagina e cea care omite
-    // punctul ei, nu datele.
+    // ics.ts writes this exact value into LOCATION; it is the page that omits
+    // its full stop, not the data.
     const throughGrouping = groupIntoWeeks(FIXTURE_DAYS)
       .flatMap((s) => s.days)
       .find((z) => z.date === '2026-09-30');
@@ -526,10 +526,10 @@ describe('fullStop', () => {
 
 describe('romanianList', () => {
   /*
-   * Această funcție era o expresie scrisă direct în `index.astro`. Din Task 10
-   * cardul „următoarea slujbă" se recalculează și în browser, așa că expresia ar
-   * fi existat în două locuri — exact forma în care au ajuns să se contrazică
-   * cele trei sortări pe care le-a unificat `servicesInOrder`.
+   * This function used to be an expression written directly in `index.astro`. Since Task 10
+   * the "next service" card is also recalculated in the browser, so the expression would
+   * have existed in two places — exactly the shape in which the three sortings
+   * that `servicesInOrder` unified ended up disagreeing.
    */
   it('a single name is left untouched', () => {
     expect(romanianList(['Vecernie'])).toBe('Vecernie');
@@ -546,15 +546,15 @@ describe('romanianList', () => {
   });
 
   it('an empty list gives the empty string, not „undefined"', () => {
-    // Pagina nu randează cardul fără o slujbă următoare, dar o funcție care
-    // întoarce `undefined` pune cuvântul „undefined" pe pagină în ziua în care
-    // se schimbă paza de deasupra ei.
+    // The page does not render the card without a next service, but a function that
+    // returns `undefined` puts the word "undefined" on the page on the day
+    // the guard above it changes.
     expect(romanianList([])).toBe('');
   });
 
   it('puts no cedilla in the conjunction', () => {
-    // Legătura este „și": s cu virgulă dedesubt, U+0219. Garda e scrisă pe
-    // codepoint, nu pe glifă, ca fișierul să rămână scanabil pentru sedile.
+    // The conjunction is "și": s with comma below, U+0219. The guard is written on the
+    // codepoint, not the glyph, so the file stays scannable for cedillas.
     const joined = romanianList(['A', 'B']);
     expect(joined).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
     expect(joined).toMatch(/\u0219/);
@@ -563,40 +563,40 @@ describe('romanianList', () => {
 
 /*
  * ===========================================================================
- * INSULA DE DATE, ȘI DE CE ARE O MARGINE.
+ * THE DATA ISLAND, AND WHY IT HAS A BOUND.
  *
- * NIMIC NU O MAI FOLOSEȘTE. Cardul „următoarea slujbă" de pe pagina de start a
- * fost scos la cererea parohiei — programul de dedesubt spune același lucru — și
- * odată cu el au plecat insula JSON și recalcularea din browser.
- * `scheduleForIsland`, `nextService`, `servicesAtSameTime` și
- * `romanianList` au rămas în `schedule.ts`, testate și nefolosite de nicio
- * pagină: ele sunt din ce s-ar construi un „următoarea slujbă" oriunde altundeva.
- * Ce urmează este deci o proprietate a unei funcții de bibliotecă, NU o măsură
- * a paginii de start de azi — numerele de mai jos descriu pagina de atunci, și
- * sunt păstrate fiindcă ele sunt argumentul pentru care marginea există.
+ * NOTHING USES IT ANY MORE. The "next service" card on the homepage was
+ * removed at the parish's request — the schedule below says the same thing — and
+ * with it went the JSON island and the recalculation in the browser.
+ * `scheduleForIsland`, `nextService`, `servicesAtSameTime` and
+ * `romanianList` stayed in `schedule.ts`, tested and unused by any
+ * page: they are what a "next service" would be built from anywhere else.
+ * What follows is therefore a property of a library function, NOT a measure
+ * of today's homepage — the numbers below describe the page as it was then, and
+ * are kept because they are the argument for why the bound exists.
  *
- * `index.astro` a purtat multă vreme TOATE zilele viitoare în insula ei JSON, așa
- * că greutatea paginii era o funcție de cât de departe publică parohia. Măsurat pe
- * construcții de probă cu o săptămână parohială realistă (miercuri, vineri,
- * sâmbătă, duminică): pagina fără insulă este constantă la 20.693 de octeți, iar
- * insula costă circa 133 de octeți pe zi de slujbă. La 47 de săptămâni publicate
- * pagina are 45.567 de octeți și bugetul trece; la 48 are 46.093 și pică — cu
- * treisprezece octeți — pentru un conținut perfect valid.
+ * `index.astro` for a long time carried ALL the future days in its JSON island, so
+ * the page's weight was a function of how far ahead the parish publishes. Measured on
+ * test constructions with a realistic parish week (Wednesday, Friday,
+ * Saturday, Sunday): the page without the island is constant at 20.693 bytes, and
+ * the island costs about 133 bytes per service day. At 47 weeks published
+ * the page is 45.567 bytes and the budget passes; at 48 it is 46.093 and fails — by
+ * thirteen bytes — for perfectly valid content.
  *
- * Ce costă nu este o cădere a sitului: Cloudflare nu rulează bugetul, deci situl
- * se publică mai departe. Costă faptul că, din ziua aceea, FIECARE salvare a
- * voluntarului produce o rulare roșie de CI și un e-mail de eșec adresat lui,
- * despre un conținut corect, fără să numească vreun fișier și fără nimic ce ar
- * putea face.
+ * What that costs is not a failure of the site: Cloudflare does not run the budget, so the site
+ * keeps publishing. It costs the fact that, from that day on, EVERY save by
+ * the volunteer produces a red CI run and a failure email addressed to them,
+ * about correct content, without naming any file and without anything they
+ * could do about it.
  *
- * Testele de mai jos fixează marginea cu un program construit mult în viitor, ca
- * pragul să devină de neatins, nu doar depărtat. Ele nu măsoară pagina — asta face
- * `scripts/check-budget.mjs`, pe artefactul adevărat — ci proprietatea din care
- * rezultă: insula nu crește cu orizontul publicat.
+ * The tests below pin the bound with a schedule built far into the future, so
+ * the threshold becomes unreachable, not just distant. They do not measure the page — that is
+ * `scripts/check-budget.mjs`'s job, on the real artifact — but the property it
+ * follows from: the island does not grow with the published horizon.
  * ===========================================================================
  */
 describe('the data island (used by no page; see the note above)', () => {
-  /** N săptămâni de program parohial obișnuit, începând din lunea lui `de la`. */
+  /** N weeks of an ordinary parish schedule, starting from the Monday of `from`. */
   function longSchedule(from: string, weeks: number): ServiceDay[] {
     const days: ServiceDay[] = [];
     for (let s = 0; s < weeks; s += 1) {
@@ -616,11 +616,11 @@ describe('the data island (used by no page; see the note above)', () => {
     return days;
   }
 
-  const TODAY = '2026-09-14'; // o luni
+  const TODAY = '2026-09-14'; // a Monday
   const TWO_YEARS = longSchedule(TODAY, 104);
 
   it('control: the constructed schedule really is far longer than the bound', () => {
-    // Fără asta, tot ce urmează ar putea trece fiindcă nu are ce tăia.
+    // Without this, everything that follows could pass because there is nothing to cut.
     expect(TWO_YEARS.length).toBe(416);
     expect(TWO_YEARS.length).toBeGreaterThan(ISLAND_DAYS * 4);
   });
@@ -630,8 +630,8 @@ describe('the data island (used by no page; see the note above)', () => {
   });
 
   it('publishing further ahead does not change the island at all', () => {
-    // Proprietatea, spusă direct: doi ani publicați și zece săptămâni publicate
-    // produc aceeași insulă, octet cu octet.
+    // The property, stated directly: two years published and ten weeks published
+    // produce the same island, byte for byte.
     const tenWeeks = longSchedule(TODAY, 10);
     expect(tenWeeks.length).toBeGreaterThanOrEqual(ISLAND_DAYS);
     expect(scheduleForIsland(TWO_YEARS, TODAY)).toEqual(scheduleForIsland(tenWeeks, TODAY));
@@ -640,31 +640,31 @@ describe('the data island (used by no page; see the note above)', () => {
   it('stays well under budget once serialised, even with two years published', () => {
     const bytes = Buffer.byteLength(JSON.stringify(scheduleForIsland(TWO_YEARS, TODAY)));
     const unbounded = Buffer.byteLength(JSON.stringify(scheduleForIsland(TWO_YEARS, TODAY, TWO_YEARS.length)));
-    // Tipărit, nu doar verificat: numărul de mai jos este cel pe care îl verifică
-    // un cititor de mai târziu dacă un comentariu îl contrazice.
+    // Printed, not only checked: the number below is the one a later reader
+    // checks against if a comment contradicts it.
     process.stdout.write(
       `\nInsula la 104 săptămâni publicate: ${bytes} octeți (${ISLAND_DAYS} zile)` +
         ` — nemărginită ar fi ${unbounded} octeți (${TWO_YEARS.length} zile).\n` +
         `Pagina de atunci, fără insulă, măsura 20693 octeți; bugetul este ${45 * 1024}.\n`,
     );
-    // Marginea de aici este generoasă fiindcă o zi poate purta mai multe slujbe,
-    // o `location` sau un `detail` mai lung decât cele de mai sus. Bugetul adevărat
-    // se măsoară pe pagina construită, în scripts/check-budget.mjs.
+    // The bound here is generous because a day can carry more services,
+    // a `location` or a `detail` longer than the ones above. The real budget
+    // is measured on the built page, in scripts/check-budget.mjs.
     expect(bytes).toBeLessThan(20 * 1024);
-    // Și controlul pozitiv: fără margine, aceleași date chiar depășesc.
+    // And the positive control: without the bound, the same data really do exceed it.
     expect(20693 + unbounded).toBeGreaterThan(45 * 1024);
   });
 
   it('the card gives the same answer as the whole schedule, for any clock inside the window', () => {
     /*
-     * Asta este proprietatea de care depinde tăierea. Insula trebuie să răspundă
-     * exact ce ar fi răspuns lista întreagă, pentru orice moment de la construcție
-     * înainte — singura direcție în care merge un ceas.
+     * This is the property the cutting depends on. The island has to answer
+     * exactly what the whole list would have answered, for any moment from construction
+     * onward — the only direction a clock runs.
      *
-     * Comparate sunt răspunsurile pe care le pune cardul pe pagină — ziua, ora și
-     * numele slujbelor care încep atunci — nu obiectele întregi: proiecția poartă
-     * `name` deja randat acolo unde ziua din colecție poartă `service`, fiindcă
-     * browserului i se trimite decizia, nu regula de randare.
+     * What is compared are the answers the card puts on the page — the day, the time and
+     * the names of the services that start then — not the whole objects: the projection carries
+     * `name` already rendered where the day in the collection carries `service`, because
+     * the browser is sent the decision, not the rendering rule.
      */
     const island = scheduleForIsland(TWO_YEARS, TODAY);
     const answer = <S extends { time: string; date: string }>(
@@ -690,15 +690,15 @@ describe('the data island (used by no page; see the note above)', () => {
         checked += 1;
       }
     }
-    // O gardă care citește ceva trebuie să dovedească faptul că a citit ceva.
+    // A guard that reads something has to prove it read something.
     expect(checked).toBe(240);
   });
 
   it('past the window the card disappears, instead of saying something other than the page', () => {
-    // Direcția sigură, și singura degradare pe care o are tăierea: scriptul
-    // găsește lista goală și ascunde cardul. Pentru asta situl trebuie să fi stat
-    // nereconstruit mai mult decât fereastra, adică mult peste bariera de 60 de
-    // zile după care GitHub oprește oricum reconstrucția programată.
+    // The safe direction, and the only degradation the cutting has: the script
+    // finds the empty list and hides the card. For that the site would have to have gone
+    // unrebuilt for longer than the window, which is well past the 60-day
+    // barrier after which GitHub stops the scheduled rebuild anyway.
     const island = scheduleForIsland(TWO_YEARS, TODAY);
     const pastTheWindow = addDays(island[island.length - 1].date, 1);
     expect(nextService(island, pastTheWindow, '00:00')).toBeNull();
@@ -717,33 +717,33 @@ describe('the data island (used by no page; see the note above)', () => {
     const island = scheduleForIsland(withCancelled, TODAY);
     expect(island.map((z) => z.date)).toEqual(['2026-09-20']);
     expect(island[0].cancelled).toBe(false);
-    // Câmpul rămâne în proiecție deși este acum întotdeauna fals: este a doua
-    // curea, iar `nextService` din browser tot îl citește. Dacă dispare din
-    // JSON, testul acesta pică înainte să dispară comportamentul.
+    // The field stays in the projection even though it is now always false: it is the second
+    // belt, and `nextService` in the browser still reads it. If it disappears from
+    // the JSON, this test fails before the behaviour disappears.
     expect(Object.keys(island[0])).toContain('cancelled');
-    // Numele sunt randate aici, nu în browser: `serviceLabel` deține portița
-    // `Altceva`, iar cuvântul acela nu are voie să ajungă pe pagină.
+    // Names are rendered here, not in the browser: `serviceLabel` owns the
+    // `Altceva` escape hatch, and that word is not allowed to reach the page.
     expect(island[0].services).toEqual([{ time: '10:00', name: 'Sfânta Liturghie' }]);
     expect(island[0].title).toBe('Duminică, 20 septembrie');
   });
 
   /*
-   * ZILELE ANULATE NU CONSUMĂ MARGINEA, și de ce are cazul acesta un test al lui.
+   * CANCELLED DAYS DO NOT EAT INTO THE BOUND, and why this case has its own test.
    *
-   * Tăierea rula ÎNAINTE de filtrarea anulatelor, iar `nextService` filtrează
-   * după. Deci primele `ISLAND_DAYS` zile publicate viitoare, toate anulate,
-   * goleau insula de răspunsuri în timp ce programul era plin de ele: serverul
-   * randa un card corect și clientul îl ascundea, PE O CONSTRUCȚIE PROASPĂTĂ, fără
-   * nicio vechime la mijloc. Pragul, măsurat pe funcțiile astea: 39 de zile anulate
-   * și cele două se potrivesc, 40 și nu.
+   * The cutting used to run BEFORE filtering out the cancelled days, and `nextService` filters
+   * afterward. So the first `ISLAND_DAYS` future published days, all cancelled,
+   * emptied the island of answers while the schedule was full of them: the server
+   * rendered a correct card and the client hid it, ON A FRESH BUILD, with
+   * no staleness in the middle. The threshold, measured on these functions: 39 cancelled days
+   * agree between the two, and 40 does not.
    *
-   * Patruzeci de zile anulate la rând sunt vreo zece săptămâni la patru zile de
-   * slujbă pe săptămână — o vacanță, o închidere sau o boală lungă, introduse exact
-   * cum cere proiectul: `README.md` și hotărârea #28 spun editorului să PĂSTREZE
-   * orele și să bifeze anularea, ca abonații la calendar să afle.
+   * Forty cancelled days in a row are about ten weeks at four service days
+   * per week — a vacation, a closure or a long illness, introduced exactly
+   * as the project requires: `README.md` and ruling #28 tell the editor to KEEP
+   * the times and check the cancellation box, so calendar subscribers find out.
    */
   it("cancelled days do not eat into the island's bound", () => {
-    /** `TWO_YEARS` cu primele `n` zile viitoare anulate, orele păstrate. */
+    /** `TWO_YEARS` with the first `n` future days cancelled, times kept. */
     function withFirstCancelled(n: number): ServiceDay[] {
       const ordered = [...TWO_YEARS].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
       return ordered.map((z, i) => ({ ...z, cancelled: i < n }));
@@ -767,9 +767,9 @@ describe('the data island (used by no page; see the note above)', () => {
     expect(checked).toBe(6);
 
     /*
-     * CONTROL POZITIV, în aceeași funcție: aranjamentul chiar este unul care rupe.
-     * Aici este vechea ordine — taie întâi, filtrează după — pe exact aceleași
-     * date. Fără el, cazul de mai sus ar putea fi verde fiindcă nu are ce sparge.
+     * POSITIVE CONTROL, in the same function: the arrangement really is one that breaks.
+     * This is the old order — cut first, filter after — on exactly the same
+     * data. Without it, the case above could be green because there is nothing to break.
      */
     const days = withFirstCancelled(ISLAND_DAYS);
     const oldIsland = days
@@ -781,8 +781,8 @@ describe('the data island (used by no page; see the note above)', () => {
   });
 
   it("a broken today's-date fails, instead of starting the island in the past", () => {
-    // Aceeași pază ca la `nextService`, și din același motiv: „15/09/2026"
-    // sortează sub orice dată stocată, deci fiecare zi ar trece de filtru.
+    // The same guard as in `nextService`, and for the same reason: "15/09/2026"
+    // sorts below every stored date, so every day would pass the filter.
     expect(() => scheduleForIsland(TWO_YEARS, '15/09/2026')).toThrow();
   });
 

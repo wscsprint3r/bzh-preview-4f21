@@ -204,8 +204,8 @@ const NO_EXTENSION = ['_headers'];
  * package, so they cannot end up here however this list grows - they are ours.
  * `config.yml` holds the field labels a volunteer reads and `start.mjs` holds
  * the sentence they get when the CMS fails to start, which makes both of them
- * exactly the kind of file a cedilla would reach unseen. The tests under `ce
- * intră și ce nu intră în măturare` check both halves of that sentence rather
+ * exactly the kind of file a cedilla would reach unseen. The tests under `what
+ * the sweep takes in and what it leaves out` check both halves of that sentence rather
  * than leaving it as a promise in a comment.
  */
 const CMS_ROOT = dirname(createRequire(import.meta.url).resolve('@sveltia/cms'));
@@ -274,8 +274,8 @@ describe('the build output exists', () => {
 });
 
 describe('the cedilla detector', () => {
-  // Control pozitiv: o gardă care nu poate să se declanșeze nu verifică nimic.
-  // Șirurile se construiesc din coduri, exact ca setul căutat.
+  // Positive control: a guard that cannot fire verifies nothing.
+  // The strings are built from codes, exactly like the set being searched for.
   it.each(CEDILLAS)('prinde %i', (cp) => {
     const bad = `Înăl${String.fromCodePoint(cp)}area`;
     expect(cedillasIn(bad)).toHaveLength(1);
@@ -289,17 +289,17 @@ describe('the cedilla detector', () => {
   });
 
   it('does not fire on ă, â, î or on ASCII', () => {
-    // Cele trei diacritice care NU sunt virgulă dedesubt și pe care nimeni nu
-    // are voie să le „corecteze": a-breve, a-circumflex, i-circumflex.
+    // The three diacritics that are NOT comma below and that nobody is
+    // allowed to "correct": a-breve, a-circumflex, i-circumflex.
     const others = `${String.fromCodePoint(0x0103)}${String.fromCodePoint(0x00e2)}${String.fromCodePoint(0x00ee)} Sfantul Maslu`;
     expect(cedillasIn(others)).toEqual([]);
     expect(hasCommaBelow(others)).toBe(false);
   });
 
   it('reports every occurrence, not only the first', () => {
-    // Construit din CEDILLAS, nu din două numere scrise încă o dată aici. `cedilla.ts`
-    // este singurul loc din depozit care scrie cele patru numere, iar
-    // `diacritics-sources.test.ts` mătură depozitul ca să rămână așa.
+    // Built from CEDILLAS, not from two numbers written here a second time. `cedilla.ts`
+    // is the only place in the repository that writes the four numbers, and
+    // `diacritics-sources.test.ts` sweeps the repository so it stays that way.
     const [firstCedilla, secondCedilla] = CEDILLAS;
     const two = `${String.fromCodePoint(firstCedilla)}i ${String.fromCodePoint(secondCedilla)}i`;
     expect(cedillasIn(two)).toHaveLength(2);
@@ -310,9 +310,9 @@ describe('the cedilla detector', () => {
 
 describe('what the sweep takes in and what it leaves out', () => {
   /*
-   * Excepția chiar se declanșează. Fără asta, „bundle-ul este exceptat" ar putea
-   * fi adevărat fiindcă tiparul nu se mai potrivește cu nimic, iar sedilele din
-   * el ar pica sweep-ul la următorul build.
+   * The exception really does fire. Without this, "the bundle is exempted" could
+   * be true because the pattern no longer matches anything, and the cedillas in
+   * it would fail the sweep on the next build.
    */
   it('leaves out the vendored files, which really are in dist/', () => {
     const inDist = [...VENDORED].filter((c) => existsSync(DIST + c));
@@ -321,10 +321,10 @@ describe('what the sweep takes in and what it leaves out', () => {
   });
 
   /*
-   * Și cealaltă jumătate, care este chiar rostul excluderii pe cale: fișierele
-   * noastre din `admin/` rămân măturate. `config.yml` este formularul pe care îl
-   * citește un voluntar, deci este exact genul de fișier în care o sedilă ar
-   * ajunge nevăzută.
+   * And the other half, which is the whole point of excluding by path: our own
+   * files under `admin/` stay swept. `config.yml` is the form a volunteer
+   * reads, so it is exactly the kind of file a cedilla could
+   * reach unseen.
    */
   it.each(['admin/index.html', 'admin/config.yml', 'admin/start.mjs'])('mătură %s', (path) => {
     expect(existsSync(DIST + path), `${path} is missing from dist/`).toBe(true);
@@ -332,10 +332,10 @@ describe('what the sweep takes in and what it leaves out', () => {
   });
 
   /*
-   * `_headers` nu are extensie, deci nu l-a prins nicio listă de extensii și a
-   * stat în afara ambelor măturări. Este al nostru, este text, poartă politica
-   * de securitate, iar comentariile lui sunt primul lucru pe care îl citește
-   * cineva care pune situl în funcțiune.
+   * `_headers` has no extension, so no extension list caught it and it
+   * sat outside both sweeps. It is ours, it is text, it carries the security
+   * policy, and its comments are the first thing read by
+   * whoever brings the site up.
    */
   it('sweeps _headers, which has no extension', () => {
     expect(existsSync(DIST + '_headers'), '_headers is missing from dist/').toBe(true);
@@ -343,9 +343,9 @@ describe('what the sweep takes in and what it leaves out', () => {
   });
 
   /*
-   * Și cealaltă jumătate, ca lista de mai sus să nu rămână în urma build-ului:
-   * orice fișier fără extensie pe care nimeni nu l-a numit pică, exact ca un
-   * caracter non-ASCII pe care nimeni nu l-a prevăzut.
+   * And the other half, so the list above cannot fall behind the build:
+   * any extensionless file that nobody has named fails, exactly like a
+   * non-ASCII character that nobody expected.
    */
   it('no extensionless file is left unswept', () => {
     const extensionless = extensionlessFiles();
@@ -383,10 +383,10 @@ describe('no Turkish cedilla in the built output', () => {
 
 describe('the unexpected-character detector', () => {
   /*
-   * Control pozitiv, și nu unul inventat: U+5DEE este ideograma CJK care a
-   * ajuns chiar în mesajul unui commit al acestui proiect, în locul cuvântului
-   * `axe`. Nu e printre cele patru sedile, deci toate scanările de atunci au
-   * răspuns „curat”, corect și fără folos. Asta caută lista permisă.
+   * Positive control, and not a made-up one: U+5DEE is the CJK ideograph that
+   * actually ended up in a commit message of this project, in place of the word
+   * `axe`. It is not among the four cedillas, so every scan back then
+   * answered "clean", correctly and uselessly. This is what the allowed list catches.
    */
   it('catches a character outside the list', () => {
     const bad = `regula pe care ${String.fromCodePoint(0x5dee)} a predat-o`;
@@ -400,9 +400,9 @@ describe('the unexpected-character detector', () => {
   });
 
   /*
-   * Cele două garzi nu au voie să se contrazică: o sedilă pe lista permisă ar
-   * face ca „nicio sedilă" să depindă numai de cealaltă verificare, iar aceasta
-   * ar trece peste ea în tăcere.
+   * The two guards are not allowed to contradict each other: a cedilla on the
+   * allowed list would make "no cedilla" depend only on the other check, and that
+   * one would pass over it silently.
    */
   it('no cedilla is on the allowed list', () => {
     for (const cp of CEDILLAS) expect(ALLOWED_CP.has(cp), uPlus(cp)).toBe(false);
@@ -417,8 +417,8 @@ describe('the unexpected-character detector', () => {
   });
 
   it('counts by codepoint, not by UTF-16 unit', () => {
-    // Un caracter din afara planului de bază ocupă două unități; raportat o
-    // singură dată și cu numărul lui adevărat, nu ca două surogate.
+    // A character outside the basic plane occupies two units; reported
+    // once and with its real number, not as two surrogates.
     const astral = String.fromCodePoint(0x1f600);
     expect(astral.length).toBe(2);
     expect(unexpectedIn(astral)).toHaveLength(1);
@@ -432,10 +432,10 @@ describe('no unexpected non-ASCII character in the built output', () => {
   });
 
   /*
-   * Inventarul se tipărește la fiecare rulare, nu doar la picare: numărul din
-   * lista permisă trebuie să poată fi verificat față de o măsurătoare, nu doar
-   * față de un verdict verde. Scris direct pe stdout — reporterul implicit al
-   * lui vitest nu arată `console.log` din testele care trec.
+   * The inventory is printed on every run, not only on failure: the number in
+   * the allowed list must be checkable against a measurement, not just
+   * against a green verdict. Written directly to stdout — vitest's default
+   * reporter does not show `console.log` from tests that pass.
    */
   it('the measured inventory fits inside the allowed list', () => {
     const inventory = new Map<number, number>();

@@ -37,14 +37,14 @@ describe('publicIndex', () => {
   });
 
   it('does not touch a path without a trailing slash, which Astro routes', () => {
-    // `/admin` fără bară rămâne un 404 al serverului de dezvoltare, ca înainte:
-    // `trailingSlash: 'always'` spune că adresa cu bară este adresa.
+    // `/admin` without a trailing slash stays a 404 from the dev server, as before:
+    // `trailingSlash: 'always'` says the address with the slash is the address.
     expect(publicIndex('/admin', has('admin/index.html'))).toBeNull();
   });
 
   it('NEVER touches the site root', () => {
-    // `/` este o rută Astro. Chiar și cu un `public/index.html` pe disc — mai
-    // ales atunci — pagina randată trebuie să câștige.
+    // `/` is an Astro route. Even with a `public/index.html` on disk — especially
+    // then — the rendered page has to win.
     expect(publicIndex('/', has('index.html'))).toBeNull();
   });
 
@@ -62,8 +62,8 @@ describe('publicIndex', () => {
   });
 
   it('against the real public/, /admin/ really does resolve', () => {
-    // Controlul care leagă regula de realitate: fără el toate cazurile de mai
-    // sus ar putea fi corecte despre un director care nu există.
+    // The control that ties the rule to reality: without it every case above
+    // could be correct about a directory that does not exist.
     expect(publicIndex('/admin/')).toBe('/admin/index.html');
     expect(publicIndex('/nu-exista/')).toBeNull();
   });

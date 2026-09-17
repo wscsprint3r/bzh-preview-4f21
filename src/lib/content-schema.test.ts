@@ -7,27 +7,27 @@ import { daySchema } from './schema';
 import { CATEGORIES, articleSchema, pageSchema, settingsSchema } from './content-schema';
 
 /*
- * CE DOVEDEȘTE FIȘIERUL ACESTA: cele trei scheme chiar resping ce nu trebuie să
- * treacă, nu doar acceptă ce trebuie - și o spun în română, numind câmpul.
+ * WHAT THIS FILE PROVES: the three schemas really do reject what must not
+ * pass, not merely accept what must - and they say so in Romanian, naming the field.
  *
- * O schemă este ușor de testat prost. Un test care ia o valoare validă, o
- * împrăștie cu `...` și verifică apoi că schema o acceptă trece la fel de bine
- * și dacă schema nu are nicio regulă: expectativa nu vine din ce ar trebui să
- * fie, ci din aceeași sursă cu lucrul verificat.
+ * A schema is easy to test badly. A test that takes a valid value, spreads
+ * it with `...` and then checks that the schema accepts it passes just as well
+ * if the schema has no rule at all: the expectation does not come from what it
+ * should be, but from the same source as the thing being checked.
  *
- * PRIMA VERSIUNE A ACESTUI FIȘIER A PICAT EXACT ÎN ACEA GROAPĂ, și merită scris
- * aici fiindcă a fost găsită de altcineva. Avea câte un test pentru fiecare
- * REGULĂ, dar niciunul pentru OBLIGATIVITATE: se puteau face neobligatorii 10
- * din cele 11 câmpuri cerute și toate cele 34 de teste rămâneau verzi. Un
- * articol fără dată sau un `settings.yml` fără adresă este tocmai felul în care
- * fișierele astea se strică - omul șterge o linie, build-ul rămâne verde, iar
- * adresa parohiei dispare din subsolul sitului. Lista de mutații fusese scrisă
- * de aceeași mână cu testele, așa că a acoperit numai ce era deja acoperit.
+ * THE FIRST VERSION OF THIS FILE FELL EXACTLY INTO THAT PIT, and it is worth writing
+ * down here because it was found by someone else. It had a test for every
+ * RULE, but none for REQUIREDNESS: 10 of the 11 required fields could be made
+ * optional and all 34 tests would stay green. An
+ * article with no date, or a `settings.yml` with no address, is exactly how
+ * these files break - someone deletes a line, the build stays green, and
+ * the parish's address disappears from the site's footer. The mutation list had been
+ * written by the same hand as the tests, so it only covered what was already covered.
  *
- * Deci: pentru fiecare câmp cerut există un test că lipsa lui pică, și pentru
- * fiecare mesaj există un test pe TEXTUL lui. Un `.toThrow()` gol nu vede
- * diferența dintre mesajul potrivit și unul care numește alt câmp - și chiar
- * asta se întâmplase: `adresa` și `phone` răspundeau amândouă „Titlul nu
+ * So: for every required field there is a test that its absence fails, and for
+ * every message there is a test on its TEXT. An empty `.toThrow()` cannot see
+ * the difference between the right message and one that names a different field - and that
+ * is exactly what had happened: `address` and `phone` both answered „Titlul nu
  * poate fi gol.”.
  */
 
@@ -47,7 +47,7 @@ const MINIMAL_SETTINGS = {
   email: 'contact@bor-zh.ch',
 };
 
-/** Aceeași valoare, fără un câmp - fără să strice originalul. */
+/** The same value, without one field - without damaging the original. */
 const without = (object: Record<string, unknown>, field: string) => {
   const copy = { ...object };
   delete copy[field];
@@ -56,10 +56,10 @@ const without = (object: Record<string, unknown>, field: string) => {
 
 describe('CATEGORIES', () => {
   /*
-   * Scrisă cu mâna, nu luată din `CATEGORIES`, fiindcă mulțimea asta este un
-   * contract între trei task-uri: Task 6 oprește migrarea la o categorie din
-   * afara ei, iar Task 11 construiește lista din CMS din ea. Un test care ar
-   * compara `CATEGORIES` cu ea însăși ar fi mulțumit de orice.
+   * Written by hand, not taken from `CATEGORIES`, because this set is a
+   * contract between three tasks: Task 6 stops the migration at a category
+   * outside it, and Task 11 builds the CMS list from it. A test that
+   * compared `CATEGORIES` against itself would be satisfied by anything.
    */
   it('is exactly the set the migration writes', () => {
     expect([...CATEGORIES]).toEqual(['Noutati', 'Cateheza']);
@@ -82,9 +82,9 @@ describe('articleSchema', () => {
   });
 
   /*
-   * OBLIGATIVITATEA, câmp cu câmp. Fiecare caz șterge exact un câmp și cere ca
-   * mesajul să îl numească pe acela; un `.toThrow()` gol ar fi trecut și dacă
-   * toate patru ar fi răspuns la fel.
+   * REQUIREDNESS, field by field. Each case deletes exactly one field and requires that
+   * the message name that one; an empty `.toThrow()` would have passed even if
+   * all four had answered the same way.
    */
   const REQUIRED_FIELDS: [string, RegExp][] = [
     ['title', /Articolul trebuie să aibă un titlu\./],
@@ -99,8 +99,8 @@ describe('articleSchema', () => {
   }
 
   it('rejects a misspelled key', () => {
-    // Greșeala cea mai probabilă din CMS, și singura care altfel ar pierde un
-    // câmp pe un build verde.
+    // The most likely mistake from the CMS, and the only one that would otherwise lose a
+    // field on a green build.
     expect(() => articleSchema.parse({ ...MINIMAL_ARTICLE, publishedd: true })).toThrow(
       /Câmp necunoscut: publishedd\. Verificați scrierea\./,
     );
@@ -123,10 +123,10 @@ describe('articleSchema', () => {
   });
 
   /*
-   * Fără ghilimele, YAML citește `date: 2025-11-05` ca dată calendaristică, nu
-   * ca text, și schema primește un `Date`. Mesajul implicit al lui Zod pentru
-   * asta este în engleză și vorbește despre tipuri; cel de aici spune ce are de
-   * făcut omul. Aceeași capcană a fost deja plătită o dată, la `services`.
+   * Without quotation marks, YAML reads `date: 2025-11-05` as a calendar date, not
+   * as text, and the schema receives a `Date`. Zod's default message for
+   * that is in English and talks about types; the one here says what the person
+   * has to do. The same trap was already paid for once, on `services`.
    */
   it('says what to do when the date is written without quotation marks', () => {
     expect(() =>
@@ -135,9 +135,9 @@ describe('articleSchema', () => {
   });
 
   /*
-   * Și NU spune asta în celelalte cazuri de tip greșit. Toate sunt
-   * `invalid_type` pentru Zod, așa că un singur mesaj pentru toate îi cerea
-   * omului care ȘTERSESE linia să îi pună ghilimele.
+   * And it does NOT say that in the other wrong-type cases. All of them are
+   * `invalid_type` for Zod, so a single message for all of them would have told
+   * a person who had DELETED the line to add quotation marks.
    */
   it('does not ask for quotation marks when the date is missing or null', () => {
     const missing = (() => {
@@ -169,8 +169,8 @@ describe('articleSchema', () => {
   });
 
   it('published is a true/false, not the text "true"', () => {
-    // `publicat: "true"` în frontmatter este un șir, iar un șir nevid ar fi
-    // adevărat la orice citire neatentă de mai târziu.
+    // `published: "true"` in the frontmatter is a string, and a non-empty string would be
+    // truthy on any careless read later.
     expect(() => articleSchema.parse({ ...MINIMAL_ARTICLE, published: 'true' })).toThrow(
       /primește doar true sau false/,
     );
@@ -193,7 +193,7 @@ describe('articleSchema', () => {
   });
 
   it('keeps the author when one is given', () => {
-    // Altfel un `.default()` pus peste orice valoare ar trece neobservat.
+    // Otherwise a `.default()` placed over any value would go unnoticed.
     expect(articleSchema.parse({ ...MINIMAL_ARTICLE, author: 'Pr. Ioan' }).author).toBe('Pr. Ioan');
   });
 });
@@ -204,8 +204,8 @@ describe('pageSchema', () => {
   });
 
   it('accepts the paths of the nine pages, with hyphens and one level deep', () => {
-    // „Link-uri” și „Servicii liturgice” sunt două dintre cele nouă: dacă
-    // expresia ar fi prea strictă, migrarea ar pica pe ele.
+    // "Link-uri" and "Servicii liturgice" are two of the nine: if
+    // the pattern were too strict, the migration would fail on them.
     for (const path of ['istoric', 'link-uri', 'servicii-liturgice', 'parohia/scoala']) {
       expect(pageSchema.parse({ ...MINIMAL_PAGE, path }).path).toBe(path);
     }
@@ -223,8 +223,8 @@ describe('pageSchema', () => {
   }
 
   it('rejects a path with a leading or trailing slash', () => {
-    // Ruta construiește `/${path}/`; un slash păstrat ar da `//istoric//`, care
-    // dă 404 în timp ce fișierul arată perfect corect.
+    // The route builds `/${path}/`; a kept slash would give `//istoric//`, which
+    // 404s while the file looks perfectly correct.
     for (const path of ['/parohia/istoric', 'parohia/istoric/']) {
       expect(() => pageSchema.parse({ ...MINIMAL_PAGE, path }), path).toThrow(
         /fără slash la început sau la sfârșit/,
@@ -295,10 +295,10 @@ describe('settingsSchema', () => {
   }
 
   /*
-   * FIECARE MESAJ ÎȘI NUMEȘTE PROPRIUL CÂMP. Ajutorul comun de dinainte dădea
-   * un singur text pentru trei câmpuri, așa că golirea numărului de telefon
-   * răspundea „Titlul nu poate fi gol.” - adevărat despre cod, fals despre ce
-   * făcuse omul. Testul vechi era un `.toThrow()` gol și nu putea vedea asta.
+   * EVERY MESSAGE NAMES ITS OWN FIELD. The shared helper before this gave
+   * a single text for three fields, so emptying the phone number
+   * answered „Titlul nu poate fi gol.” - true about the code, false about what
+   * the person had done. The old test was an empty `.toThrow()` and could not see that.
    */
   const EMPTY_FIELDS: [string, RegExp][] = [
     ['name', /Numele parohiei nu poate fi gol\./],
@@ -320,9 +320,9 @@ describe('settingsSchema', () => {
   });
 
   it('rejects the two demo values from the old site', () => {
-    // Numite anume fiindcă ele sunt ce se vede azi pe sit: subsolul arată o
-    // adresă de temă și un număr de telefon franțuzesc. Migrarea lor ar fi mai
-    // rea decât un câmp lăsat gol.
+    // Named specifically because they are what shows on the site today: the footer shows a
+    // theme demo address and a French phone number. Migrating them forward would be worse
+    // than a field left empty.
     expect(() => settingsSchema.parse({ ...MINIMAL_SETTINGS, email: 'info@website.com' })).toThrow(
       /rămășiță demo de pe situl vechi/,
     );
@@ -332,8 +332,8 @@ describe('settingsSchema', () => {
   });
 
   it('finds the demo values in any field, not only in the two required ones', () => {
-    // Verificarea trece prin toate câmpurile: altfel al doilea e-mail ar putea
-    // purta mai departe exact valoarea pe care primul o respinge.
+    // The check runs across every field: otherwise the second email could
+    // carry forward exactly the value the first one rejects.
     expect(() => settingsSchema.parse({ ...MINIMAL_SETTINGS, email2: 'info@website.com' })).toThrow(
       /rămășiță demo/,
     );
@@ -364,8 +364,8 @@ describe('settingsSchema', () => {
   });
 
   it('requires https for the map, not any URL scheme', () => {
-    // `javascript:` trece printr-un `z.url()` simplu. Pus într-un `href`, ar fi
-    // exact felul de gaură pentru care se rescrie tot situl.
+    // `javascript:` passes through a plain `z.url()`. Put into an `href`, it would be
+    // exactly the kind of hole this whole site is being rewritten to close.
     for (const badPath of [
       'nu-este-adresa',
       'http://maps.example.ch/parohia',
@@ -387,9 +387,9 @@ describe('settings.yml', () => {
   const SETTINGS_PATH = fileURLToPath(new URL('../content/settings/settings.yml', import.meta.url));
 
   /*
-   * Fișierul chiar livrat, trecut prin chiar schema care îl păzește. Build-ul
-   * l-ar valida oricum, dar abia după ce pornește Astro; aici pică în suita de
-   * unități, unde se citește eroarea.
+   * The actual shipped file, run through the actual schema that guards it. The build
+   * would validate it anyway, but only after Astro starts; here it fails in the unit
+   * suite, where the error is legible.
    */
   it('the shipped file passes the schema', () => {
     const raw: unknown = parse(readFileSync(SETTINGS_PATH, 'utf8'));
@@ -399,8 +399,8 @@ describe('settings.yml', () => {
   });
 
   it('carries neither of the two demo values forward', () => {
-    // Controlul pozitiv pentru testul de deasupra: dacă `superRefine` ar fi
-    // scos, testul acesta ar trece degeaba, așa că el verifică textul brut.
+    // The positive control for the test above: if `superRefine` were
+    // removed, this test would pass for nothing, so it checks the raw text.
     const text = readFileSync(SETTINGS_PATH, 'utf8');
     expect(text).not.toContain('info@website.com');
     expect(text).not.toContain('+33 877 554 332');
@@ -409,10 +409,10 @@ describe('settings.yml', () => {
 
 describe('the message for unknown keys', () => {
   /*
-   * `strictKeys` se importă acum din `./schema.ts`, nu se mai copiază: o
-   * singură sursă pentru amândouă. Testul rămâne fiindcă el fixează TEXTUL -
-   * schimbarea formulării în `schema.ts` trebuie să fie o faptă văzută, nu una
-   * care se strecoară în patru colecții deodată.
+   * `strictKeys` is now imported from `./schema.ts`, no longer copied: a
+   * single source for both. The test stays because it pins down the TEXT -
+   * changing the wording in `schema.ts` has to be a visible act, not one
+   * that sneaks into four collections at once.
    */
   it("is word for word the same as the schedule schema's", () => {
     const badKey = { publishedd: true };
@@ -423,12 +423,12 @@ describe('the message for unknown keys', () => {
     });
     expect(inContentSchema.success).toBe(false);
     expect(inDaySchema.success).toBe(false);
-    // Tipat structural, fiindcă cele două scheme dau rezultate de tipuri
-    // diferite; aici nu ne interesează decât mesajul.
+    // Typed structurally, because the two schemas give results of
+    // different types; only the message matters here.
     const message = (r: { error?: { issues: readonly { message: string }[] } }) =>
       r.error?.issues[0]?.message ?? '';
-    // Scris cu mâna, nu luat dintr-una dintre scheme: altfel două mesaje
-    // stricate la fel ar fi de acord între ele pe vecie.
+    // Written by hand, not taken from either schema: otherwise two messages
+    // broken the same way would agree with each other forever.
     expect(message(inContentSchema)).toBe('Câmp necunoscut: publishedd. Verificați scrierea.');
     expect(message(inDaySchema)).toBe(message(inContentSchema));
   });
@@ -436,12 +436,12 @@ describe('the message for unknown keys', () => {
 
 describe('import from plain node', () => {
   /*
-   * SINGURA GARDĂ PENTRU EXTENSIA `.ts`. Scripturile de migrare (Task 6 și 7)
-   * sunt `.mjs` rulate direct de node, care rezolvă specificatorii relativi
-   * literal: `'./date-ro'` în loc de `'./date-ro.ts'` aruncă
-   * ERR_MODULE_NOT_FOUND. Vite, Astro și vitest rezolvă amândouă formele, deci
-   * restul suitei nu ar vedea niciodată regresia - de aceea aici se pornește un
-   * proces node adevărat.
+   * THE ONLY GUARD FOR THE `.ts` EXTENSION. The migration scripts (Task 6 and 7)
+   * are `.mjs` run directly by node, which resolves relative specifiers
+   * literally: `'./date-ro'` instead of `'./date-ro.ts'` throws
+   * ERR_MODULE_NOT_FOUND. Vite, Astro and vitest resolve both forms, so
+   * the rest of the suite would never see the regression - which is why a
+   * real node process is launched here.
    */
   const ROOT = fileURLToPath(new URL('../..', import.meta.url));
   const runNode = (specifier: string) =>
@@ -458,7 +458,7 @@ describe('import from plain node', () => {
   });
 
   it('the positive control: the same check really does fail without the extension', () => {
-    // Dacă și asta ar ieși cu 0, testul de deasupra nu ar dovedi nimic.
+    // If this one too exited with 0, the test above would prove nothing.
     const r = runNode('./src/lib/content-schema');
     expect(r.status).not.toBe(0);
     expect(r.stderr).toContain('ERR_MODULE_NOT_FOUND');

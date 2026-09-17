@@ -153,14 +153,14 @@ const ITEMS = openItems(RULINGS_TEXT);
 
 describe('the references from rulings to the launch checklist', () => {
   it('rulings really does have open items to read', () => {
-    // O gardă care citește ceva trebuie să dovedească faptul că a citit ceva. Fără
-    // asta, regula „fiecare element sau trimite, sau se explică" ar fi adevărată
-    // despre zero elemente — exact felul de trecere goală plătit aici de două ori.
+    // A guard that reads something must prove it read something. Without
+    // this, the rule "every item either sends a reference, or explains itself" would be true
+    // of zero items — exactly the shape of empty pass this project has paid for twice already.
     expect(ITEMS.length, `no open item in ${RULINGS}`).toBeGreaterThan(1);
   });
 
   it('rulings really does name checklist steps', () => {
-    // Fără asta, „fiecare trimitere rezolvă" ar fi adevărat despre zero trimiteri.
+    // Without this, "every reference resolves" would be true of zero references.
     expect(REFERENCES.length, `no checklist:<ID> in ${RULINGS}`).toBeGreaterThan(0);
   });
 
@@ -170,10 +170,10 @@ describe('the references from rulings to the launch checklist', () => {
 
   it('no malformed reference: an id that cannot be read must fail, not vanish', () => {
     /*
-     * Gaura, prin care a trecut `checklist:ZZ9` cu EXIT 0: extractorul recunoștea
-     * o trimitere numai dacă era deja bine formată, deci una decăzută ieșea din
-     * mulțime în loc să nu rezolve, iar podeaua era o constantă pe care cei
-     * rămași o îndeplineau.
+     * The hole `checklist:ZZ9` passed through with EXIT 0: the extractor recognised
+     * a reference only when it was already well formed, so a decayed one left the
+     * set instead of failing to resolve, and the floor was a constant that the
+     * survivors met.
      */
     const malformed = brokenTokens(RULINGS_TEXT);
     expect(
@@ -184,22 +184,22 @@ describe('the references from rulings to the launch checklist', () => {
   });
 
   it('the malformed-reference detector really does fire', () => {
-    // Control pozitiv, pe exact forma măsurată: `ZZ9` nu se citea deloc.
+    // Positive control, on the exact shape measured: `ZZ9` was not being read at all.
     expect(brokenTokens('vezi `checklist:ZZ9` pentru restul')).toEqual(['ZZ9']);
     expect(rulingsReferences('vezi `checklist:ZZ9` pentru restul')).toEqual([]);
     expect(brokenTokens('vezi `checklist:h9`')).toEqual(['h9']);
     expect(brokenTokens('vezi `checklist:` pentru restul')).toEqual(['']);
-    // Și cealaltă direcție: o trimitere bine formată nu este „stricată".
+    // And the other direction: a well-formed reference is not "broken".
     expect(brokenTokens('vezi `checklist:H9` și checklist:A4.')).toEqual([]);
     expect(rulingsReferences('vezi `checklist:H9` și checklist:A4.')).toEqual(['A4', 'H9']);
   });
 
   it('every open item either points at a step, or says there is none', () => {
     /*
-     * Subiectul luat de unde nu-l poate edita defectul: LISTA DE ITEMS, care
-     * este structura despre care vorbește afirmația. Nu mai există nicio constantă
-     * de îndeplinit — o trimitere decăzută își lasă elementul fără nicio jumătate
-     * și pică, orice ar face celelalte elemente.
+     * The subject is taken from somewhere the defect cannot edit: THE LIST OF ITEMS,
+     * which is the structure the claim is actually about. There is no more constant
+     * to meet — a decayed reference leaves its item with neither half, and it
+     * fails whatever the other items do.
      */
     const without: string[] = [];
     let withReference = 0;
@@ -220,15 +220,15 @@ describe('the references from rulings to the launch checklist', () => {
       'elemente deschise fără nicio trimitere `checklist:` și fără să spună că nu sunt pași de ' +
         `lansare:\n${without.join('\n')}\nScrie pasul, sau spune de ce nu este unul — „${EXEMPTION}".`,
     ).toEqual([]);
-    // Ambele jumătăți trebuie să existe, altfel regula ar fi adevărată despre o
-    // listă în care toate elementele sunt scutite, sau în care niciunul nu e.
+    // Both halves have to exist, or the rule would be true of a list in
+    // which every item is exempted, or in which none is.
     expect(withReference, 'no item carries a reference').toBeGreaterThan(0);
     expect(exemptCount, 'no item exempted in words').toBeGreaterThan(0);
   });
 
   it('the number written in the prose is the number of items, not a figure from another day', () => {
-    // Un număr din proză pe care nu-l compară nimeni este tocmai ce decade. Fraza
-    // spune „Six things are decided provisionally"; elementele se numără.
+    // A number in prose that nothing compares it to is exactly what decays. The
+    // sentence says "Six things are decided provisionally"; the items are counted.
     const fromProse = countInProse(RULINGS_TEXT);
     expect(fromProse, `the opening sentence of ${RULINGS} no longer counts the items`).not.toBeNull();
     expect(fromProse).toBe(ITEMS.length);
@@ -248,7 +248,7 @@ describe('the references from rulings to the launch checklist', () => {
   });
 
   it('the detector really does fire on a reference that does not resolve', () => {
-    // Control pozitiv: o gardă care nu poate să se declanșeze nu verifică nimic.
+    // Positive control: a guard that cannot fire verifies nothing.
     const invented = rulingsReferences('vezi `checklist:Z9` pentru restul');
     expect(invented).toEqual(['Z9']);
     expect(STEPS).not.toContain('Z9');
@@ -256,10 +256,10 @@ describe('the references from rulings to the launch checklist', () => {
 
   it('the item detector really does cut the section where it should', () => {
     /*
-     * Fără asta, „fiecare element" ar putea fi adevărat despre un element uriaș
-     * care înghite tot restul documentului, sau despre niciunul. Se verifică
-     * forma: primul element începe cu primul punct numerotat, ultimul se termină
-     * înainte de titlul următor, și niciunul nu conține un alt început de element.
+     * Without this, "every item" could be true of one giant item that swallows
+     * the rest of the document, or of none. The shape is checked: the first item
+     * starts at the first numbered point, the last ends before the next heading,
+     * and none contains another item's start.
      */
     expect(ITEMS[0]).toContain('**');
     expect(stillOpenSection(RULINGS_TEXT)).not.toContain('## What generalises');

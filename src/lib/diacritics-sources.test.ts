@@ -99,8 +99,8 @@ describe('the sweep really does have something to sweep', () => {
   });
 
   it("covers the sources, the tests, the documents and the CMS's files", () => {
-    // Numite pe cale: „mătură tot” ar fi adevărat și despre o listă din care a
-    // căzut tocmai felul de fișier în care ajunge o sedilă.
+    // Named explicitly: "sweeps everything" would be true even of a list that had
+    // dropped exactly the kind of file a cedilla ends up in.
     for (const path of [
       'src/lib/date-ro.ts',
       'src/lib/date-ro.test.ts',
@@ -125,22 +125,22 @@ describe('the sweep really does have something to sweep', () => {
   });
 
   it('every path in BINARIES really is a tracked file', () => {
-    // Cealaltă direcție: o excepție pentru un fișier care nu mai există rămâne în
-    // cod arătând ca o regulă, gata să scuze altceva cu același nume.
+    // The other direction: an exemption for a file that no longer exists stays in
+    // the code looking like a rule, ready to excuse something else under the same name.
     for (const path of BINARIES) expect(TRACKED, path).toContain(path);
   });
 
   it('the sources really do contain comma below', () => {
-    // Altfel „nicio sedilă” ar fi adevărat despre un corpus întâmplător ASCII —
-    // aceeași formă ca un `dist/` lipsă.
+    // Otherwise "no cedilla" would be true of a corpus that just happened to be ASCII —
+    // the same shape as a missing `dist/`.
     const allText = TO_SWEEP.map((path) => readFileSync(ROOT + path, 'utf8')).join('');
     expect(hasCommaBelow(allText)).toBe(true);
   });
 });
 
 describe('the detector fires on each of the four', () => {
-  // Control pozitiv, construit din numere ca și setul căutat: o gardă care nu
-  // poate să se declanșeze nu verifică nimic.
+  // Positive control, built from numbers just like the set being searched for: a guard that
+  // cannot fire verifies nothing.
   it.each(CEDILLAS)('prinde %i', (cp) => {
     const bad = `Înăl${String.fromCodePoint(cp)}area`;
     expect(cedillasIn(bad)).toHaveLength(1);
@@ -153,9 +153,9 @@ describe('no Turkish cedilla in the tracked files', () => {
     const found = TO_SWEEP.flatMap((path) =>
       cedillasIn(readFileSync(ROOT + path, 'utf8')).map((where) => `${path}: ${where}`),
     );
-    // Tipărit, nu doar verificat, fiindcă numărul este ce verifică un cititor de
-    // mai târziu dacă un comentariu îl contrazice. `console.log` nu se vede pe
-    // rularea verde; `process.stdout.write` trece prin reporter în ambele cazuri.
+    // Printed, not only checked, because the number is what a later reader
+    // checks against if a comment contradicts it. `console.log` is not visible on
+    // the green run; `process.stdout.write` passes through the reporter in both cases.
     process.stdout.write(
       `\nMăturate pentru sedile: ${TO_SWEEP.length} fișier(e) urmărite ` +
         `(din ${TRACKED.length}; ${BINARIES.length} binar(e) numit(e)) — ${found.length} apariție(i).\n`,
@@ -219,14 +219,14 @@ export function hexNumbersIn(text: string): string[] {
 
 describe('the four numbers are written in one file only', () => {
   it('the detector really does fire, on each of the four', () => {
-    // Control pozitiv, construit din numere ca și setul căutat.
+    // Positive control, built from numbers just like the set being searched for.
     for (const cp of CEDILLAS) {
       const bad = `const X = [0x${cp.toString(16)}];`;
       expect(hexNumbersIn(bad), uPlus(cp)).toHaveLength(1);
     }
-    // Și cealaltă direcție: virgula dedesubt nu este unul dintre ele.
+    // And the other direction: comma below is not one of them.
     expect(hexNumbersIn('String.fromCodePoint(0x0219)')).toEqual([]);
-    // `U+015F` în proză nu este o copie a numărului și nu se mătură.
+    // `U+015F` in prose is not a copy of the number and is not swept.
     expect(hexNumbersIn(`${uPlus(CEDILLAS[0])} in prose`)).toEqual([]);
   });
 

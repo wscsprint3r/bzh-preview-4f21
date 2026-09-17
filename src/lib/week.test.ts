@@ -94,20 +94,20 @@ describe('todayInZurich', () => {
   });
 
   it("lays out year, month and day in ISO order, not in the locale's order", () => {
-    // Ziua este 15, deci mai mare decât orice număr de lună: o inversare
-    // zi/lună ar fi vizibilă aici, iar un regex de formă nu ar prinde-o.
-    // Pe o construcție small-icu care nu are en-CA, format() ar da
-    // "09/15/2026" (en-US) sau "15.09.2026" (de-CH). De aceea funcția
-    // asamblează din formatToParts, căutând fiecare câmp după tip.
+    // The day is 15, so greater than any month number: a day/month
+    // inversion would be visible here, and a shape regex would not catch it.
+    // On a small-icu build that has no en-CA, format() would give
+    // "09/15/2026" (en-US) or "15.09.2026" (de-CH). That is why the function
+    // assembles from formatToParts, looking up each field by type.
     const today = todayInZurich(new Date('2026-09-15T10:00:00Z'));
     expect(today).toBe('2026-09-15');
     expect(today.split('-')).toEqual(['2026', '09', '15']);
   });
 
   it('uses Latin digits', () => {
-    // Locala de rezervă decide și sistemul de numerotație: fără
-    // numberingSystem 'latn', ar-EG ar scrie aceeași dată cu cifre
-    // arabo-indiene, pe care nicio comparație de mai jos nu le-ar supraviețui.
+    // The fallback locale also decides the numbering system: without
+    // numberingSystem 'latn', ar-EG would write the same date with Arabic-Indic
+    // digits, which no comparison below would survive.
     expect(todayInZurich(new Date('2026-09-15T10:00:00Z'))).toMatch(/^[0-9-]+$/);
   });
 });
@@ -122,8 +122,8 @@ describe('timeInZurich', () => {
   });
 
   it('separates hour from minute with a colon, in that order', () => {
-    // 14:05 - minutul sub 10 face vizibilă o inversare oră/minut, iar
-    // separatorul este el însuși dependent de locală: da-DK scrie "14.05".
+    // 14:05 - the minute below 10 makes an hour/minute inversion visible, and
+    // the separator itself is locale-dependent: da-DK writes "14.05".
     const time = timeInZurich(new Date('2026-09-15T12:05:00Z'));
     expect(time).toBe('14:05');
     expect(time.split(':')).toEqual(['14', '05']);
@@ -166,9 +166,9 @@ describe('timeInZurich', () => {
       }).format(MIDNIGHT);
     const h24 = withOptions({ hourCycle: 'h24' });
     const h23 = withOptions({ hourCycle: 'h23' });
-    // Măsurat, nu presupus: numărul de mai jos este cel pe care îl verifică un
-    // cititor de mai târziu dacă un comentariu îl contrazice. `console.log` nu
-    // se vede pe rularea verde; `process.stdout.write` trece prin reporter.
+    // Measured, not assumed: the number below is the one a
+    // later reader checks against if a comment contradicts it. `console.log` is not
+    // visible on the green run; `process.stdout.write` passes through the reporter.
     process.stdout.write(`\n22:30 UTC la Zürich: h23 -> ${h23} · h24 -> ${h24} · hour12:false -> ${withOptions({ hour12: false })}\n`);
     expect(h24).toBe('24:30');
     expect(h23).toBe('00:30');
@@ -189,8 +189,8 @@ describe('timeInZurich', () => {
     }
     expect(requested).toHaveLength(1);
     expect(requested[0].hourCycle).toBe('h23');
-    // Și cealaltă jumătate: cele două nu au voie să fie cerute împreună, fiindcă
-    // `hour12` are prioritate asupra lui `hourCycle` și ar șterge tocmai apărarea.
+    // And the other half: the two are not allowed to be requested together, because
+    // `hour12` takes priority over `hourCycle` and would erase the very defence being tested.
     expect(requested[0].hour12).toBeUndefined();
   });
 });
@@ -231,8 +231,8 @@ describe('the Monday-Sunday contract', () => {
     for (const day of week) {
       expect(weekStart(day)).toBe('2026-09-14');
       expect(weekEnd(day)).toBe('2026-09-20');
-      expect(dayIndex(weekStart(day))).toBe(0); // luni
-      expect(dayIndex(weekEnd(day))).toBe(6); // duminică
+      expect(dayIndex(weekStart(day))).toBe(0); // Monday
+      expect(dayIndex(weekEnd(day))).toBe(6); // Sunday
     }
   });
 
@@ -294,7 +294,7 @@ describe('nowInZurich', () => {
   });
 
   it('crosses midnight as a pair', () => {
-    // 23:59:59.999 la Zürich, apoi o milisecundă mai târziu.
+    // 23:59:59.999 in Zürich, then one millisecond later.
     expect(nowInZurich(new Date('2026-09-20T21:59:59.999Z'))).toEqual({
       today: '2026-09-20',
       time: '23:59',
@@ -306,21 +306,21 @@ describe('nowInZurich', () => {
   });
 
   it('the impossible pair it replaces really was possible', () => {
-    // Bugul, scris pe față: nicio funcție nu greșește, perechea greșește.
-    // todayInZurich citește ceasul înaintea miezului nopții, timeInZurich după.
+    // The bug, stated plainly: no single function is wrong, the pair is wrong.
+    // todayInZurich reads the clock before midnight, timeInZurich after.
     expect(todayInZurich(new Date('2026-09-20T21:59:59.999Z'))).toBe('2026-09-20');
     expect(timeInZurich(new Date('2026-09-20T22:00:00.000Z'))).toBe('00:00');
-    // „2026-09-20 la 00:00" e un moment trecut cu aproape o zi, iar
-    // nextService îl ia drept acum.
+    // "2026-09-20 at 00:00" is a moment almost a full day in the past, and
+    // nextService takes it for now.
   });
 
   it('reads the clock exactly once', () => {
     /*
-     * Garda propriu-zisă, și singura formă în care se poate scrie. Testele de
-     * mai sus primesc un `Date` și dovedesc doar că funcția îl folosește pe
-     * acela; nu pot vedea o a doua citire, fiindcă nu există un al doilea
-     * moment. Aici ceasul întoarce un alt moment la fiecare citire, așa că
-     * despărțirea perechii la loc schimbă și numărul, și rezultatul.
+     * The actual guard, and the only shape it can be written in. The tests
+     * above are handed a `Date` and only prove that the function uses that
+     * one; they cannot see a second read, because there is no second
+     * moment. Here the clock returns a different moment on every read, so
+     * splitting the pair apart changes both the count and the result.
      */
     const Original = globalThis.Date;
     const moments = ['2026-09-20T21:59:59.999Z', '2026-09-20T22:00:00.000Z'];

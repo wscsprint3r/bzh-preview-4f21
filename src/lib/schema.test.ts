@@ -55,11 +55,11 @@ describe('daySchema', () => {
   });
 
   it('rejects a cancelled day with no services, so the cancellation reaches subscribers', () => {
-    // Spec §8: o zi anulată emite STATUS:CANCELLED în loc să dispară. Dar
-    // feed-ul scrie câte un eveniment pe slujbă, așa că o zi anulată rămasă
-    // fără ore nu emite nimic: abonatul păstrează vechiul program în calendar,
-    // nu află de anulare și vine la o biserică încuiată. Orele rămân, steagul
-    // duce anularea.
+    // Spec §8: a cancelled day emits STATUS:CANCELLED instead of disappearing. But
+    // the feed writes one event per service, so a cancelled day left
+    // with no services emits nothing: the subscriber keeps the old schedule in their calendar,
+    // does not learn about the cancellation, and shows up at a locked church. The times stay, the flag
+    // carries the cancellation.
     const r = daySchema.safeParse({ services: [], cancelled: true, notes: 'Părintele este plecat' });
     expect(r.success).toBe(false);
     if (!r.success) {
@@ -315,17 +315,17 @@ describe('location, normalised at the boundary', () => {
   });
 
   it('turns a whitespace-only field into something falsy', () => {
-    // Altfel pagina ar scrie „…au loc la  ." iar ics.ts ar pune spații în
-    // LOCATION în loc să cadă pe adresa parohiei.
+    // Otherwise the page would write „…au loc la  ." and ics.ts would put spaces in
+    // LOCATION instead of falling back to the parish address.
     expect(withLocation('   ')).toBe('');
     expect(Boolean(withLocation('   '))).toBe(false);
   });
 
   it('does NOT trim the full stop — that is solved where the sentence is composed', () => {
-    // Regula: normalizezi pentru afișare la momentul afișării; nu modifici
-    // datele stocate ca să arate bine. Tăierea punctului ar pierde informație
-    // („Capela Sf." ar deveni „Capela Sf") și ar schimba ce scrie ics.ts în
-    // LOCATION, care e dată păstrată de clientul de calendar, nu propoziție.
+    // The rule: normalise for display at display time; do not modify
+    // the stored data to make it look nice. Trimming the full stop would lose information
+    // ("Capela Sf." would become "Capela Sf") and would change what ics.ts writes into
+    // LOCATION, which is data kept by the calendar client, not a sentence.
     expect(withLocation('Capela Sf. Gallus, Winterthur.')).toBe('Capela Sf. Gallus, Winterthur.');
     expect(withLocation('Winterthur.')).toBe('Winterthur.');
     expect(withLocation('Capela Sf.')).toBe('Capela Sf.');
@@ -397,18 +397,18 @@ const TIME_FIELD = field(field(SERVICES.fields, 'services').fields, 'time');
 
 describe('the CMS configuration', () => {
   it('offers exactly the same services as the schema', () => {
-    // O singură egalitate prinde tot ce contează: o opțiune lipsă, una în plus,
-    // o greșeală de scriere și o reordonare.
+    // A single equality catches everything that matters: a missing option, an extra
+    // one, a typo and a reordering.
     expect(SERVICE_FIELD.options).toEqual([...SERVICE_NAMES]);
   });
 
   /*
-   * Aceeași grijă pentru oră, dar prin COMPORTAMENT, nu prin text. Două
-   * expresii regulate pot fi scrise altfel și să însemne același lucru, iar un
-   * test care compară șirurile ar pica pentru o rescriere inofensivă și ar trece
-   * pentru o diferență reală ascunsă într-o clasă de caractere. Aici se compară
-   * verdictele: pentru fiecare oră de mai jos, tiparul din CMS și schema trebuie
-   * să spună același lucru.
+   * The same care for the time, but through BEHAVIOUR, not through text. Two
+   * regular expressions can be written differently and mean the same thing, and a
+   * test that compares the strings would fail for a harmless rewrite and would pass
+   * for a real difference hidden inside a character class. Here the verdicts
+   * are compared: for each time below, the CMS pattern and the schema have
+   * to say the same thing.
    */
   it('accepts exactly the same times as the schema', () => {
     const pattern = (TIME_FIELD.pattern as [string, string])[0];
@@ -422,8 +422,8 @@ describe('the CMS configuration', () => {
       cms: fromCms.test(time),
       schema: serviceSchema.safeParse({ time, service: 'Utrenia' }).success,
     }));
-    // Controlul pozitiv: dacă tabelul ar fi doar ore bune sau doar ore rele,
-    // „amândouă spun la fel" nu ar mai însemna nimic.
+    // The positive control: if the table were only good times or only bad times,
+    // "both say the same thing" would no longer mean anything.
     expect(verdicts.some((v) => v.schema)).toBe(true);
     expect(verdicts.some((v) => !v.schema)).toBe(true);
     for (const v of verdicts) {
@@ -432,32 +432,32 @@ describe('the CMS configuration', () => {
   });
 
   /*
-   * Numele fișierului este cheia primară a colecției, iar acesta este locul din
-   * care CMS-ul o compune. Fără `slug`, Sveltia numește fișierul după
-   * `identifier_field`; fără niciunul, după un șir aleator - și
-   * `idFromFilename` respinge fiecare fișier pe care l-ar scrie.
+   * The filename is the collection's primary key, and this is the place from
+   * which the CMS composes it. Without `slug`, Sveltia names the file after
+   * `identifier_field`; without either, after a random string - and
+   * `idFromFilename` rejects every file it would write.
    */
   it("names the file after the day's date", () => {
     expect(SERVICES.slug).toBe('{{fields.date}}');
     expect(SERVICES.identifier_field).toBe('date');
-    // Și câmpul pe care îl numesc amândouă chiar există, cu widget de dată.
+    // And the field that both of them name really does exist, with a date widget.
     expect(field(SERVICES.fields, 'date').widget).toBe('datetime');
   });
 
   /*
-   * MULȚIMEA CÂMPURILOR ESTE ÎNCHISĂ, în amândouă sensurile, fiindcă fiecare
-   * sens strică altceva:
+   * THE SET OF FIELDS IS CLOSED, in both directions, because each
+   * direction breaks something else:
    *
-   * - un câmp în formular pe care schema nu îl are: `daySchema` este strict, deci
-   *   prima zi publicată pică build-ul cu „Câmp necunoscut".
-   * - un câmp în schemă pe care formularul nu îl are: câmpul nu mai poate fi
-   *   completat de nimeni prin `/admin/`. Nimic nu pică, nimeni nu află, iar
-   *   `location` sau `anulat` pur și simplu nu se mai pot pune - exact felul de
-   *   pierdere tăcută pentru care există toată munca asta.
+   * - a field in the form that the schema does not have: `daySchema` is strict, so
+   *   the first published day fails the build with „Câmp necunoscut".
+   * - a field in the schema that the form does not have: the field can no longer be
+   *   filled in by anyone through `/admin/`. Nothing fails, nobody finds out, and
+   *   `location` or `cancelled` simply can no longer be set - exactly the kind of
+   *   silent loss all this work exists for.
    *
-   * Mulțimea așteptată se ia din `.shape`-ul schemei, nu dintr-o listă scrisă cu
-   * mâna aici: o listă ar trebui ținută la zi în două locuri și ar rămâne în
-   * urmă exact ca lista de slujbe.
+   * The expected set is taken from the schema's `.shape`, not from a list written by
+   * hand here: a list would have to be kept up to date in two places and would fall
+   * behind, exactly like the list of services did.
    */
   it("has exactly the schema's fields, not one more, not one fewer", () => {
     const fieldNames = (c: CmsField[] | undefined) => (c ?? []).map((x) => x.name).sort();
@@ -465,8 +465,8 @@ describe('the CMS configuration', () => {
     expect(fieldNames(field(SERVICES.fields, 'services').fields)).toEqual(
       Object.keys(serviceSchema.shape).sort(),
     );
-    // Controlul pozitiv: dacă `.shape` s-ar goli vreodată, egalitățile de mai
-    // sus ar fi mulțumite de un formular fără niciun câmp.
+    // The positive control: if `.shape` were ever emptied, the equalities above
+    // would be satisfied by a form with no fields at all.
     expect(Object.keys(daySchema.shape).length).toBeGreaterThan(5);
     expect(Object.keys(serviceSchema.shape).length).toBeGreaterThan(2);
   });
@@ -494,25 +494,25 @@ describe('the date inside the file against the date in its name', () => {
   });
 
   /*
-   * Mesajul trebuie să spună și CARE dintre cele două se schimbă. Nimic din cod
-   * nu poate ști care dată este cea bună, deci mesajul le numește pe amândouă,
-   * spune care dintre ele decide ce apare pe site și dă câte un leac pentru
-   * fiecare sens. „Faceți-le să coincidă" ar lăsa cititorul să ghicească ce
-   * jumătate să modifice, iar ghicitul greșit înseamnă o slujbă în ziua greșită.
+   * The message has to say WHICH of the two changes. Nothing in the code
+   * can know which date is the right one, so the message names both,
+   * says which of them decides what appears on the site, and gives a fix for
+   * each direction. "Make them match" would leave the reader to guess which
+   * half to change, and guessing wrong means a service on the wrong day.
    */
   it('rejects a file with two different dates, naming each of them', () => {
     const failing = () => idFromFilename('2026-09-14.yml', { date: '2026-09-21' });
-    expect(failing).toThrow(/2026-09-14/); // data din nume
-    expect(failing).toThrow(/2026-09-21/); // data dinăuntru
+    expect(failing).toThrow(/2026-09-14/); // the date from the name
+    expect(failing).toThrow(/2026-09-21/); // the date from inside
     expect(failing).toThrow(/numele fișierului este cel care decide/i);
-    expect(failing).toThrow(/ștergeți-o din administrare/i); // leacul dacă ziua e cea dinăuntru
-    expect(failing).toThrow(/puneți la loc/i); // leacul dacă ziua e cea din nume
+    expect(failing).toThrow(/ștergeți-o din administrare/i); // the fix if the day is the one inside
+    expect(failing).toThrow(/puneți la loc/i); // the fix if the day is the one from the name
   });
 
   /*
-   * Data fără ghilimele este o greșeală cu alt leac decât cealaltă, deci are alt
-   * mesaj: YAML citește `date: 2026-09-14` ca dată calendaristică, nu ca text,
-   * iar `config.yml` cere de aceea `output.yaml.quote: double`.
+   * A date without quotation marks is a mistake with a different fix than the other one, so it has a different
+   * message: YAML reads `date: 2026-09-14` as a calendar date, not as text,
+   * and that is why `config.yml` requires `output.yaml.quote: double`.
    */
   it('rejects a date written without quotation marks, asking for them', () => {
     const failing = () => idFromFilename('2026-09-14.yml', { date: new Date('2026-09-14') });
@@ -520,14 +520,14 @@ describe('the date inside the file against the date in its name', () => {
   });
 
   it('judges the name before the contents', () => {
-    // Un nume imposibil pică pentru numele lui, nu pentru ce scrie înăuntru.
+    // An impossible name fails for its own sake, not for what is written inside.
     expect(() => idFromFilename('2026-02-30.yml', { date: '2026-02-30' })).toThrow(/nu există/);
   });
 
   it('the schema accepts the day exactly as the CMS writes it', () => {
-    // O reconstrucție a fișierului, nu fișierul însuși: nimic de aici nu poate
-    // rula Sveltia. Ce dovedește este că forma pe care o descrie `config.yml` -
-    // `date` prezent, orele ca text, o slujbă din listă - trece prin schemă.
+    // A reconstruction of the file, not the file itself: nothing here can
+    // run Sveltia. What it proves is that the shape `config.yml` describes -
+    // `date` present, times as text, a service from the list - passes through the schema.
     const raw = parse('date: "2026-09-14"\nservices:\n  - time: "07:30"\n    service: "Utrenia"\n');
     const r = daySchema.safeParse(raw);
     expect(r.success, JSON.stringify(r.error?.issues)).toBe(true);

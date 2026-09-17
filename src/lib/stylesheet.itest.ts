@@ -103,7 +103,7 @@ const STYLESHEETS = distFiles('.css');
  * EXEMPTED BY EXACT PATH, not by folder. `admin/` also holds `config.yml`, and
  * a rule reading "anything under admin/" would be an open invitation to put the
  * next unstyled page there too. One file, named, with a reason - and
- * `page exemptedă există` below fails if that file ever stops existing, so the
+ * `the exempted page exists` below fails if that file ever stops existing, so the
  * exemption cannot outlive the thing it excuses.
  *
  * It is NOT exempt from `diacritics.itest.ts`: the Romanian in this page and in
@@ -123,8 +123,8 @@ describe('the build output exists', () => {
   });
 
   it('the exempted page exists', () => {
-    // O excepție pentru un fișier care nu mai există nu scutește nimic: rămâne
-    // în cod arătând ca o regulă, gata să scuze altceva cu același nume.
+    // An exemption for a file that no longer exists excuses nothing: it stays
+    // in the code looking like a rule, ready to excuse something else under the same name.
     expect(PAGES, `${NO_CSS} no longer exists, so the exception is pointless`).toContain(NO_CSS);
   });
 
@@ -136,7 +136,7 @@ describe('the build output exists', () => {
 });
 
 describe('hexesInDeclarations', () => {
-  // Control pozitiv: a guard that cannot fire is a claim nobody is checking.
+  // Positive control: a guard that cannot fire is a claim nobody is checking.
   it.each([
     ['.x { color: #E4D7C4; }', ['color: #E4D7C4']],
     ['.x { color: #fff }', ['color: #fff']],

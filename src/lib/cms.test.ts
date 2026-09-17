@@ -89,10 +89,10 @@ function errors(config: unknown): string[] {
 
 describe('the config validator can actually fire', () => {
   /*
-   * Controlul pozitiv, și nu unul inventat: EXACT greșelile pe care le avea
-   * versiunea din plan a acestui fișier. `locale: ro` arată ca o opțiune
-   * firească - Sveltia nu a avut-o niciodată, iar rădăcina configurației
-   * interzice cheile necunoscute, deci CMS-ul ar fi respins tot fișierul.
+   * The positive control, and not a made-up one: EXACTLY the mistakes the
+   * plan's version of this file had. `locale: ro` looks like a natural
+   * option - Sveltia has never had it, and the root of the configuration
+   * forbids unknown keys, so the CMS would have rejected the whole file.
    */
   it('rejects `locale: ro`, the option that does not exist', () => {
     expect(errors({ ...CONFIG, locale: 'ro' })).not.toEqual([]);
@@ -115,9 +115,9 @@ describe('the config validator can actually fire', () => {
 
 describe('the CMS config, against the schema Sveltia publishes', () => {
   it('was really read, not merely opened', () => {
-    // O gardă care citește un fișier trebuie să dovedească faptul că a citit
-    // ceva: un fișier gol ar face ca fiecare aserțiune de mai jos să treacă în
-    // gol, iar YAML-ul gol se parsează în `null`.
+    // A guard that reads a file has to prove it read
+    // something: an empty file would make every assertion below pass
+    // vacuously, and empty YAML parses to `null`.
     expect(CONFIG_TEXT.length).toBeGreaterThan(0);
     expect(CONFIG).not.toBeNull();
     expect(Object.keys(CMS_SCHEMA).length).toBeGreaterThan(0);
@@ -130,27 +130,27 @@ describe('the CMS config, against the schema Sveltia publishes', () => {
 
 describe('versiunea CMS-ului', () => {
   /*
-   * Pre-1.0, cu un singur întreținător, și schimbări care pot să rupă
-   * configurația între două versiuni minore. O plajă cu accent ar aduce o
-   * versiune nouă la următoarea instalare - inclusiv pe serverul de build, unde
-   * nimeni nu se uită - iar prima dovadă ar fi un `/admin/` care nu mai pornește.
+   * Pre-1.0, with a single maintainer, and changes that can break the
+   * configuration between two minor versions. A caret range would pull in a
+   * new version at the next install - including on the build server, where
+   * nobody is watching - and the first evidence would be an `/admin/` that no longer starts.
    */
   it('is pinned exactly, with no range', () => {
     expect(REQUIRED_VERSION, '@sveltia/cms is not required in package.json').toBeDefined();
-    // Nicio plajă: fără `^`, fără `~`, fără `*`, fără `x`.
+    // No range: no `^`, no `~`, no `*`, no `x`.
     expect(REQUIRED_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it('reads the @sveltia/cms package itself', () => {
-    // Fără asta, „două niveluri mai sus de fișierul de intrare" ar fi o
-    // presupunere despre structura pachetului pe care nimeni nu o verifică, iar
-    // schema după care s-a validat configurația ar putea veni de oriunde.
+    // Without this, "two levels above the entry file" would be an
+    // assumption about the package's layout that nobody verifies, and
+    // the schema the configuration was validated against could come from anywhere.
     expect(PACKAGE.name).toBe('@sveltia/cms');
   });
 
   it('is the installed version itself', () => {
-    // Altfel `package.json` ar putea să fixeze o versiune, iar schema după care
-    // s-a validat configurația de mai sus să vină din alta.
+    // Otherwise `package.json` could pin one version, while the schema the
+    // configuration above was validated against comes from a different one.
     expect(PACKAGE.version).toBe(REQUIRED_VERSION);
   });
 });
