@@ -224,7 +224,7 @@ describe('nextService', () => {
     expect(nextService(sampleDays, '2026-09-14', '08:30')).toMatchObject({ time: '08:30' });
   });
 
-  it('sare peste zilele anulate', () => {
+  it('skips cancelled days', () => {
     const d = [
       day('2026-09-16', [['18:30', 'Acatist']], { cancelled: true }),
       day('2026-09-20', [['10:00', 'Sfânta Liturghie']]),
@@ -643,9 +643,9 @@ describe('the data island (used by no page; see the note above)', () => {
     // Printed, not only checked: the number below is the one a later reader
     // checks against if a comment contradicts it.
     process.stdout.write(
-      `\nInsula la 104 săptămâni publicate: ${bytes} octeți (${ISLAND_DAYS} zile)` +
-        ` — nemărginită ar fi ${unbounded} octeți (${TWO_YEARS.length} zile).\n` +
-        `Pagina de atunci, fără insulă, măsura 20693 octeți; bugetul este ${45 * 1024}.\n`,
+      `\nThe island at 104 published weeks: ${bytes} bytes (${ISLAND_DAYS} days)` +
+        ` — unbounded it would be ${unbounded} bytes (${TWO_YEARS.length} days).\n` +
+        `The page then, without the island, measured 20693 bytes; the budget is ${45 * 1024}.\n`,
     );
     // The bound here is generous because a day can carry more services,
     // a `location` or a `detail` longer than the ones above. The real budget
@@ -756,14 +756,14 @@ describe('the data island (used by no page; see the note above)', () => {
       const server = nextService(days, TODAY, '00:00');
       const client = nextService(scheduleForIsland(days, TODAY), TODAY, '00:00');
       measuredLines.push(
-        `  primele ${String(n).padStart(2)} zile anulate → server ${server?.date ?? 'NULL'}` +
-          ` | client ${client?.date ?? 'NULL'} | acord: ${server?.date === client?.date}`,
+        `  first ${String(n).padStart(2)} cancelled days → server ${server?.date ?? 'NULL'}` +
+          ` | client ${client?.date ?? 'NULL'} | agree: ${server?.date === client?.date}`,
       );
       expect(server, `n=${n}: the whole schedule still has services`).not.toBeNull();
       expect(client?.date, `n=${n}: the client does not answer as the server does`).toBe(server?.date);
       checked += 1;
     }
-    process.stdout.write(`\nInsula cu zile anulate la început:\n${measuredLines.join('\n')}\n`);
+    process.stdout.write(`\nThe island with cancelled days at the start:\n${measuredLines.join('\n')}\n`);
     expect(checked).toBe(6);
 
     /*
@@ -776,7 +776,7 @@ describe('the data island (used by no page; see the note above)', () => {
       .filter((z) => z.date >= TODAY)
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
       .slice(0, ISLAND_DAYS);
-    expect(nextService(oldIsland, TODAY, '00:00'), 'vechea ordine chiar golea insula').toBeNull();
+    expect(nextService(oldIsland, TODAY, '00:00'), 'the old order really did empty the island').toBeNull();
     expect(nextService(days, TODAY, '00:00')).not.toBeNull();
   });
 

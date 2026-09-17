@@ -13,8 +13,8 @@ import {
   checkCounts,
 } from './db.mjs';
 
-describe('sursa migrarii', () => {
-  it('numeste dumpul prin cale absoluta, in afara depozitului', () => {
+describe('the migration source', () => {
+  it('names the dump by absolute path, outside the repository', () => {
     expect(DUMP_PATH.startsWith('/')).toBe(true);
     expect(DUMP_PATH).toContain('backup-2026-08-27');
     expect(DUMP_PATH.endsWith('database.sql.gz')).toBe(true);

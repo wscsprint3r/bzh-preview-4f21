@@ -4,10 +4,10 @@
  * SVELTIA DOES NOT START ITSELF HERE, and it fails to in complete silence. The
  * last line of the bundle reads, in effect,
  *
- *     !window.CMS_MANUAL_INIT && (document.currentScript || scriptulClasic) && init()
+ *     !window.CMS_MANUAL_INIT && (document.currentScript || classicScript) && init()
  *
  * and `document.currentScript` is null BY SPECIFICATION inside a module script,
- * while `scriptulClasic` is a lookup for a `<script src="…/sveltia-cms.js">`
+ * while `classicScript` is a lookup for a `<script src="…/sveltia-cms.js">`
  * that this page does not have. So `<script type="module" src="sveltia-cms.mjs">`
  * on its own downloads two megabytes, raises nothing, logs nothing, and leaves
  * the page exactly as it found it. Verified in a real headless Chrome; no
@@ -49,7 +49,7 @@ const CONTACT = 'persoanei care se ocupă de site';
  */
 import('./sveltia-cms.mjs')
   .then(({ init }) => init())
-  .catch((eroare) => {
+  .catch((error) => {
     /*
      * A volunteer looking at a white page has nothing to report, no way to tell
      * "broken" from "slow", and no idea whether they have just broken the
@@ -58,14 +58,14 @@ import('./sveltia-cms.mjs')
      * fails. The technical reason goes underneath, where it turns a phone call
      * into a bug report without being the first thing they read.
      */
-    console.error(eroare);
-    const mesaj = document.createElement('p');
-    mesaj.lang = 'ro';
-    mesaj.textContent =
+    console.error(error);
+    const message = document.createElement('p');
+    message.lang = 'ro';
+    message.textContent =
       'Administrarea nu a pornit. Programul de pe site nu este afectat și nu ' +
       's-a pierdut nimic. Încercați să reîncărcați pagina. Dacă tot nu merge, ' +
       `trimiteți textul de mai jos ${CONTACT}.`;
-    const detaliu = document.createElement('pre');
-    detaliu.textContent = String(eroare);
-    document.body.append(mesaj, detaliu);
+    const detail = document.createElement('pre');
+    detail.textContent = String(error);
+    document.body.append(message, detail);
   });

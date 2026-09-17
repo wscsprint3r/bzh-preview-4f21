@@ -111,7 +111,7 @@ driver it will never run. Verified locally that the build is correct without it.
 **B5.** Deploy.
 
 *Good answer:* the build log ends with `[build] Complete!` and contains a line reading
-`[csp-hashes] CSP: index.html script inline de NNNN octeți -> 'sha256-…'`. **If that line
+`[csp-hashes] CSP: index.html inline script of NNNN bytes -> 'sha256-…'`. **If that line
 is missing, stop** — the policy shipped without the hash and the site's JavaScript is dead,
 with no visible symptom, because the page without JavaScript is the designed fallback. Then
 `https://<project>.pages.dev/` serves the homepage.
@@ -131,7 +131,7 @@ this page is over there.
 *Good answer:* `curl -s https://<project>.pages.dev/ | grep -i -E 'robots|canonical'`
 returns the `noindex` meta and **no** canonical link.
 
-> **At the cutover** (spec §15), set `INDEXABIL = true` and redeploy, in the same change
+> **At the cutover** (spec §15), set `INDEXABLE = true` and redeploy, in the same change
 > that moves DNS. `build-output.itest.ts` asserts the two consequences agree, so the flag
 > cannot be half-flipped — but nothing in this repository can tell that the domain has
 > moved. Leaving it `false` afterwards gives you a site that is live, correct and invisible

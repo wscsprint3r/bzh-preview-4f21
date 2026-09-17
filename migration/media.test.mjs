@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isOriginal, destinationName, ALLOWED_EXTENSIONS } from './media.mjs';
 
-describe('alegerea fisierelor', () => {
+describe('choosing files', () => {
   it('rejects the WordPress thumbnail variants', () => {
     expect(isOriginal('/uploads/2024/05/poza-300x200.jpg')).toBe(false);
     expect(isOriginal('/uploads/2024/05/poza-1024x768.png')).toBe(false);
@@ -26,7 +26,7 @@ describe('alegerea fisierelor', () => {
   });
 });
 
-describe('numele destinatiei', () => {
+describe('the destination name', () => {
   it('keeps the year and the month, so two identically named photos cannot collide', () => {
     expect(destinationName('/wp-content/uploads/2024/05/hram.jpg'))
       .toBe('src/assets/content/2024/05/hram.jpg');
@@ -119,13 +119,13 @@ describe('the paths cannot escape their places', () => {
    * refusing by name beats guessing at what an encoded byte meant.
    */
   it.each([
-    ['iesire cu ..', '/wp-content/uploads/../../../../etc/passwd.jpg'],
-    ['iesire la mijloc', '/wp-content/uploads/2024/../../../../etc/passwd.jpg'],
-    ['segment gol, deci cale absoluta', '/wp-content/uploads//etc/passwd.jpg'],
-    ['procent-encodare', '/wp-content/uploads/%2e%2e%2f%2e%2e%2fetc%2fpasswd.jpg'],
-    ['bara inversa', '/wp-content/uploads/..\\..\\etc\\passwd.jpg'],
-    ['spatiu', '/wp-content/uploads/2024/05/po za.jpg'],
-    ['punct singur', '/wp-content/uploads/./2024/05/poza.jpg'],
+    ['escape with ..', '/wp-content/uploads/../../../../etc/passwd.jpg'],
+    ['escape in the middle', '/wp-content/uploads/2024/../../../../etc/passwd.jpg'],
+    ['empty segment, so an absolute path', '/wp-content/uploads//etc/passwd.jpg'],
+    ['percent-encoding', '/wp-content/uploads/%2e%2e%2f%2e%2e%2fetc%2fpasswd.jpg'],
+    ['backslash', '/wp-content/uploads/..\\..\\etc\\passwd.jpg'],
+    ['space', '/wp-content/uploads/2024/05/po za.jpg'],
+    ['single dot', '/wp-content/uploads/./2024/05/poza.jpg'],
   ])('destinationName refuses: %s', (_label, src) => {
     expect(() => destinationName(src)).toThrow(/unsafe upload path/i);
   });
@@ -323,7 +323,7 @@ describe('a failed write stops the run', () => {
   });
 });
 
-describe('a doua rulare scrie aceiasi octeti', () => {
+describe('the second run writes the same bytes', () => {
   it('two runs in different roots give byte-identical files', async () => {
     // Spec 11. Proven rather than assumed: sharp is given explicit encoder
     // options precisely so that this cannot depend on a default.
@@ -526,7 +526,7 @@ describe('resolving a thumbnail to the original it was cut from', () => {
     const oneInode =
       statSync(join(uploads, '2026/02/Vie.jpg')).ino === statSync(join(uploads, '2026/02/vie.jpg')).ino;
     process.stdout.write(
-      `\n  ciocnire vie: ${entries.length} intrare(i) in director, acelasi inod: ${oneInode}\n`,
+      `\n  live collision: ${entries.length} entry(ies) in the directory, same inode: ${oneInode}\n`,
     );
     // The two measurements must agree, or the setup is not what it looks like.
     expect(entries.length === 1).toBe(oneInode);
@@ -773,7 +773,7 @@ describe('positive controls for all three formats', () => {
     ['png', async () => sharp({ create: { width: 30, height: 20, channels: 3, background: '#7a1f1f' } }).png().toBuffer()],
     ['webp', async () => sharp({ create: { width: 30, height: 20, channels: 3, background: '#1f7a1f' } }).webp().toBuffer()],
     ['jpg', async () => sharp({ create: { width: 30, height: 20, channels: 3, background: '#1f1f7a' } }).jpeg().toBuffer()],
-  ])('CONTROL POZITIV: incarcatura lipita dispare din %s', async (ext, fa) => {
+  ])('POSITIVE CONTROL: the appended payload disappears from %s', async (ext, fa) => {
     const clean = await fa();
     const poisoned = Buffer.concat([clean, Buffer.from(PAYLOAD)]);
     expect(poisoned.includes(PAYLOAD)).toBe(true);
@@ -898,7 +898,7 @@ describe('the uploads pattern is anchored and symlinks do not get through', () =
      * A referenced THUMBNAIL whose original is a symlink out of the tree. The
      * outside file is deliberately SMALLER than the thumbnail, so if
      * `checkThumbnail` were reached first it would throw its own
-     * "mai mic" complaint - having already `existsSync`-ed and decoded a file
+     * "is smaller than" complaint - having already `existsSync`-ed and decoded a file
      * outside the uploads tree, which is the thing the lock exists to prevent.
      * Containment first means the second lock speaks instead.
      */

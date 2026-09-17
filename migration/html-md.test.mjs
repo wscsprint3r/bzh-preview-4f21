@@ -5,7 +5,7 @@ import { CEDILLAS, COMMA_BELOW } from '../src/lib/cedilla.ts';
 const REAL_PREAMBLE =
   '<p>Layouts: Popup</p>\t\t\n\t\tParohia noastra &gt; <u><b>Istoric</b></u>\t\t\n\t\t\t';
 
-describe('dezbracarea preambulului', () => {
+describe('stripping the preamble', () => {
   it('removes the Layouts line and the breadcrumbs', () => {
     const after = stripPreamble(`${REAL_PREAMBLE}<h2>Titlu</h2><p>Text.</p>`);
     expect(after).not.toContain('Layouts: Popup');
@@ -190,11 +190,11 @@ describe('the images in the HTML', () => {
     expect(imagesIn('<img alt="fara sursa">')).toEqual([]);
   });
 
-  // Cunoscute si nefixate intentionat: masurate pe cele 71 de documente ale
-  // domeniului de migrare, cu 116 <img> in total, `imagesIn` a gasit
-  // exact 116 src-uri - 0 discrepante, si `srcset` (106 aparitii) nu este
-  // niciodata confundat cu `src`. Testele de mai jos documenteaza cele doua
-  // limite cunoscute, fara sa le corecteze - nici una nu apare in domeniu.
+  // Known and deliberately unfixed: measured over the migration scope's 71
+  // documents, with 116 <img> in total, `imagesIn` found exactly 116 srcs -
+  // 0 discrepancies, and `srcset` (106 occurrences) is never confused with
+  // `src`. The tests below document the two known limits without fixing them -
+  // neither occurs in the scope.
   it('does not find an image that has only data-src, without src (known limitation)', () => {
     expect(imagesIn('<img data-src="/lazy.jpg">')).toEqual([]);
   });

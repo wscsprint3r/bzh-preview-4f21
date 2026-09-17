@@ -119,8 +119,8 @@ describe('the sweep really does have something to sweep', () => {
     const notText = TO_SWEEP.filter((path) => !isText(path));
     expect(
       notText,
-      `fișiere urmărite care nu se citesc ca text: ${notText.join(', ')}. ` +
-        'Dacă sunt binare, pune-le în BINARE; dacă nu, află de ce nu se decodează.',
+      `tracked files that do not read as text: ${notText.join(', ')}. ` +
+        'If they are binary, put them in BINARIES; if not, find out why they do not decode.',
     ).toEqual([]);
   });
 
@@ -141,7 +141,7 @@ describe('the sweep really does have something to sweep', () => {
 describe('the detector fires on each of the four', () => {
   // Positive control, built from numbers just like the set being searched for: a guard that
   // cannot fire verifies nothing.
-  it.each(CEDILLAS)('prinde %i', (cp) => {
+  it.each(CEDILLAS)('catches %i', (cp) => {
     const bad = `Înăl${String.fromCodePoint(cp)}area`;
     expect(cedillasIn(bad)).toHaveLength(1);
     expect(cedillasIn(bad)[0]).toContain(uPlus(cp));
@@ -149,7 +149,7 @@ describe('the detector fires on each of the four', () => {
 });
 
 describe('no Turkish cedilla in the tracked files', () => {
-  it('niciunul dintre ele', () => {
+  it('none of them', () => {
     const found = TO_SWEEP.flatMap((path) =>
       cedillasIn(readFileSync(ROOT + path, 'utf8')).map((where) => `${path}: ${where}`),
     );
@@ -157,14 +157,14 @@ describe('no Turkish cedilla in the tracked files', () => {
     // checks against if a comment contradicts it. `console.log` is not visible on
     // the green run; `process.stdout.write` passes through the reporter in both cases.
     process.stdout.write(
-      `\nMăturate pentru sedile: ${TO_SWEEP.length} fișier(e) urmărite ` +
-        `(din ${TRACKED.length}; ${BINARIES.length} binar(e) numit(e)) — ${found.length} apariție(i).\n`,
+      `\nSwept for cedillas: ${TO_SWEEP.length} tracked file(s) ` +
+        `(of ${TRACKED.length}; ${BINARIES.length} named binary file(s)) — ${found.length} occurrence(s).\n`,
     );
     expect(
       found,
-      `cele patru caractere interzise, scrise ca glife în fișiere urmărite:\n${found.join('\n')}\n` +
-        'Scrie-le pe cod — String.fromCodePoint(0x…) în cod, U+015F în proză. ' +
-        'Un fișier care le scrie nu mai poate fi măturat pentru ele.',
+      `the four forbidden characters, written as glyphs in tracked files:\n${found.join('\n')}\n` +
+        'Write them as code — String.fromCodePoint(0x…) in code, U+015F in prose. ' +
+        'A file that writes them out can no longer be swept for them.',
     ).toEqual([]);
   });
 });
@@ -241,14 +241,14 @@ describe('the four numbers are written in one file only', () => {
       hexNumbersIn(readFileSync(ROOT + path, 'utf8')).map((where) => `${path}: ${where}`),
     );
     process.stdout.write(
-      `\nCele patru numere, scrise în hexazecimal: ${CODEPOINTS_FILE} le are pe toate ${CEDILLAS.length}; ` +
-        `restul celor ${TO_SWEEP.length - 1} fișiere urmărite — ${found.length} apariție(i).\n`,
+      `\nThe four numbers, written in hexadecimal: ${CODEPOINTS_FILE} has all ${CEDILLAS.length}; ` +
+        `the other ${TO_SWEEP.length - 1} tracked files — ${found.length} occurrence(s).\n`,
     );
     expect(
       found,
-      `cele patru numere, scrise în afara lui ${CODEPOINTS_FILE}:\n${found.join('\n')}\n` +
-        'Importă-le din ./cedilla. Un al doilea exemplar face ca o măturare după numărul lor să ' +
-        'întoarcă mai multe fișiere, iar cititorul să se obișnuiască să treacă peste rezultate.',
+      `the four numbers, written outside ${CODEPOINTS_FILE}:\n${found.join('\n')}\n` +
+        'Import them from ./cedilla. A second copy makes a sweep for their number return ' +
+        'more files, and teaches the reader to skip past the results.',
     ).toEqual([]);
   });
 });

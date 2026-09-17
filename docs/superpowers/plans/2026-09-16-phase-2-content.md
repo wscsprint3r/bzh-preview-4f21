@@ -42,7 +42,7 @@ already built, the real module is authoritative.
 
 ### Carried into Tasks 6-12 from the five completed tasks
 
-- **Task 6** owns the `BINARE` rule it would otherwise break, and must assert that
+- **Task 6** owns the `BINARIES` rule it would otherwise break, and must assert that
   every file under the migrated-image directory decodes as an image.
 - **Task 6** must stop the run on an image reference the map does not contain, and
   assert that each document's `<img>` count equals the number of sources found.
@@ -783,7 +783,7 @@ git commit -m "feat(migration): HTML to Markdown, and a preamble strip that reco
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
-- Produces: `articleSchema`, `pageSchema`, `settingsSchema`, `CATEGORIES` (readonly string tuple), `type Article`, `type Pagina`, `type Settings`.
+- Produces: `articleSchema`, `pageSchema`, `settingsSchema`, `CATEGORIES` (readonly string tuple), `type Article`, `type Page`, `type Settings`.
 
 **Follow `src/lib/schema.ts` exactly.** It uses `astro/zod`, `z.strictObject`, Romanian error messages, and a refinement that teaches the workflow rather than naming a type. A misspelled key must fail the build, because the alternative is a silently dropped field on a green build.
 
@@ -1010,7 +1010,7 @@ export const settingsSchema = z
   .describe('Datele parohiei, editabile din CMS.');
 
 export type Article = z.infer<typeof articleSchema>;
-export type Pagina = z.infer<typeof pageSchema>;
+export type Page = z.infer<typeof pageSchema>;
 export type Settings = z.infer<typeof settingsSchema>;
 ```
 
@@ -1422,7 +1422,7 @@ git commit -m "feat(migration): the 45 posts, 13 published and 32 held for the p
 | `catehism` | `resurse/catehism` | Catehism | 60 |
 | `studii` | `resurse/studii` | Studii | 70 |
 | `revista-doxologia` | `resurse/doxologia` | Revista Doxologia | 80 |
-| `link-uri-utile` | `resurse/links` | Link-uri utile | 90 |
+| `link-uri-utile` | `resurse/linkuri` | Link-uri utile | 90 |
 
 **Titles carry their real diacritics in the actual file** — they are written here without, because this plan is swept for codepoints and the correct Romanian letters would be fine but the surrounding table is easier to read plain. The implementer takes each title from `wpoi_posts.post_title`, normalised, not from this table.
 

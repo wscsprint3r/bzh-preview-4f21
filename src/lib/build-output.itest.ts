@@ -188,7 +188,7 @@ const DAYS = collectionDays();
 describe("this file's detectors can actually fire", () => {
   // A control that cannot fail proves nothing. The strings are built from
   // codepoints, exactly like the sets being searched for.
-  it.each(CEDILLAS)('prinde sedila %i', (cp) => {
+  it.each(CEDILLAS)('catches cedilla %i', (cp) => {
     expect(containsAnyOf(`Înăl${String.fromCodePoint(cp)}area`, CEDILLAS)).toBe(true);
   });
 
@@ -339,13 +339,13 @@ describe('the feed respects the iCalendar format', () => {
     expect(blocks.length).toBeGreaterThan(0);
     for (const block of blocks) {
       const line = block.find((l) => l.startsWith('DTSTAMP:'));
-      expect(line, `VEVENT fără DTSTAMP: ${block.join(' | ')}`).toBeDefined();
+      expect(line, `VEVENT without DTSTAMP: ${block.join(' | ')}`).toBeDefined();
       const stamp = (line as string).slice('DTSTAMP:'.length);
       const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(stamp);
-      expect(m, `DTSTAMP prost format: ${stamp}`).not.toBeNull();
+      expect(m, `DTSTAMP badly formatted: ${stamp}`).not.toBeNull();
       const [, year, month, day, times, minutes, seconds] = m as RegExpExecArray;
       const d = new Date(Date.UTC(+year, +month - 1, +day, +times, +minutes, +seconds));
-      expect(`${d.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`, 'DTSTAMP inexistent').toBe(stamp);
+      expect(`${d.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`, 'DTSTAMP is not a real date').toBe(stamp);
     }
   });
 
@@ -355,7 +355,7 @@ describe('the feed respects the iCalendar format', () => {
     const uids: string[] = [];
     for (const block of blocks) {
       for (const key of ['UID:', 'DTSTAMP:', 'DTSTART;', 'DTEND;', 'SUMMARY:', 'LOCATION:']) {
-        expect(block.some((l) => l.startsWith(key)), `lipsește ${key} din ${block.join(' | ')}`).toBe(true);
+        expect(block.some((l) => l.startsWith(key)), `missing ${key} from ${block.join(' | ')}`).toBe(true);
       }
       expect(block.find((l) => l.startsWith('DTSTART;'))).toMatch(
         /^DTSTART;TZID=Europe\/Zurich:\d{8}T\d{6}$/,
@@ -397,7 +397,7 @@ describe('the feed keeps the comma-below diacritics', () => {
   });
 });
 
-describe('paginile construite', () => {
+describe('the built pages', () => {
   it('the homepage has the schedule section', () => {
     const html = read('index.html');
     // „Programul slujbelor”, not „Programul săptămânii”: the title in `index.astro`
@@ -535,8 +535,8 @@ describe('paginile construite', () => {
      * we are not indexable, no canonical is emitted.
      */
     process.stdout.write(
-      `\nINDEXABIL=${INDEXABLE} peste ${pages.length} pagină(i) de vizitator: ` +
-        `${canonicals.length} canonic(e), ${INDEXABLE ? 0 : pages.length} meta noindex.\n`,
+      `\nINDEXABLE=${INDEXABLE} over ${pages.length} visitor page(s): ` +
+        `${canonicals.length} canonical(s), ${INDEXABLE ? 0 : pages.length} noindex meta.\n`,
     );
   });
 

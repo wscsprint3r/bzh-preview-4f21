@@ -128,7 +128,7 @@ describe('the CMS config, against the schema Sveltia publishes', () => {
   });
 });
 
-describe('versiunea CMS-ului', () => {
+describe('the CMS version', () => {
   /*
    * Pre-1.0, with a single maintainer, and changes that can break the
    * configuration between two minor versions. A caret range would pull in a
