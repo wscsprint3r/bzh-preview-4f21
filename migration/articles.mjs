@@ -70,6 +70,33 @@ export const IMPORT_STAMPS = ['2024-05-21', '2024-06-08'];
 const STAMP_COUNTS = { '2024-05-21': 11, '2024-06-08': 21 };
 
 /**
+ * Stops the run when a stamp covers a different number of posts than measured.
+ *
+ * EXTRACTED FROM `extractArticles` SO IT CAN BE TESTED WITHOUT DOCKER. The
+ * counts are the one fact that makes the 32-stamped/13-dated split true, and a
+ * guard that cannot be shown to fire is a guard nobody knows is working; a
+ * fake query cannot reach a throw buried in a database loop, but this takes
+ * the counts the caller measured and is pure. The extraction path still calls
+ * it before a single file is converted.
+ *
+ * THE FAILURE IT PREVENTS: a dump whose stamp covers a different set of posts
+ * is a different dump, and migrating it would write 45 files whose
+ * `published:` flags were decided against data nobody has looked at. Measured
+ * 2026-09-17: 11 at `2024-05-21`, 21 at `2024-06-08`.
+ */
+export function assertStampCounts(counted) {
+  for (const stamp of IMPORT_STAMPS) {
+    if (counted.get(stamp) !== STAMP_COUNTS[stamp]) {
+      throw new Error(
+        `The bulk-import stamp ${stamp} covers ${counted.get(stamp)} post(s), not the ` +
+          `${STAMP_COUNTS[stamp]} measured on 2026-09-17. Either the dump has changed or a ` +
+          'stamp was misidentified - do not migrate from this data.',
+      );
+    }
+  }
+}
+
+/**
  * WordPress's category names to the site's, and nothing else.
  *
  * Measured over the 45 posts, 2026-09-17: `Noutati` on 42, `Catehismul
@@ -84,6 +111,41 @@ const CATEGORY_FOR_TERM = new Map([
   ['Noutati', 'Noutati'],
   ['Catehismul Bisericii Ortodoxe', 'Cateheza'],
 ]);
+
+/**
+ * The site category for one post's WordPress terms, or a stopped run.
+ *
+ * EXTRACTED FROM `extractArticles` FOR THE SAME REASON as `assertStampCounts`:
+ * the throw arms are two of this task's failure modes and a fake query cannot
+ * reach them once they sit inside a database loop. The decision is pure - a
+ * slug for the message, the terms, and the map above.
+ *
+ * Exactly one term is expected. Zero has no unambiguous place on the site and
+ * several would have to be resolved by a preference nobody has stated; both
+ * stop the run naming the post. A term that maps to neither stops it too,
+ * rather than falling back to `Noutati`, because a post quietly landing in the
+ * wrong category is invisible on every page it appears on. Measured over the
+ * 45 posts, 2026-09-17: every one carries exactly one term - 42 `Noutati`,
+ * 3 `Catehismul Bisericii Ortodoxe`, none zero, none several.
+ */
+export function categoryFor(slug, terms) {
+  if (terms.length !== 1) {
+    throw new Error(
+      `${slug} carries ${terms.length} categor(y|ies): ${terms.join(', ') || '(none)'}. ` +
+        'Every published post is expected to carry exactly one, and a post with none or ' +
+        'several has no unambiguous place on the site.',
+    );
+  }
+  const category = CATEGORY_FOR_TERM.get(terms[0]);
+  if (category === undefined) {
+    throw new Error(
+      `${slug} carries the category "${terms[0]}", which maps to neither of ` +
+        `${[...CATEGORY_FOR_TERM.keys()].join(' or ')}. ` +
+        'Add the mapping deliberately or correct the post - never fall back to Noutati.',
+    );
+  }
+  return category;
+}
 
 /** Where the migrated posts land, relative to the repository root. */
 const ARTICLES_DIR = 'src/content/articles';
@@ -123,6 +185,68 @@ export function fileName(slug, date) {
  */
 function markdownPath(repoRelative) {
   return `../../${repoRelative.slice('src/'.length)}`;
+}
+
+/**
+ * Stops the run when a reference has no migrated file behind it.
+ *
+ * THE GATE TASK 5 CANNOT BE. `migrateImages` leaves a dead reference out of
+ * its map and names it on stdout, and exits 0 by design - the caller is what
+ * decides whether that is fatal. Here it is fatal: a reference named nowhere
+ * downstream renders as a broken image on a green build. `sources` covers body
+ * and featured references alike, because the frontmatter `image:` is as
+ * capable of pointing at nothing as an `![](...)` is.
+ *
+ * EXTRACTED FROM `extractArticles` so the throw can be shown to fire without
+ * Docker. Measured: 0 unmapped among the 7 references these 45 posts carry
+ * (4 in bodies, 3 featured), so this guard exists for the pages corpus and for
+ * whatever the parish adds next.
+ */
+export function assertImageReferences(slug, sources, mapping) {
+  for (const src of sources) {
+    if (!mapping.has(src)) {
+      throw new Error(
+        `${slug} references ${src}, which the image migration did not write. ` +
+          'The reference is dead; fix it at the source before migrating, because a ' +
+          'missing image fails nothing downstream.',
+      );
+    }
+  }
+}
+
+/**
+ * Replaces every reference in `markdown` with its markdown-relative path.
+ *
+ * SINGLE PASS, LONGEST ALTERNATIVE FIRST, AND BOTH HALVES ARE LOAD-BEARING.
+ * A raw `replaceAll` per source corrupts a longer URL when a shorter one is a
+ * literal substring of it - `…/1.jpg` sits inside `…/11.jpg`, and the shape
+ * `a.jpg` inside `a.jpg-300x200.jpg` is one `migrateImages` reasons about -
+ * because the shorter replacement rewrites the prefix of the longer URL and
+ * the written Markdown then points at a file nobody wrote. Sorting by
+ * descending length fixes the case where the shorter is a PREFIX of the
+ * longer; the single pass is what makes it safe in general, because the
+ * replacement text is never rescanned - a destination that happened to contain
+ * another source string would otherwise be rewritten by that source's own
+ * pass. A regex alternation tries its alternatives left to right at each
+ * position, which is why the order is by descending length.
+ *
+ * The sources are regex-escaped: they are URLs off a compromised server, so
+ * `.` and `?` are literal characters here, not syntax.
+ *
+ * The mapping is expected to be COMPLETE for `sources`; `assertImageReferences`
+ * is what guarantees that in the extraction path. Measured over the 45 posts'
+ * 4 body references: 0 substring collisions today, so this is correctness by
+ * construction for a corpus that is currently lucky - and the pages corpus
+ * reuses this function.
+ */
+export function rewriteImageSources(markdown, sources, mapping) {
+  const ordered = [...new Set(sources)].sort((a, b) => b.length - a.length);
+  if (ordered.length === 0) return markdown;
+  const pattern = new RegExp(
+    ordered.map((src) => src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
+    'g',
+  );
+  return markdown.replace(pattern, (src) => markdownPath(mapping.get(src)));
 }
 
 /**
@@ -191,15 +315,7 @@ export async function extractArticles() {
   for (const [, , date] of posts) {
     if (counted.has(date)) counted.set(date, counted.get(date) + 1);
   }
-  for (const stamp of IMPORT_STAMPS) {
-    if (counted.get(stamp) !== STAMP_COUNTS[stamp]) {
-      throw new Error(
-        `The bulk-import stamp ${stamp} covers ${counted.get(stamp)} post(s), not the ` +
-          `${STAMP_COUNTS[stamp]} measured on 2026-09-17. Either the dump has changed or a ` +
-          'stamp was misidentified - do not migrate from this data.',
-      );
-    }
-  }
+  assertStampCounts(counted);
 
   const documents = [];
   for (const [slug, title, date, content, excerpt] of posts) {
@@ -222,21 +338,7 @@ export async function extractArticles() {
     }
 
     const terms = categories.get(slug) ?? [];
-    if (terms.length !== 1) {
-      throw new Error(
-        `${slug} carries ${terms.length} categor(y|ies): ${terms.join(', ') || '(none)'}. ` +
-          'Every published post is expected to carry exactly one, and a post with none or ' +
-          'several has no unambiguous place on the site.',
-      );
-    }
-    const category = CATEGORY_FOR_TERM.get(terms[0]);
-    if (category === undefined) {
-      throw new Error(
-        `${slug} carries the category "${terms[0]}", which maps to neither of ` +
-          `${[...CATEGORY_FOR_TERM.keys()].join(' or ')}. ` +
-          'Add the mapping deliberately or correct the post - never fall back to Noutati.',
-      );
-    }
+    const category = categoryFor(slug, terms);
 
     documents.push({
       slug,
@@ -273,28 +375,12 @@ export async function extractArticles() {
   let written = 0;
   let published = 0;
   for (const doc of documents) {
-    /*
-     * THE GATE TASK 5 CANNOT BE. `migrateImages` leaves a dead reference out
-     * of its map and names it on stdout, and exits 0 by design - the caller is
-     * what decides whether that is fatal. Here it is fatal: an image that is
-     * named nowhere downstream would render as a broken reference on a green
-     * build. Measured: 0 unmapped among the 7 references these 45 posts carry
-     * (4 in bodies, 3 featured).
-     */
-    for (const src of [...doc.bodySources, ...(doc.featured === undefined ? [] : [doc.featured])]) {
-      if (!mapping.has(src)) {
-        throw new Error(
-          `${doc.slug} references ${src}, which the image migration did not write. ` +
-            'The reference is dead; fix it at the source before migrating, because a ' +
-            'missing image fails nothing downstream.',
-        );
-      }
-    }
-
-    let body = doc.markdown;
-    for (const src of doc.bodySources) {
-      body = body.replaceAll(src, markdownPath(mapping.get(src)));
-    }
+    const allSources = [
+      ...doc.bodySources,
+      ...(doc.featured === undefined ? [] : [doc.featured]),
+    ];
+    assertImageReferences(doc.slug, allSources, mapping);
+    const body = rewriteImageSources(doc.markdown, doc.bodySources, mapping);
 
     const isPublished = isDated(doc.date);
     const frontmatter = {
