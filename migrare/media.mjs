@@ -357,6 +357,14 @@ export async function migreazaImagini(
   // size reports one whether the file was written once or three times - which
   // is exactly the thing this number exists to report on.
   let scrieri = 0;
+  // Destination (lower-cased) -> the source file that claimed it. Two DIFFERENT
+  // source files reaching one destination is only possible when their names
+  // differ merely by case, and that is a real platform-dependent bug: on Linux,
+  // which builds this site, they are two files and one overwrites the other in
+  // the repository; on macOS, which it is developed on, they are one file and
+  // nobody sees it. Measured 0 among the 100 real references - so today this
+  // holds by luck, and this map is what makes it hold by construction.
+  const revendicate = new Map();
   // What resolution did, for the report below.
   const dinMiniaturi = new Set();
   const directe = new Set();
@@ -385,6 +393,18 @@ export async function migreazaImagini(
     }
     const sursa = join(radacinaUploads, relativ);
     const destinatieRel = numeDestinatie(src);
+    const cheie = destinatieRel.toLowerCase();
+    const revendicatDe = revendicate.get(cheie);
+    if (revendicatDe !== undefined && revendicatDe !== relativ) {
+      throw new Error(
+        `Destinatia ${destinatieRel} este revendicata de doua fisiere sursa ` +
+          `diferite: ${revendicatDe} si ${relativ}.\n` +
+          '  Se deosebesc doar prin majuscule, deci pe Linux sunt doua poze si una ' +
+          'o suprascrie pe cealalta in depozit, iar pe macOS sunt una singura si ' +
+          'nimeni nu observa. Redenumeste una in sursa inainte sa reiei migrarea.',
+      );
+    }
+    revendicate.set(cheie, relativ);
     if (scrise.has(relativ)) { harta.set(src, scrise.get(relativ)); continue; }
     if (cazute.has(relativ)) continue;
     const destinatie = join(radacinaRepo, destinatieRel);

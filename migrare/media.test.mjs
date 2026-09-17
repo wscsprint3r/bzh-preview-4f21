@@ -456,6 +456,29 @@ describe('rezolvarea miniaturii la originalul din care a fost taiata', () => {
     ).rejects.toThrow(/mai mic/i);
   });
 
+  it('CONDITIA 2c: doua fisiere sursa nu pot revendica aceeasi destinatie', async () => {
+    // The destination is derived from the source path, so two DIFFERENT source
+    // files can only land on one name when the names differ merely by case -
+    // and that is a real, platform-dependent bug rather than a curiosity: on
+    // Linux, which is what builds this site, they are two files and one
+    // overwrites the other in the repository; on macOS, which is what it is
+    // developed on, they are one file and nobody ever sees it. Measured: 0
+    // collisions among the 100 real references, exact or case-insensitive - so
+    // this holds today by luck, and the guard is what makes it hold by
+    // construction.
+    const poza = await sharp({
+      create: { width: 60, height: 40, channels: 3, background: '#2b6f3a' },
+    }).jpeg().toBuffer();
+    await pune('2025/07/Unica.jpg', poza);
+    await pune('2025/07/unica.jpg', poza);
+    await expect(
+      migreazaImagini(
+        ['/wp-content/uploads/2025/07/Unica.jpg', '/wp-content/uploads/2025/07/unica.jpg'],
+        radacina, uploads,
+      ),
+    ).rejects.toThrow(/revendicat/i);
+  });
+
   it('o miniatura de tip nepermis ramane respinsa, nu se rezolva', async () => {
     // SVG is not migrated at all, and that must not change because the name
     // happens to carry a size.
