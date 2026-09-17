@@ -83,8 +83,8 @@ Taken 2026-09-16 from `backup-2026-08-27/database.sql.gz` loaded into `mariadb:1
 | `src/content.config.ts` | Registers `articles`, `pages`, `settings` beside `services` |
 | `src/lib/articles.ts` | Reading, filtering and ordering posts — the `published` rule lives here |
 | `src/lib/settings.ts` | Typed access to the settings singleton |
-| `src/components/CardArticol.astro` | One post in a list |
-| `src/components/ListaArticole.astro` | A list of post cards, used by `/noutati` and the homepage |
+| `src/components/ArticleCard.astro` | One post in a list |
+| `src/components/ArticleList.astro` | A list of post cards, used by `/noutati` and the homepage |
 | `src/pages/noutati/index.astro` | The news index |
 | `src/pages/noutati/[slug].astro` | One article |
 | `src/pages/rss.xml.ts` | The feed |
@@ -122,8 +122,8 @@ import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { DUMP_PATH, CONTAINER_NAME } from './db.mjs';
 
-describe('sursa migrarii', () => {
-  it('numeste dumpul prin cale absoluta, in afara depozitului', () => {
+describe('the migration source', () => {
+  it('names the dump by absolute path, outside the repository', () => {
     expect(DUMP_PATH.startsWith('/')).toBe(true);
     expect(DUMP_PATH).toContain('backup-2026-08-27');
     expect(DUMP_PATH.endsWith('database.sql.gz')).toBe(true);
@@ -134,12 +134,12 @@ describe('sursa migrarii', () => {
     expect(DUMP_PATH.startsWith(root)).toBe(false);
   });
 
-  it('spune limpede cand dumpul lipseste, in loc sa migreze zero randuri', async () => {
+  it('says plainly when the dump is missing, instead of migrating zero rows', async () => {
     // Positive control: the detector can fire. A harness that reports success
     // on a missing source is the failure this whole file exists to prevent.
     const { requireDump } = await import('./db.mjs');
     expect(() => requireDump('/nu/exista/database.sql.gz')).toThrow(
-      /Dumpul nu a fost gasit/,
+      /The dump was not found/,
     );
     // And the other direction, so the check is not vacuously true.
     if (existsSync(DUMP_PATH)) {
@@ -147,7 +147,7 @@ describe('sursa migrarii', () => {
     }
   });
 
-  it('numele containerului este al acestui proiect, nu unul generic', () => {
+  it("the container name is this project's, not a generic one", () => {
     expect(CONTAINER_NAME).toBe('bzh-migration');
   });
 });
@@ -183,7 +183,7 @@ export const DUMP_PATH =
 /** Named for this project, so a stray container is attributable. */
 export const CONTAINER_NAME = 'bzh-migration';
 
-const PASSWORD = 'migrare';
+const PASSWORD = 'migration';
 const DATABASE = 'wp';
 
 /**
@@ -197,9 +197,9 @@ const DATABASE = 'wp';
 export function requireDump(path = DUMP_PATH) {
   if (!existsSync(path)) {
     throw new Error(
-      `Dumpul nu a fost gasit: ${path}\n` +
-        'Migrarea citeste din copiile de siguranta din directorul parinte, care ' +
-        'nu fac parte din depozit. Fara ele nu se poate migra nimic.',
+      `The dump was not found: ${path}\n` +
+        'The migration reads from the backups in the parent directory, which are ' +
+        'not part of the repository. Without them nothing can be migrated.',
     );
   }
   return path;
@@ -243,7 +243,7 @@ export async function start() {
       break;
     } catch {
       if (Date.now() - startedAt > 90_000) {
-        throw new Error('MariaDB nu a pornit in 90 de secunde.');
+        throw new Error('MariaDB did not start within 90 seconds.');
       }
       await new Promise((r) => setTimeout(r, 500));
     }
@@ -291,11 +291,11 @@ Run this by hand once and paste the numbers into `migration/README.md`:
 ```bash
 node -e "
 import('./migration/db.mjs').then(async (m) => {
-  await m.porneste();
-  const p = await m.interogheaza(\"SELECT COUNT(*) FROM wpoi_posts WHERE post_type='post' AND post_status='publish'\");
-  const g = await m.interogheaza(\"SELECT COUNT(*) FROM wpoi_posts WHERE post_type='page' AND post_status='publish'\");
+  await m.start();
+  const p = await m.query(\"SELECT COUNT(*) FROM wpoi_posts WHERE post_type='post' AND post_status='publish'\");
+  const g = await m.query(\"SELECT COUNT(*) FROM wpoi_posts WHERE post_type='page' AND post_status='publish'\");
   console.log('posts', p[0][0], 'pages', g[0][0]);
-  await m.opreste();
+  await m.stop();
 });
 "
 ```
@@ -310,7 +310,7 @@ It must state: that Docker is required; that the source lives outside the reposi
 
 ```bash
 git add migration/db.mjs migration/db.test.mjs migration/README.md
-git commit -m "feat(migrare): a disposable database that fails loudly when the source is missing"
+git commit -m "feat(migration): a disposable database that fails loudly when the source is missing"
 ```
 
 ---
@@ -323,7 +323,7 @@ git commit -m "feat(migrare): a disposable database that fails loudly when the s
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `normalizeaza(text: string)` → `string`, `REPLACEMENTS` (a `Map<number, number>` from forbidden codepoint to correct one), `raportCodepoints(text: string)` → `Map<number, number>`.
+- Produces: `normalize(text: string)` → `string`, `REPLACEMENTS` (a `Map<number, number>` from forbidden codepoint to correct one), `codepointReport(text: string)` → `Map<number, number>`.
 
 **This is the task the whole migration turns on.** Phase 1's `src/lib/diacritics.itest.ts` sweeps every text file in `dist/` for four codepoints and fails the build. The content being migrated contains 684 of them. Get this wrong and either the build fails on the first migrated file, or — far worse — somebody "fixes" the build by narrowing the sweep.
 
@@ -348,41 +348,41 @@ const [CAPITAL_S_COMMA, S_COMMA, CAPITAL_T_COMMA, T_COMMA] =
 const A_TILDE = String.fromCodePoint(0x00e3);
 const A_BREVE = String.fromCodePoint(0x0103);
 
-describe('normalizarea diacriticelor', () => {
-  it('schimba toate cele patru forme cu sedila', () => {
+describe('diacritic normalisation', () => {
+  it('changes all four cedilla forms', () => {
     expect(normalize(S_CEDILLA)).toBe(S_COMMA);
     expect(normalize(T_CEDILLA)).toBe(T_COMMA);
     expect(normalize(CAPITAL_S_CEDILLA)).toBe(CAPITAL_S_COMMA);
     expect(normalize(CAPITAL_T_CEDILLA)).toBe(CAPITAL_T_COMMA);
   });
 
-  it('schimba a cu tilda, care nu este o litera romaneasca', () => {
+  it('changes a with tilde, which is not a Romanian letter', () => {
     expect(normalize(A_TILDE)).toBe(A_BREVE);
     expect(normalize(String.fromCodePoint(0x00c3))).toBe(String.fromCodePoint(0x0102));
   });
 
-  it('nu atinge literele corecte', () => {
+  it('does not touch the correct letters', () => {
     const correct = S_COMMA + T_COMMA + A_BREVE + 'aiu' + String.fromCodePoint(0x00e2);
     expect(normalize(correct)).toBe(correct);
   });
 
-  it('pastreaza u cu umlaut, fiindca scrie Zurich', () => {
+  it('keeps u with umlaut, because it spells Zurich', () => {
     const u = String.fromCodePoint(0x00fc);
     expect(normalize(`Z${u}rich`)).toBe(`Z${u}rich`);
   });
 
-  it('inlocuieste spatiul neseparabil cu spatiu obisnuit', () => {
+  it('replaces the non-breaking space with an ordinary one', () => {
     expect(normalize(`a${String.fromCodePoint(0x00a0)}b`)).toBe('a b');
   });
 
-  it('NU adauga diacritice lipsa - asta este treaba unui om', () => {
+  it('does NOT add missing diacritics - that is a human job', () => {
     // "si" stays "si". A script that guessed here would rewrite the parish's
     // words on its own authority, in a language it cannot read.
     expect(normalize('si')).toBe('si');
     expect(normalize('anuntati')).toBe('anuntati');
   });
 
-  it('nu lasa niciun codepoint interzis in urma, pentru orice intrare', () => {
+  it('leaves no forbidden codepoint behind, for any input', () => {
     // The property, not an example. Every forbidden codepoint, in one string.
     const all = [...REPLACEMENTS.keys()].map((c) => String.fromCodePoint(c)).join('');
     const after = normalize(all);
@@ -391,13 +391,13 @@ describe('normalizarea diacriticelor', () => {
     }
   });
 
-  it('raportul numara ce a gasit, ca sa poata fi citit intr-o rulare', () => {
+  it('the report counts what it found, so it can be read from a single run', () => {
     const r = codepointReport(S_CEDILLA + S_CEDILLA + T_CEDILLA);
     expect(r.get(CEDILLAS[1])).toBe(2);
     expect(r.get(CEDILLAS[3])).toBe(1);
   });
 
-  it('este idempotenta', () => {
+  it('is idempotent', () => {
     const entry = S_CEDILLA + T_CEDILLA + A_TILDE + 'text';
     expect(normalize(normalize(entry))).toBe(normalize(entry));
   });
@@ -492,16 +492,16 @@ Expected: PASS, 8 tests.
 
 ```bash
 node -e "
-Promise.all([import('./migration/db.mjs'), import('./migration/diacritics.mjs'), import('./src/lib/cedilla.ts')]).then(async ([db, d, cedile]) => {
-  await db.porneste();
-  const r = await db.interogheaza(\"SELECT post_content FROM wpoi_posts WHERE post_type IN ('post','page') AND post_status='publish'\");
-  const tot = r.map((x) => x[0]).join('');
-  const inainte = d.raportCodepoints(tot);
-  const dupa = d.raportCodepoints(d.normalizeaza(tot));
-  for (const c of [...cedile.CEDILE, 0x00e3]) {
-    console.log('U+' + c.toString(16).toUpperCase().padStart(4,'0'), 'inainte', inainte.get(c) ?? 0, 'dupa', dupa.get(c) ?? 0);
+Promise.all([import('./migration/db.mjs'), import('./migration/diacritics.mjs'), import('./src/lib/cedilla.ts')]).then(async ([db, d, cedilla]) => {
+  await db.start();
+  const r = await db.query(\"SELECT post_content FROM wpoi_posts WHERE post_type IN ('post','page') AND post_status='publish'\");
+  const all = r.map((x) => x[0]).join('');
+  const before = d.codepointReport(all);
+  const after = d.codepointReport(d.normalize(all));
+  for (const c of [...cedilla.CEDILLAS, 0x00e3]) {
+    console.log('U+' + c.toString(16).toUpperCase().padStart(4,'0'), 'before', before.get(c) ?? 0, 'after', after.get(c) ?? 0);
   }
-  await db.opreste();
+  await db.stop();
 });
 "
 ```
@@ -512,7 +512,7 @@ Expected, from the 2026-09-16 measurement: `U+015E 5 -> 0`, `U+015F 362 -> 0`, `
 
 ```bash
 git add migration/diacritics.mjs migration/diacritics.test.mjs
-git commit -m "feat(migrare): normalise the 684 forbidden characters the old content carries"
+git commit -m "feat(migration): normalise the 684 forbidden characters the old content carries"
 ```
 
 ---
@@ -526,7 +526,7 @@ git commit -m "feat(migrare): normalise the 684 forbidden characters the old con
 
 **Interfaces:**
 - Consumes: `normalize` from `migration/diacritics.mjs`.
-- Produces: `dezbracaPreambul(html: string)` → `string`, `laMarkdown(html: string)` → `string`, `imaginiDin(html: string)` → `string[]` (every `src` in document order).
+- Produces: `stripPreamble(html: string)` → `string`, `toMarkdown(html: string)` → `string`, `imagesIn(html: string)` → `string[]` (every `src` in document order).
 
 **`turndown` is a devDependency and must stay one.** It runs during migration and never during a build; a runtime dependency here would ship nothing but would make the site's dependency surface a lie.
 
@@ -543,57 +543,57 @@ import { CEDILLAS, COMMA_BELOW } from '../src/lib/cedilla.ts';
 const REAL_PREAMBLE =
   '<p>Layouts: Popup</p>\t\t\n\t\tParohia noastra &gt; <u><b>Istoric</b></u>\t\t\n\t\t\t';
 
-describe('dezbracarea preambulului', () => {
-  it('scoate linia Layouts si firimiturile de navigare', () => {
+describe('stripping the preamble', () => {
+  it('removes the Layouts line and the navigation crumbs', () => {
     const after = stripPreamble(`${REAL_PREAMBLE}<h2>Titlu</h2><p>Text.</p>`);
     expect(after).not.toContain('Layouts: Popup');
     expect(after).not.toContain('Parohia noastra');
     expect(after.trim().startsWith('<h2>')).toBe(true);
   });
 
-  it('nu face nimic pe un articol, care nu are preambul', () => {
+  it('does nothing on an article, which has no preamble', () => {
     // The strip must be a no-op here. A version that ate a leading paragraph
     // would remove real content from 45 posts and nothing would fail.
     const article = '<h3>Hramul parohiei</h3><p>Programul va fi:</p>';
     expect(stripPreamble(article)).toBe(article);
   });
 
-  it('nu scoate un paragraf doar fiindca este primul', () => {
+  it('does not remove a paragraph merely for being first', () => {
     const html = '<p>Un paragraf adevarat, primul.</p><p>Al doilea.</p>';
     expect(stripPreamble(html)).toBe(html);
   });
 });
 
-describe('conversia la Markdown', () => {
-  it('pastreaza titlurile, paragrafele si listele', () => {
+describe('conversion to Markdown', () => {
+  it('keeps headings, paragraphs and lists', () => {
     const md = toMarkdown('<h2>Titlu</h2><p>Text.</p><ul><li>Unu</li><li>Doi</li></ul>');
     expect(md).toContain('## Titlu');
     expect(md).toContain('Text.');
     expect(md).toContain('-   Unu');
   });
 
-  it('normalizeaza diacriticele pe drum', () => {
+  it('normalises the diacritics along the way', () => {
     const cedilla = String.fromCodePoint(CEDILLAS[1]);
     const comma = String.fromCodePoint(COMMA_BELOW[1]);
     expect(toMarkdown(`<p>Mo${cedilla}ii</p>`)).toContain(`Mo${comma}ii`);
   });
 
-  it('nu lasa HTML brut in urma', () => {
+  it('leaves no raw HTML behind', () => {
     expect(toMarkdown('<p>a</p>')).not.toContain('<p>');
   });
 
-  it('nu lasa randuri de tabulatoare goale din markupul Elementor', () => {
+  it('leaves no empty tab-only lines from Elementor markup', () => {
     expect(toMarkdown('<p>a</p>\t\t\n\t\t<p>b</p>')).not.toMatch(/\t/);
   });
 });
 
-describe('imaginile din HTML', () => {
-  it('le da in ordinea documentului', () => {
+describe('the images in the HTML', () => {
+  it('gives them in document order', () => {
     const html = '<img src="/a.jpg"><p>x</p><img src="/b.png" width="10">';
     expect(imagesIn(html)).toEqual(['/a.jpg', '/b.png']);
   });
 
-  it('da o lista goala cand nu sunt imagini, nu arunca', () => {
+  it('gives an empty list rather than throwing when there are none', () => {
     expect(imagesIn('<p>x</p>')).toEqual([]);
   });
 });
@@ -662,8 +662,8 @@ function cleanWhitespace(md) {
 
 /** HTML in, Markdown out, with the text normalised on the way through. */
 export function toMarkdown(html) {
-  // ORDER IS LOAD-BEARING: Turndown converts FIRST, normalizeaza runs on its
-  // output. An entity like `&nbsp;` or `&#160;` is plain ASCII to normalizeaza
+  // ORDER IS LOAD-BEARING: Turndown converts FIRST, normalize runs on its
+  // output. An entity like `&nbsp;` or `&#160;` is plain ASCII to normalize
   // and to the dist sweep; it becomes U+00A0 only when Turndown decodes it. The
   // dump holds 14,961 of the first and 6 of the second - normalising first would
   // reintroduce 14,967 non-breaking spaces immediately after removing 459 literal
@@ -687,26 +687,26 @@ Expected: PASS, 9 tests.
 ```bash
 node -e "
 Promise.all([import('./migration/db.mjs'), import('./migration/html-md.mjs')]).then(async ([db, h]) => {
-  await db.porneste();
-  const posts = await db.interogheaza(\"SELECT post_name, post_content FROM wpoi_posts WHERE post_type='post' AND post_status='publish'\");
-  const atinse = posts.filter(([, c]) => h.dezbracaPreambul(c) !== c);
-  console.log('articole atinse de dezbracare (trebuie 0):', atinse.length, atinse.map((x) => x[0]).join(' '));
-  const NOUA = ['istoric','consiliul-parohial','catehism','studii','revista-doxologia','link-uri-utile','scoala-parohiala','cursuri-de-pictura','servicii-liturgice'];
-  const pages = await db.interogheaza(\`SELECT post_name, post_content FROM wpoi_posts WHERE post_type='page' AND post_status='publish' AND post_name IN ('\${NOUA.join(\"','\")}')\`);
-  const neatinse = pages.filter(([, c]) => h.dezbracaPreambul(c) === c);
-  console.log('pagini NEatinse (trebuie 0):', neatinse.length, neatinse.map((x) => x[0]).join(' '));
-  await db.opreste();
+  await db.start();
+  const posts = await db.query(\"SELECT post_name, post_content FROM wpoi_posts WHERE post_type='post' AND post_status='publish'\");
+  const touched = posts.filter(([, c]) => h.stripPreamble(c) !== c);
+  console.log('posts touched by stripping (must be 0):', touched.length, touched.map((x) => x[0]).join(' '));
+  const NINE = ['istoric','consiliul-parohial','catehism','studii','revista-doxologia','link-uri-utile','scoala-parohiala','cursuri-de-pictura','servicii-liturgice'];
+  const pages = await db.query(\`SELECT post_name, post_content FROM wpoi_posts WHERE post_type='page' AND post_status='publish' AND post_name IN ('\${NINE.join(\"','\")}')\`);
+  const untouched = pages.filter(([, c]) => h.stripPreamble(c) === c);
+  console.log('pages NOT touched (must be 0):', untouched.length, untouched.map((x) => x[0]).join(' '));
+  await db.stop();
 });
 "
 ```
 
-Expected: `articole atinse de dezbracare (trebuie 0): 0` and `pagini NEatinse (trebuie 0): 0`. **Both directions matter**: the first says the strip cannot eat a post's opening paragraph, the second says it is not silently doing nothing on the pages it exists for. Paste both lines into the commit message.
+Expected: `posts touched by stripping (must be 0): 0` and `pages NOT touched (must be 0): 0`. **Both directions matter**: the first says the strip cannot eat a post's opening paragraph, the second says it is not silently doing nothing on the pages it exists for. Paste both lines into the commit message.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add migration/html-md.mjs migration/html-md.test.mjs package.json package-lock.json
-git commit -m "feat(migrare): HTML to Markdown, and a preamble strip that recognises itself"
+git commit -m "feat(migration): HTML to Markdown, and a preamble strip that recognises itself"
 ```
 
 ---
@@ -720,11 +720,11 @@ git commit -m "feat(migrare): HTML to Markdown, and a preamble strip that recogn
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
-- Produces: `articleSchema`, `pageSchema`, `settingsSchema`, `CATEGORIES` (readonly string tuple), `type Articol`, `type Pagina`, `type Setari`.
+- Produces: `articleSchema`, `pageSchema`, `settingsSchema`, `CATEGORIES` (readonly string tuple), `type Article`, `type Pagina`, `type Settings`.
 
 **Follow `src/lib/schema.ts` exactly.** It uses `astro/zod`, `z.strictObject`, Romanian error messages, and a refinement that teaches the workflow rather than naming a type. A misspelled key must fail the build, because the alternative is a silently dropped field on a green build.
 
-**`publicat: false` is the archive's holding pen** (spec §6.2). 32 posts arrive unpublished because their dates were destroyed by a bulk import. An unpublished post is absent from `/noutati`, from the homepage, from `/rss.xml`, **and has no page of its own** — otherwise "unpublished" would mean "reachable by anyone with the link".
+**`published: false` is the archive's holding pen** (spec §6.2). 32 posts arrive unpublished because their dates were destroyed by a bulk import. An unpublished post is absent from `/noutati`, from the homepage, from `/rss.xml`, **and has no page of its own** — otherwise "unpublished" would mean "reachable by anyone with the link".
 
 - [ ] **Step 1: Write the failing test**
 
@@ -740,12 +740,12 @@ const MINIMAL_ARTICLE = {
   published: true,
 };
 
-describe('articolSchema', () => {
-  it('accepta un articol minim', () => {
+describe('articleSchema', () => {
+  it('accepts a minimal article', () => {
     expect(articleSchema.parse(MINIMAL_ARTICLE).title).toBe('Hramul parohiei');
   });
 
-  it('respinge o cheie scrisa gresit, in romana', () => {
+  it('rejects a misspelled key', () => {
     // The likeliest CMS mistake, and the one that would otherwise drop a field
     // on a green build.
     expect(() => articleSchema.parse({ ...MINIMAL_ARTICLE, publishedd: true }))
@@ -755,76 +755,76 @@ describe('articolSchema', () => {
       .toThrow(/Câmp necunoscut: publicatt/);
   });
 
-  it('cere o data reala, nu doar ceva in forma de data', () => {
+  it('requires a real date, not merely something date-shaped', () => {
     expect(() => articleSchema.parse({ ...MINIMAL_ARTICLE, date: '2025-02-30' })).toThrow();
     expect(() => articleSchema.parse({ ...MINIMAL_ARTICLE, date: '2025-13-01' })).toThrow();
   });
 
-  it('cere o categorie din lista', () => {
+  it('requires a category from the list', () => {
     expect(() => articleSchema.parse({ ...MINIMAL_ARTICLE, category: 'Altceva' })).toThrow();
     for (const c of CATEGORIES) {
       expect(articleSchema.parse({ ...MINIMAL_ARTICLE, category: c }).category).toBe(c);
     }
   });
 
-  it('publicat este obligatoriu si nu are implicit', () => {
+  it('published is required and has no default', () => {
     // No default. A post whose `published` was lost must fail the build rather
     // than quietly publish 32 undated archive posts.
     const { published: _, ...without } = MINIMAL_ARTICLE;
     expect(() => articleSchema.parse(without)).toThrow();
   });
 
-  it('respinge un titlu gol sau numai spatii', () => {
+  it('rejects a title that is empty or only spaces', () => {
     expect(() => articleSchema.parse({ ...MINIMAL_ARTICLE, title: '   ' })).toThrow();
   });
 
-  it('are autorul Parohia cand nu este dat', () => {
+  it('has the author Parohia when none is given', () => {
     expect(articleSchema.parse(MINIMAL_ARTICLE).author).toBe('Parohia');
   });
 });
 
-describe('paginaSchema', () => {
-  it('accepta o pagina cu titlu si cale', () => {
+describe('pageSchema', () => {
+  it('accepts a page with a title and a path', () => {
     const p = pageSchema.parse({ title: 'Istoric', path: 'parohia/istoric', order: 10 });
     expect(p.path).toBe('parohia/istoric');
   });
 
-  it('respinge o cale cu slash la inceput sau la sfarsit', () => {
+  it('rejects a path with a leading or trailing slash', () => {
     // The route builds `/${path}/`; a stored slash would produce `//istoric//`,
     // which 404s while the file looks perfectly correct.
     expect(() => pageSchema.parse({ title: 'x', path: '/parohia/istoric', order: 1 })).toThrow();
     expect(() => pageSchema.parse({ title: 'x', path: 'parohia/istoric/', order: 1 })).toThrow();
   });
 
-  it('respinge o cale cu majuscule sau spatii', () => {
+  it('rejects a path with capitals or spaces', () => {
     expect(() => pageSchema.parse({ title: 'x', path: 'Parohia/Istoric', order: 1 })).toThrow();
     expect(() => pageSchema.parse({ title: 'x', path: 'parohia/is toric', order: 1 })).toThrow();
   });
 });
 
-describe('setariSchema', () => {
-  const MINIM = {
+describe('settingsSchema', () => {
+  const MINIMAL_SETTINGS = {
     name: 'Parohia Ortodoxa Romana Sfantul Nicolae',
     address: 'Wehntalerstrasse 451, 8046 Zurich',
     phone: '076 512 04 52',
     email: 'contact@bor-zh.ch',
   };
 
-  it('accepta setarile minime', () => {
-    expect(settingsSchema.parse(MINIM).name).toContain('Parohia');
+  it('accepts the minimal settings', () => {
+    expect(settingsSchema.parse(MINIMAL_SETTINGS).name).toContain('Parohia');
   });
 
-  it('respinge un email fara @', () => {
-    expect(() => settingsSchema.parse({ ...MINIM, email: 'contact' })).toThrow();
+  it('rejects an email with no @', () => {
+    expect(() => settingsSchema.parse({ ...MINIMAL_SETTINGS, email: 'contact' })).toThrow();
   });
 
-  it('respinge cele doua valori demo de pe situl vechi', () => {
+  it('rejects the two demo values from the old site', () => {
     // Named explicitly because they are what is live today: the footer shows
     // an Athos theme placeholder address and a French phone number. Migrating
     // them would be worse than leaving the field blank.
-    expect(() => settingsSchema.parse({ ...MINIM, email: 'info@website.com' }))
+    expect(() => settingsSchema.parse({ ...MINIMAL_SETTINGS, email: 'info@website.com' }))
       .toThrow(/demo/);
-    expect(() => settingsSchema.parse({ ...MINIM, phone: '+33 877 554 332' }))
+    expect(() => settingsSchema.parse({ ...MINIMAL_SETTINGS, phone: '+33 877 554 332' }))
       .toThrow(/demo/);
   });
 });
@@ -852,7 +852,7 @@ import { dateParts } from './date-ro';
  */
 export const CATEGORIES = ['Noutati', 'Cateheza'] as const;
 
-const titluNevid = z
+const nonEmptyTitle = z
   .string()
   .trim()
   .min(1, { message: 'Titlul nu poate fi gol.' });
@@ -879,7 +879,7 @@ function strict<T extends z.ZodRawShape>(shape: T) {
 
 export const articleSchema = z
   .strictObject({
-    title: titluNevid,
+    title: nonEmptyTitle,
     date: realDate,
     /**
      * No default, deliberately. 32 of the 45 migrated posts arrive
@@ -898,7 +898,7 @@ export const articleSchema = z
 
 export const pageSchema = z
   .strictObject({
-    title: titluNevid,
+    title: nonEmptyTitle,
     /**
      * The route, WITHOUT leading or trailing slash: `parohia/istoric`.
      * `[...page].astro` builds `/${path}/` from it, so a stored slash yields
@@ -921,9 +921,9 @@ const DEMO = ['info@website.com', '+33 877 554 332'];
 
 export const settingsSchema = z
   .strictObject({
-    name: titluNevid,
-    address: titluNevid,
-    phone: titluNevid,
+    name: nonEmptyTitle,
+    address: nonEmptyTitle,
+    phone: nonEmptyTitle,
     email: z.string().trim().email({ message: 'Adresa de e-mail nu este valida.' }),
     phone2: z.string().trim().optional(),
     email2: z.string().trim().email().optional(),
@@ -990,7 +990,7 @@ Expected: both exit 0. `check` reports 0 errors.
 
 ```bash
 git add src/lib/content-schema.ts src/lib/content-schema.test.ts src/content.config.ts src/content/settings/settings.yml
-git commit -m "feat: schemas for articole, pagini and setari, with publicat as a required flag"
+git commit -m "feat: schemas for articles, pages and settings, with published as a required flag"
 ```
 
 ---
@@ -1003,7 +1003,7 @@ git commit -m "feat: schemas for articole, pagini and setari, with publicat as a
 
 **Interfaces:**
 - Consumes: `imagesIn` from `migration/html-md.mjs`.
-- Produces: `numeDestinatie(srcWp: string)` → `string` (a repo-relative path under `src/assets/content/`), `esteOriginal(cale: string)` → `boolean`, `migreazaImagini(surse: string[])` → `Promise<Map<string,string>>` mapping each WordPress `src` to its new path, `UPLOADS_ROOT`.
+- Produces: `destinationName(srcWp: string)` → `string` (a repo-relative path under `src/assets/content/`), `isOriginal(path: string)` → `boolean`, `migrateImages(sources: string[])` → `Promise<Map<string,string>>` mapping each WordPress `src` to its new path, `UPLOADS_ROOT`.
 
 **Only referenced images are migrated.** `uploads/` holds 7,421 files and 997 MB, of which 652 are raster originals — but most belong to theme demo content and plugin scaffolding (`astra-sites/`, `ai-builder/`, `essential-addons-elementor/`). Migrating all of them would put hundreds of megabytes of somebody else's stock photography into this repository's history, permanently. The set that matters is the set the 45 posts and 9 pages actually reference, plus the 3 featured images.
 
@@ -1016,21 +1016,21 @@ git commit -m "feat: schemas for articole, pagini and setari, with publicat as a
 import { describe, expect, it } from 'vitest';
 import { isOriginal, destinationName, ALLOWED_EXTENSIONS } from './media.mjs';
 
-describe('alegerea fisierelor', () => {
-  it('respinge variantele de miniatura WordPress', () => {
+describe('choosing files', () => {
+  it('rejects the WordPress thumbnail variants', () => {
     expect(isOriginal('/uploads/2024/05/poza-300x200.jpg')).toBe(false);
     expect(isOriginal('/uploads/2024/05/poza-1024x768.png')).toBe(false);
     expect(isOriginal('/uploads/2024/05/poza.jpg')).toBe(true);
   });
 
-  it('nu confunda un nume care contine cifre si x cu o miniatura', () => {
+  it('does not mistake a name that contains digits and an x for a thumbnail', () => {
     // `matrix-2.jpg` and `pers-3x.jpg` are originals. A looser pattern eats
     // real files and nothing says so, because the page just loses an image.
     expect(isOriginal('/uploads/2024/05/matrix-2.jpg')).toBe(true);
     expect(isOriginal('/uploads/2024/05/pers-3x.jpg')).toBe(true);
   });
 
-  it('respinge tot ce nu se poate re-encoda', () => {
+  it('rejects everything that cannot be re-encoded', () => {
     // SVG is a script vector and cannot be re-encoded to itself; .doc and .js
     // are not images at all. This list is the allowlist, derived from what
     // sharp can decode - never a denylist of what we happened to think of.
@@ -1041,18 +1041,18 @@ describe('alegerea fisierelor', () => {
   });
 });
 
-describe('numele destinatiei', () => {
-  it('pastreaza anul si luna, ca sa nu se ciocneasca doua poze la fel numite', () => {
+describe('the destination name', () => {
+  it('keeps the year and month, so two pictures named alike do not collide', () => {
     expect(destinationName('/wp-content/uploads/2024/05/hram.jpg'))
       .toBe('src/assets/content/2024/05/hram.jpg');
   });
 
-  it('accepta o adresa absoluta a sitului vechi', () => {
+  it('accepts an absolute address on the old site', () => {
     expect(destinationName('https://www.bor-zh.ch/wp-content/uploads/2024/05/hram.jpg'))
       .toBe('src/assets/content/2024/05/hram.jpg');
   });
 
-  it('este determinista - aceeasi intrare, acelasi rezultat', () => {
+  it('is deterministic - the same input, the same result', () => {
     // Spec 11: rerunning the migration must produce identical output.
     const a = destinationName('/wp-content/uploads/2024/05/hram.jpg');
     const b = destinationName('/wp-content/uploads/2024/05/hram.jpg');
@@ -1116,7 +1116,7 @@ export function isOriginal(path) {
  */
 export function destinationName(srcWp) {
   const m = srcWp.match(/uploads\/(.+)$/);
-  if (m === null) throw new Error(`Nu este o cale de upload: ${srcWp}`);
+  if (m === null) throw new Error(`Not an upload path: ${srcWp}`);
   return `src/assets/content/${m[1]}`;
 }
 
@@ -1132,9 +1132,9 @@ export async function migrateImages(sources, repoRoot = process.cwd()) {
   const mapping = new Map();
   const skipped = [];
   for (const src of [...new Set(sources)]) {
-    if (!isOriginal(src)) { skipped.push([src, 'tip nepermis']); continue; }
+    if (!isOriginal(src)) { skipped.push([src, 'disallowed type']); continue; }
     const relative = src.match(/uploads\/(.+)$/)?.[1];
-    if (relative === undefined) { skipped.push([src, 'cale straina']); continue; }
+    if (relative === undefined) { skipped.push([src, 'foreign path']); continue; }
     const source = join(UPLOADS_ROOT, relative);
     const destinationRelative = destinationName(src);
     const destination = join(repoRoot, destinationRelative);
@@ -1159,9 +1159,9 @@ export async function migrateImages(sources, repoRoot = process.cwd()) {
   }
   // Print what was measured, not only the verdict.
   process.stdout.write(
-    `\nImagini migrate: ${mapping.size} din ${new Set(sources).size} referite.\n`,
+    `\nImages migrated: ${mapping.size} of ${new Set(sources).size} referenced.\n`,
   );
-  for (const [src, reason] of skipped) process.stdout.write(`  sarita: ${src} — ${reason}\n`);
+  for (const [src, reason] of skipped) process.stdout.write(`  skipped: ${src} - ${reason}\n`);
   return mapping;
 }
 ```
@@ -1180,22 +1180,22 @@ node -e "
 import('sharp').then(async ({default: sharp}) => {
   const fs = await import('node:fs/promises');
   const bun = await sharp({create:{width:10,height:10,channels:3,background:'#fff'}}).jpeg().toBuffer();
-  await fs.writeFile('/tmp/otravit.jpg', Buffer.concat([bun, Buffer.from('<?php system(\$_GET[0]); ?>')]));
-  const inainte = await fs.readFile('/tmp/otravit.jpg');
-  console.log('inainte contine php:', inainte.includes('<?php'));
-  const dupa = await sharp(inainte).toBuffer();
-  console.log('dupa  contine php:', dupa.includes('<?php'));
+  await fs.writeFile('/tmp/poisoned.jpg', Buffer.concat([bun, Buffer.from('<?php system(\$_GET[0]); ?>')]));
+  const before = await fs.readFile('/tmp/poisoned.jpg');
+  console.log('before contains php:', before.includes('<?php'));
+  const after = await sharp(before).toBuffer();
+  console.log('after  contains php:', after.includes('<?php'));
 });
 "
 ```
 
-Expected: `inainte contine php: true`, `dupa contine php: false`. Paste both lines into the commit message — this is the claim the whole task rests on and it should be a measurement rather than an assertion.
+Expected: `before contains php: true`, `after contains php: false`. Paste both lines into the commit message — this is the claim the whole task rests on and it should be a measurement rather than an assertion.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add migration/media.mjs migration/media.test.mjs
-git commit -m "feat(migrare): migrate only referenced images, sanitising each by re-encoding it"
+git commit -m "feat(migration): migrate only referenced images, sanitising each by re-encoding it"
 ```
 
 ---
@@ -1205,12 +1205,12 @@ git commit -m "feat(migrare): migrate only referenced images, sanitising each by
 **Files:**
 - Create: `migration/articles.mjs`, `migration/articles.test.mjs`
 - Modify: `src/lib/diacritics-sources.test.ts` (the `BINARIES` rule, below)
-- Create: `src/lib/binare.itest.ts`
+- Create: `src/lib/binaries.itest.ts`
 - Creates at run time: `src/content/articles/*.md`
 
 **This is the task that first commits the migrated images, and the moment it
-does, `src/lib/diacritics-sources.test.ts` goes red.** Its case *nu lasa afara
-niciun fisier urmarit pe care nimeni nu l-a numit binar* fails every tracked
+does, `src/lib/diacritics-sources.test.ts` goes red.** Its case *leaves out no
+tracked file that nobody has named as binary* fails every tracked
 file that is not valid UTF-8 and is not listed in `BINARIES` — which holds one
 path, named one by one on purpose. About a hundred JPEGs and PNGs cannot be
 named one by one.
@@ -1223,7 +1223,7 @@ than naming: a check that every file under that prefix actually DECODES as an
 image through sharp. A name list is defeated by renaming a payload to `.jpg`; a
 decode check is not, and it asserts from the outside exactly the guarantee
 Task 5's pipeline makes from the inside. It needs sharp and around a hundred
-files, so it belongs in `src/lib/binare.itest.ts`, run by `npm run test:build`,
+files, so it belongs in `src/lib/binaries.itest.ts`, run by `npm run test:build`,
 not in the unit sweep.
 
 Also assert that the prefix rule matches at least one real file, so it cannot
@@ -1232,9 +1232,9 @@ the allow-list.
 
 **Interfaces:**
 - Consumes: `query`, `toMarkdown`, `imagesIn`, `migrateImages`, `articleSchema`.
-- Produces: `IMPORT_STAMPS` (the two bulk-import dates), `esteDatat(data: string)` → `boolean`, `numeFisier(slug, data)` → `string`, `extrageArticole()` → `Promise<{scrise: number, publicate: number}>`.
+- Produces: `IMPORT_STAMPS` (the two bulk-import dates), `isDated(date: string)` → `boolean`, `fileName(slug, date)` → `string`, `extractArticles()` → `Promise<{written: number, published: number}>`.
 
-**The date rule is the whole task.** 32 of the 45 posts carry a bulk-import stamp rather than a publication date — 20 at `2024-06-08`, 11 at `2024-05-21`, and one more. Those import with `publicat: false`. The 13 with a genuine date import with `publicat: true`. The parish decides the rest in the CMS.
+**The date rule is the whole task.** 32 of the 45 posts carry a bulk-import stamp rather than a publication date — 20 at `2024-06-08`, 11 at `2024-05-21`, and one more. Those import with `published: false`. The 13 with a genuine date import with `published: true`. The parish decides the rest in the CMS.
 
 **Why the stamps are recognised by value rather than by heuristic.** "A date shared by many posts" would be a rule that changes meaning the moment the parish legitimately publishes three things on one day. The two stamps are facts about this dump, so they are named as facts, with the measured counts beside them, and a count that no longer matches fails.
 
@@ -1243,33 +1243,33 @@ the allow-list.
 ```js
 // migration/articles.test.mjs
 import { describe, expect, it } from 'vitest';
-import { esteDatat, numeFisier, STAMPILE_IMPORT } from './articles.mjs';
+import { isDated, fileName, IMPORT_STAMPS } from './articles.mjs';
 
-describe('datele de import', () => {
-  it('numeste exact cele doua stampile masurate', () => {
-    expect(STAMPILE_IMPORT).toEqual(['2024-05-21', '2024-06-08']);
+describe('the import dates', () => {
+  it('names exactly the two measured stamps', () => {
+    expect(IMPORT_STAMPS).toEqual(['2024-05-21', '2024-06-08']);
   });
 
-  it('trateaza o stampila ca nedatata si orice altceva ca datat', () => {
-    expect(esteDatat('2024-06-08')).toBe(false);
-    expect(esteDatat('2024-05-21')).toBe(false);
-    expect(esteDatat('2025-11-05')).toBe(true);
-    expect(esteDatat('2024-06-09')).toBe(true);
+  it('treats a stamp as undated and everything else as dated', () => {
+    expect(isDated('2024-06-08')).toBe(false);
+    expect(isDated('2024-05-21')).toBe(false);
+    expect(isDated('2025-11-05')).toBe(true);
+    expect(isDated('2024-06-09')).toBe(true);
   });
 });
 
-describe('numele fisierului', () => {
-  it('pune data in fata, ca ordinea din folder sa fie ordinea cronologica', () => {
-    expect(numeFisier('hramul-parohiei-2024', '2024-11-04'))
+describe('the file name', () => {
+  it('puts the date in front, so the folder order is the chronological order', () => {
+    expect(fileName('hramul-parohiei-2024', '2024-11-04'))
       .toBe('2024-11-04-hramul-parohiei-2024.md');
   });
 
-  it('este determinist', () => {
-    expect(numeFisier('a', '2024-01-01')).toBe(numeFisier('a', '2024-01-01'));
+  it('is deterministic', () => {
+    expect(fileName('a', '2024-01-01')).toBe(fileName('a', '2024-01-01'));
   });
 
-  it('nu produce doua nume egale pentru doua articole din aceeasi zi', () => {
-    expect(numeFisier('a', '2024-06-08')).not.toBe(numeFisier('b', '2024-06-08'));
+  it('does not produce the same name for two articles on the same day', () => {
+    expect(fileName('a', '2024-06-08')).not.toBe(fileName('b', '2024-06-08'));
   });
 });
 ```
@@ -1283,7 +1283,7 @@ Expected: FAIL — module not found.
 
 Key points the implementer must honour, with the code shape following `migration/media.mjs`:
 
-- `STAMPILE_IMPORT = ['2024-05-21', '2024-06-08']`, sorted, with a comment giving the measured counts (11 and 20) and the date measured.
+- `IMPORT_STAMPS = ['2024-05-21', '2024-06-08']`, sorted, with a comment giving the measured counts (11 and 20) and the date measured.
 - Query: `SELECT post_name, post_title, DATE(post_date), post_content, post_excerpt FROM wpoi_posts WHERE post_type='post' AND post_status='publish' ORDER BY post_name` — **ordered by slug, not by date**, so the run is deterministic and two posts sharing a date cannot swap places between runs.
 - Category from `wpoi_term_relationships`; map `Noutati` to `Noutati` and `Catehismul Bisericii Ortodoxe` to `Cateheza`. **A category that maps to neither is an error that stops the run**, naming the post — never a silent fallback to `Noutati`.
 - Featured image from `_thumbnail_id` where present (3 posts).
@@ -1317,8 +1317,8 @@ Expected: **45 files written, 13 published.** If either differs, stop and report
 Run the extraction twice and diff the tree:
 
 ```bash
-node migration/articles.mjs && cp -r src/content/articles /tmp/rulare-1
-node migration/articles.mjs && rtk proxy diff -r /tmp/rulare-1 src/content/articles; echo "exit=$?"
+node migration/articles.mjs && cp -r src/content/articles /tmp/run-1
+node migration/articles.mjs && rtk proxy diff -r /tmp/run-1 src/content/articles; echo "exit=$?"
 ```
 
 Expected: `exit=0` and no output. **Read the exit code, not the absence of output** — `rtk`'s `diff` exits 0 even when it prints a difference, which is why this uses `rtk proxy`.
@@ -1332,7 +1332,7 @@ Expected: both exit 0. **A build failure here is a migration bug** (spec §11) �
 
 ```bash
 git add migration/articles.mjs migration/articles.test.mjs src/content/articles src/assets/content
-git commit -m "feat(migrare): the 45 posts, 13 published and 32 held for the parish to date"
+git commit -m "feat(migration): the 45 posts, 13 published and 32 held for the parish to date"
 ```
 
 ---
@@ -1345,7 +1345,7 @@ git commit -m "feat(migrare): the 45 posts, 13 published and 32 held for the par
 
 **Interfaces:**
 - Consumes: everything from Tasks 1, 3, 5.
-- Produces: `PAGES` (the nine, each `{ slug, cale, titlu, ordine }`), `extragePagini()`, `scrieHartaUrl()`, and `migration/run.mjs` as the one entry point.
+- Produces: `PAGES` (the nine, each `{ slug, path, title, order }`), `extractPages()`, `writeUrlMap()`, and `migration/run.mjs` as the one entry point.
 
 **The nine, with their old slug and their new route** — this table is the task's contract and the URL map's source of truth:
 
@@ -1373,12 +1373,12 @@ import { describe, expect, it } from 'vitest';
 import { PAGES } from './pages.mjs';
 import { pageSchema } from '../src/lib/content-schema.ts';
 
-describe('cele noua pagini', () => {
-  it('sunt exact noua', () => {
+describe('the nine pages', () => {
+  it('are exactly nine', () => {
     expect(PAGES).toHaveLength(9);
   });
 
-  it('fiecare cale trece de schema, deci fiecare ruta se va construi', () => {
+  it('every path passes the schema, so every route will build', () => {
     // The route is built as `/${path}/`. Validating here rather than at build
     // time means a bad path fails in the migration, where somebody is looking,
     // instead of producing a 404 page that reads correctly.
@@ -1388,15 +1388,15 @@ describe('cele noua pagini', () => {
     }
   });
 
-  it('nu are doua pagini pe aceeasi cale sau acelasi slug', () => {
+  it('has no two pages on the same path or the same slug', () => {
     expect(new Set(PAGES.map((p) => p.path)).size).toBe(9);
     expect(new Set(PAGES.map((p) => p.slug)).size).toBe(9);
   });
 
-  it('ordinea este in zeci, ca sa se poata insera una intre altele', () => {
+  it('the order is in tens, so one can be inserted between two others', () => {
     for (const p of PAGES) expect(p.order % 10).toBe(0);
-    const ordini = PAGES.map((p) => p.order);
-    expect([...ordini].sort((a, b) => a - b)).toEqual(ordini);
+    const orders = PAGES.map((p) => p.order);
+    expect([...orders].sort((a, b) => a - b)).toEqual(orders);
   });
 });
 ```
@@ -1443,13 +1443,13 @@ node -e "
 const fs=require('fs');
 const f='src/content/pages/istoric.md';
 // \`node -e\` is CommonJS, so this is a .then() rather than a top-level await.
-import('./src/lib/cedilla.ts').then(({ CEDILE }) => {
+import('./src/lib/cedilla.ts').then(({ CEDILLAS }) => {
   const t=fs.readFileSync(f,'utf8');
-  fs.writeFileSync(f, t.replace('a', String.fromCodePoint(CEDILE[1])));
+  fs.writeFileSync(f, t.replace('a', String.fromCodePoint(CEDILLAS[1])));
 });
-" && TZ=Europe/Zurich npm run test:build; echo "trebuie sa fie 1: $?"
+" && TZ=Europe/Zurich npm run test:build; echo "must be 1: $?"
 git checkout src/content/pages/istoric.md
-TZ=Europe/Zurich npm run test:build; echo "trebuie sa fie 0: $?"
+TZ=Europe/Zurich npm run test:build; echo "must be 0: $?"
 ```
 
 Expected: exit 1 then exit 0. Phase 1 built that sweep and this is the first time it has ever been pointed at real migrated prose — if it does not fire, the sweep is not covering `src/content/` and that is a finding, not something to work around.
@@ -1458,7 +1458,7 @@ Expected: exit 1 then exit 0. Phase 1 built that sweep and this is the first tim
 
 ```bash
 git add migration/pages.mjs migration/pages.test.mjs migration/url-map.mjs migration/run.mjs src/content/pages docs/url-map.csv src/assets/content
-git commit -m "feat(migrare): the nine prose pages, and the URL map Phase 4 will consume"
+git commit -m "feat(migration): the nine prose pages, and the URL map Phase 4 will consume"
 ```
 
 ---
@@ -1466,66 +1466,66 @@ git commit -m "feat(migrare): the nine prose pages, and the URL map Phase 4 will
 ### Task 8: `/noutati`, one article, and the feed
 
 **Files:**
-- Create: `src/lib/articles.ts`, `src/lib/articles.test.ts`, `src/components/CardArticol.astro`, `src/components/ListaArticole.astro`, `src/pages/noutati/index.astro`, `src/pages/noutati/[slug].astro`, `src/pages/rss.xml.ts`
+- Create: `src/lib/articles.ts`, `src/lib/articles.test.ts`, `src/components/ArticleCard.astro`, `src/components/ArticleList.astro`, `src/pages/noutati/index.astro`, `src/pages/noutati/[slug].astro`, `src/pages/rss.xml.ts`
 
 **Interfaces:**
 - Consumes: the `articles` collection, `articleSchema`.
-- Produces: `articolePublicate(entries)` → sorted newest-first, `type ArticolCuId`.
+- Produces: `publishedArticles(entries)` → sorted newest-first, `type ArticleEntry`.
 
-**The `published` rule lives in one function and nowhere else.** Three surfaces filter posts — the index, the feed and the homepage — and a fourth builds the article pages. Four copies of `.filter((a) => a.data.publicat)` is four chances for one of them to be forgotten, and the one that gets forgotten is `getStaticPaths`, which is how an unpublished post ends up with a live URL.
+**The `published` rule lives in one function and nowhere else.** Three surfaces filter posts — the index, the feed and the homepage — and a fourth builds the article pages. Four copies of `.filter((a) => a.data.published)` is four chances for one of them to be forgotten, and the one that gets forgotten is `getStaticPaths`, which is how an unpublished post ends up with a live URL.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// src/lib/articole.test.ts
+// src/lib/articles.test.ts
 import { describe, expect, it } from 'vitest';
-import { articolePublicate } from './articole';
+import { publishedArticles } from './articles';
 
-const face = (id: string, date: string, published: boolean) => ({
+const makeEntry = (id: string, date: string, published: boolean) => ({
   id,
-  date: { title: id, date, published, category: 'Noutati' as const, author: 'Parohia' },
+  data: { title: id, date, published, category: 'Noutati' as const, author: 'Parohia' },
 });
 
-describe('articolePublicate', () => {
-  it('lasa afara tot ce nu este publicat', () => {
-    const r = articolePublicate([face('a', '2025-01-01', true), face('b', '2025-02-01', false)]);
+describe('publishedArticles', () => {
+  it('leaves out everything that is not published', () => {
+    const r = publishedArticles([makeEntry('a', '2025-01-01', true), makeEntry('b', '2025-02-01', false)]);
     expect(r.map((x) => x.id)).toEqual(['a']);
   });
 
-  it('le da de la cel mai nou la cel mai vechi', () => {
-    const r = articolePublicate([
-      face('vechi', '2024-01-01', true),
-      face('nou', '2025-11-05', true),
-      face('mijloc', '2025-03-03', true),
+  it('gives them newest to oldest', () => {
+    const r = publishedArticles([
+      makeEntry('old', '2024-01-01', true),
+      makeEntry('new', '2025-11-05', true),
+      makeEntry('middle', '2025-03-03', true),
     ]);
-    expect(r.map((x) => x.id)).toEqual(['nou', 'mijloc', 'vechi']);
+    expect(r.map((x) => x.id)).toEqual(['new', 'middle', 'old']);
   });
 
-  it('ordoneaza stabil doua articole din aceeasi zi, dupa id', () => {
+  it('stably orders two articles from the same day, by id', () => {
     // Without a tiebreak the build output changes between runs for no reason,
     // which makes every diff of `dist/` untrustworthy.
-    const r = articolePublicate([face('b', '2025-01-01', true), face('a', '2025-01-01', true)]);
+    const r = publishedArticles([makeEntry('b', '2025-01-01', true), makeEntry('a', '2025-01-01', true)]);
     expect(r.map((x) => x.id)).toEqual(['a', 'b']);
   });
 
-  it('da o lista goala fara sa arunce cand nu este niciun articol', () => {
-    expect(articolePublicate([])).toEqual([]);
+  it('gives an empty list without throwing when there is no article', () => {
+    expect(publishedArticles([])).toEqual([]);
   });
 
-  it('nu este o trecere goala: 32 nepublicate si 13 publicate se despart corect', () => {
+  it('is not a vacuous pass: 32 unpublished and 13 published split correctly', () => {
     // The shape of the real corpus, asserted as a property rather than trusted.
-    const multe = [
-      ...Array.from({ length: 13 }, (_, i) => face(`p${i}`, `2025-01-${String(i + 1).padStart(2, '0')}`, true)),
-      ...Array.from({ length: 32 }, (_, i) => face(`n${i}`, '2024-06-08', false)),
+    const mixed = [
+      ...Array.from({ length: 13 }, (_, i) => makeEntry(`p${i}`, `2025-01-${String(i + 1).padStart(2, '0')}`, true)),
+      ...Array.from({ length: 32 }, (_, i) => makeEntry(`n${i}`, '2024-06-08', false)),
     ];
-    expect(articolePublicate(multe)).toHaveLength(13);
+    expect(publishedArticles(mixed)).toHaveLength(13);
   });
 });
 ```
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `rtk proxy npx vitest run src/lib/articole.test.ts`
+Run: `rtk proxy npx vitest run src/lib/articles.test.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write `src/lib/articles.ts`**
@@ -1533,9 +1533,9 @@ Expected: FAIL — module not found.
 ```ts
 import type { Article } from './content-schema';
 
-export interface ArticolCuId {
+export interface ArticleEntry {
   id: string;
-  date: Article;
+  data: Article;
 }
 
 /**
@@ -1551,24 +1551,24 @@ export interface ArticolCuId {
  * dates, so without it the build's output order depends on filesystem order
  * and every `dist/` diff becomes noise.
  */
-export function articolePublicate(entries: ArticolCuId[]): ArticolCuId[] {
+export function publishedArticles(entries: ArticleEntry[]): ArticleEntry[] {
   return entries
-    .filter((a) => a.date.published)
-    .sort((a, b) => (a.date.date === b.date.date
+    .filter((a) => a.data.published)
+    .sort((a, b) => (a.data.date === b.data.date
       ? a.id.localeCompare(b.id, 'en')
-      : b.date.date.localeCompare(a.date.date, 'en')));
+      : b.data.date.localeCompare(a.data.date, 'en')));
 }
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `rtk proxy npx vitest run src/lib/articole.test.ts`
+Run: `rtk proxy npx vitest run src/lib/articles.test.ts`
 Expected: PASS, 5 tests.
 
 - [ ] **Step 5: Build the three routes and two components**
 
-- `CardArticol.astro` — date, title, category, optional summary. Colours from `TEXT_ROLES`; no gold on text.
-- `ListaArticole.astro` — takes `articles` and an optional `limit`; used by `/noutati` and by the homepage.
+- `ArticleCard.astro` — date, title, category, optional summary. Colours from `TEXT_ROLES`; no gold on text.
+- `ArticleList.astro` — takes `articles` and an optional `limit`; used by `/noutati` and by the homepage.
 - `noutati/index.astro` — `Base` layout, `<h1>Noutati</h1>`, the list. When the list is empty, the same shape of sentence `/program/` uses for an unpublished schedule.
 - `noutati/[slug].astro` — `getStaticPaths` **from `publishedArticles`**, never from the raw collection. Renders title, date, author, body.
 - `rss.xml.ts` — follow `src/pages/program.ics.ts` for shape: a route that returns a `Response` with the right content type, built from `publishedArticles`.
@@ -1578,19 +1578,19 @@ Expected: PASS, 5 tests.
 Add to `src/lib/build-output.itest.ts`:
 
 ```ts
-it('niciun articol nepublicat nu are pagina proprie in dist/', () => {
+it('no unpublished article has a page of its own in dist/', () => {
   // "Unpublished" must not mean "reachable by anyone with the link". Taken
   // from the CONTENT FILES rather than from the built output, because a guard
   // that derives its subject from the artifact it checks can only check what
   // it recognised - and what it would fail to recognise here is precisely the
   // page that should not exist.
-  const nepublicate = fisiereleArticolelor()
+  const unpublished = articleFiles()
     .filter((f) => f.frontmatter.published === false)
     .map((f) => f.slug);
-  expect(nepublicate.length, 'niciun articol nepublicat - garda nu ar dovedi nimic')
+  expect(unpublished.length, 'no unpublished article - the guard would prove nothing')
     .toBeGreaterThan(0);
-  for (const slug of nepublicate) {
-    expect(existsSync(`dist/noutati/${slug}/index.html`), `${slug} nu trebuie sa aiba pagina`)
+  for (const slug of unpublished) {
+    expect(existsSync(`dist/noutati/${slug}/index.html`), `${slug} must not have a page`)
       .toBe(false);
   }
 });
@@ -1604,7 +1604,7 @@ Expected: both exit 0.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/lib/articole.ts src/lib/articole.test.ts src/components/CardArticol.astro src/components/ListaArticole.astro src/pages/noutati src/pages/rss.xml.ts src/lib/build-output.itest.ts
+git add src/lib/articles.ts src/lib/articles.test.ts src/components/ArticleCard.astro src/components/ArticleList.astro src/pages/noutati src/pages/rss.xml.ts src/lib/build-output.itest.ts
 git commit -m "feat: /noutati, the article page and the feed, all filtered in one place"
 ```
 
@@ -1630,27 +1630,27 @@ git commit -m "feat: /noutati, the article page and the feed, all filtered in on
 Add to `src/lib/build-output.itest.ts`:
 
 ```ts
-it('fiecare pagina din colectie are exact un fisier construit', () => {
+it('every page in the collection has exactly one built file', () => {
   // The expected set comes from the CONTENT FILES, which the route cannot
   // edit - not from walking `dist/`, which would only ever confirm what the
   // route already produced.
-  const paths = fisierelePaginilor().map((f) => f.frontmatter.path);
-  expect(paths.length, 'nicio pagina - garda nu ar dovedi nimic').toBe(9);
+  const paths = pageFiles().map((f) => f.frontmatter.path);
+  expect(paths.length, 'no page - the guard would prove nothing').toBe(9);
   for (const path of paths) {
-    expect(existsSync(`dist/${path}/index.html`), `lipseste /${path}/`).toBe(true);
+    expect(existsSync(`dist/${path}/index.html`), `missing /${path}/`).toBe(true);
   }
 });
 
-it('fiecare pagina construita chiar are continut, nu doar un titlu', () => {
+it('every built page really has content, not just a title', () => {
   // A page whose body failed to render looks completely correct: header,
   // title, footer. Measured on the real corpus, the shortest of the nine is
   // over 3,000 characters of prose, so a floor of 400 catches an empty body
   // without pinning the test to today's content.
-  for (const f of fisierelePaginilor()) {
+  for (const f of pageFiles()) {
     const html = readFileSync(`dist/${f.frontmatter.path}/index.html`, 'utf8');
     const body = html.split('<main')[1]?.split('</main>')[0] ?? '';
     const text = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    expect(text.length, `/${f.frontmatter.path}/ pare goala`).toBeGreaterThan(400);
+    expect(text.length, `/${f.frontmatter.path}/ looks empty`).toBeGreaterThan(400);
   }
 });
 ```
@@ -1664,28 +1664,28 @@ Expected: FAIL — the routes do not exist.
 
 ```astro
 ---
-// src/pages/[...pagina].astro
+// src/pages/[...page].astro
 import { getCollection, render } from 'astro:content';
 import Base from '../layouts/Base.astro';
 
 export async function getStaticPaths() {
-  const pages = await getCollection('pagini');
-  return pages.map((p) => ({ params: { page: p.date.path }, props: { p } }));
+  const pages = await getCollection('pages');
+  return pages.map((p) => ({ params: { page: p.data.path }, props: { p } }));
 }
 
 const { p } = Astro.props;
 const { Content } = await render(p);
 ---
 
-<Base title={p.date.title} description={p.date.description}>
-  <div class="container proza">
-    <h1>{p.date.title}</h1>
+<Base title={p.data.title} description={p.data.description}>
+  <div class="container prose">
+    <h1>{p.data.title}</h1>
     <Content />
   </div>
 </Base>
 ```
 
-The `.proza` styles go in this file: measure (`var(--masura)`), heading scale, list and link treatment. **Any `a { color }` declared here takes that link's interactive states with it** — Astro scopes the rule at (0,3,1) and the global `a:hover` is (0,1,1) — so declare `:hover` and `:focus-visible` alongside, or do not declare `color` at all. Do **not** declare `outline`.
+The `.prose` styles go in this file: measure (`var(--masura)`), heading scale, list and link treatment. **Any `a { color }` declared here takes that link's interactive states with it** — Astro scopes the rule at (0,3,1) and the global `a:hover` is (0,1,1) — so declare `:hover` and `:focus-visible` alongside, or do not declare `color` at all. Do **not** declare `outline`.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -1704,7 +1704,7 @@ Expected: exit 0, four passes green. The audit now covers nine more pages — **
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/pages/'[...pagina].astro' src/components/SiteHeader.astro src/lib/build-output.itest.ts scripts/a11y.mjs
+git add src/pages/'[...page].astro' src/components/SiteHeader.astro src/lib/build-output.itest.ts scripts/a11y.mjs
 git commit -m "feat: the nine prose pages from one route, and a navigation that reaches them"
 ```
 
@@ -1729,7 +1729,7 @@ After this task, `rtk proxy grep -rn Wehntalerstrasse src/` must find it only in
 
 **Interfaces:**
 - Consumes: `publishedArticles`, `ArticleList`, the `settings` collection.
-- Produces: `citesteSetari()` → `Promise<Settings>`.
+- Produces: `pickSettings()` → `Promise<Settings>`.
 
 **Spec §5 defines the homepage as hero, week band, then news.** Phase 1 built the first two and the parish has since removed the hero's address and its next-service card; the news section is the third and last part.
 
@@ -1740,25 +1740,25 @@ After this task, `rtk proxy grep -rn Wehntalerstrasse src/` must find it only in
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// src/lib/setari.test.ts
+// src/lib/settings.test.ts
 import { describe, expect, it } from 'vitest';
-import { alegeSetari } from './setari';
+import { pickSettings } from './settings';
 
-describe('alegeSetari', () => {
-  it('ia singura intrare', () => {
+describe('pickSettings', () => {
+  it('picks the single entry', () => {
     const s = { name: 'Parohia', address: 'a', phone: 'b', email: 'c@d.ch' };
-    expect(alegeSetari([{ id: 'setari', date: s }]).name).toBe('Parohia');
+    expect(pickSettings([{ id: 'settings', data: s }]).name).toBe('Parohia');
   });
 
-  it('arunca in romana cand nu este niciuna, in loc sa dea un subsol gol', () => {
+  it('throws in Romanian when there is none, instead of giving an empty footer', () => {
     // A footer that renders blank looks like a design choice. A build that
     // stops names the file somebody has to create.
-    expect(() => alegeSetari([])).toThrow(/src\/content\/setari/);
+    expect(() => pickSettings([])).toThrow(/src\/content\/settings/);
   });
 
-  it('arunca atunci cand sunt doua, fiindca atunci nu se stie care este adevarata', () => {
+  it('throws when there are two, because then it is not known which is true', () => {
     const s = { name: 'x', address: 'a', phone: 'b', email: 'c@d.ch' };
-    expect(() => alegeSetari([{ id: 'a', date: s }, { id: 'b', date: s }]))
+    expect(() => pickSettings([{ id: 'a', data: s }, { id: 'b', data: s }]))
       .toThrow(/o singura/);
   });
 });
@@ -1766,7 +1766,7 @@ describe('alegeSetari', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `rtk proxy npx vitest run src/lib/setari.test.ts`
+Run: `rtk proxy npx vitest run src/lib/settings.test.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write `src/lib/settings.ts`, then wire the footer and the homepage**
@@ -1781,7 +1781,7 @@ Expected: exit 0. **Record the homepage's new byte count in the commit message**
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/setari.ts src/lib/setari.test.ts src/components/SiteFooter.astro src/pages/index.astro
+git add src/lib/settings.ts src/lib/settings.test.ts src/components/SiteFooter.astro src/pages/index.astro
 git commit -m "feat: news on the homepage, and a footer the parish can edit"
 ```
 
@@ -1806,34 +1806,33 @@ git commit -m "feat: news on the homepage, and a footer the parish can edit"
 Add to `src/lib/cms.test.ts`:
 
 ```ts
-it('categoriile din CMS sunt identice cu CATEGORII', () => {
+it('the CMS categories are identical to CATEGORIES', () => {
   // Same mechanism, same reason as SERVICE_NAMES in Phase 1: a dropdown that
   // offers a value the build then rejects hands the volunteer a failed deploy
   // for picking an option this file gave them.
-  const field = campulColectiei('articole', 'categorie');
+  const field = collectionField('articles', 'category');
   expect(field.options).toEqual([...CATEGORIES]);
 });
 
-it('fiecare colectie are eticheta si descriere in romana', () => {
-  for (const name of ['articole', 'pagini', 'setari']) {
-    const c = colectia(name);
-    expect(c.label, `${name} fara eticheta`).toBeTruthy();
+it('every collection has a label and a description in Romanian', () => {
+  for (const name of ['articles', 'pages', 'settings']) {
+    const c = collection(name);
+    expect(c.label, `${name} has no label`).toBeTruthy();
     expect(c.label).not.toMatch(/^[a-z_]+$/); // not the raw key
   }
 });
 
-it('campurile obligatorii din schema sunt obligatorii si in CMS', () => {
+it("the schema's required fields are required in the CMS too", () => {
   // Otherwise the volunteer saves a valid-looking entry and the BUILD fails,
   // somewhere they will never see it.
-  for (const field of ['titlu', 'data', 'publicat', 'categorie']) {
-    expect(campulColectiei('articole', field).required).not.toBe(false);
+  for (const field of ['title', 'date', 'published', 'category']) {
+    expect(collectionField('articles', field).required).not.toBe(false);
   }
 });
 
-it('media_folder si public_folder sunt pereche, nu doua nimereli', () => {
-  const cfg = configul();
-  expect(cfg.media_folder).toBe('src/assets/uploads');
-  expect(cfg.public_folder).toBe('/src/assets/uploads');
+it('media_folder and public_folder are a matched pair, not two separate guesses', () => {
+  expect(CONFIG.media_folder).toBe('src/assets/uploads');
+  expect(CONFIG.public_folder).toBe('/src/assets/uploads');
 });
 ```
 
@@ -1856,7 +1855,7 @@ Then **open `/admin/` and use it**, because a control found in the bundle is not
 
 ```bash
 git add public/admin/config.yml src/lib/cms.test.ts
-git commit -m "feat(cms): articole, pagini and setari, with the media pair finally settled"
+git commit -m "feat(cms): articles, pages and settings, with the media pair finally settled"
 ```
 
 ---
@@ -1880,7 +1879,7 @@ The corpus that lands in this phase is the first real input that sweep has ever 
 
 - [ ] **Step 4: Update the documentation**
 
-`CLAUDE.md` gains the migration's rules: that `migration/` reads from outside the repository and a fresh clone cannot run it; that re-encoding is the sanitisation; that `publicat: false` means no page at all. `README.md` gains how to add a post. `docs/handover.md` gains the Phase 2 steps — and **check every command by running it**, because this project has shipped a handover that pointed at a file which did not exist.
+`CLAUDE.md` gains the migration's rules: that `migration/` reads from outside the repository and a fresh clone cannot run it; that re-encoding is the sanitisation; that `published: false` means no page at all. `README.md` gains how to add a post. `docs/handover.md` gains the Phase 2 steps — and **check every command by running it**, because this project has shipped a handover that pointed at a file which did not exist.
 
 - [ ] **Step 5: Run everything from a clean clone**
 

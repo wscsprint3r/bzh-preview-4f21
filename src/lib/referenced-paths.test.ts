@@ -53,8 +53,8 @@ const TRACKED_SET = new Set(TRACKED);
  */
 const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
   'Phase 2 names it in its plan and has not written it yet': [
-    'CardArticol.astro',
-    'ListaArticole.astro',
+    'ArticleCard.astro',
+    'ArticleList.astro',
     'docs/url-map.csv',
     'migration/articles.mjs',
     'migration/articles.test.mjs',
@@ -64,11 +64,11 @@ const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
     'migration/url-map.mjs',
     'noutati/index.astro',
     'rss.xml.ts',
-    'src/components/CardArticol.astro',
-    'src/components/ListaArticole.astro',
+    'src/components/ArticleCard.astro',
+    'src/components/ArticleList.astro',
     'src/lib/articles.test.ts',
     'src/lib/articles.ts',
-    'src/lib/binare.itest.ts',
+    'src/lib/binaries.itest.ts',
     'src/lib/settings.test.ts',
     'src/lib/settings.ts',
     'src/pages/noutati/index.astro',

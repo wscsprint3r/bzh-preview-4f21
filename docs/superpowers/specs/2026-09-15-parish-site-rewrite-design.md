@@ -213,19 +213,19 @@ One file per service day. `src/content/services/2026-09-14.md`:
 
 ```yaml
 ---
-data: 2026-09-14
-praznic: "Înălțarea Sfintei Cruci"     # optional
-praznic_mare: true                      # optional — gold treatment
-zi_de_post: true                        # optional
-anulat: false                           # optional
-note: ""                                # optional free text, shown under the day
-locatie: ""                             # optional; empty = the usual chapel
-slujbe:
-  - ora: "07:30"
-    slujba: "Utrenia"
-  - ora: "08:30"
-    slujba: "Sfânta Liturghie"
-    detaliu: "și Parastas"              # optional
+date: 2026-09-14
+feast: "Înălțarea Sfintei Cruci"       # optional
+great_feast: true                       # optional — gold treatment
+fast_day: true                          # optional
+cancelled: false                        # optional
+notes: ""                               # optional free text, shown under the day
+location: ""                            # optional; empty = the usual chapel
+services:
+  - time: "07:30"
+    service: "Utrenia"
+  - time: "08:30"
+    service: "Sfânta Liturghie"
+    detail: "și Parastas"               # optional
 ---
 ```
 
@@ -242,18 +242,18 @@ Zod validation: `date` is a real date; `time` matches `/^([01]?\d|2[0-3]):[0-5]\
 ### 6.2 `articles` — news posts
 
 ```yaml
-titlu, data, autor (default "Parohia"), imagine, rezumat,
-categorie (Noutăți | Anunțuri | Cateheză), publicat, body (markdown)
+title, date, author (default "Parohia"), image, summary,
+category (Noutăți | Anunțuri | Cateheză), published, body (markdown)
 ```
 
 Rendering the index from this collection is what eliminates the seven-step Elementor ritual: a published post appears on `/noutati` and on the homepage automatically.
 
-**`publicat: false` is the archive's holding pen, not a draft state.** §11 imports 31 posts whose dates were destroyed by a bulk import. They are real parish writing and they are not publishable as dated news, so they arrive unpublished with `date` set to the import stamp they carry. Two consequences the build must honour: an unpublished post is absent from `/noutati`, from the homepage and from `/rss.xml`, and it has **no page of its own** — otherwise "unpublished" would mean "reachable by anyone with the link", which is not what the parish was offered.
+**`published: false` is the archive's holding pen, not a draft state.** §11 imports 31 posts whose dates were destroyed by a bulk import. They are real parish writing and they are not publishable as dated news, so they arrive unpublished with `date` set to the import stamp they carry. Two consequences the build must honour: an unpublished post is absent from `/noutati`, from the homepage and from `/rss.xml`, and it has **no page of its own** — otherwise "unpublished" would mean "reachable by anyone with the link", which is not what the parish was offered.
 
 ### 6.3 `events`
 
 ```yaml
-titlu, data_inceput, data_sfarsit?, ora?, loc, imagine, afis (PDF)?, descriere
+title, start_date, end_date?, time?, location, image, poster (PDF)?, description
 ```
 
 ### 6.4 `pages` — editable prose pages
@@ -263,13 +263,13 @@ Markdown body plus optional hero image, for Istoric, Catehism, Studii, Școala, 
 ### 6.5 `galerii`
 
 ```yaml
-titlu, data, acoperire, imagini: [{ fisier, descriere? }]
+title, date, cover, images: [{ file, description? }]
 ```
 
 ### 6.6 `documente` — pastorale and other PDFs
 
 ```yaml
-titlu, data, fisier, autor?
+title, date, file, author?
 ```
 
 10 PDFs totalling 36.7 MB, largest 13.1 MB — all under Cloudflare's 25 MiB per-file limit, so they live in the repo. No external object store needed.
@@ -350,7 +350,7 @@ Scripted and repeatable, not retyped. Rerunning must produce identical output.
 1. **Load** the dump into a disposable MariaDB container. Import `wpoi_*` only — `r15e_*` is dead residue from a previous install.
 2. **Posts** — `wpoi_posts` where `post_type = 'post'` and `post_status = 'publish'`. **Measured 2026-09-16: 45 rows, not 48.** These use normal `post_content`; convert HTML → Markdown with Turndown, stripping Elementor wrapper markup.
 
-   **The archive has lost its dates, and that is a content decision rather than a bug.** 20 posts are stamped `2024-06-08` and 11 more `2024-05-21` — bulk-import timestamps, not publication dates. Several are the same annual feast written fresh each year: three *Hristos a înviat!*, three *Postul Paștelui*, three *Moșii de toamnă*. Only two pairs are byte-identical (`sarbatorirea-sfantului-ierarh-nicolae` with `sfantul-ierarh-nicolae`, and `mosii-de-toamna` with `mosii-de-toamna-2`); the rest are genuinely different texts. **Ruling: migrate all 45. The ~14 carrying a genuine date publish; the 31 undated ones import with `publicat: false`**, so the parish dates, merges or discards them in the CMS. Publishing them as-is would open `/noutati` with twenty posts sharing one day and three near-identical Easter articles; dropping them would discard a decade of parish writing that survives nowhere else once the old site goes.
+   **The archive has lost its dates, and that is a content decision rather than a bug.** 20 posts are stamped `2024-06-08` and 11 more `2024-05-21` — bulk-import timestamps, not publication dates. Several are the same annual feast written fresh each year: three *Hristos a înviat!*, three *Postul Paștelui*, three *Moșii de toamnă*. Only two pairs are byte-identical (`sarbatorirea-sfantului-ierarh-nicolae` with `sfantul-ierarh-nicolae`, and `mosii-de-toamna` with `mosii-de-toamna-2`); the rest are genuinely different texts. **Ruling: migrate all 45. The ~14 carrying a genuine date publish; the 31 undated ones import with `published: false`**, so the parish dates, merges or discards them in the CMS. Publishing them as-is would open `/noutati` with twenty posts sharing one day and three near-identical Easter articles; dropping them would discard a decade of parish writing that survives nowhere else once the old site goes.
 
 3. **Pages** — **not the hard part, and this section used to say it was.** The claim was that Elementor keeps page content in `_elementor_data` and **not** in `post_content`, so a lossy tree-walker would be needed and a human would have to restore the meaning. **Measured across all ten real prose pages on 2026-09-16: `post_content` carries the full prose in clean HTML**, behind a constant preamble — `<p>Layouts: Popup</p>`, then a breadcrumb line like `Parohia noastră > Istoric` — which strips mechanically. `istoric` alone is 6,994 characters of real paragraphs.
 
