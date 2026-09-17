@@ -95,16 +95,17 @@ describe('the admin page exists', () => {
     const html = read(join(DIST, 'admin', 'index.html')).toString('utf8');
     expect(html).toContain('<html lang="ro"');
     expect(html).toContain('</html>');
-    // Nu este o măsură de securitate - CMS-ul este apărat de autentificarea
-    // GitHub - dar o pagină de administrare indexată este o invitație.
+    // Not a security measure - the CMS is protected by GitHub authentication -
+    // but an indexed admin page is an invitation.
     expect(html).toMatch(/<meta\b[^>]*name="robots"[^>]*noindex/);
   });
 
   /*
-   * Referința, urmărită până la fișier. Trei generații ale aceleiași greșeli pe
-   * acest proiect au venit din aserțiuni care spuneau „textul apare în pagină";
-   * `src="/admin/sveltia-cms.mjs"` este adevărat și atunci când fișierul nu a
-   * fost copiat niciodată, iar pagina arată atunci exact ca o pagină goală.
+   * The reference, followed all the way to the file. Three generations of the
+   * same mistake on this project came from assertions that said "the text
+   * appears on the page"; `src="/admin/sveltia-cms.mjs"` is true even when the
+   * file was never copied at all, and the page then looks exactly like an
+   * empty page.
    */
   it('each of its <script src> leads to a real file in dist/', () => {
     const html = read(join(DIST, 'admin', 'index.html')).toString('utf8');
@@ -117,10 +118,10 @@ describe('the admin page exists', () => {
   });
 
   /*
-   * Al doilea capăt al aceluiași lanț. `start.mjs` este fișierul care chiar
-   * pornește CMS-ul, iar el importă bundle-ul pe cale relativă. Dacă acel import
-   * nu duce nicăieri, pagina rămâne albă și tăcută - exact starea în care a fost
-   * găsită înainte să existe fișierul acesta.
+   * The second end of the same chain. `start.mjs` is the file that actually
+   * starts the CMS, and it imports the bundle by a relative path. If that
+   * import leads nowhere, the page stays blank and silent - exactly the state
+   * it was found in before this file existed.
    */
   it("each of start.mjs's imports leads to a real file", () => {
     const source = read(join(DIST, 'admin', 'start.mjs')).toString('utf8');
@@ -133,23 +134,23 @@ describe('the admin page exists', () => {
       expect(specifier.startsWith('./'), `${specifier} is not relative`).toBe(true);
       read(join(DIST, 'admin', specifier.slice(2)));
     }
-    // Și chiar cheamă init: un import fără apel ar trece testul de mai sus și ar
-    // lăsa pagina tot albă.
+    // And it really does call init: an import with no call would pass the test
+    // above and would still leave the page blank.
     expect(source).toMatch(/\binit\s*\(/);
   });
 
   it('serves the very configuration the tests check', () => {
-    // `cms.test.ts` validează `public/admin/config.yml`. Dacă ce ajunge în
-    // `dist/` ar fi altceva, acea validare ar fi despre un fișier pe care nu îl
-    // citește nimeni.
+    // `cms.test.ts` validates `public/admin/config.yml`. If what ends up in
+    // `dist/` were something else, that validation would be about a file that
+    // nobody reads.
     expect(read(join(DIST, 'admin', 'config.yml')).equals(read(join(PUBLIC, 'admin', 'config.yml')))).toBe(true);
   });
 });
 
 describe('the CMS bundle is served from this site, not from a CDN', () => {
   it('the package really does have something to give', () => {
-    // Fără asta, o mulțime așteptată goală ar face ca egalitatea de mai jos să
-    // fie adevărată despre un `dist/admin/` fără niciun fișier vendorizat.
+    // Without this, an empty expected set would make the equality below
+    // true of a `dist/admin/` with no vendored file at all.
     expect(EXPECTED.length).toBeGreaterThan(1);
     expect(EXPECTED).toContain(basename(CMS_ENTRY));
     expect(EXPECTED.some((f) => f.startsWith('chunks/'))).toBe(true);
@@ -157,9 +158,10 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
   });
 
   /*
-   * Mulțime închisă, în amândouă sensurile. Prea puțin: o bucată lipsă pe care
-   * CMS-ul o cere de la unpkg, unde CSP-ul o oprește. Prea mult: harta de surse
-   * de 7 MB sau a doua copie a programului, publicate lumii degeaba.
+   * A closed set, in both directions. Too little: a missing piece that the
+   * CMS asks for from unpkg, where the CSP stops it. Too much: the 7 MB
+   * source map, or a second copy of the program, published to the world for
+   * nothing.
    */
   it("carries exactly the package's files, not one more, not one fewer", () => {
     const vendored = files(join(DIST, 'admin')).filter((f) => !OURS.includes(f));
@@ -168,7 +170,7 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
 
   it("carries the package's bytes, not a stale copy", () => {
     for (const path of EXPECTED_FROM_PACKAGE) {
-      // Fișierul de intrare este singurul rescris; are testul lui mai jos.
+      // The entry file is the only one rewritten; it has its own test below.
       if (path === basename(CMS_ENTRY)) continue;
       const copied = read(join(DIST, 'admin', path));
       expect(copied.equals(readFileSync(join(CMS_SOURCE, path))), path).toBe(true);
@@ -176,10 +178,10 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
   });
 
   /*
-   * FIȘIERUL DE ENTRY ESTE SINGURUL COD STRĂIN PE CARE ÎL MODIFICĂM, deci
-   * egalitatea este exactă: ce se servește trebuie să fie chiar pachetul trecut
-   * prin `rewriteFonts`, nici un octet mai mult. O modificare în plus -
-   * strecurată, sau făcută de o unealtă pe drum - pică aici.
+   * THE ENTRY FILE IS THE ONLY THIRD-PARTY CODE WE MODIFY, so the equality is
+   * exact: what is served must be exactly the package passed through
+   * `rewriteFonts`, not one byte more. Any extra change - slipped in, or made
+   * by a tool along the way - fails here.
    */
   it('the entry file is the package with the fonts rewritten and nothing else', () => {
     const served = read(SERVED_ENTRY).toString('utf8');
@@ -187,10 +189,10 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
   });
 
   /*
-   * Și dovada că rescrierea are ce să rescrie. Fără controlul pozitiv, „nu
-   * numește niciun CDN" ar fi la fel de adevărat despre un pachet care nu l-a
-   * numit niciodată - iar atunci nimeni nu ar afla că tabelul `FONTS` a rămas
-   * în urmă.
+   * And the proof that the rewrite has something to rewrite. Without the
+   * positive control, "names no CDN" would be just as true of a package that
+   * never named one to begin with - and then nobody would find out that the
+   * `FONTS` table had fallen behind.
    */
   it('no longer names the font CDN, although the package does', () => {
     const CDN = 'cdn.jsdelivr.net';
@@ -199,9 +201,9 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
   });
 
   /*
-   * Referințele, urmărite până la fișier - aceeași regulă ca pentru `.ics`: o
-   * adresă rescrisă greșit ar ieși din mulțimea verificată în loc să o facă să
-   * pice, dacă nimeni nu ar număra și nu ar deschide fișierele.
+   * The references, followed all the way to the file - the same rule as for
+   * `.ics`: a wrongly rewritten URL would fall outside the checked set
+   * instead of failing it, if nobody counted them and opened the files.
    */
   it('every font it asks for leads to a real file in dist/', () => {
     const served = read(SERVED_ENTRY).toString('utf8');
@@ -220,8 +222,8 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
   });
 
   it('does not publish the source maps', () => {
-    // Controlul pozitiv: pachetul chiar ARE hărți, deci absența lor din `dist/`
-    // este o alegere, nu o constatare despre un pachet care nu le are.
+    // The positive control: the package really DOES have maps, so their absence
+    // from `dist/` is a choice, not a fact about a package that has none.
     const sourceMaps = files(CMS_SOURCE).filter((f) => f.endsWith('.map'));
     expect(sourceMaps.length).toBeGreaterThan(0);
     for (const mapping of sourceMaps) {
@@ -230,8 +232,8 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
   });
 
   it('costs the visitor nothing, because nobody lands there by accident', () => {
-    // Nu un buget, ci ordinul de mărime: dacă bundle-ul ar ajunge vreodată sub
-    // 100 KB, cel mai probabil s-a copiat altceva decât programul.
+    // Not a budget, but the order of magnitude: if the bundle ever dropped below
+    // 100 KB, most likely something other than the program got copied.
     const bytes = EXPECTED.reduce((n, f) => n + statSync(join(DIST, 'admin', f)).size, 0);
     expect(bytes).toBeGreaterThan(100 * 1024);
   });

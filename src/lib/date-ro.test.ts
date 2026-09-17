@@ -45,27 +45,28 @@ describe('vocabular', () => {
 
   it('uses comma below, not cedilla', () => {
     /*
-     * Ultima gardă din proiect care scria chiar cele patru caractere interzise.
-     * Era o clasă de caractere cu ele înăuntru, pe disc, într-un fișier urmărit —
-     * adică exact ce spune `CLAUDE.md` că nu are voie să existe, fiindcă un fișier
-     * care le scrie nu mai poate fi măturat pentru ele. Surorile ei le construiau
-     * din numere; aceasta era supraviețuitoarea decodării la scriere pe care o
-     * documentează `CLAUDE.md`, și a rămas așa două runde.
+     * The last guard in the project that still wrote out the four forbidden characters
+     * themselves. It was a character class with them inside, on disk, in a tracked file —
+     * exactly what `CLAUDE.md` says is not allowed to exist, because a file that writes
+     * them can no longer be swept for them. Its sibling guards built theirs from numbers;
+     * this one was the survivor of the decoded-escape hazard that `CLAUDE.md` documents,
+     * and it stayed that way for two rounds.
      *
-     * Acum întreabă detectorul unic din `./cedilla`, care le ține pe toate patru ca
-     * numere. Titlul testului este ASCII curat dinadins: un titlu cu diacritice ar
-     * fi fost încă un loc în care o sedilă ar fi trecut drept corectură.
+     * Now it asks the single detector in `./cedilla`, which holds all four as numbers.
+     * The test's title is deliberately plain ASCII: a title with diacritics would have
+     * been one more place where a cedilla could pass for a correction.
      */
     const allText = [...DAY_NAMES, ...MONTH_NAMES].join('');
     expect(cedillasIn(allText)).toEqual([]);
-    // Și dovada că garda are ce prinde: tabelele chiar conțin virgulă dedesubt,
-    // altfel „nicio sedilă” ar fi adevărat despre un corpus întâmplător ASCII.
+    // And the proof that the guard has something to catch: the tables really do
+    // contain comma-below, otherwise "no cedilla" would be true of a corpus that
+    // happened to be ASCII by accident.
     expect(hasCommaBelow(allText)).toBe(true);
   });
 
   it('the detector really does fire on each of the four', () => {
-    // Control pozitiv, construit din numere: o gardă care nu poate să se
-    // declanșeze nu verifică nimic.
+    // Positive control, built from numbers: a guard that cannot fire
+    // proves nothing.
     for (const cp of CEDILLAS) {
       expect(cedillasIn(`Mar${String.fromCodePoint(cp)}i`), uPlus(cp)).toHaveLength(1);
     }

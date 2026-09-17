@@ -96,7 +96,7 @@ function events(ics: string): string[][] {
   return blocks;
 }
 
-/** Toate paginile HTML din `dist`, ca o cale relativă la `dist`. */
+/** Every HTML page in `dist`, as a path relative to `dist`. */
 function builtPages(): string[] {
   const found: string[] = [];
   const walk = (relative: string): void => {
@@ -111,54 +111,54 @@ function builtPages(): string[] {
 }
 
 /**
- * Fiecare referință către feed dintr-o pagină construită.
+ * Every reference to the feed from a built page.
  *
- * `.ics` ORIUNDE în href, nu neapărat lipit de ghilimeaua de închidere. Forma
- * strânsă — `\.ics"` — a fost chiar gaura pe care acest fișier o astupa cu un
- * nivel mai devreme: `href="/program.ics/"` nu se mai potrivea, deci o
- * referință STRICATĂ ieșea din mulțimea verificată în loc să o facă să pice.
- * Numărul de potriviri scădea de la 2 la 1 și toate testele rămâneau verzi.
+ * `.ics` ANYWHERE in the href, not necessarily glued to the closing quote. The
+ * tight form — `\.ics"` — was exactly the hole this file was patching one
+ * level earlier: `href="/program.ics/"` no longer matched, so a BROKEN
+ * reference fell outside the checked set instead of failing it. The match
+ * count dropped from 2 to 1 and every test stayed green.
  *
- * Regula pe care o lasă în urmă: un tipar care alege ce să verifice trebuie să
- * prindă și formele greșite, altfel „nu s-a potrivit” devine sinonim cu „e în
- * regulă”. Perechea lui este `ICS_REFERENCES` de mai jos, care închide mulțimea
- * numărând — fără el, orice referință care încetează să se potrivească dispare
- * în tăcere, oricât de larg ar fi tiparul.
+ * The rule it leaves behind: a pattern that chooses what to check must also
+ * catch the wrong forms, otherwise "did not match" becomes a synonym for "is
+ * fine". Its counterpart is `ICS_REFERENCES` below, which closes the set by
+ * counting — without it, any reference that stops matching disappears
+ * silently, no matter how wide the pattern is.
  */
 function icsReferences(html: string): string[] {
   return [...html.matchAll(/href="([^"]*\.ics[^"]*)"/g)].map((m) => m[1] as string);
 }
 
 /**
- * Câte referințe către feed poartă fiecare pagină construită.
+ * How many references to the feed each built page carries.
  *
- * Un număr exact per pagină, nu un minim și nu „măcar una undeva în sit”. Un
- * minim este mulțumit de `<link rel="alternate">` din `<head>`-ul lui
- * `Base.astro`, care ajunge pe fiecare pagină, deci nu poate să vadă nici
- * butonul șters, nici legătura din subsol stricată.
+ * An exact number per page, not a minimum and not "at least one somewhere
+ * on the site". A minimum is satisfied by the `<link rel="alternate">` in
+ * the `<head>` of `Base.astro`, which reaches every page, so it cannot see
+ * either a deleted button or a broken footer link.
  *
- * MULȚIMEA ESTE ÎNCHISĂ: testul cere ca paginile din `dist` să fie exact
- * cheile de aici. O pagină nouă pică până când cineva îi scrie numărul —
- * inclusiv `admin/index.html` din Task 12, care probabil merită `0`, fiindcă
- * shell-ul CMS-ului nu se construiește din `Base.astro`. Acela este un răspuns
- * care se dă o dată, nu o slăbire a regulii.
+ * THE SET IS CLOSED: the test requires that the pages in `dist` be exactly
+ * the keys here. A new page fails until somebody writes its number in —
+ * including `admin/index.html` from Task 12, which probably deserves `0`,
+ * because the CMS shell is not built from `Base.astro`. That is an answer
+ * given once, not a weakening of the rule.
  */
 const ICS_REFERENCES: Record<string, number> = {
-  // `<link rel="alternate">` din `<head>` + „Abonare la program (.ics)” din subsol.
+  // `<link rel="alternate">` in `<head>` + „Abonare la program (.ics)” in the footer.
   'index.html': 2,
-  // Aceleași două, plus butonul de subscribe de la piciorul paginii.
+  // The same two, plus the subscribe button at the foot of the page.
   'program/index.html': 3,
   /*
-   * Zero, și este un răspuns, nu o omisiune. `public/admin/index.html` este
-   * pagina-gazdă a CMS-ului: o etichetă `<script>` și atât, nu trece prin
-   * `Base.astro`, deci nu are `<head>`-ul care poartă `<link rel="alternate">`
-   * pe celelalte pagini. Un editor care intră acolo se abonează la calendar de
-   * pe `/program/`, ca oricine altcineva.
+   * Zero, and it is an answer, not an omission. `public/admin/index.html` is
+   * the CMS's host page: one `<script>` tag and nothing else, it does not go
+   * through `Base.astro`, so it does not have the `<head>` that carries
+   * `<link rel="alternate">` on the other pages. An editor who goes there
+   * subscribes to the calendar from `/program/`, like anyone else.
    */
   'admin/index.html': 0,
 };
 
-/** Zilele pe care le are colecția, citite din numele fișierelor — cheia ei primară. */
+/** The days the collection has, read from the file names — its primary key. */
 function collectionDays(): string[] {
   return readdirSync(CONTENT)
     .filter((f) => f.endsWith('.yml'))
@@ -167,12 +167,13 @@ function collectionDays(): string[] {
 }
 
 /**
- * Câte slujbe cuprinde colecția, adunate din toate zilele ei.
+ * How many services the collection holds, added up across all its days.
  *
- * O numărătoare de linii peste YAML, nu o analiză a lui: fișierele de program
- * scriu fiecare slujbă pe propriul rând, ca `- time: "07:30"`. Dacă cineva trece
- * vreodată la stil flow, numărul de aici scade și testul pică — zgomotos, cerând
- * să fie renumărat, nu în tăcere lăsând feed-ul să piardă slujbe.
+ * A line count over the YAML, not a parse of it: the schedule files write
+ * each service on its own line, like `- time: "07:30"`. If someone ever
+ * switches to flow style, the number here drops and the test fails —
+ * loudly, demanding to be recounted, rather than silently letting the feed
+ * lose services.
  */
 function collectionServices(): number {
   let n = 0;
@@ -185,8 +186,8 @@ function collectionServices(): number {
 const DAYS = collectionDays();
 
 describe("this file's detectors can actually fire", () => {
-  // Un control care nu poate să eșueze nu verifică nimic. Șirurile se
-  // construiesc din coduri, exact ca mulțimile căutate.
+  // A control that cannot fail proves nothing. The strings are built from
+  // codepoints, exactly like the sets being searched for.
   it.each(CEDILLAS)('prinde sedila %i', (cp) => {
     expect(containsAnyOf(`Înăl${String.fromCodePoint(cp)}area`, CEDILLAS)).toBe(true);
   });
@@ -228,8 +229,9 @@ describe('the build output', () => {
 });
 
 /*
- * Aserțiunile de mai jos se pot fixa pe conținutul colecției tocmai pentru că
- * feed-ul poartă fiecare zi a ei, oricare ar fi data build-ului.
+ * The assertions below can pin themselves to the content of the collection
+ * precisely because the feed carries every one of its days, whatever the
+ * build date is.
  */
 describe('the calendar feed carries the collection', () => {
   it('opens and closes as a VCALENDAR', () => {
@@ -237,20 +239,21 @@ describe('the calendar feed carries the collection', () => {
     const lines = unfold(ics);
     expect(lines[0]).toBe('BEGIN:VCALENDAR');
     expect(lines[lines.length - 1]).toBe('END:VCALENDAR');
-    // Un prag legat de conținut, nu un număr ales cu mâna: fiecare VEVENT are
-    // cel puțin șase proprietăți între BEGIN și END. Un prag fix ar fi trecut
-    // peste un feed retezat dacă parohia publică o singură zi și ar fi picat
-    // degeaba dacă publică puține — adică ar fi vorbit despre calendarul
-    // parohiei, nu despre fișier.
+    // A threshold tied to the content, not a number picked by hand: every VEVENT has
+    // at least six properties between BEGIN and END. A fixed threshold would have let
+    // a truncated feed through if the parish publishes a single day, and would have
+    // failed for nothing if it publishes few — meaning it would have been talking
+    // about the parish's calendar, not about the file.
     expect(lines.length).toBeGreaterThan(events(ics).length * 6);
   });
 
   /*
-   * Fiecare DTSTART și DTEND din feed spune `TZID=Europe/Zurich`. Fără blocul
-   * care definește acel TZID, referința rămâne în gol și fiecare client ghicește
-   * singur fusul — adică exact ora greșită pe telefonul unui parohian, fără ca
-   * fișierul să pară stricat. Blocul este scris de `ics.ts` și nu depinde de
-   * conținut, deci lipsa lui înseamnă întotdeauna o regresie.
+   * Every DTSTART and DTEND in the feed says `TZID=Europe/Zurich`. Without the
+   * block that defines that TZID, the reference resolves to nothing and every
+   * client guesses the timezone on its own — meaning exactly the wrong time on
+   * a parishioner's phone, without the file looking broken. The block is
+   * written by `ics.ts` and does not depend on the content, so its absence
+   * always means a regression.
    */
   it('defines the timezone every event names', () => {
     const lines = unfold(read('program.ics'));
@@ -261,9 +264,9 @@ describe('the calendar feed carries the collection', () => {
     expect(lines).toContain('BEGIN:STANDARD');
   });
 
-  // Egalitate de mulțimi, nu un exemplu: o zi pierdută pe drumul dintre
-  // `getCollection` și feed cade aici, iar o zi adăugată în colecție nu cere
-  // nicio modificare în acest test.
+  // Set equality, not an example: a day lost on the way between
+  // `getCollection` and the feed fails here, and a day added to the
+  // collection requires no change to this test.
   it("carries exactly the collection's days, not one more, not one fewer", () => {
     const ics = read('program.ics');
     const fromFeed = [...ics.matchAll(/^DTSTART;TZID=Europe\/Zurich:(\d{4})(\d{2})(\d{2})T/gm)]
@@ -275,8 +278,8 @@ describe('the calendar feed carries the collection', () => {
     expect(events(read('program.ics')).length).toBe(collectionServices());
   });
 
-  // Capătul celălalt al lanțului: `time` normalizată de schema, numele compus de
-  // `serviceLabel` din `service` + `detail`, praznicul scris de un voluntar.
+  // The other end of the chain: `time` normalised by the schema, the name composed
+  // by `serviceLabel` from `service` + `detail`, the feast written by a volunteer.
   it('carries the time, the composed name and the feast all the way into the feed', () => {
     const ics = read('program.ics');
     expect(ics).toContain('DTSTART;TZID=Europe/Zurich:20260914T073000');
@@ -294,24 +297,25 @@ describe('the feed respects the iCalendar format', () => {
   });
 
   /*
-   * CE NU DOVEDEȘTE ACEST TEST: că împăturirea funcționează. Cea mai lungă
-   * linie din feed-ul construit are 69 de octeți (`PRODID:`), iar liniile de
-   * continuare sunt ZERO — conținutul parohiei nu se apropie de limită. Deci
-   * aici scrie „nimic nu e prea lung”, nu „lucrurile lungi se împăturesc”, iar
-   * dacă `fold` s-ar strica, acest test ar rămâne verde.
+   * WHAT THIS TEST DOES NOT PROVE: that folding works. The longest line in
+   * the built feed is 69 bytes (`PRODID:`), and the continuation lines are
+   * ZERO — the parish's content does not come close to the limit. So what
+   * this writes is "nothing is too long", not "long things get folded", and
+   * if `fold` broke, this test would stay green.
    *
-   * Împăturirea este acoperită unde poate fi provocată, în `ics.test.ts`:
-   * „continuă liniile împăturite cu un spațiu” (un `feast` de 200 de
-   * caractere, cere continuări), „nu rupe un caracter multi-octet în două
-   * linii”, și cazul de trei și patru octeți (liniuță lungă, CJK, emoji).
-   * Rostul liniei de aici este celălalt: că un `feast` scris de un voluntar
-   * nu poate face feed-ul REAL să depășească limita fără să se observe.
+   * Folding is covered where it can actually be triggered, in `ics.test.ts`:
+   * "continues folded lines with a space" (a 200-character `feast`, which
+   * requires continuations), "does not split a multi-byte character across
+   * two lines", and the three- and four-byte case (em dash, CJK, emoji). The
+   * point of the line here is the other one: that a `feast` written by a
+   * volunteer cannot make the REAL feed exceed the limit without it being
+   * noticed.
    */
   it('never exceeds 75 bytes per line', () => {
     const ics = read('program.ics');
     const lines = ics.split(CRLF);
-    // Aceeași grijă ca mai sus: „am citit chiar liniile feed-ului” trebuie să
-    // rămână adevărat și pentru o săptămână cu o singură slujbă.
+    // The same care as above: "we really did read the feed's own lines" must
+    // stay true even for a week with a single service.
     expect(lines.length).toBeGreaterThan(events(ics).length * 6);
     for (const line of lines) {
       expect(new TextEncoder().encode(line).length, line).toBeLessThanOrEqual(75);
@@ -319,16 +323,16 @@ describe('the feed respects the iCalendar format', () => {
   });
 
   /*
-   * DTSTAMP-ul este singurul câmp pe care acest capăt îl compune singur:
-   * `generateIcs` îl primește ca parametru și nu îl validează, tocmai ca
-   * ieșirea să fie deterministă în teste. Deci corectitudinea lui se verifică
-   * aici sau nicăieri.
+   * DTSTAMP is the only field this end composes on its own: `generateIcs`
+   * receives it as a parameter and does not validate it, precisely so the
+   * output is deterministic in tests. So its correctness is checked here or
+   * nowhere.
    *
-   * Proprietatea, nu un exemplu, și fără ceas: forma exactă YYYYMMDDTHHMMSSZ,
-   * plus un drum dus-întors prin `Date` care respinge o a 13-a lună sau o oră
-   * 99 pe care simpla potrivire de cifre le-ar accepta. O aserțiune despre cât
-   * de aproape este de „acum” ar fi tocmai genul de test pe care îl strică
-   * trecerea timpului, nu o schimbare de cod.
+   * The property, not an example, and without a clock: the exact shape
+   * YYYYMMDDTHHMMSSZ, plus a round trip through `Date` that rejects a 13th
+   * month or a 99th hour that a plain digit match would accept. An assertion
+   * about how close it is to "now" would be exactly the kind of test that
+   * the passage of time breaks, not a code change.
    */
   it('stamps every event with a valid UTC DTSTAMP', () => {
     const blocks = events(read('program.ics'));
@@ -360,24 +364,23 @@ describe('the feed respects the iCalendar format', () => {
         /^DTEND;TZID=Europe\/Zurich:\d{8}T\d{6}$/,
       );
       /*
-       * Și ORDINEA lor, nu doar forma. RFC 5545 §3.6.1 cere ca DTEND să fie
-       * după DTSTART, iar un eveniment de lungime zero se desenează
-       * imprevizibil — pentru o parohie, ca o slujbă care pare că nu are loc.
-       * Aserțiunea de formă de mai sus este la fel de mulțumită de două
-       * ștampile egale.
+       * And their ORDER, not just their shape. RFC 5545 §3.6.1 requires DTEND
+       * to be after DTSTART, and a zero-length event renders unpredictably —
+       * for a parish, as a service that looks like it is not happening. The
+       * shape assertion above is just as satisfied by two equal stamps.
        *
-       * Comparație de șiruri: ambele sunt `YYYYMMDDTHHMMSS`, lățime fixă și în
-       * același TZID, deci `>` este chiar ordinea cronologică a ceasului de
-       * perete. Aritmetica de peste miezul nopții și cea de peste schimbarea
-       * orei stau în `ics.test.ts`, unde pot fi construite anume.
+       * String comparison: both are `YYYYMMDDTHHMMSS`, fixed width and in the
+       * same TZID, so `>` really is the chronological order of the wall
+       * clock. The arithmetic across midnight and across the time change
+       * lives in `ics.test.ts`, where it can be constructed deliberately.
        */
       const start = (block.find((l) => l.startsWith('DTSTART;')) as string).split(':')[1] as string;
       const end = (block.find((l) => l.startsWith('DTEND;')) as string).split(':')[1] as string;
       expect(end > start, `DTEND ${end} is not after DTSTART ${start}`).toBe(true);
       uids.push(block.find((l) => l.startsWith('UID:')) as string);
     }
-    // UID-uri identice fac ca două slujbe să se topească într-un singur eveniment
-    // în calendarul fiecărui abonat, fără niciun semn.
+    // Identical UIDs make two services melt into a single event in every
+    // subscriber's calendar, with no sign of it.
     expect(new Set(uids).size).toBe(uids.length);
   });
 });
@@ -387,8 +390,8 @@ describe('the feed keeps the comma-below diacritics', () => {
     expect(containsAnyOf(read('program.ics'), CEDILLAS)).toBe(false);
   });
 
-  // Fără acest control, aserțiunea de mai sus ar fi la fel de adevărată despre
-  // un feed care nu mai conține niciun cuvânt românesc.
+  // Without this control, the assertion above would be just as true of a
+  // feed that no longer contains a single Romanian word.
   it('does contain comma below', () => {
     expect(containsAnyOf(read('program.ics'), COMMA_BELOW)).toBe(true);
   });
@@ -397,9 +400,10 @@ describe('the feed keeps the comma-below diacritics', () => {
 describe('paginile construite', () => {
   it('the homepage has the schedule section', () => {
     const html = read('index.html');
-    // „Programul slujbelor”, nu „Programul săptămânii”: titlul din `index.astro`
-    // nu numără săptămâni tocmai pentru că numărul lor depinde de dată și de
-    // JavaScript. Un titlu care numără ar fi fals în cel puțin una dintre stări.
+    // „Programul slujbelor”, not „Programul săptămânii”: the title in `index.astro`
+    // deliberately does not count weeks, precisely because their number depends on
+    // the date and on JavaScript. A title that counts would be false in at least
+    // one of the two states.
     expect(html).toContain('Programul slujbelor');
     expect(html).toContain('Bine ați venit');
   });
@@ -415,23 +419,27 @@ describe('paginile construite', () => {
   });
 
   /*
-   * TREI GENERAȚII ALE ACELEIAȘI GREȘELI, pentru cine scrie a patra.
+   * THREE GENERATIONS OF THE SAME MISTAKE, for whoever writes a fourth.
    *
-   * 1. „href-ul apare în pagină” — `toContain('/program.ics')`. Verde tot timpul
-   *    cât legătura a fost moartă, fiindcă atributul exista și fișierul nu.
-   * 2. „href-ul pe care îl găsesc duce undeva” — se urmărea fiecare potrivire
-   *    până la fișier. Mai bine, dar tiparul cerea `.ics` lipit de ghilimea:
-   *    `href="/program.ics/"` nu se mai potrivea, deci IEȘEA din mulțimea
-   *    verificată. Potrivirile scădeau de la 2 la 1 și nimic nu pica.
-   * 3. Acesta. Tiparul prinde și formele greșite (`icsReferences`), iar numărul
-   *    de referințe al fiecărei pagini este fixat (`ICS_REFERENCES`), deci o
-   *    referință care încetează să se potrivească PICĂ în loc să dispară.
+   * 1. "the href appears on the page" — `toContain('/program.ics')`. Green
+   *    the entire time the link was dead, because the attribute existed and
+   *    the file did not.
+   * 2. "the href I find leads somewhere" — every match was followed all the
+   *    way to the file. Better, but the pattern required `.ics` glued to
+   *    the closing quote: `href="/program.ics/"` no longer matched, so it
+   *    FELL OUT of the checked set. The matches dropped from 2 to 1 and
+   *    nothing failed.
+   * 3. This one. The pattern catches the wrong forms too (`icsReferences`),
+   *    and the number of references on each page is fixed
+   *    (`ICS_REFERENCES`), so a reference that stops matching FAILS instead
+   *    of disappearing.
    *
-   * De fiecare dată aserțiunea vorbea despre referințele găsite, nu despre
-   * referințele care ar trebui să existe. Numărul este cel care închide
-   * mulțimea; urmărirea până la fișier este cea care o leagă de realitate.
-   * Trebuie amândouă: fără număr, un tipar larg tot pierde în tăcere ce nu se
-   * potrivește; fără urmărire, numărul e mulțumit de o cale care nu există.
+   * Every time, the assertion was talking about the references found, not
+   * about the references that should exist. The number is what closes the
+   * set; following it to the file is what ties it to reality. Both are
+   * needed: without the number, a wide pattern still silently loses
+   * whatever it doesn't match; without the following-through, the number is
+   * satisfied by a path that does not exist.
    */
   it('carries exactly the expected references to the feed, on every page', () => {
     const pages = builtPages();
@@ -451,17 +459,18 @@ describe('paginile construite', () => {
     }
     expect(pairs.length, 'no .ics reference anywhere on the site').toBeGreaterThan(0);
     for (const [page, href] of pairs) {
-      // Absolută de la rădăcină, altfel `dist` + href nu este calea servită și
-      // aserțiunea de mai jos ar întreba altceva decât pare că întreabă.
+      // Absolute from the root, otherwise `dist` + href is not the path actually
+      // served, and the assertion below would be asking something other than
+      // what it appears to.
       expect(href.startsWith('/'), `${href} on ${page} is not absolute`).toBe(true);
       /*
-       * Interogarea și fragmentul se taie, fiindcă nu fac parte din calea pe
-       * care o servește gazda: `/program.ics?v=2` livrează chiar acest fișier.
-       * Tiparul de mai sus trebuie să fie WIDE, ca o referință stricată să nu
-       * scape neverificată; aici trebuie să fie EXACT, ca o referință corectă
-       * să nu pice degeaba. Lărgimea și severitatea nu se pun în același loc.
-       * `/program.ics/` nu este atins de tăietura asta și pică în continuare —
-       * o cale de director nu este un fișier.
+       * The query string and the fragment are cut off, because they are not
+       * part of the path the host serves: `/program.ics?v=2` delivers
+       * exactly this file. The pattern above must be WIDE, so a broken
+       * reference cannot slip through unchecked; here it must be EXACT, so a
+       * correct reference does not fail for nothing. Width and strictness do
+       * not belong in the same place. `/program.ics/` is not touched by this
+       * cut and still fails — a directory path is not a file.
        */
       const path = href.slice(1).split(/[?#]/)[0] as string;
       expect(read(path), `${href} on ${page}`).toContain('BEGIN:VCALENDAR');
@@ -469,37 +478,40 @@ describe('paginile construite', () => {
   });
 
   /*
-   * Cele două de mai sus numără referințele și le urmăresc până la fișier.
-   * Niciuna nu poate deosebi o ancoră de un `<link>`: butonul șters și un
-   * `<link>` rătăcit pus în locul lui țin numărul tot la trei și tot rezolvă.
-   * Aceasta numește ancorele după TEXTUL lor, adică după ce apasă cineva.
+   * The two above count the references and follow them to the file. Neither
+   * can tell an anchor apart from a `<link>`: a deleted button and a stray
+   * `<link>` put in its place both keep the count at three and both
+   * resolve. This one names the anchors by their TEXT, meaning by what
+   * someone clicks.
    *
-   * Prima formă a ei — „pagina de program are o legătură .ics” — era adevărată
-   * și cu butonul șters cu totul, fiindcă `<link rel="alternate">` din
-   * `Base.astro` stă în `<head>`-ul fiecărei pagini. O aserțiune care nu poate
-   * să pice este mai rea decât niciuna: pare că păzește ceva.
+   * Its first form — "the schedule page has an .ics link" — was true even
+   * with the button deleted entirely, because the `<link rel="alternate">`
+   * from `Base.astro` sits in the `<head>` of every page. An assertion that
+   * cannot fail is worse than none: it looks like it is guarding something.
    */
   /*
-   * INDEXAREA ȘI CANONICUL SUNT O SINGURĂ DECIZIE CU DOUĂ CONSECINȚE, iar o
-   * construcție întoarsă pe jumătate este ce se previne aici.
+   * INDEXING AND THE CANONICAL ARE ONE DECISION WITH TWO CONSEQUENCES, and a
+   * half-flipped build is what this guards against.
    *
-   * În Faza 1 situl stă la `<project>.pages.dev`, în timp ce `www.bor-zh.ch`
-   * răspunde încă cu instalarea WordPress compromisă. Deci nu există un canonic
-   * care merită emis — cel pe care îl dădea `Astro.site` trimitea motoarele de
-   * căutare chiar la instalarea aceea — și gazda temporară nu are ce căuta într-un
-   * index. `INDEXABLE` din `lib/site.ts` decide amândouă, iar testul acesta
-   * verifică amândouă direcțiile: cu steagul pe `false` fiecare pagină are meta
-   * noindex și niciun canonic, cu el pe `true` exact invers. Așa nu se poate
-   * întoarce una fără cealaltă la mutarea domeniului.
+   * In Phase 1 the site sits at `<project>.pages.dev`, while `www.bor-zh.ch`
+   * still answers with the compromised WordPress install. So there is no
+   * canonical worth emitting — the one `Astro.site` would have given
+   * pointed search engines straight at that very install — and the
+   * temporary host has no business being in an index. `INDEXABLE` in
+   * `lib/site.ts` decides both, and this test checks both directions: with
+   * the flag at `false` every page has a noindex meta tag and no canonical,
+   * with it at `true` exactly the opposite. This way one cannot flip
+   * without the other when the domain moves.
    */
   it('every visitor page matches INDEXABLE, in both directions', () => {
     /*
-     * `admin/index.html` este în afara acestui test, pe cale, și rămâne așa. Nu
-     * trece prin `Base.astro`, poartă propriul `noindex, nofollow` plus
-     * `X-Robots-Tag` din `_headers`, și trebuie să rămână neindexată PENTRU
-     * TOTDEAUNA — inclusiv după mutarea domeniului, când steagul se întoarce.
-     * Fără excluderea asta, testul ar cere la mutare un canonic pe shell-ul
-     * CMS-ului și niciun noindex pe el, adică exact pe dos.
+     * `admin/index.html` is deliberately outside this test, and stays that
+     * way. It does not go through `Base.astro`, it carries its own
+     * `noindex, nofollow` plus `X-Robots-Tag` from `_headers`, and it must
+     * stay unindexed FOREVER — including after the domain moves, when the
+     * flag flips. Without this exclusion, the test would demand, at the
+     * move, a canonical on the CMS shell and no noindex on it, which is
+     * exactly backwards.
      */
     const pages = builtPages().filter((p) => p !== 'admin/index.html');
     expect(pages.length, 'dist/ contains no visitor page at all').toBeGreaterThan(0);
@@ -515,11 +527,12 @@ describe('paginile construite', () => {
       canonicals.push(...canonical);
     }
     /*
-     * Nu se verifică aici ce GAZDĂ numește canonicul. După mutarea domeniului
-     * `www.bor-zh.ch` va fi chiar situl acesta, deci ar fi gazda corectă; astăzi
-     * ar fi cea compromisă. Diferența nu este în ieșire, ci în ce servește DNS-ul,
-     * și niciun test din depozitul acesta nu poate să o vadă. Ce se poate ține
-     * este cuplarea: cât timp nu suntem indexabili, nu se emite niciun canonic.
+     * What is not checked here is which HOST the canonical names. After the
+     * domain move `www.bor-zh.ch` will be this very site, so it would be the
+     * right host; today it would be the compromised one. The difference is
+     * not in the output, but in what DNS serves, and no test in this
+     * repository can see that. What can be held is the coupling: as long as
+     * we are not indexable, no canonical is emitted.
      */
     process.stdout.write(
       `\nINDEXABIL=${INDEXABLE} peste ${pages.length} pagină(i) de vizitator: ` +

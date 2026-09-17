@@ -44,8 +44,8 @@ describe('structura documentului', () => {
   });
 
   it('writes the days in chronological order, however they arrive', () => {
-    // Fără asta, o sortare care nu sortează trece neobservată: feed-ul rămâne
-    // valid, doar că ordinea lui depinde de ordinea fișierelor pe disc.
+    // Without this, a sort that doesn't sort goes unnoticed: the feed stays
+    // valid, only its order depends on the order of the files on disk.
     const out = ics([
       day('2026-09-20', [['10:00', 'Sfânta Liturghie']]),
       day('2026-09-14', [['07:30', 'Utrenia']]),
@@ -58,12 +58,12 @@ describe('structura documentului', () => {
 });
 
 /**
- * O săptămână întreagă de parohie, cu toate formele pe care le ia programul:
- * perechi la aceeași oră, o zi anulată care își păstrează orele, o slujbă care
- * trece de miezul nopții și cel mai lung nume din SERVICE_NAMES.
+ * A full parish week, with every shape the schedule can take:
+ * pairs at the same hour, a cancelled day that keeps its times, a service that
+ * crosses midnight, and the longest name in SERVICE_NAMES.
  *
- * Există ca fixtură pentru invarianți: un test pe exemple confirmă ce te-ai
- * gândit să verifici, unul pe invariant prinde ce nu te-ai gândit.
+ * It exists as a fixture for invariants: a test on examples confirms what you
+ * thought to check; one on an invariant catches what you didn't think of.
  */
 const week = (): ServiceDay[] => [
   day('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']], {
@@ -71,22 +71,22 @@ const week = (): ServiceDay[] => [
   }),
   day('2026-09-16', [['17:00', 'Spovedanie'], ['18:30', 'Acatist']]),
   day('2026-09-18', [['18:00', 'Liturghia Darurilor mai înainte sfințite']]),
-  // Spovedanie în timpul Vecerniei: două slujbe la aceeași oră.
+  // Confession during vespers: two services at the same hour.
   day('2026-09-19', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie']]),
-  // Trei slujbe, dintre care două simultane, urmate de una mai târzie.
+  // Three services, two of them simultaneous, followed by a later one.
   day('2026-09-20', [['08:45', 'Utrenia'], ['10:00', 'Sfânta Liturghie'], ['10:00', 'Botez']], {
     feast: 'Duminica după Înălțarea Sfintei Cruci',
   }),
-  // Trece de miezul nopții: 23:00 + 90 de minute.
+  // Crosses midnight: 23:00 + 90 minutes.
   day('2026-09-21', [['23:00', 'Priveghere']]),
-  // Anulată, dar își păstrează orele - steagul e adevărul, nu lista.
+  // Cancelled, but keeps its times - the flag is the truth, not the list.
   day('2026-09-23', [['18:30', 'Acatist']], { cancelled: true }),
 ];
 
-/** Perechile (DTSTART, DTEND) ale evenimentelor, în ordinea din feed. */
+/** The (DTSTART, DTEND) pairs of the events, in the order of the feed. */
 function intervals(out: string): Array<[string, string]> {
-  // DTSTART; cu punct și virgulă: cele din VTIMEZONE se scriu DTSTART: și nu
-  // sunt evenimente.
+  // DTSTART with a semicolon: the ones in VTIMEZONE are written DTSTART: and
+  // are not events.
   const lines = out.split('\r\n');
   const startTimes = lines.filter((l) => l.startsWith('DTSTART;')).map((l) => l.split(':')[1]);
   const end = lines.filter((l) => l.startsWith('DTEND;')).map((l) => l.split(':')[1]);
@@ -94,15 +94,15 @@ function intervals(out: string): Array<[string, string]> {
   return startTimes.map((s, i) => [s, end[i]]);
 }
 
-/** Blocurile VEVENT ale feed-ului, ca text, fără antet și fără VTIMEZONE. */
+/** The VEVENT blocks of the feed, as text, without the header and without VTIMEZONE. */
 function events(out: string): string[] {
   return out.split('BEGIN:VEVENT').slice(1).map((b) => b.split('END:VEVENT')[0]);
 }
 
 /**
- * Decalajul real al Zürichului la un moment dat, în minute, luat din baza de
- * date de fusuri a lui Node - nu dintr-o constantă scrisă de noi. Asta e ce
- * face din testul de mai jos o verificare, nu o repetare a codului.
+ * The real offset of Zürich at a given moment, in minutes, taken from Node's
+ * own timezone database - not from a constant we wrote. That is what makes
+ * the test below a check, rather than a repetition of the code.
  */
 function actualZurichOffset(when: Date): number {
   const name = new Intl.DateTimeFormat('en-US', {
@@ -113,7 +113,7 @@ function actualZurichOffset(when: Date): number {
   return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
 }
 
-/** Ora locală a Zürichului la un moment dat, ca HH:MM. */
+/** The local time in Zürich at a given moment, as HH:MM. */
 function actualZurichTime(when: Date): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', hour12: false,
@@ -143,14 +143,14 @@ describe('the start and end times', () => {
 
 
   it('DTEND is strictly after DTSTART for every event in the week', () => {
-    // Invariantul, nu un exemplu. RFC 5545 §3.6.1 cere DTEND strict mai târziu;
-    // un eveniment de durată zero se desenează altfel în fiecare client - adică
-    // poate deloc, ceea ce pentru o parohie înseamnă o slujbă care pare că nu
-    // are loc. „Următoarea după index” îl producea pentru prima dintr-o pereche
-    // la aceeași oră, iar feed-ul rămânea verde.
+    // The invariant, not an example. RFC 5545 §3.6.1 requires DTEND strictly
+    // later; a zero-duration event renders differently in every client - meaning
+    // possibly not at all, which for a parish means a service that looks like it
+    // is not happening. "The next one by index" produced exactly that for the
+    // first of a pair at the same hour, and the feed stayed green.
     const days = week();
     const pairs = intervals(ics(days));
-    // Fără asta invariantul ar trece și pe un feed gol.
+    // Without this the invariant would pass even on an empty feed.
     expect(pairs).toHaveLength(days.reduce((n, z) => n + z.services.length, 0));
     for (const [startTimes, end] of pairs) {
       expect(end > startTimes, startTimes + ' -> ' + end).toBe(true);
@@ -158,8 +158,8 @@ describe('the start and end times', () => {
   });
 
   it('loses neither of two services that start at the same time', () => {
-    // Perechea concretă din spatele invariantului de mai sus: ambele primesc
-    // durata implicită, adică spovedanie care ține cât Vecernia.
+    // The concrete pair behind the invariant above: both get the default
+    // duration, meaning a confession that lasts as long as vespers.
     const out = ics([day('2026-09-19', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie']])]);
     expect(intervals(out)).toEqual([
       ['20260919T170000', '20260919T183000'],
@@ -169,28 +169,29 @@ describe('the start and end times', () => {
 });
 
 /*
- * SORTAREA SLUJBELOR DINTR-O ZI, care până acum era un no-op sub propriile teste.
+ * SORTING A DAY'S SERVICES, which until now was a no-op under its own tests.
  *
- * `ics.ts` trece fiecare zi prin `servicesInOrder`. Ștergerea acelui apel lăsa tot
- * fișierul acesta verde: fiecare exemplu de mai sus scrie slujbele deja în ordine,
- * iar invariantul „DTEND strict după DTSTART" rămâne adevărat și pe un feed în care
- * o slujbă de la 17:00 se termină la 19:00 peste una de la 18:00. `daySchema` nici nu
- * sortează `services`, nici nu le cere sortate — ordinea din YAML este ordinea în care
- * a scris voluntarul, iar cine adaugă întâi slujba de seară produce exact asta.
+ * `ics.ts` runs every day through `servicesInOrder`. Deleting that call left the whole
+ * file green: every example above already writes the services in order, and the
+ * invariant "DTEND strictly after DTSTART" stays true even on a feed where a
+ * service at 17:00 ends at 19:00 over one at 18:00. `daySchema` neither sorts
+ * `services` nor requires them sorted — the order in the YAML is the order the
+ * volunteer wrote them in, and whoever adds the evening service first produces
+ * exactly that.
  *
- * `fixtures.ts` conține deja ziua de care era nevoie (2026-09-16: 18:30, 17:00, 17:00)
- * și feed-ul nu o folosea niciodată. Se verifică proprietatea, nu un exemplu: orele de
- * început ale unei zile sunt nedescrescătoare, și un feed construit dintr-o zi
- * neordonată este identic cu unul construit din aceeași zi ordonată de mână.
+ * `fixtures.ts` already contained the day that was needed (2026-09-16: 18:30, 17:00, 17:00)
+ * and the feed never used it. What is checked is the property, not an example: the start
+ * times of a day are non-decreasing, and a feed built from an unordered day is
+ * identical to one built from the same day ordered by hand.
  */
 describe("the order of a day's services", () => {
   const unorderedDay = FIXTURE_DAYS.find((z) => z.date === '2026-09-16')!;
 
-  /** Orele de început ale evenimentelor, ca HHMM, în ordinea din feed. */
+  /** The start times of the events, as HHMM, in the order of the feed. */
   const feedTimes = (out: string) => intervals(out).map(([startTimes]) => startTimes.slice(9, 13));
 
   it('control: the fixture really is unordered', () => {
-    // Fără asta, tot ce urmează ar putea trece fiindcă nu are ce sorta.
+    // Without this, everything that follows could pass because there is nothing to sort.
     expect(unorderedDay.services.map((s) => s.time)).toEqual(['18:30', '17:00', '17:00']);
   });
 
@@ -207,11 +208,11 @@ describe("the order of a day's services", () => {
 
   it('an unordered day gets no overlapping durations', () => {
     /*
-     * Contraexemplul, cu trei ore distincte, fiindcă perechea de la aceeași oră din
-     * fixtură ascunde jumătate din efect: fără sortare, slujba de la 17:00 primește
-     * DTEND 19:00 — adică ține peste cea de la 18:00 — iar cea de la 18:00 se termină
-     * la 19:30, după începutul celei de la 19:00. Un abonat vede trei slujbe care se
-     * calcă una pe alta.
+     * The counter-example, with three distinct hours, because the pair at the same
+     * hour in the fixture hides half the effect: without sorting, the service at
+     * 17:00 gets DTEND 19:00 — meaning it runs over the one at 18:00 — and the one
+     * at 18:00 ends at 19:30, after the one at 19:00 has already begun. A subscriber
+     * sees three services that overlap one another.
      */
     const out = ics([day('2026-09-16', [['17:00', 'Spovedanie'], ['19:00', 'Acatist'], ['18:00', 'Vecernie']])]);
     expect(intervals(out)).toEqual([
@@ -242,7 +243,7 @@ describe('UID', () => {
   });
 
   it('gives distinct UIDs to two services starting at the same time', () => {
-    // Spovedanie în timpul Vecerniei — o seară obișnuită de parohie.
+    // Confession during vespers — an ordinary parish evening.
     const out = ics([day('2026-09-19', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie']])]);
     const uids = [...out.matchAll(/UID:(\S+)/g)].map((m) => m[1]);
     expect(uids).toHaveLength(2);
@@ -307,8 +308,8 @@ describe('content', () => {
   });
 
   it('writes DTSTAMP and LOCATION on every event', () => {
-    // Amândouă se puteau șterge fără ca vreun test să pice. DTSTAMP e cerut de
-    // RFC 5545 §3.6.1, iar LOCATION e un câmp numit în spec §8.
+    // Both could be deleted without any test failing. DTSTAMP is required by
+    // RFC 5545 §3.6.1, and LOCATION is a field named in spec §8.
     for (const e of events(ics(week()))) {
       expect(e).toContain('DTSTAMP:20260915T060000Z');
       expect(e).toContain('LOCATION:Wehntalerstrasse 451\\, 8046 Zürich');
@@ -316,11 +317,11 @@ describe('content', () => {
   });
 
   it('escapes a lone CR too, not only CRLF and LF', () => {
-    // RFC 5545 §3.3.11: un CR rămas crud într-o linie de conținut e nepermis.
+    // RFC 5545 §3.3.11: a bare CR left raw in a content line is not allowed.
     const z = day('2026-09-20', [['10:00', 'Altceva']], { notes: 'rândul unu\rrândul doi' });
     const out = ics([z]);
     expect(out).toContain('rândul unu\\nrândul doi');
-    // și niciun CR care să nu fie urmat de LF
+    // and no CR that is not followed by LF
     expect(/\r(?!\n)/.test(out)).toBe(false);
   });
 });
@@ -368,9 +369,9 @@ describe('escaping and folding', () => {
   });
 
   it('folds three- and four-byte characters correctly too', () => {
-    // Testele de mai sus folosesc doar ă (doi octeți). Un editor poate lipi o
-    // liniuță lungă (trei octeți) sau un emoji (patru octeți, pereche surogat
-    // în JS), iar acolo se rupe o împăturire care numără caractere.
+    // The tests above use only ă (two bytes). An editor could paste in an em
+    // dash (three bytes) or an emoji (four bytes, a surrogate pair in JS), and
+    // that is where a folding scheme that counts characters breaks.
     for (const ch of ['—', '日', '𝄞', '😀']) {
       const out = ics([day('2026-09-14', [['08:30', 'Utrenia']], { feast: ch.repeat(80) })]);
       for (const line of out.split('\r\n')) {
@@ -381,9 +382,9 @@ describe('escaping and folding', () => {
   });
 
   it('no combination of text breaks the folding or the escaping', () => {
-    // Fuzz determinist (sămânță fixă): octeți de 1-4, plus exact caracterele pe
-    // care escapeaza le tratează special, fiindcă un backslash chiar înaintea
-    // unui punct și virgulă este cazul în care o desfacere naivă greșește.
+    // Deterministic fuzzing (fixed seed): bytes of 1-4, plus exactly the
+    // characters that escaping treats specially, because a backslash right
+    // before a semicolon is the case where a naive unescaping gets it wrong.
     const POOL = [...'abc XY,;\\', 'ă', 'â', 'ș', 'ț', '·', '—', '日', '𝄞', '😀'];
     const seed = { s: 42 };
     const rnd = (n: number) => {
@@ -419,9 +420,9 @@ describe('escaping and folding', () => {
 
 describe('diacriticele feed-ului', () => {
   it('uses comma below, not cedilla', () => {
-    // Tot ce ajunge într-un SUMMARY trece prin serviceLabel, așa că scanăm
-    // feed-ul generat pentru întreaga listă de slujbe, nu doar literalele pe
-    // care le scrie chiar acest modul.
+    // Everything that ends up in a SUMMARY goes through serviceLabel, so we scan
+    // the generated feed for the entire list of services, not only the literals
+    // this module itself writes.
     const allText = ics([
       day(
         '2026-09-14',
@@ -429,16 +430,16 @@ describe('diacriticele feed-ului', () => {
         { feast: 'Înălțarea Sfintei Cruci', notes: 'Se citește Acatistul' },
       ),
     ]);
-    // Sedilele turcești, scrise ca escape-uri pentru ca garda să nu poată fi
-    // înfrântă lipind chiar caracterele pe care le respinge:
-    // U+015F, U+0163 și majusculele lor U+015E, U+0162.
+    // The Turkish cedillas, written as escapes so the guard cannot be
+    // defeated by pasting in the very characters it rejects:
+    // U+015F, U+0163 and their uppercase forms U+015E, U+0162.
     expect(allText).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
-    // Și dovada că garda are ce prinde, nu că trece fiindcă feed-ul scanat
-    // s-a dovedit a fi ASCII.
-    expect(allText).toMatch(/\u021B/); // ț, din „Liturghia Darurilor … sfințite”
-    expect(allText).toMatch(/\u0219/); // ș, din nota zilei
-    // Singurul literal cu diacritice pe care îl scrie acest modul, afirmat pe
-    // codepoint, nu din ochi.
+    // And the proof that the guard has something to catch, not that it passes
+    // because the scanned feed turned out to be ASCII.
+    expect(allText).toMatch(/\u021B/); // ț, from „Liturghia Darurilor … sfințite"
+    expect(allText).toMatch(/\u0219/); // ș, from the day's note
+    // The only literal with diacritics that this module writes, asserted by
+    // codepoint, not by eye.
     expect(allText).toContain(
       'X-WR-CALNAME:Program liturgic \u2014 Sf\u00E2ntul Nicolae Z\u00FCrich',
     );
@@ -448,11 +449,11 @@ describe('diacriticele feed-ului', () => {
 
 describe('fusul orar', () => {
   it('declares the offsets and the transition rules, not just the block', () => {
-    // Blocul VTIMEZONE era verificat doar prin prezența lui BEGIN:VTIMEZONE.
-    // Trei mutații treceau: decalajul de vară pus pe +0100, regula de primăvară
-    // înlocuită cu cea americană (a doua duminică, nu ultima) și blocul golit.
-    // Fiecare pune toate slujbele cu o oră alături - cel mai rău lucru pe care
-    // acest feed îl poate face.
+    // The VTIMEZONE block was checked only through the presence of BEGIN:VTIMEZONE.
+    // Three mutations passed: the summer offset set to +0100, the spring rule
+    // replaced with the American one (the second Sunday, not the last), and the
+    // block emptied out. Each one puts every service an hour off - the worst
+    // thing this feed can do.
     const out = ics([day('2026-07-05', [['10:00', 'Sfânta Liturghie']])]);
     expect(out).toContain('TZID:Europe/Zurich');
     expect(out).toContain('TZOFFSETFROM:+0100');
@@ -466,10 +467,10 @@ describe('fusul orar', () => {
   });
 
   it('a service at 10:00 stays at 10:00 in summer and in winter', () => {
-    // Proprietatea pentru care există blocul. Luăm decalajul pe care îl declară
-    // chiar feed-ul, scădem din ora locală scrisă în DTSTART ca să obținem
-    // momentul absolut, apoi îl citim înapoi cu baza de fusuri a lui Node. Dacă
-    // decalajul declarat e greșit, ora citită nu mai e 10:00.
+    // The property the block exists for. We take the offset the feed itself
+    // declares, subtract it from the local time written in DTSTART to get
+    // the absolute moment, then read it back with Node's own timezone database.
+    // If the declared offset is wrong, the time read back is no longer 10:00.
     for (const [date, expectedOffset] of [['2026-07-05', 120], ['2026-01-11', 60]] as const) {
       const out = ics([day(date, [['10:00', 'Sfânta Liturghie']])]);
       const block = expectedOffset === 120 ? 'DAYLIGHT' : 'STANDARD';
@@ -479,10 +480,10 @@ describe('fusul orar', () => {
         * (Number(signMatch[2]) * 60 + Number(signMatch[3]));
 
       expect(declaredOffset, 'decalajul declarat pentru ' + date).toBe(expectedOffset);
-      // Și că e chiar decalajul real al Zürichului la acea dată.
+      // And that it really is the actual offset of Zürich on that date.
       expect(actualZurichOffset(new Date(date + 'T12:00:00Z'))).toBe(expectedOffset);
 
-      // 10:00 local, scris cu decalajul declarat, se citește înapoi tot 10:00.
+      // 10:00 local, written with the declared offset, reads back as 10:00 too.
       const moment = new Date(Date.parse(date + 'T10:00:00Z') - declaredOffset * 60_000);
       expect(actualZurichTime(moment), 'ora reală pentru ' + date).toBe('10:00');
       expect(out).toContain('DTSTART;TZID=Europe/Zurich:' + date.replace(/-/g, '') + 'T100000');
@@ -490,21 +491,21 @@ describe('fusul orar', () => {
   });
 
   it('does not write METHOD without ORGANIZER', () => {
-    // RFC 5546 §3.2.1: METHOD face documentul un mesaj iTIP, care cere
-    // ORGANIZER. Un feed la care te abonezi nu are nevoie de niciunul.
+    // RFC 5546 §3.2.1: METHOD turns the document into an iTIP message, which
+    // requires ORGANIZER. A feed someone merely subscribes to needs neither.
     expect(ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])])).not.toContain('METHOD');
   });
 });
 
 describe('anulare', () => {
   it('marks only the cancelled day, not the whole feed', () => {
-    // STATUS:CANCELLED aplicat la tot feed-ul trecea neobservat: o singură
-    // duminică anulată ar fi marcat întreg programul parohiei ca anulat.
+    // STATUS:CANCELLED applied to the whole feed went unnoticed: a single
+    // cancelled Sunday would have marked the entire parish schedule as cancelled.
     const out = ics(week());
     const cancelled = events(out).filter((e) => e.includes('STATUS:CANCELLED'));
     const rest = events(out).filter((e) => !e.includes('STATUS:CANCELLED'));
 
-    // 2026-09-23 e singura zi anulată din fixtură și are o singură slujbă.
+    // 2026-09-23 is the only cancelled day in the fixture and it has a single service.
     expect(cancelled).toHaveLength(1);
     expect(cancelled[0]).toContain('20260923');
     expect(rest.length).toBeGreaterThan(5);
@@ -512,10 +513,10 @@ describe('anulare', () => {
   });
 
   it('puts a cancellation marker in SUMMARY, and only on cancelled days', () => {
-    // STATUS:CANCELLED singur nu ajunge: se raportează că Google ascunde
-    // evenimentele anulate din feed-urile la care ești abonat, ceea ce ar face
-    // ziua să se golească în tăcere - exact ce am vrut să evităm. Marcajul se
-    // vede și acolo unde evenimentul se afișează.
+    // STATUS:CANCELLED alone is not enough: Google is reported to hide
+    // cancelled events from feeds you are subscribed to, which would make
+    // the day go quietly empty - exactly what this was meant to avoid. The
+    // marker shows even in the one place where the event does get displayed.
     const out = ics(week());
     for (const e of events(out)) {
       const summary = /SUMMARY:([^\r\n]*)/.exec(e)![1];

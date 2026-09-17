@@ -359,10 +359,10 @@ describe('the references inside public/_headers', () => {
   });
 
   /*
-   * Fiindcă rezolvarea se uită numai între apostrofuri inverse, singurul lucru
-   * care face „toate căile de aici se rezolvă" o afirmație întreagă este
-   * convenția că toate căile de aici sunt scrise între apostrofuri inverse.
-   * Convenția se verifică, nu se promite.
+   * Because resolution only looks between backticks, the only thing that
+   * makes "every path here resolves" a complete claim is the convention
+   * that every path here is written between backticks. The convention is
+   * checked, not promised.
    */
   it('names no path outside backticks', () => {
     const bareTokens = pathsOutsideBackticks(SOURCE);
@@ -372,7 +372,7 @@ describe('the references inside public/_headers', () => {
   it('the outside-backticks path detector really does fire, and leaves routes and URLs alone', () => {
     expect(pathsOutsideBackticks('#   start.mjs deja îi spune voluntarului')).toEqual(['start.mjs']);
     expect(pathsOutsideBackticks('#   `public/admin/start.mjs` deja îi spune')).toEqual([]);
-    // O rută nu e un fișier, iar un token dintr-un URL îi aparține URL-ului.
+    // A route is not a file, and a token from a URL belongs to the URL.
     expect(pathsOutsideBackticks('/program.ics')).toEqual([]);
     expect(pathsOutsideBackticks('#   curl -sI https://x.pages.dev/program.ics')).toEqual([]);
   });

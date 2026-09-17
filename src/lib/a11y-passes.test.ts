@@ -84,10 +84,11 @@ const GOOD_PASSES = {
 };
 
 /*
- * `phoneNoJs` este aici pentru același motiv pentru care `media` nu mai este
- * gol: fixtura trebuie să treacă regulile adevărate, fiindcă ea este ce copiază
- * următorul om. Fără ea, banda de sub 34rem ar fi auditată numai cu scripturile
- * pornite — exact al șaselea aranjament orb, scris în fixtură.
+ * `phoneNoJs` is here for the same reason `media` is no longer empty: the
+ * fixture has to pass the real rules, because it is what the next person
+ * copies. Without it, the band below 34rem would be audited only with
+ * scripts on — exactly the sixth blind arrangement, written into the
+ * fixture.
  */
 const GOOD_CONDITIONS = {
   desk: { label: 'desk', width: null, js: true, media: { [PHONE_QUERY]: false } },
@@ -182,13 +183,14 @@ describe('the detector for declarations nobody runs', () => {
 });
 
 /*
- * AXA LĂȚIMII, PARTEA CARE LIPSEA: o condiție care nu declară nimic.
+ * THE WIDTH AXIS, THE PART THAT WAS MISSING: a condition that declares
+ * nothing.
  *
- * Verificarea (a) din `checkBreakpoints` iterează reuniunea cheilor din `media`
- * ale condițiilor sub care se încarcă un set de pagini. Cu `media` gol peste tot,
- * bucla nu are corp și nimeni nu se plânge: măsurat, cu pragul de telefon mutat
- * din 34rem în 30rem, toate cele patru treceri ies 0 — față de 1 pentru exact
- * aceeași mutare cu `media` populat.
+ * Assertion (a) in `checkBreakpoints` iterates the union of the `media` keys
+ * of the conditions under which a set of pages loads. With `media` empty
+ * everywhere, the loop has no body and nobody complains: measured, with the
+ * phone threshold moved from 34rem to 30rem, all four passes come out at 0
+ * — against 1 for the exact same move with `media` populated.
  */
 describe('a condition must declare what it expects of the CSS', () => {
   it('catches a condition with an empty media', () => {
@@ -218,12 +220,12 @@ describe('a condition must declare what it expects of the CSS', () => {
 });
 
 /*
- * AXA JAVASCRIPT-ULUI, care până acum nu era indexată de nimic.
+ * THE JAVASCRIPT AXIS, which until now was indexed by nothing.
  *
- * Ștergerea celor trei condiții cu `js: false` lăsa verde tot — patru treceri cu
- * browser și toată suita unitară — deși singurul audit care randează săptămânile
- * ascunse de selector dispăruse. O trecere care se poate șterge fără să pice ceva
- * este o trecere pe care nu se bazează nimeni.
+ * Deleting the three conditions with `js: false` left everything green —
+ * four browser passes and the whole unit suite — even though the only
+ * audit that renders the weeks the selector hides had disappeared. A pass
+ * that can be deleted without anything failing is a pass nobody relies on.
  */
 describe('every set of pages is audited with scripts off too', () => {
   const TWO_PAGE_SETS = {
@@ -243,15 +245,15 @@ describe('every set of pages is audited with scripts off too', () => {
     expect(failures).toHaveLength(1);
     expect(failures[0]).toContain('fixture');
     expect(failures[0]).toContain('OFF');
-    // Mesajul trebuie să trimită la toate trei verigile, ca și cel de lățime.
+    // The message must point to all three links, just like the width one.
     expect(failures[0]).toContain('CONDITIONS');
     expect(failures[0]).toContain('test:all');
     expect(failures[0]).toContain('NO_JS_REASONS');
   });
 
   it('catches the no-JS conditions being deleted from the main set', () => {
-    // Exact mutația din raport: `dist` rămâne auditat numai cu scripturile
-    // pornite. Fără verificarea asta, nimic nu se schimbă la culoare.
+    // Exactly the mutation from the report: `dist` stays audited only with
+    // scripts on. Without this check, nothing changes color.
     const passes = {
       defaultWidth: { ...GOOD_PASSES.defaultWidth, conditions: ['desk'] },
       mobile: { ...GOOD_PASSES.mobile, conditions: ['phone'] },
@@ -267,8 +269,8 @@ describe('every set of pages is audited with scripts off too', () => {
   });
 
   it('catches a stale reason, for a set that REALLY does have a no-JS pass', () => {
-    // Cealaltă direcție, ca la comenzile din package.json: o scuză de care nu
-    // mai are nimeni nevoie rămâne în cod arătând ca o regulă.
+    // The other direction, as with the commands in package.json: an excuse
+    // nobody needs any more stays in the code looking like a rule.
     const failures = checkPasses(GOOD_PACKAGE, GOOD_PASSES, GOOD_CONDITIONS, { dist: 'because yes' });
     expect(failures).toHaveLength(1);
     expect(failures[0]).toContain('dist');
@@ -370,30 +372,30 @@ describe('widths are counted per set of pages', () => {
 
 /*
  * ===========================================================================
- * TOT CE CERE CSS-UL, FAȚĂ ÎN FAȚĂ CU TOT CE RULEAZĂ SUITA, ÎN AMBELE SENSURI.
+ * EVERYTHING THE CSS DEMANDS, FACE TO FACE WITH EVERYTHING THE SUITE RUNS, IN BOTH DIRECTIONS.
  *
- * Garda aceasta a fost verde și oarbă de ȘASE ori, găsită de patru oameni:
- * praguri scrise de mână; lățimi declarate pe care nu le rula nimeni; axa
- * JavaScript, pe care n-o indexa nimic; `media: {}`, care făcea comparația o
- * buclă fără corp; verificarea (a), care mergea într-un singur sens; și
- * acoperirea socotită pe SETUL de pagini în loc de bandă, așa că o lățime își
- * putea pierde trecerea fără scripturi fără să pice nimic.
+ * This guard was green and blind SIX times, found by four people:
+ * hand-written thresholds; declared widths that nobody ran; the JavaScript
+ * axis, which nothing indexed; `media: {}`, which made the comparison a
+ * loop with no body; assertion (a), which went in only one direction; and
+ * coverage counted on the SET of pages instead of on the band, so a width
+ * could lose its scripts-off pass without anything failing.
  *
- * Șase instanțe, o singură formă: garda compara o declarație cu un subiect pe
- * unele axe și nu pe altele, și tăcea despre ce nu indexa. Cazurile de mai jos
- * sunt controalele pozitive ale restatementului — câte unul pe fiecare direcție,
- * fiindcă o afirmație de forma „nu lipsește nimic" nu se primește aici fără o
- * demonstrație că detectorul chiar se declanșează. Rulează în ~140 ms, înainte de
- * patru porniri de Chrome.
+ * Six instances, one single shape: the guard compared a declaration against
+ * a subject along some axes and not others, and was silent about what it
+ * did not index. The cases below are the positive controls of the
+ * restatement — one per direction, because a claim of the form "nothing is
+ * missing" is not accepted here without a demonstration that the detector
+ * actually fires. Runs in ~140 ms, before four Chrome launches.
  * ===========================================================================
  */
 
-/** Un prag derivat, în forma în care îl întoarce `breakpointsFromCss()`. */
+/** A derived breakpoint, in the shape `breakpointsFromCss()` returns it. */
 function breakpoint(text: string, px: number, limit: number, source = 'index.html') {
   return { limit, px, texts: new Set([text]), sources: new Set([source]) };
 }
 
-/** O trăsătură de mediu care nu este o lățime, în aceeași formă. */
+/** A media feature that is not a width, in the same shape. */
 function feature(name: string, source = 'index.html') {
   return { name, sources: new Set([source]), conditions: new Set([`@media (${name}: reduce)`]) };
 }
@@ -408,7 +410,7 @@ describe('breakpoints derived from the CSS against what the conditions declare',
   });
 
   it('(a) catches a declared query the CSS no longer has', () => {
-    // Pragul s-a mutat din 34rem în 30rem: acum pică în AMBELE sensuri.
+    // The breakpoint moved from 34rem to 30rem: now it fails in BOTH directions.
     const movedBreakpoint = { breakpoints: [breakpoint('(max-width: 30rem)', 480, 480)], features: [], problems: [] };
     const failures = checkBreakpoints(movedBreakpoint, 756, 'dist', GOOD_OPTIONS).failures;
     expect(failures.some((e: string) => e.includes('the built CSS no longer has a breakpoint there'))).toBe(true);
@@ -417,10 +419,10 @@ describe('breakpoints derived from the CSS against what the conditions declare',
 
   it("(a') catches a CSS breakpoint no condition names — the fifth arrangement", () => {
     /*
-     * Aranjamentul exact, în mic: `media` rămâne nevid (deci verificarea lui
-     * trece), dar pragul de 62rem nu mai e numit de nicio condiție. Înainte de
-     * linia asta, toate cele patru treceri și toată suita ieșeau 0 cu pragul
-     * mutat la 60rem și tipărit în ieșire.
+     * The exact arrangement, in miniature: `media` stays non-empty (so its
+     * own check passes), but the 62rem breakpoint is no longer named by any
+     * condition. Before this line, all four passes and the whole suite came
+     * out at 0 with the breakpoint moved to 60rem and printed in the output.
      */
     const withSecond = {
       breakpoints: [BREAKPOINT_34, breakpoint('(min-width: 62rem)', 992, 991)],
@@ -434,7 +436,7 @@ describe('breakpoints derived from the CSS against what the conditions declare',
   });
 
   it("(a') does not complain about the same breakpoint when a condition declares it", () => {
-    // Cealaltă jumătate a controlului: roșul depinde de absența declarației.
+    // The other half of the control: the red depends on the declaration's absence.
     const conditions = {
       ...GOOD_CONDITIONS,
       desk: { ...GOOD_CONDITIONS.desk, media: { [PHONE_QUERY]: false, '(min-width: 62rem)': false } },
@@ -452,21 +454,21 @@ describe('breakpoints derived from the CSS against what the conditions declare',
 describe('coverage is a property of the pair (band, script state)', () => {
   it('catches a band audited only with scripts on — the sixth arrangement', () => {
     /*
-     * Mutația măsurată înainte de a exista verificarea: scoate `phoneNoJs`
-     * din CONDITIONS și din PASSES.mobil și nu pică nimic — nici garda unitară,
-     * nici cele două treceri peste `dist` — deși banda de sub 34rem rămâne
-     * auditată numai cu scripturile pornite, adică tocmai acolo unde selectorul
-     * ascunde toate săptămânile în afară de una și unde citește cea mai mare
-     * parte a parohiei. Ieșirea spunea în continuare „JS pornit · JS oprit”:
-     * adevărat despre SET, fals despre bandă.
+     * The mutation measured before the check existed: remove `phoneNoJs`
+     * from CONDITIONS and from PASSES.mobile and nothing fails — not the
+     * unit guard, not the two passes over `dist` — even though the band
+     * below 34rem stays audited only with scripts on, which is exactly
+     * where the selector hides every week but one and where most of the
+     * parish reads. The output still said "JS on · JS off": true of the
+     * SET, false of the band.
      */
     const passTable = { ...GOOD_PASSES, mobile: { ...GOOD_PASSES.mobile, conditions: ['phone'] } };
     const failures = checkBreakpoints(GOOD_DERIVED, 756, 'dist', { ...GOOD_OPTIONS, passTable }).failures;
     expect(failures).toHaveLength(1);
     expect(failures[0]).toContain('OFF');
     expect(failures[0]).toContain('0-544px');
-    // Mesajul trebuie să spună și ce se rulează pe cealaltă stare, altfel cititorul
-    // vede o bandă „neauditată" lângă o ieșire care zice că setul e auditat în ambele.
+    // The message must also say what runs in the other state, otherwise the reader
+    // sees a band "unaudited" beside an output that says the set is audited in both.
     expect(failures[0]).toContain('On the other state');
   });
 
@@ -500,13 +502,15 @@ describe('coverage is a property of the pair (band, script state)', () => {
 });
 
 /*
- * AXA PE CARE GARDA N-O INDEXEAZĂ DELOC, și care a fost acolo tot timpul.
+ * THE AXIS THE GUARD DOES NOT INDEX AT ALL, and which had been there the
+ * whole time.
  *
- * `widthComparisons()` consuma comparațiile de lățime, iar restul era cercetat numai
- * după cuvântul „width". Deci `@media (prefers-reduced-motion: reduce)` a trecut
- * prin fiecare versiune a gărzii, inclusiv prin cele două scrise anume ca să
- * închidă aranjamente oarbe, fără o linie de ieșire. Asta este verificarea care
- * face din următoarea trăsătură o construcție roșie, nu a șaptea constatare.
+ * `widthComparisons()` consumed the width comparisons, and the rest was only
+ * scanned for the word "width". So `@media (prefers-reduced-motion: reduce)`
+ * passed through every version of the guard, including the two written
+ * specifically to close blind arrangements, without a single line of
+ * output. This is the check that turns the next feature into a red build,
+ * not a seventh finding.
  */
 describe('every media feature that is not a width is named, with a reason', () => {
   it('catches a feature nobody has named', () => {
@@ -524,7 +528,7 @@ describe('every media feature that is not a width is named, with a reason', () =
   });
 
   it('catches a reason that has fallen behind the stylesheets', () => {
-    // Cealaltă direcție, ca la NO_JS_REASONS și la comenzile din package.json.
+    // The other direction, as with NO_JS_REASONS and the commands in package.json.
     const options = { ...GOOD_OPTIONS, unaudited: { 'prefers-reduced-motion': 'because yes' } };
     const failures = checkBreakpoints(GOOD_DERIVED, 756, 'dist', options).failures;
     expect(failures).toHaveLength(1);
@@ -533,8 +537,8 @@ describe('every media feature that is not a width is named, with a reason', () =
   });
 
   it('features are checked even when the CSS produced no breakpoint', () => {
-    // Fără asta, întoarcerea devreme pentru „niciun prag" ar sări peste (c) — o
-    // ieșire timpurie care ascunde o verificare este exact forma plătită aici.
+    // Without this, the early return for "no breakpoint" would skip over (c) — an
+    // early exit that hides a check is exactly the shape paid for here.
     const derived = { breakpoints: [], features: [feature('print')], problems: [] };
     const failures = checkBreakpoints(derived, 756, 'dist', GOOD_OPTIONS).failures;
     expect(failures.some((e: string) => e.includes('print'))).toBe(true);
@@ -549,8 +553,8 @@ describe('every media feature that is not a width is named, with a reason', () =
     expect(conditionFeatures('(min-width: 62rem) and (prefers-color-scheme: dark)')).toEqual([
       'prefers-color-scheme',
     ]);
-    // Ce nu recunoaște trebuie să iasă la iveală, nu să dispară: o gardă care își
-    // derivă subiectul poate verifica numai ce a recunoscut.
+    // What it does not recognise must come to light, not disappear: a guard that
+    // derives its own subject can only check what it recognised.
     expect(conditionFeatures('(min-resolution: 2dppx)')).toEqual(['min-resolution']);
   });
 
@@ -568,12 +572,13 @@ describe('every media feature that is not a width is named, with a reason', () =
 });
 
 /*
- * ULTIMA LISTĂ CARE MICȘOREAZĂ SUBIECTUL, și singura care nu trebuia să spună
- * nimic. O pagină numită în `NO_AXE_REASONS` nu este auditată de nicio trecere,
- * iar CSS-ul ei iese odată cu ea din setul de praguri derivat — deci este exact
- * forma pe care fișierul acesta o tratează peste tot altundeva cu un motiv scris
- * lângă intrare. Ca vector simplu, era cea mai ieftină ieșire dintr-o construcție
- * roșie: adaugi o cale și pagina dispare din audit fără să semneze nimeni.
+ * THE LAST LIST THAT SHRINKS THE SUBJECT, and the only one that did not have
+ * to say anything. A page named in `NO_AXE_REASONS` is not audited by any
+ * pass, and its CSS leaves the derived set of breakpoints along with it —
+ * so it is exactly the shape this file treats everywhere else with a
+ * reason written beside the entry. As a plain lever, it was the cheapest
+ * way out of a red build: add a path and the page disappears from the
+ * audit without anyone signing off.
  */
 describe('every page taken out of the axe audit says why', () => {
   it('catches an exclusion with no written reason', () => {
