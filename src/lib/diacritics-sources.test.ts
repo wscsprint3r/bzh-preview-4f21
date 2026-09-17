@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { CEDILLAS, hasCommaBelow, cedillasIn, uPlus } from './cedilla';
+import { ALLOWED_EXTENSIONS } from '../../migration/media.mjs';
 
 /*
  * WHAT THIS PROVES: no file this repository tracks contains a Turkish cedilla
@@ -69,15 +70,36 @@ function trackedFiles(): string[] {
 }
 
 /*
- * The tracked files that are BYTES rather than text, named one by one.
+ * The tracked files that are BYTES rather than text, as a PREDICATE.
  *
- * Listed by exact path rather than by extension, so a `.svg` that is text stays
- * swept and a new binary has to be looked at by a person. The case below fails on
- * any tracked file that is neither on this list nor decodable as UTF-8 text, so
- * the list cannot fall behind the repository the way `NO_EXTENSION` once fell
- * behind the build.
+ * It was a list holding one exact path, `public/favicon.ico`, because naming
+ * files one by one is how an exemption stays visible. Task 6 commits the
+ * migrated images - 7 files today, around a hundred once the pages follow -
+ * and a hundred JPEGs cannot be named one by one. So the rule is now: the
+ * favicon, or a path under the migrated-image directory whose extension is on
+ * the allow-list `migration/media.mjs` already owns. **The list is imported
+ * from there, never copied here**: a second copy is how two answers come to
+ * disagree about what sharp can write.
+ *
+ * A PREFIX RULE ON ITS OWN IS A PURE WEAKENING, SO IT DOES NOT SHIP ALONE.
+ * "A file under `src/assets/content/`" would excuse a PHP payload renamed to
+ * `.jpg` for as long as it sat there, and the old list would not have. What
+ * replaces the name-by-name property is stronger than naming: `binaries.itest.ts`
+ * decodes every file under that prefix through sharp and fails by name on any
+ * that does not decode. A name list is defeated by renaming a payload to
+ * `.jpg`; a decoder is not. The positive control below proves both arms of the
+ * predicate still fire, and `binaries.itest.ts` asserts the extension half
+ * against every real file, so the prefix cannot quietly become dead.
  */
-const BINARIES = ['public/favicon.ico'];
+const CONTENT_PREFIX = 'src/assets/content/';
+
+/** Whether this tracked path is bytes rather than text, and so not swept. */
+function isBinary(path: string): boolean {
+  if (path === 'public/favicon.ico') return true;
+  if (!path.startsWith(CONTENT_PREFIX)) return false;
+  const extension = path.split('.').pop()?.toLowerCase() ?? '';
+  return (ALLOWED_EXTENSIONS as readonly string[]).includes(extension);
+}
 
 /** Whether a file's bytes are text: valid UTF-8 and no NUL. */
 function isText(path: string): boolean {
@@ -88,7 +110,8 @@ function isText(path: string): boolean {
 }
 
 const TRACKED = trackedFiles();
-const TO_SWEEP = TRACKED.filter((path) => !BINARIES.includes(path));
+const BINARIES = TRACKED.filter(isBinary);
+const TO_SWEEP = TRACKED.filter((path) => !isBinary(path));
 
 describe('the sweep really does have something to sweep', () => {
   // A guard that reads files must prove it read something. Without these, a
@@ -120,14 +143,29 @@ describe('the sweep really does have something to sweep', () => {
     expect(
       notText,
       `tracked files that do not read as text: ${notText.join(', ')}. ` +
-        'If they are binary, put them in BINARIES; if not, find out why they do not decode.',
+        'If they are images, their extension belongs in ALLOWED_EXTENSIONS in ' +
+        'migration/media.mjs; if not, find out why they do not decode.',
     ).toEqual([]);
   });
 
-  it('every path in BINARIES really is a tracked file', () => {
-    // The other direction: an exemption for a file that no longer exists stays in
-    // the code looking like a rule, ready to excuse something else under the same name.
-    for (const path of BINARIES) expect(TRACKED, path).toContain(path);
+  it('the binary predicate fires on the named file and on the migrated images', () => {
+    // BOTH ARMS, each against a file that really is tracked. The old case here
+    // checked that every named exemption still existed; with a predicate the
+    // equivalent question is whether each arm still matches anything, because
+    // an arm that stopped matching would silently widen the sweep.
+    expect(TRACKED, 'public/favicon.ico').toContain('public/favicon.ico');
+    expect(isBinary('public/favicon.ico')).toBe(true);
+    const migrated = TRACKED.filter((path) => path.startsWith(CONTENT_PREFIX));
+    expect(
+      migrated.length,
+      'no tracked file under src/assets/content/ - the prefix arm matches nothing',
+    ).toBeGreaterThan(0);
+    // And the extension half is what decides under the prefix: a file there
+    // whose extension is off the allow-list stays in the sweep and fails above.
+    expect(migrated.filter((path) => !isBinary(path)), 'off the allow-list').toEqual([]);
+    // Negative control: the predicate does not match everything.
+    expect(isBinary('src/lib/week.ts')).toBe(false);
+    expect(isBinary('src/assets/content/logo.svg')).toBe(false);
   });
 
   it('the sources really do contain comma below', () => {
@@ -158,7 +196,7 @@ describe('no Turkish cedilla in the tracked files', () => {
     // the green run; `process.stdout.write` passes through the reporter in both cases.
     process.stdout.write(
       `\nSwept for cedillas: ${TO_SWEEP.length} tracked file(s) ` +
-        `(of ${TRACKED.length}; ${BINARIES.length} named binary file(s)) — ${found.length} occurrence(s).\n`,
+        `(of ${TRACKED.length}; ${BINARIES.length} excluded as binary by the predicate) — ${found.length} occurrence(s).\n`,
     );
     expect(
       found,
