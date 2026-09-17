@@ -1676,8 +1676,19 @@ git commit -m "feat: the nine prose pages from one route, and a navigation that 
 ### Task 10: The homepage news section, and the settings singleton
 
 **Files:**
-- Modify: `src/pages/index.astro`, `src/components/SiteFooter.astro`
+- Modify: `src/pages/index.astro`, `src/components/SiteFooter.astro`, `src/pages/program.ics.ts`
 - Create: `src/lib/setari.ts`, `src/lib/setari.test.ts`
+
+**The parish address exists in three places and this task is where that ends.**
+Measured 2026-09-17: `src/content/setari/setari.yml` (`adresa`),
+`src/pages/program.ics.ts:31` (`LOCATIE`, a byte-identical string) and
+`src/components/SiteFooter.astro:12` (the same content, split across a `<br />`).
+Converting only the footer leaves the calendar feed as a second source of truth
+for the address a visitor drives to — so `program.ics.ts` reads `setari` too.
+The footer's line break is a rendering choice, not a second address: decide how
+one `adresa` string renders there, rather than adding a field to carry the break.
+After this task, `rtk proxy grep -rn Wehntalerstrasse src/` must find it only in
+`setari.yml`.
 
 **Interfaces:**
 - Consumes: `articolePublicate`, `ListaArticole`, the `setari` collection.
