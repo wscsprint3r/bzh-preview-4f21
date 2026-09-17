@@ -66,7 +66,7 @@ Every task's requirements implicitly include this section.
   Task 10's no-JS baseline. Run both passes; the disabled one covers what the enabled one
   cannot see — and they are not redundant in the other direction either, since the JS-on pass
   is the only one that ever sees the week picker itself. Neither pass alone is the guarantee.
-- **Opacity on text is not dimming, it is contrast reduction.** The plan's `.rz-cancelled`
+- **Opacity on text is not dimming, it is contrast reduction.** The plan's `.dr-cancelled`
   `opacity: 0.75` produced six `color-contrast` violations on a genuinely cancelled day —
   times falling 4.67:1 to 2.96:1 — and `--gold-text` is unusable below opacity 0.981. Every
   static guard passed it; axe caught it. Say "not happening" with a strike or a label, never
@@ -80,7 +80,7 @@ Every task's requirements implicitly include this section.
   property on a link owns that property's interactive states, and only those.
   **But that survival is luck, not design:** `outline` is declared nowhere except
   `global.css`, and the global rule is only `(0,1,0)`. The first component to declare its own
-  `outline` defeats the ring silently. Task 10's `.ss button` is the first non-link the focus
+  `outline` defeats the ring silently. Task 10's `.picker button` is the first non-link the focus
   rule has to defend, and a swept audit found only four scoped link-colour rules in the whole
   project — so the margin here is thin rather than comfortable.
 - **`hidden` does not hide when the author sets `display`.** An author `display: flex` beats the
@@ -2146,9 +2146,9 @@ const { title, description = 'Parohia Ortodoxă Română Sfântul Nicolae din Z�
     <link rel="alternate" type="text/calendar" href="/program.ics" title="Program liturgic" />
   </head>
   <body>
-    <a class="skip-link" href="#continut">Sari la conținut</a>
+    <a class="skip-link" href="#content">Sari la conținut</a>
     <SiteHeader />
-    <main id="continut">
+    <main id="content">
       <slot />
     </main>
     <SiteFooter />
@@ -2281,51 +2281,51 @@ const { day } = Astro.props;
 const feast = Boolean(day.great_feast || day.feast);
 ---
 
-<div class:list={['rz', feast && 'rz-praznic', day.cancelled && 'rz-anulat']}>
-  <div class="rz-data">
-    <span class="rz-zi">{dayName(day.date)}</span>
-    <span class="rz-nr">{dayOfMonth(day.date)}</span>
-    <span class="rz-luna">{monthName(day.date)}</span>
+<div class:list={['dr', feast && 'dr-feast', day.cancelled && 'dr-cancelled']}>
+  <div class="dr-date">
+    <span class="dr-day">{dayName(day.date)}</span>
+    <span class="dr-num">{dayOfMonth(day.date)}</span>
+    <span class="dr-month">{monthName(day.date)}</span>
   </div>
   <div>
-    {day.cancelled && <p class="rz-anulat-txt">Slujbele acestei days sunt cancelled.</p>}
+    {day.cancelled && <p class="dr-cancelled-txt">Slujbele acestei days sunt cancelled.</p>}
     {day.services.map((s) => (
-      <div class="rz-slujba">
+      <div class="dr-service">
         <b>{s.time}</b>
         <span>{serviceLabel(s)}</span>
       </div>
     ))}
     {day.feast && (
-      <p class="rz-praznic-txt">
+      <p class="dr-feast-txt">
         {day.great_feast && <span aria-hidden="true">† </span>}{zi.praznic}
-        {day.fast_day && <span class="rz-post">Zi de post</span>}
+        {day.fast_day && <span class="dr-fast">Zi de post</span>}
       </p>
     )}
-    {!day.feast && day.fast_day && <p class="rz-praznic-txt"><span class="rz-post">Zi de post</span></p>}
-    {day.notes && <p class="rz-note">{day.notes}</p>}
+    {!day.feast && day.fast_day && <p class="dr-feast-txt"><span class="dr-fast">Zi de post</span></p>}
+    {day.notes && <p class="dr-note">{day.notes}</p>}
   </div>
 </div>
 
 <style>
-  .rz { display: grid; grid-template-columns: 7rem 1fr; gap: 1.25rem; padding-block: 1rem; border-bottom: 1px solid var(--rule); }
+  .dr { display: grid; grid-template-columns: 7rem 1fr; gap: 1.25rem; padding-block: 1rem; border-bottom: 1px solid var(--rule); }
   /* Feast days are marked by background AND a rule, never by colour alone.
      Flat, not a gradient: axe cannot determine contrast over a gradient and reports
      `incomplete`, which `npm run a11y` treats as a failure — so a gradient here would
      turn the feast row, the one row that matters most, into an unverifiable surface.
      The gradient's own contribution measured 1.06:1 against the page, so nothing is lost. */
-  .rz-feast { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
-  .rz-cancelled { opacity: 0.75; }
-  .rz-day { display: block; font-family: var(--display); font-size: 0.6875rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
-  .rz-count { display: block; font-family: var(--display); font-size: 1.875rem; line-height: 1.05; color: var(--ink); }
-  .rz-month { display: block; font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
-  .rz-service { display: grid; grid-template-columns: 3.5rem 1fr; gap: 0.75rem; padding-block: 0.15rem; align-items: baseline; }
-  .rz-service b { font-family: var(--display); font-size: 1.0625rem; font-weight: 600; color: var(--gold-text); }
-  .rz-feast-txt { font-family: var(--display); font-style: italic; font-size: 1.0625rem; color: var(--oxblood); margin: 0.5rem 0 0; }
-  .rz-post { display: inline-block; font-family: var(--body); font-style: normal; font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.4rem; margin-left: 0.5rem; vertical-align: middle; }
-  .rz-notes, .rz-cancelled-txt { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
+  .dr-feast { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
+  .dr-cancelled { opacity: 0.75; }
+  .dr-day { display: block; font-family: var(--display); font-size: 0.6875rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
+  .dr-num { display: block; font-family: var(--display); font-size: 1.875rem; line-height: 1.05; color: var(--ink); }
+  .dr-month { display: block; font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+  .dr-service { display: grid; grid-template-columns: 3.5rem 1fr; gap: 0.75rem; padding-block: 0.15rem; align-items: baseline; }
+  .dr-service b { font-family: var(--display); font-size: 1.0625rem; font-weight: 600; color: var(--gold-text); }
+  .dr-feast-txt { font-family: var(--display); font-style: italic; font-size: 1.0625rem; color: var(--oxblood); margin: 0.5rem 0 0; }
+  .dr-fast { display: inline-block; font-family: var(--body); font-style: normal; font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.4rem; margin-left: 0.5rem; vertical-align: middle; }
+  .dr-note, .dr-cancelled-txt { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
   @media (max-width: 34rem) {
-    .rz { grid-template-columns: 4rem 1fr; gap: 0.75rem; }
-    .rz-month { display: none; }
+    .dr { grid-template-columns: 4rem 1fr; gap: 0.75rem; }
+    .dr-month { display: none; }
   }
 </style>
 ```
@@ -2356,25 +2356,25 @@ const weeks = groupIntoWeeks(days).filter((s) => s.sunday >= monday);
     <h1>Program liturgic</h1>
 
     {weeks.length === 0 ? (
-      <p class="gol">Programul nextOneătoarei perioade nu a fost încă published.</p>
+      <p class="empty">Programul următoarei perioade nu a fost încă publicat.</p>
     ) : (
       weeks.map((s) => (
         <section date-week={s.key} aria-label={`Săptămâna ${formatWeekRange(s.monday, s.sunday)}`}>
-          <h2 class="sapt">{formatWeekRange(s.monday, s.sunday)}</h2>
+          <h2 class="week-title">{formatWeekRange(s.monday, s.sunday)}</h2>
           {s.days.map((z) => <DayRow day={z} />)}
         </section>
       ))
     )}
 
-    <p class="abonare"><a href="/program.ics">† Adaugă programul în calendarul telefonului</a></p>
+    <p class="subscribe"><a href="/program.ics">† Adaugă programul în calendarul telefonului</a></p>
   </div>
 </Base>
 
 <style>
-  .sapt { font-size: 1.375rem; margin-block: 2rem 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rule); }
+  .week-title { font-size: 1.375rem; margin-block: 2rem 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rule); }
   .empty { color: var(--muted); font-style: italic; }
-  .abonare { margin-block: 2rem; }
-  .abonare a { display: inline-block; border: 1px solid var(--gold-lt); color: var(--oxblood); text-decoration: none; font-size: 0.8125rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.75rem 1.25rem; }
+  .subscribe { margin-block: 2rem; }
+  .subscribe a { display: inline-block; border: 1px solid var(--gold-lt); color: var(--oxblood); text-decoration: none; font-size: 0.8125rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.75rem 1.25rem; }
 </style>
 ```
 
@@ -2404,7 +2404,7 @@ git commit -m "feat: /program page with feast and fast-day marking"
 
 **Interfaces:**
 - Consumes: the same helpers as Task 8, plus `nextService` from `lib/schedule`.
-- Produces: `WeekBand.astro` with props `{ saptamana: Saptamana }`. The homepage renders **three** weeks, each in a `<section data-saptamana>`.
+- Produces: `WeekBand.astro` with props `{ saptamana: Saptamana }`. The homepage renders **three** weeks, each in a `<section data-week>`.
 
 Three weeks, not the full window: the homepage has a 30 KB HTML budget (Global Constraints) and three weeks is roughly 3 KB. `/program` carries the full list.
 
@@ -2424,35 +2424,35 @@ const { week } = Astro.props;
 
 <div class="bs">
   {week.days.map((z) => (
-    <div class:list={['bs-zi', (z.great_feast || z.feast) && 'bs-praznic']}>
-      <div class="bs-cap">
-        <span class="bs-nume">{dayName(z.date)}</span>
-        <span class="bs-nr">{dayOfMonth(z.date)}</span>
+    <div class:list={['wb-day', (z.great_feast || z.feast) && 'wb-feast']}>
+      <div class="wb-head">
+        <span class="wb-name">{dayName(z.date)}</span>
+        <span class="wb-num">{dayOfMonth(z.date)}</span>
       </div>
       {z.cancelled ? (
-        <p class="bs-anulat">Anulat</p>
+        <p class="wb-cancelled">Anulat</p>
       ) : (
         z.services.map((s) => (
-          <p class="bs-slujba"><b>{s.time}</b>{etichetaSlujba(s)}</p>
+          <p class="wb-service"><b>{s.time}</b>{etichetaSlujba(s)}</p>
         ))
       )}
-      {z.feast && <p class="bs-praznic-txt">{z.great_feast && <span aria-hidden="true">† </span>}{z.praznic}</p>}
-      {z.fast_day && <p class="bs-post">Zi de post</p>}
+      {z.feast && <p class="wb-feast-txt">{z.great_feast && <span aria-hidden="true">† </span>}{z.praznic}</p>}
+      {z.fast_day && <p class="wb-fast">Zi de post</p>}
     </div>
   ))}
 </div>
 
 <style>
-  .bs { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); border-top: 1px solid var(--rule); }
-  .bs-day { padding: 0.875rem 0.875rem 1.125rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
-  .bs-feast { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
-  .bs-name { font-family: var(--display); font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); display: block; }
-  .bs-count { font-family: var(--display); font-size: 1.5rem; line-height: 1.05; color: var(--oxblood); display: block; margin-bottom: 0.4rem; }
-  .bs-service { margin: 0; font-size: 0.8125rem; line-height: 1.5; }
-  .bs-service b { color: var(--gold-text); font-weight: 600; margin-right: 0.4rem; }
-  .bs-feast-txt { font-family: var(--display); font-style: italic; font-size: 0.8125rem; color: var(--oxblood); margin: 0.4rem 0 0; }
-  .bs-post { font-size: 0.5625rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.35rem; display: inline-block; margin: 0.4rem 0 0; }
-  .bs-cancelled { margin: 0; font-size: 0.8125rem; color: var(--muted); font-style: italic; }
+  .wb { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); border-top: 1px solid var(--rule); }
+  .wb-day { padding: 0.875rem 0.875rem 1.125rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  .wb-feast { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
+  .wb-name { font-family: var(--display); font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); display: block; }
+  .wb-num { font-family: var(--display); font-size: 1.5rem; line-height: 1.05; color: var(--oxblood); display: block; margin-bottom: 0.4rem; }
+  .wb-service { margin: 0; font-size: 0.8125rem; line-height: 1.5; }
+  .wb-service b { color: var(--gold-text); font-weight: 600; margin-right: 0.4rem; }
+  .wb-feast-txt { font-family: var(--display); font-style: italic; font-size: 0.8125rem; color: var(--oxblood); margin: 0.4rem 0 0; }
+  .wb-fast { font-size: 0.5625rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.35rem; display: inline-block; margin: 0.4rem 0 0; }
+  .wb-cancelled { margin: 0; font-size: 0.8125rem; color: var(--muted); font-style: italic; }
 </style>
 ```
 
@@ -2482,23 +2482,23 @@ const nextLater = nextService(days, today, timeInZurich());
     <div class="container hero-in">
       <p class="hero-kick">Wehntalerstrasse 451 · 8046 Zürich</p>
       <h1>Bine ați venit în casa Domnului</h1>
-      <p class="hero-verset">„Căutați more întâi împărăția lui Dumnezeu și dreptatea Lui” — Matei 6:33</p>
+      <p class="hero-verse">„Căutați mai întâi împărăția lui Dumnezeu și dreptatea Lui” — Matei 6:33</p>
     </div>
   </section>
 
   <div class="container">
     {nextLater && (
-      <p class="urm">
+      <p class="next">
         <span class="eyebrow">Următoarea slujbă</span>
         <b>{dayName(nextLater.date)}, {dayOfMonth(nextLater.date)} {monthName(nextLater.date)}</b>
         <span>{nextLater.time} — {serviceLabel(nextLater)}</span>
       </p>
     )}
 
-    <h2 class="titlu-sect">Programul săptămânii</h2>
+    <h2 class="section-title">Programul săptămânii</h2>
 
     {weeks.length === 0 ? (
-      <p class="gol">Programul nextOneătoarei perioade nu a fost încă published. <a href="/program/">Vezi programul complet</a>.</p>
+      <p class="empty">Programul următoarei perioade nu a fost încă publicat. <a href="/program/">Vezi programul complet</a>.</p>
     ) : (
       weeks.map((s) => (
         <section date-week={s.key} aria-label={`Săptămâna ${formatWeekRange(s.monday, s.sunday)}`}>
@@ -2508,7 +2508,7 @@ const nextLater = nextService(days, today, timeInZurich());
       ))
     )}
 
-    <p class="tot"><a href="/program/">Programul complet →</a></p>
+    <p class="all"><a href="/program/">Programul complet →</a></p>
   </div>
 </Base>
 
@@ -2517,14 +2517,14 @@ const nextLater = nextService(days, today, timeInZurich());
   .hero-in { padding-block: clamp(2.5rem, 7vw, 4.5rem); }
   .hero-kick { font-size: 0.625rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold-lt); margin: 0 0 0.75rem; }
   .hero h1 { color: var(--parchment); font-size: clamp(1.875rem, 5vw, 2.75rem); font-weight: 500; }
-  .hero-verset { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
-  .nextOne { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; border: 1px solid var(--gold-lt); background: var(--raised); padding: 1rem 1.25rem; margin-block: 1.75rem 0; }
-  .nextOne b { font-family: var(--display); font-size: 1.25rem; color: var(--oxblood); }
-  .nextOne > span:last-child { color: var(--muted); }
-  .title-sect { font-size: 1.375rem; margin-block: 2rem 0.25rem; }
+  .hero-verse { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
+  .next { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; border: 1px solid var(--gold-lt); background: var(--raised); padding: 1rem 1.25rem; margin-block: 1.75rem 0; }
+  .next b { font-family: var(--display); font-size: 1.25rem; color: var(--oxblood); }
+  .next > span:last-child { color: var(--muted); }
+  .section-title { font-size: 1.375rem; margin-block: 2rem 0.25rem; }
   .interval { font-family: var(--display); font-size: 1.0625rem; color: var(--faint); margin: 0 0 0.75rem; }
   .empty { color: var(--muted); font-style: italic; }
-  .allText { margin-block: 1.75rem 0; }
+  .all { margin-block: 1.75rem 0; }
 </style>
 ```
 
@@ -2643,18 +2643,18 @@ Create `web/src/components/WeekPicker.astro`:
 // cannot fall out of sync with what the page rendered.
 ---
 
-<div class="ss" hidden>
-  <button type="button" data-ss-prev aria-label="Săptămâna precedentă">‹</button>
-  <span data-ss-eticheta aria-live="polite"></span>
-  <button type="button" data-ss-next aria-label="Săptămâna următoare">›</button>
+<div class="picker" hidden>
+  <button type="button" data-picker-prev aria-label="Săptămâna precedentă">‹</button>
+  <span data-picker-label aria-live="polite"></span>
+  <button type="button" data-picker-next aria-label="Săptămâna următoare">›</button>
 </div>
 
 <script>
   import { pickWeek } from '../lib/week-picker';
   import { todayInZurich, weekKey } from '../lib/week';
 
-  const bar = document.querySelector<HTMLElement>('.ss');
-  const sections = [...document.querySelectorAll<HTMLElement>('section[data-saptamana]')];
+  const bar = document.querySelector<HTMLElement>('.picker');
+  const sections = [...document.querySelectorAll<HTMLElement>('section[data-week]')];
 
   if (bar && sections.length > 0) {
     const keys = sections.map((s) => s.dataset.week!);
@@ -2664,9 +2664,9 @@ Create `web/src/components/WeekPicker.astro`:
     // JavaScript never runs at all. Hiding is the enhancement, not the baseline.
     if (start !== -1) {
       let i = start;
-      const label = bar.querySelector<HTMLElement>('[data-ss-eticheta]')!;
-      const prev = bar.querySelector<HTMLButtonElement>('[data-ss-prev]')!;
-      const next = bar.querySelector<HTMLButtonElement>('[data-ss-next]')!;
+      const label = bar.querySelector<HTMLElement>('[data-picker-label]')!;
+      const prev = bar.querySelector<HTMLButtonElement>('[data-picker-prev]')!;
+      const next = bar.querySelector<HTMLButtonElement>('[data-picker-next]')!;
 
       const show = () => {
         sections.forEach((s, j) => { s.hidden = j !== i; });
@@ -2686,10 +2686,10 @@ Create `web/src/components/WeekPicker.astro`:
 </script>
 
 <style>
-  .ss { display: flex; align-items: center; gap: 1rem; padding-block: 0.75rem; border-bottom: 1px solid var(--rule); }
-  .ss span { font-family: var(--display); font-size: 1.125rem; font-weight: 600; color: var(--oxblood); }
-  .ss button { background: none; border: 1px solid var(--rule); color: var(--oxblood); font-size: 1rem; line-height: 1; padding: 0.35rem 0.7rem; cursor: pointer; }
-  .ss button:disabled { color: var(--rule); cursor: default; }
+  .picker { display: flex; align-items: center; gap: 1rem; padding-block: 0.75rem; border-bottom: 1px solid var(--rule); }
+  .picker span { font-family: var(--display); font-size: 1.125rem; font-weight: 600; color: var(--oxblood); }
+  .picker button { background: none; border: 1px solid var(--rule); color: var(--oxblood); font-size: 1rem; line-height: 1; padding: 0.35rem 0.7rem; cursor: pointer; }
+  .picker button:disabled { color: var(--rule); cursor: default; }
 </style>
 ```
 
@@ -3264,7 +3264,7 @@ Create `web/public/_headers`:
 #
 # Deliberately still blocked, each verified to fail gracefully: unpkg's hourly
 # update check (the version is pinned on purpose), the githubstatus.com incident
-# banner (pornire.mjs already tells a volunteer the site is unaffected, what to
+# banner (start.mjs already tells a volunteer the site is unaffected, what to
 # try and who to tell — which is what they need, not a diagnosis), and a `data:`
 # logo fetch (console error only, UI draws correctly).
 #

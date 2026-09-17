@@ -42,7 +42,7 @@ const links = [
   .sh-nav a { color: var(--muted); text-decoration: none; }
   .sh-nav a[aria-current='page'] { color: var(--oxblood); border-bottom: 1.5px solid var(--gold-lt); padding-bottom: 2px; }
   /* A component that colours a link owns that link's hover, and both rules above
-     do. This is the third site of the same trap — after `.abonare a` on
+     do. This is the third site of the same trap — after `.subscribe a` on
      `/program/` — and the worst placed, because the header is on every page.
      Astro adds a `data-astro-cid-…` attribute to each compound, so
      `.sh-nav a` ships at (0,3,1) and the `[aria-current]` rule at (0,4,1),

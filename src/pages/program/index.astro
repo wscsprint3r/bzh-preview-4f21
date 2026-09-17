@@ -54,32 +54,32 @@ const weeks = groupIntoWeeks(days).filter((s) => s.sunday >= monday);
     <h1>Program liturgic</h1>
 
     {weeks.length === 0 ? (
-      <p class="gol">Programul următoarei perioade nu a fost încă publicat.</p>
+      <p class="empty">Programul următoarei perioade nu a fost încă publicat.</p>
     ) : (
       weeks.map((s) => (
         <section
-          data-saptamana={s.key}
-          class:list={[s.key === todayKey && 'sapt-curenta']}
+          data-week={s.key}
+          class:list={[s.key === todayKey && 'week-current']}
           aria-label={`Săptămâna ${formatWeekRange(s.monday, s.sunday)}`}
         >
-          <h2 class="sapt">{formatWeekRange(s.monday, s.sunday)}</h2>
+          <h2 class="week-title">{formatWeekRange(s.monday, s.sunday)}</h2>
           {s.days.map((z) => <DayRow day={z} />)}
         </section>
       ))
     )}
 
-    <p class="abonare"><a href="/program.ics">† Adaugă programul în calendarul telefonului</a></p>
+    <p class="subscribe"><a href="/program.ics">† Adaugă programul în calendarul telefonului</a></p>
   </div>
 </Base>
 
 <style>
   /* Every section carries the same box, so marking one below cannot shift the
-     page. No top padding on purpose: the `.sapt` heading's 2rem top margin
+     page. No top padding on purpose: the `.week-title` heading's 2rem top margin
      collapses through, so the mark hugs the heading instead of opening with
      2rem of empty band. The negative inline margin keeps the text on the same
      line it sits on in every other section; the container's gutter is
      `clamp(1rem, 4vw, 2.25rem)`, so 1rem can never pull past the viewport. */
-  section[data-saptamana] { padding: 0 1rem 1rem; margin-inline: -1rem; }
+  section[data-week] { padding: 0 1rem 1rem; margin-inline: -1rem; }
   /* The week the visitor is in, marked so this page opens oriented while still
      showing everything.
 
@@ -97,15 +97,15 @@ const weeks = groupIntoWeeks(days).filter((s) => s.sunday >= monday);
      unhelpful; the words „săptămâna aceasta” would be a statement that is
      briefly false, and this site does not make those. The `<h2>` carries the
      dates, which are true whenever they are read. */
-  .sapt-curenta { box-shadow: inset 3px 0 0 var(--gold-lt); }
-  .sapt { font-size: 1.375rem; margin-block: 2rem 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rule); }
-  .gol { color: var(--muted); font-style: italic; }
-  .abonare { margin-block: 2rem; }
-  .abonare a { display: inline-block; border: 1px solid var(--gold-lt); color: var(--oxblood); text-decoration: none; font-size: 0.8125rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.75rem 1.25rem; }
+  .week-current { box-shadow: inset 3px 0 0 var(--gold-lt); }
+  .week-title { font-size: 1.375rem; margin-block: 2rem 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rule); }
+  .empty { color: var(--muted); font-style: italic; }
+  .subscribe { margin-block: 2rem; }
+  .subscribe a { display: inline-block; border: 1px solid var(--gold-lt); color: var(--oxblood); text-decoration: none; font-size: 0.8125rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.75rem 1.25rem; }
   /* A component that colours a link owns that link's hover and focus states.
      Astro scopes this block with a `data-astro-cid-…` attribute, which counts
      as an attribute selector, so the rule above ships as
-     `.abonare[data-astro-cid-…] a[data-astro-cid-…]` — specificity (0,3,1).
+     `.subscribe[data-astro-cid-…] a[data-astro-cid-…]` — specificity (0,3,1).
      global.css's `a:hover` is (0,1,1) and therefore loses, silently: no test,
      no axe run and no build notices a link that never changes on hover. Checked
      by reading the selector out of `dist/program/index.html` rather than out of
@@ -113,5 +113,5 @@ const weeks = groupIntoWeeks(days).filter((s) => s.sunday >= monday);
      the global colour at (0,4,1). Focus needs no such rule — global.css sets
      `outline` on `:focus-visible`, which nothing in this block declares, so
      there is nothing to defeat; verified on the built page. */
-  .abonare a:hover { color: var(--oxblood-dk); }
+  .subscribe a:hover { color: var(--oxblood-dk); }
 </style>

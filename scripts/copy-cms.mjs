@@ -132,7 +132,7 @@ export const FONTS = [
 ];
 
 /** Where the local copies go, under `TARGET`, and where the rewritten URLs point. */
-const FONTS_DIR = 'fonturi';
+const FONTS_DIR = 'fonts';
 
 /** How many times `cdn.jsdelivr.net` may appear in the copied bundle when we are done. */
 const CDN = 'cdn.jsdelivr.net';
@@ -219,8 +219,8 @@ export function copyCms(announce = console.log) {
 
   /*
    * Stale vendored files go first: the folders the package itself ships, plus
-   * `fonturi/`, which this script writes and therefore also owns.
-   * `public/admin/index.html`, `config.yml` and `pornire.mjs` are this
+   * `fonts/`, which this script writes and therefore also owns.
+   * `public/admin/index.html`, `config.yml` and `start.mjs` are this
    * repository's own files, tracked in git, and nothing here may touch them:
    * they are what a volunteer actually reads.
    */

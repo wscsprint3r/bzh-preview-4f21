@@ -140,7 +140,7 @@
 # path named here, because an instruction naming a file that does not exist
 # reads exactly like an instruction that works.
 #
-# The start-up page named in the table above is `public/admin/pornire.mjs`.
+# The start-up page named in the table above is `public/admin/start.mjs`.
 #
 # EVERY REPOSITORY PATH IN THIS FILE IS WRITTEN IN BACKTICKS, and that is a
 # chosen limit rather than an oversight. The resolver looks only inside

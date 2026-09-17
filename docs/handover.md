@@ -161,7 +161,7 @@ Client secret (shown once).
 > config, renders the sign-in screen and even echoes `<REPO>` back at you. The failure lands
 > on the sign-in attempt. If signing in does nothing, check these two lines first.
 
-**D2.** `public/admin/pornire.mjs`: `const CONTACT = 'persoanei care se ocupă de site';` —
+**D2.** `public/admin/start.mjs`: `const CONTACT = 'persoanei care se ocupă de site';` —
 it is in the dative, so a real person drops straight in:
 `'lui Ion Popescu (ion@exemplu.ch)'`.
 

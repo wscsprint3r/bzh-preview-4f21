@@ -49,10 +49,10 @@
  */
 ---
 
-<div class="ss" hidden>
-  <button type="button" data-ss-prev aria-label="Săptămâna precedentă">‹</button>
-  <span data-ss-eticheta aria-live="polite"></span>
-  <button type="button" data-ss-next aria-label="Săptămâna următoare">›</button>
+<div class="picker" hidden>
+  <button type="button" data-picker-prev aria-label="Săptămâna precedentă">‹</button>
+  <span data-picker-label aria-live="polite"></span>
+  <button type="button" data-picker-next aria-label="Săptămâna următoare">›</button>
 </div>
 
 <script>
@@ -67,8 +67,8 @@
   const { today } = nowInZurich();
 
   // Reveal the week that contains today.
-  const bar = document.querySelector<HTMLElement>('.ss');
-  const sections = [...document.querySelectorAll<HTMLElement>('section[data-saptamana]')];
+  const bar = document.querySelector<HTMLElement>('.picker');
+  const sections = [...document.querySelectorAll<HTMLElement>('section[data-week]')];
 
   // `> 1`, not `> 0`. With a single rendered week there is nothing to select:
   // both arrows would be disabled and the bar would restate the heading already
@@ -76,16 +76,16 @@
   // one week for most of the year, so `> 0` would put a dead control on the
   // homepage on an ordinary day.
   if (bar && sections.length > 1) {
-    const keys = sections.map((s) => s.dataset.saptamana!);
+    const keys = sections.map((s) => s.dataset.week!);
     const start = pickWeek(keys, weekKey(today));
 
     // Every week stays visible when all of them are in the past, and when
     // JavaScript never runs at all. Hiding is the enhancement, not the baseline.
     if (start !== -1) {
       let i = start;
-      const label = bar.querySelector<HTMLElement>('[data-ss-eticheta]')!;
-      const prev = bar.querySelector<HTMLButtonElement>('[data-ss-prev]')!;
-      const next = bar.querySelector<HTMLButtonElement>('[data-ss-next]')!;
+      const label = bar.querySelector<HTMLElement>('[data-picker-label]')!;
+      const prev = bar.querySelector<HTMLButtonElement>('[data-picker-prev]')!;
+      const next = bar.querySelector<HTMLButtonElement>('[data-picker-next]')!;
 
       const show = () => {
         sections.forEach((s, j) => { s.hidden = j !== i; });
@@ -116,16 +116,16 @@
 <style>
   /* `[hidden]` lives in the user-agent stylesheet, and an author `display`
      declaration beats it whatever its specificity - author origin wins over UA
-     origin outright. So `.ss { display: flex }` would leave this bar visible for
+     origin outright. So `.picker { display: flex }` would leave this bar visible for
      every visitor without JavaScript, which is the one state this component
      exists to keep clean. Measured in a real browser, both ways round; see the
      report. The same trap is answered in `index.astro` for `.urm`.
 
      The week `<section>`s need no such rule: nothing in this project gives them
      a `display`, so the UA rule still applies to them. */
-  .ss[hidden] { display: none; }
-  .ss { display: flex; align-items: center; gap: 1rem; padding-block: 0.75rem; border-bottom: 1px solid var(--rule); }
-  .ss span { font-family: var(--display); font-size: 1.125rem; font-weight: 600; color: var(--oxblood); }
+  .picker[hidden] { display: none; }
+  .picker { display: flex; align-items: center; gap: 1rem; padding-block: 0.75rem; border-bottom: 1px solid var(--rule); }
+  .picker span { font-family: var(--display); font-size: 1.125rem; font-weight: 600; color: var(--oxblood); }
   /* NO `outline` DECLARATION HERE, and none may be added. Astro scopes this
      block with a `data-astro-cid-…` attribute, so this rule ships at (0,3,1),
      while global.css's focus ring is `:where(a, button, [tabindex]):focus-visible`
@@ -139,11 +139,11 @@
      Arial while every other character around them was Spectral. The fallback
      chain is the page's own, so a face without U+2039/U+203A costs a Georgia
      chevron rather than a missing glyph. */
-  .ss button { background: none; font-family: var(--body); border: 1px solid var(--rule); color: var(--oxblood); font-size: 1rem; line-height: 1; padding: 0.35rem 0.7rem; cursor: pointer; }
+  .picker button { background: none; font-family: var(--body); border: 1px solid var(--rule); color: var(--oxblood); font-size: 1rem; line-height: 1; padding: 0.35rem 0.7rem; cursor: pointer; }
   /* `--rule` is 1.30:1 on the page and would fail 4.5:1 as text. A disabled
      control is exempt from WCAG 1.4.3 and axe skips it, which is the whole
      reason the state is legible AS disabled: the arrow fades rather than
      changing shape. It is never the only signal - the button is genuinely
      `disabled`, so it is unreachable by keyboard and announced as such. */
-  .ss button:disabled { color: var(--rule); cursor: default; }
+  .picker button:disabled { color: var(--rule); cursor: default; }
 </style>

@@ -75,12 +75,12 @@ const EXPECTED_FROM_PACKAGE = [
  * package's own copy still does, every font URL it does name must resolve to a
  * real file, and each of those files must match the npm package byte for byte.
  */
-const EXPECTED_FONTS = FONTS.map(({ pkgFile }) => `fonturi/${basename(pkgFile)}`);
+const EXPECTED_FONTS = FONTS.map(({ pkgFile }) => `fonts/${basename(pkgFile)}`);
 
 const EXPECTED = [...EXPECTED_FROM_PACKAGE, ...EXPECTED_FONTS].sort();
 
 /** Our own files under `admin/`, which are not vendored and are tracked in git. */
-const OURS = ['index.html', 'config.yml', 'pornire.mjs'];
+const OURS = ['index.html', 'config.yml', 'start.mjs'];
 
 const SERVED_ENTRY = join(DIST, 'admin', basename(CMS_ENTRY));
 
@@ -117,18 +117,18 @@ describe('the admin page exists', () => {
   });
 
   /*
-   * Al doilea capăt al aceluiași lanț. `pornire.mjs` este fișierul care chiar
+   * Al doilea capăt al aceluiași lanț. `start.mjs` este fișierul care chiar
    * pornește CMS-ul, iar el importă bundle-ul pe cale relativă. Dacă acel import
    * nu duce nicăieri, pagina rămâne albă și tăcută - exact starea în care a fost
    * găsită înainte să existe fișierul acesta.
    */
-  it("each of pornire.mjs's imports leads to a real file", () => {
-    const source = read(join(DIST, 'admin', 'pornire.mjs')).toString('utf8');
+  it("each of start.mjs's imports leads to a real file", () => {
+    const source = read(join(DIST, 'admin', 'start.mjs')).toString('utf8');
     const imports = [
       ...source.matchAll(/\bfrom\s*'([^']+)'/g),
       ...source.matchAll(/\bimport\(\s*'([^']+)'/g),
     ].map((m) => m[1] as string);
-    expect(imports.length, 'pornire.mjs nu importă nimic').toBeGreaterThan(0);
+    expect(imports.length, 'start.mjs nu importă nimic').toBeGreaterThan(0);
     for (const specifier of imports) {
       expect(specifier.startsWith('./'), `${specifier} nu este relativ`).toBe(true);
       read(join(DIST, 'admin', specifier.slice(2)));
@@ -153,7 +153,7 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
     expect(EXPECTED.length).toBeGreaterThan(1);
     expect(EXPECTED).toContain(basename(CMS_ENTRY));
     expect(EXPECTED.some((f) => f.startsWith('chunks/'))).toBe(true);
-    expect(EXPECTED.some((f) => f.startsWith('fonturi/'))).toBe(true);
+    expect(EXPECTED.some((f) => f.startsWith('fonts/'))).toBe(true);
   });
 
   /*
@@ -214,7 +214,7 @@ describe('the CMS bundle is served from this site, not from a CDN', () => {
     const require = createRequire(import.meta.url);
     for (const { pkgFile } of FONTS) {
       const name = basename(pkgFile);
-      const served = read(join(DIST, 'admin', 'fonturi', name));
+      const served = read(join(DIST, 'admin', 'fonts', name));
       expect(served.equals(readFileSync(require.resolve(pkgFile))), name).toBe(true);
     }
   });

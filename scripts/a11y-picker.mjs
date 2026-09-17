@@ -176,7 +176,7 @@ async function checkPickerBar(driver, condition, url) {
    *
    * When the fixture ages out completely the homepage takes its "nothing
    * published yet" branch and never renders `WeekPicker` at all, so a
-   * check that dereferenced the bar first answered "the .ss bar is missing from
+   * check that dereferenced the bar first answered "the .picker bar is missing from
    * the page" - true, alarming, and pointing at the component instead of at the
    * fixture that actually aged. Measured by shifting the fixture a year into the
    * past. Both stale states now give the same instruction, and "the bar is
@@ -184,12 +184,12 @@ async function checkPickerBar(driver, condition, url) {
    * bar in the markup.
    */
   const state = await driver.executeScript(`
-    const sections = [...document.querySelectorAll('section[data-saptamana]')];
-    const bar = document.querySelector('.ss');
+    const sections = [...document.querySelectorAll('section[data-week]')];
+    const bar = document.querySelector('.picker');
     if (!bar) return { sections: sections.length, noBar: true };
-    const label = bar.querySelector('[data-ss-eticheta]');
-    const prev = bar.querySelector('[data-ss-prev]');
-    const next = bar.querySelector('[data-ss-next]');
+    const label = bar.querySelector('[data-picker-label]');
+    const prev = bar.querySelector('[data-picker-prev]');
+    const next = bar.querySelector('[data-picker-next]');
     return {
       sections: sections.length,
       visible: sections.filter((s) => !s.hidden).length,
@@ -223,7 +223,7 @@ async function checkPickerBar(driver, condition, url) {
   }
   if (state.noBar) {
     return (
-      `the page renders ${state.sections} weeks, but contains no .ss bar at all.\n` +
+      `the page renders ${state.sections} weeks, but contains no .picker bar at all.\n` +
       '    The WeekPicker component is no longer mounted on the homepage.'
     );
   }
@@ -255,7 +255,7 @@ async function checkPickerBar(driver, condition, url) {
     await driver.actions().sendKeys(Key.TAB).perform();
     focusRing = await driver.executeScript(`
       const a = document.activeElement;
-      if (!a || !a.matches('.ss [data-ss-next]')) return null;
+      if (!a || !a.matches('.picker [data-picker-next]')) return null;
       const s = getComputedStyle(a);
       return { style: s.outlineStyle, width: s.outlineWidth, colour: s.outlineColor, offset: s.outlineOffset };
     `);

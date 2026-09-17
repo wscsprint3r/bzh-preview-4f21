@@ -19,16 +19,16 @@
       Everything visible is drawn by Sveltia at run time, which is why
       `stylesheet.itest.ts` exempts this ONE file — see the note there.
 
-      `pornire.mjs` is ours and is three lines: it imports the bundle and calls
+      `start.mjs` is ours and is three lines: it imports the bundle and calls
       `init()`. Pointing this tag straight at `sveltia-cms.mjs` instead leaves
       the page blank and silent — the bundle only auto-starts when it is loaded
-      as a classic script. The reasoning is written out in `pornire.mjs`.
+      as a classic script. The reasoning is written out in `start.mjs`.
 
       The bundle itself is copied out of `node_modules` by
       `scripts/copy-cms.mjs` and is git-ignored. Nothing here is loaded from a
       CDN, so `script-src 'self'` holds on this page too (spec §14).
     -->
-    <script type="module" src="/admin/pornire.mjs"></script>
+    <script type="module" src="/admin/start.mjs"></script>
     <noscript>
       <p lang="ro">
         Administrarea programului are nevoie de JavaScript. Porniți JavaScript în browser

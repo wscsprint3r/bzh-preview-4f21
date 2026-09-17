@@ -200,9 +200,9 @@ const NO_EXTENSION = ['_headers'];
  * and never built excuses nothing, while a vendored path missing from here stays
  * in the sweep and fails loudly.
  *
- * `admin/index.html`, `admin/config.yml` and `admin/pornire.mjs` are NOT in the
+ * `admin/index.html`, `admin/config.yml` and `admin/start.mjs` are NOT in the
  * package, so they cannot end up here however this list grows - they are ours.
- * `config.yml` holds the field labels a volunteer reads and `pornire.mjs` holds
+ * `config.yml` holds the field labels a volunteer reads and `start.mjs` holds
  * the sentence they get when the CMS fails to start, which makes both of them
  * exactly the kind of file a cedilla would reach unseen. The tests under `ce
  * intră și ce nu intră în măturare` check both halves of that sentence rather
@@ -326,7 +326,7 @@ describe('what the sweep takes in and what it leaves out', () => {
    * citește un voluntar, deci este exact genul de fișier în care o sedilă ar
    * ajunge nevăzută.
    */
-  it.each(['admin/index.html', 'admin/config.yml', 'admin/pornire.mjs'])('mătură %s', (path) => {
+  it.each(['admin/index.html', 'admin/config.yml', 'admin/start.mjs'])('mătură %s', (path) => {
     expect(existsSync(DIST + path), `${path} lipsește din dist/`).toBe(true);
     expect(FILES).toContain(path);
   });

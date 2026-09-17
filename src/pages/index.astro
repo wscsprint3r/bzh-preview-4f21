@@ -54,7 +54,7 @@ const weeks = upcomingWeeks(days, today, 3);
   <section class="hero">
     <div class="container hero-in">
       <h1>Bine ați venit</h1>
-      <p class="hero-verset">„Căutați mai întâi împărăția lui Dumnezeu și dreptatea Lui” — Matei 6:33</p>
+      <p class="hero-verse">„Căutați mai întâi împărăția lui Dumnezeu și dreptatea Lui” — Matei 6:33</p>
     </div>
   </section>
 
@@ -70,10 +70,10 @@ const weeks = upcomingWeeks(days, today, 3);
       only date range on the page, and it is true because each week states its
       own.
     */}
-    <h2 class="titlu-sect">Programul slujbelor</h2>
+    <h2 class="section-title">Programul slujbelor</h2>
 
     {weeks.length === 0 ? (
-      <p class="gol">Programul următoarei perioade nu a fost încă publicat. <a href="/program/">Vezi programul complet</a>.</p>
+      <p class="empty">Programul următoarei perioade nu a fost încă publicat. <a href="/program/">Vezi programul complet</a>.</p>
     ) : (
       <>
         <WeekPicker />
@@ -88,7 +88,7 @@ const weeks = upcomingWeeks(days, today, 3);
            */
           const interval = formatWeekRange(s.monday, s.sunday);
           return (
-            <section data-saptamana={s.key} data-interval={interval} aria-label={`Săptămâna ${interval}`}>
+            <section data-week={s.key} data-interval={interval} aria-label={`Săptămâna ${interval}`}>
               <p class="interval">{interval}</p>
               <WeekBand week={s} />
             </section>
@@ -97,7 +97,7 @@ const weeks = upcomingWeeks(days, today, 3);
       </>
     )}
 
-    <p class="tot"><a href="/program/">Programul complet →</a></p>
+    <p class="all"><a href="/program/">Programul complet →</a></p>
   </div>
 </Base>
 
@@ -114,9 +114,9 @@ const weeks = upcomingWeeks(days, today, 3);
   /* A synthesised slant, on purpose. Spectral ships no italic face here and
      adding one costs two requests, which would put this page over spec §13's
      limit of 12 once Task 10's script lands. See Task 7's request arithmetic. */
-  .hero-verset { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
-  .titlu-sect { font-size: 1.375rem; margin-block: 2rem 0.25rem; }
+  .hero-verse { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
+  .section-title { font-size: 1.375rem; margin-block: 2rem 0.25rem; }
   .interval { font-family: var(--display); font-size: 1.0625rem; color: var(--faint); margin: 0 0 0.75rem; }
-  .gol { color: var(--muted); font-style: italic; }
-  .tot { margin-block: 1.75rem 0; }
+  .empty { color: var(--muted); font-style: italic; }
+  .all { margin-block: 1.75rem 0; }
 </style>

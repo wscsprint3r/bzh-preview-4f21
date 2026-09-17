@@ -13,7 +13,7 @@ import { INDEXABLE } from './site';
  * It reads `dist/`, so it runs only after a build: `npm run test:build`.
  *
  * NOTHING HERE MAY PIN A DATE AGAINST THE PAGES. The homepage and `/program/`
- * render only the current and future weeks, so `toContain('data-saptamana=
+ * render only the current and future weeks, so `toContain('data-week=
  * "2026-W38"')` would pass today and start failing on 21 September 2026 — a
  * red suite caused by the calendar rather than by a change anyone made. The
  * `.ics` is different in kind: it emits every seeded day whatever the build
@@ -146,7 +146,7 @@ function icsReferences(html: string): string[] {
 const ICS_REFERENCES: Record<string, number> = {
   // `<link rel="alternate">` din `<head>` + „Abonare la program (.ics)” din subsol.
   'index.html': 2,
-  // Aceleași două, plus butonul de abonare de la piciorul paginii.
+  // Aceleași două, plus butonul de subscribe de la piciorul paginii.
   'program/index.html': 3,
   /*
    * Zero, și este un răspuns, nu o omisiune. `public/admin/index.html` este

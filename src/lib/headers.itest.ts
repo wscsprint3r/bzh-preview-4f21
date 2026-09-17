@@ -139,7 +139,7 @@ const SOURCE_EXTENSIONS = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
  *
  * But a backtick-only resolver is complete only if the file really does put
  * every path in backticks, and for two rounds it did not: the refusal table read
- * `pornire.mjs already tells a volunteer what they need` with no backticks, so
+ * `start.mjs already tells a volunteer what they need` with no backticks, so
  * the guard could not see it and the round-1 report claimed it had been fixed
  * when it had not. Nothing was broken, because the file existed - which is the
  * whole problem with that class: it rots silently.
@@ -370,8 +370,8 @@ describe('the references inside public/_headers', () => {
   });
 
   it('the outside-backticks path detector really does fire, and leaves routes and URLs alone', () => {
-    expect(pathsOutsideBackticks('#   pornire.mjs deja îi spune voluntarului')).toEqual(['pornire.mjs']);
-    expect(pathsOutsideBackticks('#   `public/admin/pornire.mjs` deja îi spune')).toEqual([]);
+    expect(pathsOutsideBackticks('#   start.mjs deja îi spune voluntarului')).toEqual(['start.mjs']);
+    expect(pathsOutsideBackticks('#   `public/admin/start.mjs` deja îi spune')).toEqual([]);
     // O rută nu e un fișier, iar un token dintr-un URL îi aparține URL-ului.
     expect(pathsOutsideBackticks('/program.ics')).toEqual([]);
     expect(pathsOutsideBackticks('#   curl -sI https://x.pages.dev/program.ics')).toEqual([]);
