@@ -26,15 +26,15 @@ import { normalizeaza } from './diacritice.mjs';
  *
  * Measured against all 71 real published posts and pages, 2026-09-17
  * (`migrare/verifica-preambul.mjs`, run by hand - it needs Docker and the
- * dump, so it is not part of `npm test`): **17** documents are changed by one
- * strip, **0** leave residue of either marker afterward, and **0** are
- * non-idempotent under a second pass. (An earlier count of 16 for the first
- * figure did not reproduce on a second measurement, twice - three of the 17
- * match only one of the two markers rather than both, which is the likely
- * source of the gap; the two properties this function actually depends on,
- * residue and idempotence, are 0 either way.) These are properties of this
- * corpus, not of the regexes; `verifica-preambul.mjs` checks them on demand,
- * not assumed to hold forever.
+ * dump, so it is not part of `npm test`): **16** documents carry a
+ * `<p>Layouts:...</p>` marker; **17** are changed by one strip. Two
+ * different definitions, not a measurement disagreement - the difference is
+ * `pastorale`, which has a breadcrumb but no `Layouts:` line, so it counts
+ * in the second figure and not the first. Under either definition: **0**
+ * documents leave residue of either marker after one strip, and **0** are
+ * non-idempotent under a second pass. These are properties of this corpus,
+ * not of the regexes; `verifica-preambul.mjs` checks them on demand, not
+ * assumed to hold forever.
  *
  * A KNOWN BOUNDARY, left alone rather than widened: the breadcrumb's section
  * name is matched as `[^<>]{0,60}`, which forbids `<` - so a section name
