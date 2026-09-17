@@ -12,6 +12,69 @@
 
 ---
 
+## Status
+
+Last updated 2026-09-17. **Tasks 1-5 are complete, reviewed and pushed**
+(`origin/phase-2`). Work is **paused** at the parish owner's request; Tasks 6-12
+have not been started.
+
+| Task | State | Commits |
+|---|---|---|
+| 1 · migration harness | done, review clean | `8dacf9f..c979dcc` |
+| 2 · diacritic normalisation | done, review clean | `c979dcc..3c0d0a7` |
+| 3 · HTML to Markdown | done, review clean | `3c0d0a7..fcb1e90` |
+| 4 · three schemas | done, 1 minor parked | `fcb1e90..d03abab` |
+| 5 · media pipeline | done, 3 minors parked | `d03abab..7f88abd` |
+| 6 · the 45 posts | not started | — |
+| 7 · nine prose pages, URL map | not started | — |
+| 8 · `/noutati`, article, feed | not started | — |
+| 9 · nine prose routes | not started | — |
+| 10 · homepage news, settings | not started | — |
+| 11 · the CMS | not started | — |
+| 12 · guards, budget, handover | not started | — |
+
+Since Task 5, a separate change renamed **every identifier, filename, field key,
+test name and build message in this repository from Romanian to English**
+(`7f88abd..551d01c`). Romanian remains only in page copy, CMS validation messages
+and URL slugs. **The code samples in Tasks 6-12 below were rewritten to match**, so
+they can be transcribed as written; where a task describes something Tasks 1-5
+already built, the real module is authoritative.
+
+### Carried into Tasks 6-12 from the five completed tasks
+
+- **Task 6** owns the `BINARE` rule it would otherwise break, and must assert that
+  every file under the migrated-image directory decodes as an image.
+- **Task 6** must stop the run on an image reference the map does not contain, and
+  assert that each document's `<img>` count equals the number of sources found.
+- **Task 7** must not strip the preamble twice — `toMarkdown` already calls
+  `stripPreamble`.
+- **Task 10** must de-duplicate the parish address: after it, `Wehntalerstrasse`
+  appears only in `src/content/settings/settings.yml`.
+- **Task 12** adds the seven typography and German characters to `PERMITTED`, with
+  measured counts, and corrects its "lowercase only" comment, which real content
+  falsifies.
+- **Task 12** should record in `CLAUDE.md` the three lessons this phase paid for:
+  a mutation list derived from your own tests inherits their blind spots; a probe
+  whose arms share the defect measures nothing; and `git status` can misreport a
+  clean tree, so verify with `git diff-index --quiet HEAD`.
+
+### Three minors parked, with rulings, in the session ledger
+
+- Task 4: one bare `.toThrow()` leaves a message unpinned.
+- Task 5: `hostFrom`'s `lastIndexOf('@')` is unpinned; every mutation fails safe.
+- Task 5: the reorder widens the halt surface for foreign hosts — accepted, since
+  the alternative let an attacker mute the traversal alarm by choosing a domain.
+- Task 5: the second live-collision fixture is decorative on a folding filesystem.
+
+### Open question for the parish, not for an implementer
+
+`src/content/settings/settings.yml` carries `contact@bor-zh.ch`. Whether that
+address exists and reaches somebody is a fact about the parish. The two personal
+addresses in the spec were deliberately not used: this rewrite exists partly to
+stop publishing them as scrapeable `mailto:` links.
+
+---
+
 ## Global Constraints
 
 Every task's requirements implicitly include this section. Phase 1's constraints
@@ -114,7 +177,7 @@ Taken 2026-09-16 from `backup-2026-08-27/database.sql.gz` loaded into `mariadb:1
 
 **Why it must fail loudly when the source is absent.** The dump lives outside this repository, in a directory a fresh clone does not have. A harness that quietly produces zero posts is this project's most-paid-for failure shape.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 // migration/db.test.mjs
@@ -153,12 +216,12 @@ describe('the migration source', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `rtk proxy npx vitest run migration/db.test.mjs`
 Expected: FAIL — `Failed to resolve import "./db.mjs"`.
 
-- [ ] **Step 3: Write the harness**
+- [x] **Step 3: Write the harness**
 
 ```js
 // migration/db.mjs
@@ -279,12 +342,12 @@ export async function query(sql) {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `rtk proxy npx vitest run migration/db.test.mjs`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 5: Prove the harness actually loads the dump**
+- [x] **Step 5: Prove the harness actually loads the dump**
 
 Run this by hand once and paste the numbers into `migration/README.md`:
 
@@ -302,11 +365,11 @@ import('./migration/db.mjs').then(async (m) => {
 
 Expected: `posts 45 pages 26`. **If either number differs, stop and report it** — this plan's task list is sized from those two numbers, and a different count means a different dump.
 
-- [ ] **Step 6: Write `migration/README.md`**
+- [x] **Step 6: Write `migration/README.md`**
 
 It must state: that Docker is required; that the source lives outside the repository and a fresh clone cannot run this; the two counts from Step 5 with the date they were measured; that rerunning must produce identical output; and that the container is destroyed and recreated on every run rather than reused.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add migration/db.mjs migration/db.test.mjs migration/README.md
@@ -331,7 +394,7 @@ git commit -m "feat(migration): a disposable database that fails loudly when the
 
 **`ü` stays.** 42 occurrences, and they are in `Zürich`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 // migration/diacritics.test.mjs
@@ -404,12 +467,12 @@ describe('diacritic normalisation', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `rtk proxy npx vitest run migration/diacritics.test.mjs`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write the normaliser**
+- [x] **Step 3: Write the normaliser**
 
 ```js
 // migration/diacritics.mjs
@@ -483,12 +546,12 @@ export function codepointReport(text) {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `rtk proxy npx vitest run migration/diacritics.test.mjs`
 Expected: PASS, 8 tests.
 
-- [ ] **Step 5: Prove it against the real corpus, not against the fixtures**
+- [x] **Step 5: Prove it against the real corpus, not against the fixtures**
 
 ```bash
 node -e "
@@ -508,7 +571,7 @@ Promise.all([import('./migration/db.mjs'), import('./migration/diacritics.mjs'),
 
 Expected, from the 2026-09-16 measurement: `U+015E 5 -> 0`, `U+015F 362 -> 0`, `U+0162 0 -> 0`, `U+0163 317 -> 0`, `U+00E3 312 -> 0`. **Record the actual numbers in the commit message.** If the "before" figures differ from these, say so rather than adjusting the plan — a different dump is a fact worth surfacing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add migration/diacritics.mjs migration/diacritics.test.mjs
@@ -532,7 +595,7 @@ git commit -m "feat(migration): normalise the 684 forbidden characters the old c
 
 **The preamble is constant and mechanical.** Every prose page begins `<p>Layouts: Popup</p>` followed by a breadcrumb line — `Parohia noastra > Istoric`, `Resurse crestine > Catehism` — where the `>` arrives as `&gt;` and the page's own title is wrapped in `<u><b>`. Posts have no preamble at all, so the strip must be a no-op on them rather than eating a first paragraph.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 // migration/html-md.test.mjs
@@ -599,18 +662,18 @@ describe('the images in the HTML', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `rtk proxy npx vitest run migration/html-md.test.mjs`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Install turndown**
+- [x] **Step 3: Install turndown**
 
 ```bash
 npm install --save-dev turndown@^7.2.0
 ```
 
-- [ ] **Step 4: Write the converter**
+- [x] **Step 4: Write the converter**
 
 ```js
 // migration/html-md.mjs
@@ -677,12 +740,12 @@ export function imagesIn(html) {
 }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `rtk proxy npx vitest run migration/html-md.test.mjs`
 Expected: PASS, 9 tests.
 
-- [ ] **Step 6: Prove the strip is a no-op on all 45 posts and fires on all 9 pages**
+- [x] **Step 6: Prove the strip is a no-op on all 45 posts and fires on all 9 pages**
 
 ```bash
 node -e "
@@ -702,7 +765,7 @@ Promise.all([import('./migration/db.mjs'), import('./migration/html-md.mjs')]).t
 
 Expected: `posts touched by stripping (must be 0): 0` and `pages NOT touched (must be 0): 0`. **Both directions matter**: the first says the strip cannot eat a post's opening paragraph, the second says it is not silently doing nothing on the pages it exists for. Paste both lines into the commit message.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add migration/html-md.mjs migration/html-md.test.mjs package.json package-lock.json
@@ -726,7 +789,7 @@ git commit -m "feat(migration): HTML to Markdown, and a preamble strip that reco
 
 **`published: false` is the archive's holding pen** (spec §6.2). 32 posts arrive unpublished because their dates were destroyed by a bulk import. An unpublished post is absent from `/noutati`, from the homepage, from `/rss.xml`, **and has no page of its own** — otherwise "unpublished" would mean "reachable by anyone with the link".
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // src/lib/content-schema.test.ts
@@ -830,12 +893,12 @@ describe('settingsSchema', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `rtk proxy npx vitest run src/lib/content-schema.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write the schemas**
+- [x] **Step 3: Write the schemas**
 
 ```ts
 // src/lib/content-schema.ts
@@ -953,7 +1016,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 
 **Note for the implementer:** the `strict` helper sketched above is not used — delete it rather than leaving it. It is named here only so you do not reinvent it: `z.strictObject` already rejects unknown keys, and the Romanian message comes from the collection's error map, exactly as `src/lib/schema.ts` does it. Copy that mechanism rather than inventing a second one.
 
-- [ ] **Step 4: Register the collections**
+- [x] **Step 4: Register the collections**
 
 ```ts
 // src/content.config.ts — add to the existing file, keep `services` unchanged
@@ -977,16 +1040,16 @@ const settings = defineCollection({
 export const collections = { services, articles, pages, settings };
 ```
 
-- [ ] **Step 5: Write the settings file**
+- [x] **Step 5: Write the settings file**
 
 `src/content/settings/settings.yml`, with the parish's real values — the address and phone already in `SiteFooter.astro`, and **not** the two demo values the live site shows.
 
-- [ ] **Step 6: Run the suite**
+- [x] **Step 6: Run the suite**
 
 Run: `TZ=Europe/Zurich npm test && TZ=Europe/Zurich npm run check`
 Expected: both exit 0. `check` reports 0 errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/content-schema.ts src/lib/content-schema.test.ts src/content.config.ts src/content/settings/settings.yml
@@ -1009,7 +1072,7 @@ git commit -m "feat: schemas for articles, pages and settings, with published as
 
 **Re-encoding is why this is safe, and it is not optional.** This media comes off a server compromised twice in eighteen months. Decoding a file and re-encoding it through `sharp` discards everything that is not pixels — appended archives, injected markup, EXIF payloads. **A file that fails to decode is not an image**: it is dropped by name and counted, never copied through. **SVG cannot be sanitised this way and is not migrated at all**; neither are `.doc`, `.js`, `.html`, `.htaccess`, `.json`, `.css` or `.txt`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 // migration/media.test.mjs
@@ -1061,12 +1124,12 @@ describe('the destination name', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `rtk proxy npx vitest run migration/media.test.mjs`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write the pipeline**
+- [x] **Step 3: Write the pipeline**
 
 ```js
 // migration/media.mjs
@@ -1166,12 +1229,12 @@ export async function migrateImages(sources, repoRoot = process.cwd()) {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `rtk proxy npx vitest run migration/media.test.mjs`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Prove the sanitisation fires**
+- [x] **Step 5: Prove the sanitisation fires**
 
 Build a file that is a valid JPEG with a payload appended, run it through, and show the payload is gone:
 
@@ -1191,7 +1254,7 @@ import('sharp').then(async ({default: sharp}) => {
 
 Expected: `before contains php: true`, `after contains php: false`. Paste both lines into the commit message — this is the claim the whole task rests on and it should be a measurement rather than an assertion.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add migration/media.mjs migration/media.test.mjs

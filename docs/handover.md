@@ -1,7 +1,14 @@
 # Putting bor-zh.ch into service
 
 Everything in this file needs credentials no agent has, so none of it has been done and
-none of it has been tested. Work through it in order; each step says what a good answer
+none of it has been tested.
+
+**Status, 2026-09-17: still none of it.** Steps A-I below are all outstanding. The
+site has never been deployed, so nothing here has a live system behind it yet.
+Phase 1 is complete; Phase 2 is paused after Task 5 of 12, which means the schedule
+and the CMS work, and the news posts and prose pages do not exist yet. Deploying
+now would publish a correct site with no articles on it, which is a reasonable
+thing to do and is why this file does not wait for Phase 2. Work through it in order; each step says what a good answer
 looks like, because "it did not error" is not one.
 
 > **During Phase 1 the site lives at `https://<project>.pages.dev/`.** `www.bor-zh.ch`
@@ -177,7 +184,7 @@ name; `rebuild` is the obvious one) on the production branch. Copy its URL.
 **E2.** GitHub → Settings → Secrets and variables → Actions → New repository secret, named
 exactly **`CF_DEPLOY_HOOK`**, value = that URL.
 
-**E3.** Actions → **Reconstruire la fiecare șase ore** → *Run workflow*, **from the default
+**E3.** Actions → **Rebuild every six hours** → *Run workflow*, **from the default
 branch**.
 
 *Good answer:* the job is green and a new deployment appears in Cloudflare within a minute.
