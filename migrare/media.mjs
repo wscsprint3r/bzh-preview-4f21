@@ -47,10 +47,42 @@ const LATURA_MAXIMA = 2400;
  */
 const MINIATURA = /-\d+x\d+\.[A-Za-z0-9]+$/;
 
-export function esteOriginal(cale) {
-  if (MINIATURA.test(cale)) return false;
+/** Just the extension question, asked without the thumbnail question. */
+function extensiePermisa(cale) {
   const ext = cale.split('.').pop()?.toLowerCase() ?? '';
   return EXTENSII_PERMISE.includes(ext);
+}
+
+export function esteOriginal(cale) {
+  if (MINIATURA.test(cale)) return false;
+  return extensiePermisa(cale);
+}
+
+/**
+ * The original a WordPress thumbnail was cut from: `poza-300x200.jpg` ->
+ * `poza.jpg`. Anything that is not a thumbnail comes back unchanged.
+ *
+ * WHY A REFERENCED THUMBNAIL IS NOT SIMPLY DROPPED. "Only referenced images" is
+ * about the referenced PICTURE, not the referenced byte-file. Measured over the
+ * real corpus: 33 of the 100 references are thumbnails, and for every one of
+ * them the thumbnail is the ONLY reference to that picture - so dropping them
+ * loses the icon of Saint Nicholas from `istoric`, a council member's
+ * photograph, five Doxologia cover scans and the liturgical programme, on a
+ * green build. All 33 originals are on disk and none of them is referenced
+ * directly by any `<img>`.
+ *
+ * Same regex as `MINIATURA`, with the extension captured so it survives. The
+ * two must keep matching the same shape, which is why the pattern is written
+ * once here and `MINIATURA` is the same expression anchored the same way.
+ */
+export function numeOriginalului(cale) {
+  return cale.replace(/-\d+x\d+(\.[A-Za-z0-9]+)$/, '$1');
+}
+
+/** The size a thumbnail's own name claims it is, or `null`. */
+function dimensiuniDinNume(cale) {
+  const m = cale.match(/-(\d+)x(\d+)\.[A-Za-z0-9]+$/);
+  return m === null ? null : { latime: Number(m[1]), inaltime: Number(m[2]) };
 }
 
 /**
@@ -139,7 +171,9 @@ function caleaRelativa(srcWp) {
 export function numeDestinatie(srcWp) {
   const relativ = caleaRelativa(srcWp);
   if (relativ === null) throw new Error(`Nu este o cale de upload: ${srcWp}`);
-  return `${SUB_CONTINUT}/${relativ}`;
+  // A thumbnail lands on its original's name, so `poza.jpg` and
+  // `poza-300x200.jpg` name the same file and the picture is stored once.
+  return `${SUB_CONTINUT}/${numeOriginalului(relativ)}`;
 }
 
 /**
@@ -169,12 +203,29 @@ export function verificaUploads(cale = RADACINA_UPLOADS) {
  * reproducibility bug that has no symptom - the pictures still look right, the
  * bytes are simply different.
  *
- * THESE ARE TODAY'S DEFAULTS, PINNED, NOT A RE-TUNING. Measured on all 64
- * referenced originals against sharp 0.35.4 / libvips 8.18.6: encoding with
- * these options and encoding with `.toBuffer()` alone produced byte-identical
- * output 64 times out of 64. That measurement is what makes the pin faithful -
- * without it this block would be a guess about what the defaults are, which is
- * worse than not pinning at all.
+ * JPEG AND WEBP ARE TODAY'S DEFAULTS, PINNED, NOT A RE-TUNING. Measured against
+ * sharp 0.35.4 / libvips 8.18.6: encoding with these options and encoding with
+ * `.toBuffer()` alone produced byte-identical output on every referenced JPEG.
+ * That measurement is what makes the pin faithful - without it this block would
+ * be a guess about what the defaults are, which is worse than not pinning.
+ *
+ * PNG DELIBERATELY DEPARTS FROM THE DEFAULT, and that is the one tuning
+ * decision in this file. sharp's default writes truecolour at compression 6
+ * with no adaptive filtering, and these are Canva exports and screenshots that
+ * WordPress held palettised - so the defaults made the 25 referenced PNGs GROW
+ * from 39.9 MB to 55.7 MB, in a repository that keeps them forever. Measured:
+ *
+ *     implicit (compressionLevel 6)              55.7 MB
+ *     compressionLevel 9                         54.6 MB
+ *     compressionLevel 9 + adaptiveFiltering     35.3 MB
+ *     palette true (imagequant)                  12.0 MB
+ *
+ * Adaptive filtering is chosen and `palette` is NOT, because the first is free
+ * and the second is not: palette quantises to 256 colours, which is a visible
+ * decision about somebody's photographs and belongs to a person, not to this
+ * file. "Free" is verified rather than assumed - both encodings were decoded
+ * back to raw pixels and the buffers compared: identical on 25 of 25, and the
+ * same bytes on a second encode 25 times out of 25, so determinism holds too.
  */
 const OPTIUNI_ENCODARE = {
   jpeg: (img) =>
@@ -184,7 +235,7 @@ const OPTIUNI_ENCODARE = {
       overshootDeringing: false, optimiseScans: false, quantisationTable: 0,
     }),
   png: (img) =>
-    img.png({ compressionLevel: 6, adaptiveFiltering: false, palette: false, effort: 7 }),
+    img.png({ compressionLevel: 9, adaptiveFiltering: true, palette: false, effort: 7 }),
   webp: (img) =>
     img.webp({
       quality: 80, alphaQuality: 100, lossless: false, nearLossless: false,
@@ -204,6 +255,75 @@ const OPTIUNI_ENCODARE = {
  * at. Measured: 0 disagreements among the 64 referenced originals.
  */
 const EXTENSII_PENTRU_FORMAT = { jpeg: ['jpg', 'jpeg'], png: ['png'], webp: ['webp'] };
+
+/** Dimensions as a viewer sees them: EXIF orientation applied. */
+async function dimensiuniOrientate(cale) {
+  const m = await sharp(cale).metadata();
+  const intors = (m.orientation ?? 1) >= 5;
+  return { latime: intors ? m.height : m.width, inaltime: intors ? m.width : m.height };
+}
+
+/**
+ * Proves a `-WxH` name really is a thumbnail OF the file we are about to put in
+ * its place. Throws, by name, when it is not.
+ *
+ * Stripping `-WxH` is a guess about which other file a name belongs to, and a
+ * wrong guess puts a DIFFERENT PICTURE on the page - which no test downstream
+ * can see, because a valid image is exactly what it finds. So the guess is
+ * checked three ways:
+ *
+ *   1. the original has to exist. Measured 33 of 33 present; if that stops
+ *      being true the run stops, rather than falling back to the thumbnail and
+ *      migrating a 370px crop as if it were the picture.
+ *   2. the file has to BE the size its name claims. This is what tells a
+ *      WordPress-generated thumbnail from a real upload whose name happens to
+ *      carry digits and an `x` - WordPress names the file after the size it
+ *      actually wrote, and measured, all 33 match exactly. Compared against the
+ *      STORED dimensions, because the claim is about the file's own bytes
+ *      against its own name.
+ *   3. the original has to be at least as big, in both directions. Compared
+ *      after orientation, because that one is about the pictures rather than
+ *      the files: `IMG_1640.jpg` is stored 4032x3024 with an EXIF quarter turn
+ *      and is a 3024x4032 portrait to a reader, which is the only reason its
+ *      768x1024 thumbnail makes sense. Measured: 0 of 33 originals are smaller.
+ *
+ * A thumbnail that is not itself on disk cannot be checked by (2) or (3); the
+ * original existing is then the whole of the evidence, and the caller prints
+ * the fact rather than letting it pass unsaid. Measured: 0 of 33.
+ */
+async function verificaMiniatura(radacinaUploads, relativMiniatura, relativOriginal) {
+  const caleOriginal = join(radacinaUploads, relativOriginal);
+  if (!existsSync(caleOriginal)) {
+    throw new Error(
+      `Miniatura ${relativMiniatura} nu are original pe disc: ${relativOriginal}\n` +
+        '  O miniatura referita este migrata ca originalul din care a fost taiata. ' +
+        'Fara original nu se poate: nu se pune miniatura in locul lui in tacere, ' +
+        'fiindca o taietura de cateva sute de pixeli nu este poza.',
+    );
+  }
+  const caleMiniatura = join(radacinaUploads, relativMiniatura);
+  if (!existsSync(caleMiniatura)) return false;
+  const cerut = dimensiuniDinNume(relativMiniatura);
+  const brut = await sharp(caleMiniatura).metadata();
+  if (brut.width !== cerut.latime || brut.height !== cerut.inaltime) {
+    throw new Error(
+      `${relativMiniatura} nu este o miniatura: numele spune ` +
+        `${cerut.latime}x${cerut.inaltime}, fisierul este ${brut.width}x${brut.height}.\n` +
+        '  Deci numele nu a fost scris de WordPress, iar dezbracarea sufixului ar fi ' +
+        `o presupunere despre carui fisier ii apartine (${relativOriginal}).`,
+    );
+  }
+  const mini = await dimensiuniOrientate(caleMiniatura);
+  const orig = await dimensiuniOrientate(caleOriginal);
+  if (orig.latime < mini.latime || orig.inaltime < mini.inaltime) {
+    throw new Error(
+      `${relativOriginal} este mai mic decat miniatura lui presupusa ` +
+        `${relativMiniatura}: ${orig.latime}x${orig.inaltime} fata de ` +
+        `${mini.latime}x${mini.inaltime}. Nu sunt aceeasi poza.`,
+    );
+  }
+  return true;
+}
 
 /**
  * Copies the referenced images across, sanitising each one by re-encoding it.
@@ -229,17 +349,44 @@ export async function migreazaImagini(
   const harta = new Map();
   const esuate = [];
   const subContinut = join(radacinaRepo, SUB_CONTINUT);
+  // Destination per SOURCE file, so a picture referenced both directly and
+  // through one or more of its thumbnails is decoded and written exactly once.
+  const scrise = new Map();
+  const cazute = new Set();
+  // A COUNTER, not `scrise.size`: a Map de-duplicates by construction, so its
+  // size reports one whether the file was written once or three times - which
+  // is exactly the thing this number exists to report on.
+  let scrieri = 0;
+  // What resolution did, for the report below.
+  const dinMiniaturi = new Set();
+  const directe = new Set();
+  const neverificate = [];
+  let miniaturiRezolvate = 0;
+
   for (const src of [...new Set(surse)]) {
-    if (!esteOriginal(src)) {
-      esuate.push([src, MINIATURA.test(src) ? 'miniatura WordPress' : 'tip nepermis']);
-      continue;
-    }
+    // The TYPE question comes before the thumbnail question: an SVG is not
+    // migrated at all, and that must not change because its name carries a size.
+    if (!extensiePermisa(src)) { esuate.push([src, 'tip nepermis']); continue; }
     // Deliberately OUTSIDE the try below: an unsafe path must stop the run, not
-    // become one more skipped line in a report that exits 0.
-    const relativ = caleaRelativa(src);
-    if (relativ === null) { esuate.push([src, 'cale straina']); continue; }
+    // become one more skipped line in a report that exits 0. Validated on the
+    // UNTRUSTED text, before anything is derived from it.
+    const relativBrut = caleaRelativa(src);
+    if (relativBrut === null) { esuate.push([src, 'cale straina']); continue; }
+    const esteMin = MINIATURA.test(relativBrut);
+    const relativ = numeOriginalului(relativBrut);
+    if (esteMin) {
+      // Throws, by name, when the resolution cannot be justified.
+      const verificata = await verificaMiniatura(radacinaUploads, relativBrut, relativ);
+      if (!verificata) neverificate.push(relativBrut);
+      miniaturiRezolvate += 1;
+      dinMiniaturi.add(relativ);
+    } else {
+      directe.add(relativ);
+    }
     const sursa = join(radacinaUploads, relativ);
     const destinatieRel = numeDestinatie(src);
+    if (scrise.has(relativ)) { harta.set(src, scrise.get(relativ)); continue; }
+    if (cazute.has(relativ)) continue;
     const destinatie = join(radacinaRepo, destinatieRel);
     if (!esteInauntrul(radacinaUploads, sursa) || !esteInauntrul(subContinut, destinatie)) {
       throw new Error(
@@ -266,6 +413,7 @@ export async function migreazaImagini(
       const permise = EXTENSII_PENTRU_FORMAT[meta.format];
       if (permise === undefined || !permise.includes(ext)) {
         esuate.push([src, `numele spune .${ext}, continutul este ${meta.format}`]);
+        cazute.add(relativ);
         continue;
       }
       // `Math.max` of both edges, so an EXIF orientation that swaps them cannot
@@ -279,10 +427,13 @@ export async function migreazaImagini(
       iesire = await OPTIUNI_ENCODARE[meta.format](redimensionata).toBuffer();
     } catch (e) {
       esuate.push([src, e instanceof Error ? e.message : String(e)]);
+      cazute.add(relativ);
       continue;
     }
     await mkdir(dirname(destinatie), { recursive: true });
     await writeFile(destinatie, iesire);
+    scrieri += 1;
+    scrise.set(relativ, destinatieRel);
     harta.set(src, destinatieRel);
   }
   // Print what was measured, not only the verdict. `process.stdout.write` and
@@ -291,6 +442,19 @@ export async function migreazaImagini(
   process.stdout.write(
     `\nImagini migrate: ${harta.size} din ${new Set(surse).size} referite.\n`,
   );
+  // What resolution did is the number a later reader will want to audit: how
+  // much of the corpus reaches the site only because a thumbnail was pointed
+  // back at its original.
+  const noi = [...dinMiniaturi].filter((r) => !directe.has(r));
+  process.stdout.write(
+    `  ${miniaturiRezolvate} miniatura(i) rezolvate la ${dinMiniaturi.size} ` +
+      `original(e) distinct(e), dintre care ${noi.length} original(e) pe care ` +
+      `niciun <img> nu le refera direct.\n`,
+  );
+  process.stdout.write(`  ${scrieri} fisier(e) sursa scrise.\n`);
+  for (const rel of neverificate) {
+    process.stdout.write(`  neverificata: ${rel} nu este pe disc, rezolvata doar dupa nume\n`);
+  }
   for (const [src, motiv] of esuate) process.stdout.write(`  sarita: ${src} - ${motiv}\n`);
   return harta;
 }

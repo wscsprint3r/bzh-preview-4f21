@@ -61,6 +61,7 @@ import sharp from 'sharp';
 import {
   esteInauntrul,
   migreazaImagini,
+  numeOriginalului,
   verificaUploads,
   RADACINA_UPLOADS,
 } from './media.mjs';
@@ -352,5 +353,186 @@ describe('radacina uploads este cea din copia de siguranta', () => {
   it('arata catre directorul parinte, nu catre depozit', () => {
     expect(RADACINA_UPLOADS.endsWith('/wp-content/uploads')).toBe(true);
     expect(RADACINA_UPLOADS.includes('/site-bzh/web/')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Resolving a referenced thumbnail to the original it was cut from.
+//
+// "Only referenced images" is about the referenced PICTURE, not the referenced
+// byte-file: 33 of the 100 real references are `-WxH` thumbnails and are the
+// ONLY reference to their picture, so dropping them loses the icon of Saint
+// Nicholas from `istoric`, a council member's photograph, five Doxologia cover
+// scans and the liturgical programme, on a green build.
+// ---------------------------------------------------------------------------
+
+describe('rezolvarea miniaturii la originalul din care a fost taiata', () => {
+  it('numeOriginalului dezbraca doar forma -LATIMExINALTIME de la sfarsit', () => {
+    expect(numeOriginalului('2024/05/poza-300x200.jpg')).toBe('2024/05/poza.jpg');
+    expect(numeOriginalului('2024/05/Design-fara-titlu-2-2-1024x682.png'))
+      .toBe('2024/05/Design-fara-titlu-2-2.png');
+    // Not thumbnails, so untouched - the same names the anchor exists for.
+    expect(numeOriginalului('2024/05/matrix-2.jpg')).toBe('2024/05/matrix-2.jpg');
+    expect(numeOriginalului('2024/05/pers-3x.jpg')).toBe('2024/05/pers-3x.jpg');
+    expect(numeOriginalului('2024/05/PIXNIO-2027801-4896x3672-1.jpeg'))
+      .toBe('2024/05/PIXNIO-2027801-4896x3672-1.jpeg');
+  });
+
+  it('o miniatura referita aduce originalul, nu se pierde', async () => {
+    await pune('2025/01/hram.jpg', await sharp({
+      create: { width: 800, height: 600, channels: 3, background: '#4a7a2a' },
+    }).jpeg().toBuffer());
+    await pune('2025/01/hram-400x300.jpg', await sharp({
+      create: { width: 400, height: 300, channels: 3, background: '#4a7a2a' },
+    }).jpeg().toBuffer());
+
+    const src = '/wp-content/uploads/2025/01/hram-400x300.jpg';
+    const harta = await migreazaImagini([src], radacina, uploads);
+    expect(harta.get(src)).toBe('src/assets/continut/2025/01/hram.jpg');
+    const meta = await sharp(await readFile(join(radacina, harta.get(src)))).metadata();
+    expect([meta.width, meta.height]).toEqual([800, 600]);
+  });
+
+  it('miniatura si originalul duc la aceeasi destinatie, scrisa o data', async () => {
+    const mic = '/wp-content/uploads/2025/01/hram-400x300.jpg';
+    const mare = '/wp-content/uploads/2025/01/hram.jpg';
+    const scris = [];
+    const spion = vi.spyOn(process.stdout, 'write').mockImplementation((t) => {
+      scris.push(String(t));
+      return true;
+    });
+    const harta = await migreazaImagini([mic, mare], radacina, uploads);
+    spion.mockRestore();
+    expect(harta.get(mic)).toBe(harta.get(mare));
+    expect(harta.size).toBe(2);
+    // "Written once" was in this test's NAME before it was in its assertions -
+    // two map entries pointing at one path is true whether the file was decoded
+    // once or twice. The count of source files written is the thing that says.
+    expect(scris.join('')).toContain('1 fisier(e) sursa scrise');
+  });
+
+  it('CONDITIA 1: un original lipsa este strigat, nu inlocuit cu miniatura', async () => {
+    // Measured 33 of 33 present today. If that ever stops being true the run
+    // must stop and name the file, rather than quietly falling back to the
+    // thumbnail - which would migrate a 370px crop as if it were the picture.
+    await pune('2025/02/orfana-400x300.jpg', await sharp({
+      create: { width: 400, height: 300, channels: 3, background: '#888888' },
+    }).jpeg().toBuffer());
+    // Matched on THIS guard's own words, not just the filename: with the guard
+    // deleted, sharp throws ENOENT a moment later on a path that still contains
+    // `orfana.jpg`, so a filename match passes for the wrong reason. Measured -
+    // the mutation that removes the guard survived until this line said so.
+    await expect(
+      migreazaImagini(['/wp-content/uploads/2025/02/orfana-400x300.jpg'], radacina, uploads),
+    ).rejects.toThrow(/nu are original pe disc/);
+  });
+
+  it('CONDITIA 2a: un nume care pretinde dimensiuni pe care fisierul nu le are', async () => {
+    // This is what tells a GENERATED thumbnail from a real upload that happens
+    // to carry digits and an `x`. WordPress names the file after the size it
+    // actually produced: measured, 33 of 33 match exactly. A file that does not
+    // match is not a thumbnail, and stripping its suffix would be a guess at
+    // which other file it belongs to.
+    await pune('2025/03/mincinoasa.jpg', await sharp({
+      create: { width: 900, height: 700, channels: 3, background: '#333333' },
+    }).jpeg().toBuffer());
+    await pune('2025/03/mincinoasa-400x300.jpg', await sharp({
+      create: { width: 100, height: 50, channels: 3, background: '#333333' },
+    }).jpeg().toBuffer());
+    await expect(
+      migreazaImagini(['/wp-content/uploads/2025/03/mincinoasa-400x300.jpg'], radacina, uploads),
+    ).rejects.toThrow(/400x300/);
+  });
+
+  it('CONDITIA 2b: un "original" mai mic decat miniatura lui nu este originalul lui', async () => {
+    await pune('2025/04/rasturnata.jpg', await sharp({
+      create: { width: 100, height: 100, channels: 3, background: '#553311' },
+    }).jpeg().toBuffer());
+    await pune('2025/04/rasturnata-400x300.jpg', await sharp({
+      create: { width: 400, height: 300, channels: 3, background: '#553311' },
+    }).jpeg().toBuffer());
+    await expect(
+      migreazaImagini(['/wp-content/uploads/2025/04/rasturnata-400x300.jpg'], radacina, uploads),
+    ).rejects.toThrow(/mai mic/i);
+  });
+
+  it('o miniatura de tip nepermis ramane respinsa, nu se rezolva', async () => {
+    // SVG is not migrated at all, and that must not change because the name
+    // happens to carry a size.
+    const scris = [];
+    const spion = vi.spyOn(process.stdout, 'write').mockImplementation((t) => {
+      scris.push(String(t));
+      return true;
+    });
+    const harta = await migreazaImagini(
+      ['/wp-content/uploads/2025/05/logo-100x100.svg'], radacina, uploads,
+    );
+    spion.mockRestore();
+    expect(harta.size).toBe(0);
+    expect(scris.join('')).toContain('tip nepermis');
+  });
+
+  it('CONDITIA 3: spune cate miniaturi a rezolvat si cate originale noi a adus', async () => {
+    const scris = [];
+    const spion = vi.spyOn(process.stdout, 'write').mockImplementation((t) => {
+      scris.push(String(t));
+      return true;
+    });
+    await migreazaImagini(
+      ['/wp-content/uploads/2025/01/hram-400x300.jpg', '/wp-content/uploads/2025/01/hram.jpg'],
+      radacina, uploads,
+    );
+    spion.mockRestore();
+    const tot = scris.join('');
+    // One thumbnail, resolving to one original, which IS referenced directly
+    // here - so nothing new was pulled in.
+    expect(tot).toMatch(/1 miniatur/);
+    expect(tot).toMatch(/0 original/);
+  });
+});
+
+describe('PNG-urile nu se umfla', () => {
+  it('filtrarea adaptiva schimba octetii dar nu pixelii', async () => {
+    // The one tuning decision in media.mjs, pinned by the property that makes
+    // it safe rather than by the size it saves. sharp's PNG default made the 25
+    // referenced PNGs grow 39.9 -> 55.7 MB; adaptive filtering brings that to
+    // 35.3 MB and is LOSSLESS, which is asserted here by decoding both back to
+    // raw pixels. `palette: true` would reach 12.0 MB and is deliberately not
+    // taken: it quantises to 256 colours, which is a visible decision about
+    // somebody's photographs.
+    //
+    // A gradient, not flat colour: filtering is what exploits row-to-row
+    // similarity, so a flat fixture would make both encoders agree and the
+    // test would pass while proving nothing.
+    const l = 240;
+    const i = 180;
+    const brut = Buffer.alloc(l * i * 3);
+    for (let y = 0; y < i; y += 1) {
+      for (let x = 0; x < l; x += 1) {
+        const o = (y * l + x) * 3;
+        brut[o] = (x * 7 + y * 3) % 256;
+        brut[o + 1] = (x * 3 + y * 11) % 256;
+        brut[o + 2] = (x + y) % 256;
+      }
+    }
+    const sursa = await sharp(brut, { raw: { width: l, height: i, channels: 3 } })
+      .png({ compressionLevel: 6, adaptiveFiltering: false, palette: false, effort: 7 })
+      .toBuffer();
+    await pune('2025/06/gradient.png', sursa);
+
+    const src = '/wp-content/uploads/2025/06/gradient.png';
+    const harta = await migreazaImagini([src], radacina, uploads);
+    const iesire = await readFile(join(radacina, harta.get(src)));
+
+    // Different bytes - or adaptive filtering is not actually being asked for.
+    expect(sha(iesire)).not.toBe(sha(sursa));
+    // Identical pixels - or it is not lossless, and the saving is not free.
+    const a = await sharp(sursa).raw().toBuffer({ resolveWithObject: true });
+    const b = await sharp(iesire).raw().toBuffer({ resolveWithObject: true });
+    expect([b.info.width, b.info.height, b.info.channels])
+      .toEqual([a.info.width, a.info.height, a.info.channels]);
+    expect(sha(b.data)).toBe(sha(a.data));
+    // And smaller, which is the reason for the change.
+    expect(iesire.length).toBeLessThan(sursa.length);
   });
 });
