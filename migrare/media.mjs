@@ -217,8 +217,6 @@ function caleaRelativa(srcWp) {
   // `2024/05/poza.jpg` in its place - not an escape, but a foreign page
   // choosing which of our files lands under which name. Measured: all 100 real
   // srcs carry `/wp-content/uploads/`, including the two protocol-relative ones.
-  const gazda = gazdaDin(srcWp);
-  if (gazda !== null && !GAZDE_PROPRII.includes(gazda)) return null;
   const m = srcWp.match(/(?:^|\/)wp-content\/uploads\/(.+)$/);
   if (m === null) return null;
   const relativ = m[1];
@@ -235,6 +233,16 @@ function caleaRelativa(srcWp) {
         'care vine inainte sa reiei migrarea.',
     );
   }
+  // THE HOST IS CHECKED LAST, AFTER THE SEGMENTS, and the order is the whole
+  // point. Checked first, a foreign host short-circuited to `null` - an
+  // ordinary skip, exit 0 - so
+  // `https://evil.example/wp-content/uploads/../../../../etc/secret.jpg` was
+  // waved through silently while the identical path on our own host threw. That
+  // contradicted this function's own contract three paragraphs up: a path that
+  // could escape is an attack in the content whoever is hosting it, and the
+  // alarm must not be silenced by the attacker choosing a different domain.
+  const gazda = gazdaDin(srcWp);
+  if (gazda !== null && !GAZDE_PROPRII.includes(gazda)) return null;
   return relativ;
 }
 
@@ -338,14 +346,32 @@ const OPTIUNI_ENCODARE = {
  * exactly and no codec sits in the measurement.
  *
  * DO NOT ADD `keepIccProfile()`. It was added in one round and reverted in the
- * next, and it was wrong twice over. It re-attached the INPUT's profile to
- * pixels sharp had already converted to sRGB, so a colour-managed reader
- * applied the transform a second time: measured, that moved those same PNG
- * sources from max 1 / mean 0.016 to max 42-54 / mean 2.1-3.9 - it did not
- * preserve colour, it broke it. And an ICC profile is attacker-controlled data
- * off a twice-compromised server: a payload planted inside a structurally valid
- * profile survived the copy verbatim, which is a hole in the one guarantee this
- * file exists to provide. `migrare/media.test.mjs` has that control.
+ * next, and the REASON matters because two different wrong mechanisms have been
+ * written down for it already. What it actually does, measured on
+ * `2024/06/IMG_1640.jpg` (Display P3) with every arm labelled by the space it
+ * is in:
+ *
+ *   source: converted vs raw numbers                   max 60  mean 2.653
+ *   with keepIccProfile, read naively, vs raw numbers  max  0  <- conversion SKIPPED
+ *   with keepIccProfile, read colour-managed           max  0  <- correct colour
+ *   with keepIccProfile, read naively, vs converted    max 60  <- the harm
+ *   without it, read naively, vs converted             max  0  <- what we do now
+ *
+ * So it does NOT double-transform. It makes sharp skip the input conversion and
+ * ship the original numbers under the original profile - self-consistent, and
+ * exactly right for a colour-managed reader. The harm is real but narrower than
+ * "wrong colour everywhere": a reader that ignores the profile sees max 60.
+ *
+ * It stays out for two reasons that survive the correction. An ICC profile is
+ * attacker-controlled data off a twice-compromised server, and a payload planted
+ * inside a structurally valid one survived the copy verbatim -
+ * `migrare/media.test.mjs` has that control. And converting once here means
+ * every reader sees the right colour, not only the colour-managed ones.
+ *
+ * An earlier version of this comment claimed a double transform and cited
+ * "max 42-54". That number came from reading the output while IGNORING its
+ * profile and comparing it against a converted source - two arms in different
+ * colour spaces, which is the same mistake the paragraph was written to correct.
  */
 
 /**

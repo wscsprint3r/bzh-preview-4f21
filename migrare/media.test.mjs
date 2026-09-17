@@ -53,7 +53,7 @@ describe('numele destinatiei', () => {
 // ---------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -493,38 +493,56 @@ describe('rezolvarea miniaturii la originalul din care a fost taiata', () => {
 
   it('CONDITIA 2c, cu fisiere vii: ciocnirea opreste rularea si numeste ambele surse', async () => {
     /*
-     * The case above deliberately has nothing on disk, and proves the guard
-     * needs nothing on disk. THIS one covers what the guard actually exists
-     * for: two real pictures whose names this repository cannot hold apart.
-     * With the fixtures removed from the other case, the live arrangement was
-     * exercised by nothing at all.
+     * The case above deliberately has nothing on disk. This one covers the
+     * arrangement the guard exists for: two real pictures whose names this
+     * repository cannot hold apart.
      *
-     * It needs no special handling, which is itself the ordering claim holding:
-     * the guard runs before any filesystem access, so live and dead files take
-     * the identical path and give the identical verdict. If this case had
-     * needed something the dead one did not, that would have meant the claim
-     * was weaker than stated.
+     * AN EARLIER VERSION OF THIS COMMENT CLAIMED "the guard runs before any
+     * filesystem access, so live and dead take the identical path". THAT IS
+     * FALSE and worth stating, because it was believed twice. `esteInauntrul`
+     * calls `realpathSync` and sits ABOVE the collision guard, so the path does
+     * touch the filesystem first - and live and dead references can reach
+     * different verdicts: a live original symlinked out of the tree throws the
+     * second lock's message, where a dead one would reach the collision guard.
+     * What is true is narrower: the collision guard itself consults nothing,
+     * and the live fixture here needed no special handling because it is an
+     * ordinary file, not because nothing above it reads the disk.
      *
-     * On Linux these are two files; on macOS they are one, and both spellings
-     * resolve to it. Both are asserted readable below rather than assumed, so
-     * the test says which arrangement it actually got.
+     * WHICH ARRANGEMENT THIS MACHINE GAVE US IS MEASURED, NOT ASSUMED. An
+     * earlier version asserted `existsSync` on both spellings and claimed that
+     * said which arrangement it got; both are true whether the filesystem
+     * folded case or not, so they distinguished nothing. The directory entry
+     * count and the inode do distinguish, they must agree with each other, and
+     * the answer is printed - `process.stdout.write`, because vitest's default
+     * reporter swallows `console.log` on the green run a later reader checks.
      */
     const poza = await sharp({
       create: { width: 50, height: 40, channels: 3, background: '#2b6f3a' },
     }).jpeg().toBuffer();
     await pune('2026/02/Vie.jpg', poza);
     await pune('2026/02/vie.jpg', poza);
-    expect(existsSync(join(uploads, '2026/02/Vie.jpg'))).toBe(true);
-    expect(existsSync(join(uploads, '2026/02/vie.jpg'))).toBe(true);
+
+    const intrari = readdirSync(join(uploads, '2026/02'));
+    const unSingurInod =
+      statSync(join(uploads, '2026/02/Vie.jpg')).ino === statSync(join(uploads, '2026/02/vie.jpg')).ino;
+    process.stdout.write(
+      `\n  ciocnire vie: ${intrari.length} intrare(i) in director, acelasi inod: ${unSingurInod}\n`,
+    );
+    // The two measurements must agree, or the setup is not what it looks like.
+    expect(intrari.length === 1).toBe(unSingurInod);
+    expect([1, 2]).toContain(intrari.length);
 
     const A = '/wp-content/uploads/2026/02/Vie.jpg';
     const B = '/wp-content/uploads/2026/02/vie.jpg';
     const cazut = migreazaImagini([A, B], radacina, uploads);
     await expect(cazut).rejects.toThrow(/revendicat/i);
-    // Both sources named, or the message cannot be acted on: the whole point is
-    // that a person has to rename one of them in the source.
-    await expect(cazut).rejects.toThrow(/2026\/02\/Vie\.jpg/);
-    await expect(cazut).rejects.toThrow(/2026\/02\/vie\.jpg/);
+    // BOTH NAMES, AS A PAIR. Asserting them separately was half vacuous:
+    // `destinatieRel` already carries the lower-cased name, so dropping
+    // `${relativ}` from the message left the old assertions green. The pair
+    // phrase can only match when both halves are really there, and the message
+    // has to name both - it is only actionable if it says which two files a
+    // person must go and rename.
+    await expect(cazut).rejects.toThrow(/2026\/02\/Vie\.jpg si 2026\/02\/vie\.jpg/);
   });
 
   it('o miniatura de tip nepermis ramane respinsa, nu se rezolva', async () => {
@@ -659,9 +677,21 @@ describe('culoarea nu se schimba pe tacute', () => {
   });
 
   it('nu lasa niciun profil pe iesire', async () => {
-    // Untagged means sRGB on the web, and the pixels are already sRGB. Carrying
-    // the profile instead was measured to DOUBLE-APPLY the transform for a
-    // colour-managed reader - see the module comment.
+    /*
+     * Untagged means sRGB on the web, and the pixels are already sRGB.
+     *
+     * TWO WRONG MECHANISMS HAVE BEEN WRITTEN DOWN FOR WHY `keepIccProfile()` IS
+     * OUT, so here is the measured one. It does not double-transform. It makes
+     * sharp SKIP the input conversion and ship the original numbers under the
+     * original profile - measured on a Display P3 file, output read naively is
+     * max 0 from the source's RAW numbers and max 60 from the converted ones,
+     * while read colour-managed it is max 0 from the converted ones. So a
+     * colour-managed reader saw the right colour and a naive reader did not.
+     *
+     * It stays out because the ICC blob is attacker-controlled data off a
+     * twice-compromised server - see the control below - and because converting
+     * once here is right for every reader rather than only the managed ones.
+     */
     const p3 = await sharp({
       create: { width: 20, height: 20, channels: 3, background: '#2080c0' },
     }).withIccProfile('p3').jpeg().toBuffer();
@@ -799,6 +829,10 @@ describe('tiparul uploads este ancorat si legaturile simbolice nu trec', () => {
       .toThrow(/upload/i);
     expect(() => numeDestinatie('https://evil.example/wpuploads/2024/05/poza.jpg'))
       .toThrow(/upload/i);
+    // `mywp-content` on OUR host: only the `(?:^|/)` sub-anchor can refuse this
+    // one - the host is ours and the string `wp-content/uploads/` is present.
+    expect(() => numeDestinatie('https://www.bor-zh.ch/mywp-content/uploads/2024/05/poza.jpg'))
+      .toThrow(/upload/i);
     // ON OUR OWN HOST, so the anchor is what has to refuse it rather than the
     // host check. Without this the two guards mask each other and either could
     // be deleted with nothing going red - measured, removing the anchor left
@@ -833,6 +867,25 @@ describe('tiparul uploads este ancorat si legaturile simbolice nu trec', () => {
       .toBe('src/assets/continut/2024/05/hram.jpg');
     expect(numeDestinatie('/wp-content/uploads/2024/05/hram.jpg'))
       .toBe('src/assets/continut/2024/05/hram.jpg');
+  });
+
+  it('o gazda straina nu stinge alarma pentru o cale care poate iesi', async () => {
+    /*
+     * The host check was written ABOVE the segment validation, so a foreign host
+     * short-circuited to "ordinary foreign reference" - named, skipped, exit 0 -
+     * while the identical path on our own host threw. An attacker picks the
+     * domain, so that arrangement let them choose whether the alarm sounded.
+     *
+     * The module's contract is that a path which could escape is an attack in
+     * the content whoever hosts it. Segments are validated first now.
+     */
+    const rau = 'https://evil.example/wp-content/uploads/../../../../../../etc/secret.jpg';
+    await expect(migreazaImagini([rau], radacina, uploads)).rejects.toThrow(/nesigura/i);
+    // And the same path on our own host, which always threw, still does.
+    await expect(
+      migreazaImagini(['https://www.bor-zh.ch/wp-content/uploads/../../../../etc/secret.jpg'],
+        radacina, uploads),
+    ).rejects.toThrow(/nesigura/i);
   });
 
   it('incuietoarea a doua chiar este a doua: prinde inaintea verificarii miniaturii', async () => {
