@@ -1229,16 +1229,6 @@ Also assert that the prefix rule matches at least one real file, so it cannot
 quietly become dead, and that nothing under the prefix carries an extension off
 the allow-list.
 
-**And assert profile preservation in the same `.itest.ts`.** Task 5 found that
-30 of the 100 migrated files were being written with their colour profile
-dropped and their pixels unchanged — a Display P3 photograph rendered as sRGB,
-worst case 60/255 per channel on the parish’s own magazine scans. The fix
-carries the profile through, and that property is now load-bearing: nothing
-outside `migrare/media.test.mjs` checks it, and these files are about to become
-permanent in git history. The decode check is already opening every file, so
-asserting that each one still carries the profile its source had costs nothing
-extra and closes the gap at the moment it stops being cheap to fix.
-
 **Interfaces:**
 - Consumes: `interogheaza`, `laMarkdown`, `imaginiDin`, `migreazaImagini`, `articolSchema`.
 - Produces: `STAMPILE_IMPORT` (the two bulk-import dates), `esteDatat(data: string)` → `boolean`, `numeFisier(slug, data)` → `string`, `extrageArticole()` → `Promise<{scrise: number, publicate: number}>`.
