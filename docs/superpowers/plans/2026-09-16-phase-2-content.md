@@ -1286,7 +1286,19 @@ Key points the implementer must honour, with the code shape following `migrare/m
 - Query: `SELECT post_name, post_title, DATE(post_date), post_content, post_excerpt FROM wpoi_posts WHERE post_type='post' AND post_status='publish' ORDER BY post_name` — **ordered by slug, not by date**, so the run is deterministic and two posts sharing a date cannot swap places between runs.
 - Category from `wpoi_term_relationships`; map `Noutati` to `Noutati` and `Catehismul Bisericii Ortodoxe` to `Cateheza`. **A category that maps to neither is an error that stops the run**, naming the post — never a silent fallback to `Noutati`.
 - Featured image from `_thumbnail_id` where present (3 posts).
-- Body through `laMarkdown`; images through `imaginiDin` then `migreazaImagini`; rewrite each `src` in the Markdown to its new path, and **report any reference the map does not contain** rather than emitting a dead link.
+- Body through `laMarkdown`; images through `imaginiDin` then `migreazaImagini`;
+  rewrite each `src` in the Markdown to its new path. **An `src` the map does not
+  contain stops the run, naming the document and the reference** — it is not a
+  warning and not a blank. Task 5 cannot enforce this: it omits a dead direct
+  reference from the map and names it on stdout, but still exits 0 by design,
+  because the caller is what gates. This is that gate, and without it the
+  failure is an image silently missing from a page on a green build.
+- **Assert the count as well as the contents**: the number of `<img>` tags in a
+  document must equal the number of srcs `imaginiDin` returned for it. Measured
+  2026-09-17 across the 71 published documents: 116 tags, 116 srcs, zero
+  disagreement. That equality is what would catch an attribute shape
+  `imaginiDin` cannot see — `data-src` only, or an unquoted `src`, both of which
+  occur zero times today and are documented limits rather than fixed behaviour.
 - Frontmatter written in a fixed key order, validated with `articolSchema.parse` **before** the file is written. A file that would not build is not written.
 - Print the two counts at the end: written, and of those published.
 
