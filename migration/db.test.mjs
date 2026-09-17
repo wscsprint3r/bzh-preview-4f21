@@ -46,7 +46,7 @@ describe('sursa migrarii', () => {
   });
 
   it("the container name is this project's, not a generic one", () => {
-    expect(CONTAINER_NAME).toBe('bzh-migrare');
+    expect(CONTAINER_NAME).toBe('bzh-migration');
   });
 });
 
@@ -82,7 +82,7 @@ describe('checkCounts', () => {
   });
 });
 
-// The tests below start their own disposable, dump-free `bzh-migrare`
+// The tests below start their own disposable, dump-free `bzh-migration`
 // container - not the real 28MB dump, which `start()`'s own report proves
 // separately - because what is under test here is `query`'s handling
 // of `-B`'s output format itself, which needs a real MariaDB round trip to

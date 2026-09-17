@@ -25,7 +25,7 @@ not part of the site build.
 ```js
 import { start, query, stop } from './db.mjs';
 
-await start(); // starts bzh-migrare, waits for MariaDB, loads the dump
+await start(); // starts bzh-migration, waits for MariaDB, loads the dump
 const rows = await query('SELECT ... FROM wpoi_posts ...');
 await stop(); // removes the container
 ```
@@ -52,7 +52,7 @@ rather than handing back a database that loaded "successfully" but short.
 
 ## Destroyed and recreated on every run, not reused
 
-`start()` removes any existing `bzh-migrare` container before creating a
+`start()` removes any existing `bzh-migration` container before creating a
 new one. This is idempotent by destruction on purpose: reusing a container
 would let the migration's output depend on whatever a previous run happened
 to leave behind, and rerunning the migration must produce identical output

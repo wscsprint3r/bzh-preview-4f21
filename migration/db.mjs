@@ -17,7 +17,7 @@ export const DUMP_PATH =
   '/Users/stefan/Work/stuff/site-bzh/backup-2026-08-27/database.sql.gz';
 
 /** Named for this project, so a stray container is attributable. */
-export const CONTAINER_NAME = 'bzh-migrare';
+export const CONTAINER_NAME = 'bzh-migration';
 
 // Exported (not a real secret - a disposable local container's root password)
 // so `db.test.mjs` can start its own minimal, dump-free container for the
