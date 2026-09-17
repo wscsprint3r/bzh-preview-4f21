@@ -301,6 +301,26 @@ describe('re-encodarea chiar este curatarea', () => {
   });
 });
 
+describe('o scriere esuata opreste rularea', () => {
+  it('nu raporteaza o eroare de disc ca pe o imagine sarita', async () => {
+    // A file that cannot be DECODED is a corpus problem: it is named, skipped,
+    // and the run goes on. A file that cannot be WRITTEN is an environment
+    // problem - a full disk, a read-only checkout - and reporting it the same
+    // way would leave a migration that printed a tidy list and exited 0 while
+    // having written nothing. Here the repo root is a FILE, so mkdir fails with
+    // ENOTDIR.
+    const bun = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: '#ffffff' },
+    }).jpeg().toBuffer();
+    await pune('2024/09/bun.jpg', bun);
+    const nuEDirector = join(uploads, 'nu-e-director');
+    await writeFile(nuEDirector, 'sunt un fisier, nu un director');
+    await expect(
+      migreazaImagini(['/wp-content/uploads/2024/09/bun.jpg'], nuEDirector, uploads),
+    ).rejects.toThrow(/ENOTDIR|not a directory/i);
+  });
+});
+
 describe('a doua rulare scrie aceiasi octeti', () => {
   it('doua rulari in radacini diferite dau fisiere identice octet cu octet', async () => {
     // Spec 11. Proven rather than assumed: sharp is given explicit encoder

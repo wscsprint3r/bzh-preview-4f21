@@ -247,6 +247,12 @@ export async function migreazaImagini(
           `  ar fi citit ${sursa}\n  ar fi scris ${destinatie}`,
       );
     }
+    // Declared out here because the WRITE must not be inside the catch below:
+    // a file that cannot be decoded is a corpus problem, named and skipped, but
+    // a file that cannot be written is an environment problem - a full disk, a
+    // read-only checkout - and reporting the two the same way leaves a run that
+    // prints a tidy list and exits 0 having written nothing.
+    let iesire;
     try {
       const brut = await readFile(sursa);
       // Decode -> resize -> re-encode. This is the sanitisation: whatever was
@@ -270,13 +276,14 @@ export async function migreazaImagini(
               width: LATURA_MAXIMA, height: LATURA_MAXIMA, fit: 'inside', kernel: 'lanczos3',
             })
           : imagine;
-      const iesire = await OPTIUNI_ENCODARE[meta.format](redimensionata).toBuffer();
-      await mkdir(dirname(destinatie), { recursive: true });
-      await writeFile(destinatie, iesire);
-      harta.set(src, destinatieRel);
+      iesire = await OPTIUNI_ENCODARE[meta.format](redimensionata).toBuffer();
     } catch (e) {
       esuate.push([src, e instanceof Error ? e.message : String(e)]);
+      continue;
     }
+    await mkdir(dirname(destinatie), { recursive: true });
+    await writeFile(destinatie, iesire);
+    harta.set(src, destinatieRel);
   }
   // Print what was measured, not only the verdict. `process.stdout.write` and
   // not `console.log`, which vitest's default reporter swallows on exactly the
