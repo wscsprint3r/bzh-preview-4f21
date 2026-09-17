@@ -579,89 +579,124 @@ describe('PNG-urile nu se umfla', () => {
 
 describe('culoarea nu se schimba pe tacute', () => {
   /*
-   * MEASURED, over the 100 files this migration actually writes: 36 carry an
-   * ICC profile, and for 30 of them the raw numbers do NOT mean sRGB - checked
-   * against what ColorSync says those numbers mean, not against the profile's
-   * name, because the name is unreliable (a "GIMP built-in sRGB" profile really
-   * is sRGB and a "Display" one is Display P3). Worst offenders, max per
-   * channel against a colour-managed conversion:
+   * WHAT IS TRUE, and a previous round of this file asserted the opposite.
    *
-   *     60/255  2024/06/doxologia_19_2020.jpg      (mean 0.764)
-   *     56/255  2024/06/doxologia_13_2017.jpg      (mean 0.724)
-   *     40/255  2024/05/IMG_9432-scaled-...jpg     (mean 0.705)
-   *     29/255  2024/06/IMG_1640.jpg               (mean 0.208, Display P3)
+   * sharp imports the embedded ICC profile and converts the pixels to sRGB on
+   * INPUT, through lcms, whenever a file carries one. So the pipeline already
+   * emits sRGB, and attaching no profile is right for the web, where untagged
+   * means sRGB.
    *
-   * Most of them are the parish's own Doxologia magazine cover scans.
+   * THE ROUND THAT GOT THIS WRONG did so by comparing candidate calls against
+   * EACH OTHER - `withIccProfile('srgb')` against plain `.toBuffer()` - when
+   * both arms already had the input conversion applied, so of course they
+   * agreed, and the agreement was read as "sharp does not transform". The
+   * control never run was `ignoreIcc`, and it is the first case below.
+   * Measured: max 60 / mean 2.653 on a Display P3 file, and 0.000 on a file
+   * with no profile, so the difference is the profile being applied.
    *
-   * THE FIX IS TO CARRY THE PROFILE, NOT TO CONVERT, and that is forced rather
-   * than preferred: sharp 0.35.4 / libvips 8.18.6 here does NOT transform pixels
-   * through an ICC profile. Measured - `withIccProfile('srgb')` on a Display P3
-   * file leaves every channel value untouched and merely staples an sRGB label
-   * to it, which turns a silent mislabelling into an explicit one; and
-   * sRGB -> p3 on an untagged patch moves pixels by at most 1/255, which is
-   * rounding, not a gamut transform. So the only honest option is to keep the
-   * profile with the pixels it describes, which is what the web expects anyway.
+   * The external check that sharp's conversion is CORRECT, rather than merely
+   * present, was done against ColorSync (`sips --matchTo sRGB`) and lives in
+   * the task report: max 1 / mean 0.016 on PNG sources, where both decoders
+   * agree exactly. It is not in this suite because `sips` is macOS-only and CI
+   * is Linux. What this suite pins is that the conversion still happens.
    */
-  it('pastreaza profilul ICC exact, octet cu octet', async () => {
-    const cuP3 = await sharp({
-      create: { width: 50, height: 40, channels: 3, background: '#d0203c' },
-    }).withIccProfile('p3').jpeg().toBuffer();
-    const profilAsteptat = (await sharp(cuP3).metadata()).icc;
-    // The fixture must really carry one, or the assertion below is vacuous.
-    expect(profilAsteptat).toBeInstanceOf(Buffer);
-    expect(profilAsteptat.length).toBeGreaterThan(100);
-    await pune('2025/08/cu-profil.jpg', cuP3);
+  it('conduce pixelii prin profil, nu ii lasa netransformati', async () => {
+    const p3 = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#a03050' },
+    }).withIccProfile('p3').png().toBuffer();
+    expect((await sharp(p3).metadata()).icc).toBeInstanceOf(Buffer);
 
-    const src = '/wp-content/uploads/2025/08/cu-profil.jpg';
+    const transformat = await sharp(p3).raw().toBuffer();
+    const netransformat = await sharp(p3, { ignoreIcc: true }).raw().toBuffer();
+    // The fixture must actually exercise a transform, or the assertion after it
+    // would hold for a pipeline that does nothing at all.
+    expect(sha(transformat)).not.toBe(sha(netransformat));
+
+    await pune('2025/08/p3.png', p3);
+    const src = '/wp-content/uploads/2025/08/p3.png';
     const harta = await migreazaImagini([src], radacina, uploads);
     const iesire = await readFile(join(radacina, harta.get(src)));
-    const profilIesit = (await sharp(iesire).metadata()).icc;
-    expect(profilIesit).toBeInstanceOf(Buffer);
-    expect(sha(profilIesit)).toBe(sha(profilAsteptat));
+    // PNG in and out, so no codec sits in this comparison.
+    const iesit = await sharp(iesire, { ignoreIcc: true }).raw().toBuffer();
+    expect(sha(iesit)).toBe(sha(transformat));
+    expect(sha(iesit)).not.toBe(sha(netransformat));
   });
 
-  it('nu inventeaza un profil pentru un fisier care nu are niciunul', async () => {
-    // The other direction: attaching sRGB to everything would be a lie about
-    // the 64 files that carry no profile, and would add bytes to every one.
-    const fara = await sharp({
-      create: { width: 30, height: 30, channels: 3, background: '#204080' },
-    }).jpeg().toBuffer();
-    expect((await sharp(fara).metadata()).icc).toBeUndefined();
-    await pune('2025/08/fara-profil.jpg', fara);
-
-    const src = '/wp-content/uploads/2025/08/fara-profil.jpg';
+  it('nu lasa niciun profil pe iesire', async () => {
+    // Untagged means sRGB on the web, and the pixels are already sRGB. Carrying
+    // the profile instead was measured to DOUBLE-APPLY the transform for a
+    // colour-managed reader - see the module comment.
+    const p3 = await sharp({
+      create: { width: 20, height: 20, channels: 3, background: '#2080c0' },
+    }).withIccProfile('p3').jpeg().toBuffer();
+    expect((await sharp(p3).metadata()).icc).toBeInstanceOf(Buffer);
+    await pune('2025/08/p3.jpg', p3);
+    const src = '/wp-content/uploads/2025/08/p3.jpg';
     const harta = await migreazaImagini([src], radacina, uploads);
     const iesire = await readFile(join(radacina, harta.get(src)));
     expect((await sharp(iesire).metadata()).icc).toBeUndefined();
   });
 
-  it('profilul supravietuieste si pe PNG, nu doar pe JPEG', async () => {
-    const png = await sharp({
-      create: { width: 40, height: 30, channels: 3, background: '#20a060' },
-    }).withIccProfile('p3').png().toBuffer();
-    const asteptat = (await sharp(png).metadata()).icc;
-    expect(asteptat).toBeInstanceOf(Buffer);
-    await pune('2025/08/cu-profil.png', png);
-    const src = '/wp-content/uploads/2025/08/cu-profil.png';
-    const harta = await migreazaImagini([src], radacina, uploads);
-    const iesire = await readFile(join(radacina, harta.get(src)));
-    expect(sha((await sharp(iesire).metadata()).icc)).toBe(sha(asteptat));
-  });
+  it('CONTROL POZITIV: o incarcatura dintr-un profil ICC valid nu supravietuieste', async () => {
+    /*
+     * A PROVEN ATTACK ON THIS CORPUS, not a hypothetical: an ICC profile is
+     * attacker-controlled bytes off a twice-compromised server, and the round
+     * that copied profiles through carried this payload into the output
+     * verbatim. The test that was supposed to cover it asked only about EXIF,
+     * so it passed the whole time.
+     *
+     * The profile is grown properly rather than faked - the `desc` tag gets a
+     * new data block, the tag table is repointed at it and the declared size is
+     * updated - so what is planted sits inside a profile sharp accepts.
+     */
+    const baza = await sharp({
+      create: { width: 30, height: 20, channels: 3, background: '#a03050' },
+    }).withIccProfile('p3').jpeg().toBuffer();
+    const profil = (await sharp(baza).metadata()).icc;
+    const n = profil.readUInt32BE(128);
+    let idx = -1;
+    for (let i = 0; i < n; i += 1) {
+      if (profil.toString('ascii', 132 + i * 12, 132 + i * 12 + 4) === 'desc') { idx = i; break; }
+    }
+    expect(idx).toBeGreaterThanOrEqual(0);
+    const corp = Buffer.alloc(12 + PAYLOAD.length + 1);
+    corp.write('desc', 0, 'ascii');
+    corp.writeUInt32BE(0, 4);
+    corp.writeUInt32BE(PAYLOAD.length + 1, 8);
+    corp.write(PAYLOAD, 12, 'ascii');
+    const bloc = Buffer.concat([corp, Buffer.alloc((4 - (corp.length % 4)) % 4)]);
+    const otravit = Buffer.concat([profil, bloc]);
+    otravit.writeUInt32BE(profil.length, 132 + idx * 12 + 4);
+    otravit.writeUInt32BE(corp.length, 132 + idx * 12 + 8);
+    otravit.writeUInt32BE(otravit.length, 0);
 
-  it('EXIF tot nu supravietuieste, desi ICC supravietuieste acum', async () => {
-    // Keeping the colour profile must not quietly re-open the metadata door
-    // that the sanitisation closed.
-    const cu = await sharp({
-      create: { width: 30, height: 20, channels: 3, background: '#405060' },
-    }).withIccProfile('p3').withExifMerge({ IFD0: { ImageDescription: PAYLOAD } })
-      .jpeg().toBuffer();
-    expect(cu.includes(PAYLOAD)).toBe(true);
-    await pune('2025/08/icc-si-exif.jpg', cu);
-    const src = '/wp-content/uploads/2025/08/icc-si-exif.jpg';
+    const caleIcc = join(uploads, 'otravit.icc');
+    await writeFile(caleIcc, otravit);
+    const fixtura = await sharp({
+      create: { width: 30, height: 20, channels: 3, background: '#a03050' },
+    }).withIccProfile(caleIcc).jpeg().toBuffer();
+    // The fixture must really carry it, or this control is empty.
+    expect(fixtura.includes(PAYLOAD)).toBe(true);
+    expect((await sharp(fixtura).metadata()).icc.includes(PAYLOAD)).toBe(true);
+
+    await pune('2025/12/profil.jpg', fixtura);
+    const src = '/wp-content/uploads/2025/12/profil.jpg';
     const harta = await migreazaImagini([src], radacina, uploads);
     const iesire = await readFile(join(radacina, harta.get(src)));
     expect(iesire.includes(PAYLOAD)).toBe(false);
-    expect((await sharp(iesire).metadata()).icc).toBeInstanceOf(Buffer);
+    expect(iesire.includes('<?php')).toBe(false);
+  });
+
+  it('EXIF nu supravietuieste', async () => {
+    const cu = await sharp({
+      create: { width: 30, height: 20, channels: 3, background: '#405060' },
+    }).withExifMerge({ IFD0: { ImageDescription: PAYLOAD } }).jpeg().toBuffer();
+    expect(cu.includes(PAYLOAD)).toBe(true);
+    await pune('2025/08/exif2.jpg', cu);
+    const src = '/wp-content/uploads/2025/08/exif2.jpg';
+    const harta = await migreazaImagini([src], radacina, uploads);
+    const iesire = await readFile(join(radacina, harta.get(src)));
+    expect(iesire.includes(PAYLOAD)).toBe(false);
   });
 });
 
@@ -728,9 +763,70 @@ describe('tiparul uploads este ancorat si legaturile simbolice nu trec', () => {
       .toThrow(/upload/i);
     expect(() => numeDestinatie('https://evil.example/wpuploads/2024/05/poza.jpg'))
       .toThrow(/upload/i);
+    // ON OUR OWN HOST, so the anchor is what has to refuse it rather than the
+    // host check. Without this the two guards mask each other and either could
+    // be deleted with nothing going red - measured, removing the anchor left
+    // all 52 green until this line existed.
+    expect(() => numeDestinatie('https://www.bor-zh.ch/myuploads/2024/05/poza.jpg'))
+      .toThrow(/upload/i);
+    expect(() => numeDestinatie('https://www.bor-zh.ch/media/uploads/2024/05/poza.jpg'))
+      .toThrow(/upload/i);
     // Ours still work, including the protocol-relative form the corpus carries.
     expect(numeDestinatie('//www.bor-zh.ch/wp-content/uploads/2024/05/hram.jpg'))
       .toBe('src/assets/continut/2024/05/hram.jpg');
+  });
+
+  it('un alt WordPress nu poate alege care dintre fisierele noastre se migreaza', async () => {
+    /*
+     * Anchoring the path closed `myuploads` and left the bigger half open.
+     * EVERY WordPress in the world serves `/wp-content/uploads/`, so a foreign
+     * host naming that path is the COMMON shape, not the exotic one - and it
+     * resolved to the parish's own file under that name.
+     */
+    for (const gazda of ['https://evil.example', 'http://evil.example', '//evil.example']) {
+      expect(() => numeDestinatie(`${gazda}/wp-content/uploads/2024/05/poza.jpg`))
+        .toThrow(/upload/i);
+    }
+    // The classic way to be fooled: our host as USERINFO, theirs as the host.
+    expect(() => numeDestinatie('https://www.bor-zh.ch@evil.example/wp-content/uploads/2024/05/poza.jpg'))
+      .toThrow(/upload/i);
+    // And ours still pass, in every form the corpus carries.
+    expect(numeDestinatie('https://www.bor-zh.ch/wp-content/uploads/2024/05/hram.jpg'))
+      .toBe('src/assets/continut/2024/05/hram.jpg');
+    expect(numeDestinatie('//www.bor-zh.ch/wp-content/uploads/2024/05/hram.jpg'))
+      .toBe('src/assets/continut/2024/05/hram.jpg');
+    expect(numeDestinatie('/wp-content/uploads/2024/05/hram.jpg'))
+      .toBe('src/assets/continut/2024/05/hram.jpg');
+  });
+
+  it('incuietoarea a doua chiar este a doua: prinde inaintea verificarii miniaturii', async () => {
+    /*
+     * THIS IS THE CASE THAT TELLS THE TWO ORDERS APART, and without it the
+     * reorder was a claim read off the source rather than a behaviour: moving
+     * the containment block back below the dead-reference `continue` left all
+     * fifty cases green.
+     *
+     * A referenced THUMBNAIL whose original is a symlink out of the tree. The
+     * outside file is deliberately SMALLER than the thumbnail, so if
+     * `verificaMiniatura` were reached first it would throw its own
+     * "mai mic" complaint - having already `existsSync`-ed and decoded a file
+     * outside the uploads tree, which is the thing the lock exists to prevent.
+     * Containment first means the second lock speaks instead.
+     */
+    const mic = await sharp({
+      create: { width: 20, height: 16, channels: 3, background: '#906030' },
+    }).jpeg().toBuffer();
+    const afara = join(radacina, 'afara-mic.jpg');
+    await writeFile(afara, mic);
+    await mkdir(join(uploads, '2026/01'), { recursive: true });
+    await writeFile(join(uploads, '2026/01/poza-100x80.jpg'), await sharp({
+      create: { width: 100, height: 80, channels: 3, background: '#906030' },
+    }).jpeg().toBuffer());
+    await symlink(afara, join(uploads, '2026/01/poza.jpg'));
+
+    await expect(
+      migreazaImagini(['/wp-content/uploads/2026/01/poza-100x80.jpg'], radacina, uploads),
+    ).rejects.toThrow(/a doua incuietoare/);
   });
 
   it('o legatura simbolica din arborele uploads nu scoate cititul afara', async () => {

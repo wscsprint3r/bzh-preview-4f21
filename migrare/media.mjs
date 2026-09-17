@@ -121,6 +121,39 @@ function dimensiuniDinNume(cale) {
 const SEGMENT_PERMIS = /^[A-Za-z0-9._-]+$/;
 
 /**
+ * The hosts a `src` may name and still be ours.
+ *
+ * Anchoring the path to `wp-content/uploads/` closed `myuploads` and left the
+ * bigger half open: `https://evil.example/wp-content/uploads/2024/05/poza.jpg`
+ * is the COMMON shape, because every WordPress in the world serves that path,
+ * and it resolved to the parish's own `2024/05/poza.jpg` - a foreign page
+ * choosing which of our files lands under which name.
+ *
+ * Measured over the 100 real srcs: 95 `https://www.bor-zh.ch`, 2
+ * protocol-relative `//www.bor-zh.ch`, 3 featured images on the same host, and
+ * 0 with no host at all. The apex without `www` does not occur; it is listed
+ * because it is the same parish's own domain rather than a different party, and
+ * a `src` naming any other host is reported as foreign rather than migrated.
+ */
+const GAZDE_PROPRII = ['www.bor-zh.ch', 'bor-zh.ch'];
+
+/**
+ * The host a `src` names, lower-cased, or `null` when it names none.
+ *
+ * Takes the text after the LAST `@`, because that is what a browser does:
+ * `https://www.bor-zh.ch@evil.example/...` has the host `evil.example`, and
+ * reading the first label instead is the classic way to be fooled by one.
+ */
+function gazdaDin(srcWp) {
+  const m = srcWp.match(/^(?:[a-z][a-z0-9+.-]*:)?\/\/([^/]*)/i);
+  if (m === null) return null;
+  let gazda = m[1].toLowerCase();
+  const at = gazda.lastIndexOf('@');
+  if (at >= 0) gazda = gazda.slice(at + 1);
+  return gazda.replace(/:\d+$/, '');
+}
+
+/**
  * Whether `cale` resolves inside `radacina`. The SECOND lock.
  *
  * `SEGMENT_PERMIS` is the first and is meant to be sufficient; this one asks
@@ -184,6 +217,8 @@ function caleaRelativa(srcWp) {
   // `2024/05/poza.jpg` in its place - not an escape, but a foreign page
   // choosing which of our files lands under which name. Measured: all 100 real
   // srcs carry `/wp-content/uploads/`, including the two protocol-relative ones.
+  const gazda = gazdaDin(srcWp);
+  if (gazda !== null && !GAZDE_PROPRII.includes(gazda)) return null;
   const m = srcWp.match(/(?:^|\/)wp-content\/uploads\/(.+)$/);
   if (m === null) return null;
   const relativ = m[1];
@@ -284,6 +319,34 @@ const OPTIUNI_ENCODARE = {
       smartSubsample: false, effort: 4,
     }),
 };
+
+/**
+ * COLOUR, AND WHY NOTHING HERE MENTIONS AN ICC PROFILE.
+ *
+ * sharp imports the embedded ICC profile and converts the pixels to sRGB on
+ * INPUT, through lcms, whenever the file carries one and `ignoreIcc` is unset -
+ * which it is. So `sharp(...).rotate()` already hands us sRGB pixels, and
+ * writing them with no profile attached is correct for the web, where untagged
+ * means sRGB.
+ *
+ * MEASURED, because a previous round of this file got it backwards and shipped
+ * the opposite: `sharp(F).raw()` against `sharp(F, { ignoreIcc: true }).raw()`
+ * differs by max 60 / mean 2.653 on `2024/06/IMG_1640.jpg` (Display P3), and by
+ * 0.000 on a file that carries no profile - so the difference is the profile
+ * being applied, not noise. Against a ColorSync conversion of the same file the
+ * output agrees to max 1 / mean 0.016 on PNG sources, where both decoders agree
+ * exactly and no codec sits in the measurement.
+ *
+ * DO NOT ADD `keepIccProfile()`. It was added in one round and reverted in the
+ * next, and it was wrong twice over. It re-attached the INPUT's profile to
+ * pixels sharp had already converted to sRGB, so a colour-managed reader
+ * applied the transform a second time: measured, that moved those same PNG
+ * sources from max 1 / mean 0.016 to max 42-54 / mean 2.1-3.9 - it did not
+ * preserve colour, it broke it. And an ICC profile is attacker-controlled data
+ * off a twice-compromised server: a payload planted inside a structurally valid
+ * profile survived the copy verbatim, which is a hole in the one guarantee this
+ * file exists to provide. `migrare/media.test.mjs` has that control.
+ */
 
 /**
  * The extensions each decoded format is allowed to be called.
@@ -498,7 +561,7 @@ export async function migreazaImagini(
       // back into pixels and written out fresh. Nothing calls `withMetadata`,
       // so EXIF goes too - which is where a payload hides when appending one
       // after the end marker stops working.
-      const imagine = sharp(brut, { failOn: 'error' }).rotate().keepIccProfile();
+      const imagine = sharp(brut, { failOn: 'error' }).rotate();
       const meta = await imagine.metadata();
       const ext = relativ.split('.').pop().toLowerCase();
       const permise = EXTENSII_PENTRU_FORMAT[meta.format];
