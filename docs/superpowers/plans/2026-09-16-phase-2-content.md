@@ -1203,7 +1203,31 @@ git commit -m "feat(migrare): migrate only referenced images, sanitising each by
 
 **Files:**
 - Create: `migrare/articole.mjs`, `migrare/articole.test.mjs`
+- Modify: `src/lib/diacritice-surse.test.ts` (the `BINARE` rule, below)
+- Create: `src/lib/binare.itest.ts`
 - Creates at run time: `src/content/articole/*.md`
+
+**This is the task that first commits the migrated images, and the moment it
+does, `src/lib/diacritice-surse.test.ts` goes red.** Its case *nu lasa afara
+niciun fisier urmarit pe care nimeni nu l-a numit binar* fails every tracked
+file that is not valid UTF-8 and is not listed in `BINARE` — which holds one
+path, named one by one on purpose. About a hundred JPEGs and PNGs cannot be
+named one by one.
+
+Replace `BINARE.includes(cale)` with a predicate: `public/favicon.ico`, or a
+path under the migrated-image directory whose extension is on a fixed
+allow-list. **A prefix rule on its own is a pure weakening, so it does not ship
+alone.** The "cannot fall behind" property is replaced by something stronger
+than naming: a check that every file under that prefix actually DECODES as an
+image through sharp. A name list is defeated by renaming a payload to `.jpg`; a
+decode check is not, and it asserts from the outside exactly the guarantee
+Task 5's pipeline makes from the inside. It needs sharp and around a hundred
+files, so it belongs in `src/lib/binare.itest.ts`, run by `npm run test:build`,
+not in the unit sweep.
+
+Also assert that the prefix rule matches at least one real file, so it cannot
+quietly become dead, and that nothing under the prefix carries an extension off
+the allow-list.
 
 **Interfaces:**
 - Consumes: `interogheaza`, `laMarkdown`, `imaginiDin`, `migreazaImagini`, `articolSchema`.
