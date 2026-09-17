@@ -41,6 +41,7 @@
     "chromedriver": "153.0.0",
     "esbuild": "0.28.2",
     "selenium-webdriver": "4.44.0",
+    "sharp": "0.35.4",
     "turndown": "^7.2.4",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1",
