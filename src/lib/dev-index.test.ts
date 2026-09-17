@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexulPublic } from '../../scripts/dev-index.mjs';
+import { publicIndex } from '../../scripts/dev-index.mjs';
 
 /*
  * WHAT THIS PROVES: a request for a directory under `public/` is rewritten to
@@ -14,57 +14,57 @@ import { indexulPublic } from '../../scripts/dev-index.mjs';
  * thing anybody does.
  *
  * The rewrite is `astro:server:setup` only, so it cannot reach a build. What is
- * tested here is the decision, not the middleware: `indexulPublic` takes the
+ * tested here is the decision, not the middleware: `publicIndex` takes the
  * existence check as an argument, so these cases are about the rule rather than
  * about what happens to be on this disk. The last case is the exception — it
  * uses the real `public/` to prove the rule and reality meet.
  */
 
 /** A `public/` with exactly these files in it. */
-const are = (...cai: string[]) => (cale: string) => cai.includes(cale);
+const has = (...paths: string[]) => (path: string) => paths.includes(path);
 
-describe('indexulPublic', () => {
-  it('rescrie un director care are index.html', () => {
-    expect(indexulPublic('/admin/', are('admin/index.html'))).toBe('/admin/index.html');
+describe('publicIndex', () => {
+  it('rewrites a directory that has an index.html', () => {
+    expect(publicIndex('/admin/', has('admin/index.html'))).toBe('/admin/index.html');
   });
 
-  it('nu atinge un director fără index.html', () => {
-    expect(indexulPublic('/admin/', are())).toBeNull();
+  it('does not touch a directory with no index.html', () => {
+    expect(publicIndex('/admin/', has())).toBeNull();
   });
 
-  it('nu atinge un fișier cerut pe nume', () => {
-    expect(indexulPublic('/admin/config.yml', are('admin/index.html'))).toBeNull();
+  it('does not touch a file asked for by name', () => {
+    expect(publicIndex('/admin/config.yml', has('admin/index.html'))).toBeNull();
   });
 
-  it('nu atinge o cale fără bară la final, pe care o rutează Astro', () => {
+  it('does not touch a path without a trailing slash, which Astro routes', () => {
     // `/admin` fără bară rămâne un 404 al serverului de dezvoltare, ca înainte:
     // `trailingSlash: 'always'` spune că adresa cu bară este adresa.
-    expect(indexulPublic('/admin', are('admin/index.html'))).toBeNull();
+    expect(publicIndex('/admin', has('admin/index.html'))).toBeNull();
   });
 
-  it('nu atinge NICIODATĂ rădăcina sitului', () => {
+  it('NEVER touches the site root', () => {
     // `/` este o rută Astro. Chiar și cu un `public/index.html` pe disc — mai
     // ales atunci — pagina randată trebuie să câștige.
-    expect(indexulPublic('/', are('index.html'))).toBeNull();
+    expect(publicIndex('/', has('index.html'))).toBeNull();
   });
 
-  it('păstrează interogarea și fragmentul', () => {
-    expect(indexulPublic('/admin/?x=1', are('admin/index.html'))).toBe('/admin/index.html?x=1');
-    expect(indexulPublic('/admin/#/collections', are('admin/index.html'))).toBe('/admin/index.html#/collections');
+  it('keeps the query and the fragment', () => {
+    expect(publicIndex('/admin/?x=1', has('admin/index.html'))).toBe('/admin/index.html?x=1');
+    expect(publicIndex('/admin/#/collections', has('admin/index.html'))).toBe('/admin/index.html#/collections');
   });
 
-  it('decodează calea înainte de a o căuta pe disc', () => {
-    expect(indexulPublic('/ad%6Din/', are('admin/index.html'))).toBe('/ad%6Din/index.html');
+  it('decodes the path before looking for it on disk', () => {
+    expect(publicIndex('/ad%6Din/', has('admin/index.html'))).toBe('/ad%6Din/index.html');
   });
 
-  it('nu atinge o cale care nu începe cu o bară', () => {
-    expect(indexulPublic('admin/', are('admin/index.html'))).toBeNull();
+  it('does not touch a path that does not start with a slash', () => {
+    expect(publicIndex('admin/', has('admin/index.html'))).toBeNull();
   });
 
-  it('pe public/-ul adevărat, /admin/ chiar se rezolvă', () => {
+  it('against the real public/, /admin/ really does resolve', () => {
     // Controlul care leagă regula de realitate: fără el toate cazurile de mai
     // sus ar putea fi corecte despre un director care nu există.
-    expect(indexulPublic('/admin/')).toBe('/admin/index.html');
-    expect(indexulPublic('/nu-exista/')).toBeNull();
+    expect(publicIndex('/admin/')).toBe('/admin/index.html');
+    expect(publicIndex('/nu-exista/')).toBeNull();
   });
 });

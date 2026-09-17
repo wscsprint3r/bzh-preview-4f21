@@ -14,10 +14,10 @@ permissions:
   contents: read
 
 jobs:
-  verifica:
+  verify:
     runs-on: ubuntu-latest
     env:
-      # `aziLaZurich` is explicit about its timezone, but pinning the runner
+      # `todayInZurich` is explicit about its timezone, but pinning the runner
       # removes any doubt about what "today" meant during a build — and the
       # audits below render pages whose content depends on the date.
       TZ: Europe/Zurich
@@ -56,17 +56,17 @@ jobs:
       # stylesheet order are cascade rules, and a parser asserting over CSS text
       # loses to them.
       #
-      #   a11y:mobil     — 390px. The default audit viewport measures 756px, so
+      #   a11y:mobile    — 390px. The default audit viewport measures 756px, so
       #                    the 34rem phone breakpoint, where the day row drops
       #                    its month name, is otherwise never audited. Most of
       #                    the parish reads this on a phone.
-      #   a11y:larg      — 1100px, above the 62rem breakpoint where the week band
+      #   a11y:wide      — 1100px, above the 62rem breakpoint where the week band
       #                    regrids to fit a seven-day Holy Week. Unaudited for
       #                    the same reason and by the same measurement.
-      #   a11y:selector  — the week picker's bar un-hides only at two or more
+      #   a11y:picker    — the week picker's bar un-hides only at two or more
       #                    weeks, and the parish's real schedule is one, so on
       #                    every real build it stays hidden and axe skips it.
-      #                    This builds a throwaway site from `src/lib/fixturi.ts`
+      #                    This builds a throwaway site from `src/lib/fixtures.ts`
       #                    and is the ONLY pass that ever sees the bar, its
       #                    label, its arrows or its focus ring. It runs at three
       #                    widths, 1100px among them: the 62rem week band WITH
@@ -76,6 +76,6 @@ jobs:
       # Each of these also runs with the page's scripts disabled, which is the
       # only state in which every week is rendered and therefore auditable.
       # ---------------------------------------------------------------------
-      - run: npm run a11y:mobil
-      - run: npm run a11y:larg
-      - run: npm run a11y:selector
+      - run: npm run a11y:mobile
+      - run: npm run a11y:wide
+      - run: npm run a11y:picker

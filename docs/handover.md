@@ -104,7 +104,7 @@ driver it will never run. Verified locally that the build is correct without it.
 **B5.** Deploy.
 
 *Good answer:* the build log ends with `[build] Complete!` and contains a line reading
-`[hashuri-csp] CSP: index.html script inline de NNNN octeți -> 'sha256-…'`. **If that line
+`[csp-hashes] CSP: index.html script inline de NNNN octeți -> 'sha256-…'`. **If that line
 is missing, stop** — the policy shipped without the hash and the site's JavaScript is dead,
 with no visible symptom, because the page without JavaScript is the designed fallback. Then
 `https://<project>.pages.dev/` serves the homepage.
@@ -112,7 +112,7 @@ with no visible symptom, because the page without JavaScript is the designed fal
 **B6. This deployment is deliberately invisible to search engines, and un-hiding it is a
 step of the DNS cutover — not of this checklist.** Every visitor page carries
 `<meta name="robots" content="noindex">` and **no** `rel=canonical`, both decided by
-`INDEXABIL` in `src/lib/site.ts`.
+`INDEXABLE` in `src/lib/site.ts`.
 
 Two things were wrong before that flag existed, and they are worth understanding rather
 than just checking: Cloudflare marks *preview* deployments noindex but not the production
@@ -161,7 +161,7 @@ Client secret (shown once).
 > config, renders the sign-in screen and even echoes `<REPO>` back at you. The failure lands
 > on the sign-in attempt. If signing in does nothing, check these two lines first.
 
-**D2.** `public/admin/pornire.mjs`: `const CONTACT = 'persoanei care se ocupă de site';` —
+**D2.** `public/admin/startedAt.mjs`: `const CONTACT = 'persoanei care se ocupă de site';` —
 it is in the dative, so a real person drops straight in:
 `'lui Ion Popescu (ion@exemplu.ch)'`.
 
@@ -247,10 +247,10 @@ mechanical:
 
 **Five messages are expected and can be ignored**, each measured in a real browser and each
 verified to fail gracefully: `unpkg.com/@sveltia/cms/package.json`,
-`www.githubstatus.com/api/v2/status.json`, a `data:` logo fetch, and two `blob:` image
+`www.githubstatus.com/api/v2/status.json`, a `date:` logo fetch, and two `blob:` image
 refusals. `public/_headers` explains every one.
 
-**If you add anything to the policy, add it to `CSP_ASTEPTAT` in `scripts/a11y.mjs` too**,
+**If you add anything to the policy, add it to `CSP_EXPECTED` in `scripts/a11y.mjs` too**,
 or `npm run a11y` will fail on it — that is the list doing its job. The same list fails when
 an expected refusal *stops* appearing, which is what catches an audit that measured nothing.
 
@@ -265,7 +265,7 @@ so the first person to meet an empty thumbnail does not report it as "the CMS is
 **H1.** In `/admin/`, add next Sunday and press **Save**. (`Save` publishes. There is no
 `Publish` button in this configuration.)
 
-*Good answer:* a commit appears on the build branch adding `src/content/slujbe/<date>.yml`.
+*Good answer:* a commit appears on the build branch adding `src/content/services/<date>.yml`.
 
 **H2.** Open that file. *Good answer:* it looks like the seed files — `ora: "08:45"` quoted,
 no `praznic: ""`.
@@ -343,7 +343,7 @@ CMS commits to the build branch, `ci.yml` runs on that push, and the failure ema
 
 *What to do, once, before you hand the site over:*
 
-1. On a branch, set `BUGET_PAGINI['program/index.html']` in `scripts/check-budget.mjs` to
+1. On a branch, set `PAGE_BUDGET['program/index.html']` in `scripts/check-budget.mjs` to
    `1024`, commit and push. CI will go red on `npm run budget`.
 2. Open the **failure e-mail** GitHub sends you and write down here what it contains. This
    repository cannot see or change that e-mail, and `README.md` now tells the editors it

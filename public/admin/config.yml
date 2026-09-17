@@ -5,8 +5,8 @@
 # and is read as prose, not as a field name. Comments are for whoever maintains
 # it and stay in English, the same split the rest of this repository uses.
 #
-# THE ONE RULE THAT IS NOT NEGOTIABLE. The `options:` under `slujba` must stay
-# identical — same strings, same order — to `NUME_SLUJBE` in `src/lib/schema.ts`.
+# THE ONE RULE THAT IS NOT NEGOTIABLE. The `options:` under `service` must stay
+# identical — same strings, same order — to `SERVICE_NAMES` in `src/lib/schema.ts`.
 # `src/lib/schema.test.ts` fails if they drift, because the alternative is a
 # dropdown that offers a value the build then rejects: the volunteer picks an
 # option this file gave them and gets a failed deploy for it.
@@ -74,11 +74,11 @@ public_folder: /uploads
 # HOW THE FILES ARE WRITTEN, and why both of these are load-bearing.
 #
 # `quote: double` — Sveltia writes string values unquoted by default, and Astro
-# parses these files with js-yaml's default schema. Unquoted, `data: 2026-09-27`
+# parses these files with js-yaml's default schema. Unquoted, `date: 2026-09-27`
 # comes back as a JavaScript Date rather than the string the schema expects, and
 # the entry a volunteer just published fails the build. Double-quoting every
-# string value also keeps `ora: "07:30"` a string, which is how the hand-written
-# files in `src/content/slujbe/` are already spelled.
+# string value also keeps `time: "07:30"` a string, which is how the hand-written
+# files in `src/content/services/` are already spelled.
 #
 # BOTH ARE SVELTIA OPTIONS, AND `quote` SOLVES A SVELTIA PROBLEM. Decap — the
 # config-level fallback of spec §17 — serialises with js-yaml, which quotes
@@ -88,8 +88,8 @@ public_folder: /uploads
 # person keeps and wonders about.
 #
 # `omit_empty_optional_fields` — without it every optional field is written as an
-# empty string, so a plain weekday gains `praznic: ""`, `note: ""`, `locatie: ""`
-# and every service gains `detaliu: ""`. The files stay as short as the ones a
+# empty string, so a plain weekday gains `feast: ""`, `notes: ""`, `location: ""`
+# and every service gains `detail: ""`. The files stay as short as the ones a
 # person would write.
 output:
   omit_empty_optional_fields: true
@@ -97,41 +97,41 @@ output:
     quote: double
 
 collections:
-  - name: slujbe
+  - name: services
     label: Program liturgic
     label_singular: Zi de slujbă
-    folder: src/content/slujbe
+    folder: src/content/services
     extension: yml
     format: yaml
     create: true
     delete: true
     # The filename IS the date, and everything downstream joins on it:
-    # `idDinNumeFisier` in `src/lib/schema.ts` rejects a name that is not one,
+    # `idFromFilename` in `src/lib/schema.ts` rejects a name that is not one,
     # the weeks on `/program/` are grouped by it, and the calendar feed's UIDs
     # are built from it. Changing this template renames every future file.
-    slug: "{{fields.data}}"
-    identifier_field: data
+    slug: "{{fields.date}}"
+    identifier_field: date
     # Newest first, so last week's day is the first thing on screen to duplicate
     # (spec §6.1). The default is oldest-first, which puts the least useful day
     # at the top and gets worse every week.
     sortable_fields:
-      fields: [data]
+      fields: [date]
       default:
-        field: data
+        field: date
         direction: descending
-    # A SPACE, NOT A DASH, between the two. Most days have no `praznic`, and
-    # `{{data}} — {{praznic}}` leaves every one of them showing a dangling dash in
+    # A SPACE, NOT A DASH, between the two. Most days have no `feast`, and
+    # `{{date}} — {{feast}}` leaves every one of them showing a dangling dash in
     # the entry list - which is the first thing an editor sees, every week. With a
     # space, a plain weekday reads `2026-09-16` and a feast day reads
     # `2026-09-20 Duminica după Înălțarea Sfintei Cruci`; the trailing space on the
     # ordinary days is invisible.
-    summary: "{{data}} {{praznic}}"
+    summary: "{{date}} {{feast}}"
     description: >
       Fiecare intrare este o zi cu slujbe. Pentru o săptămână obișnuită,
       deschideți ziua din săptămâna trecută, apăsați „Duplicate” și schimbați
       data. Zilele trecute dispar singure de pe site.
     fields:
-      - name: data
+      - name: date
         label: Data
         widget: datetime
         date_format: YYYY-MM-DD
@@ -141,23 +141,23 @@ collections:
           Data este și numele fișierului, iar numele nu se schimbă singur după ce
           ziua a fost publicată. Dacă ați greșit data unei zile deja publicate,
           ștergeți ziua și adăugați-o din nou cu data bună.
-      - name: praznic
+      - name: feast
         label: Praznic sau sărbătoare
         widget: string
         required: false
         hint: Lăsați gol pentru o zi obișnuită.
-      - name: praznic_mare
+      - name: great_feast
         label: Praznic mare
         widget: boolean
         default: false
         required: false
         hint: Marchează ziua cu cruce și chenar auriu. Necesită numele praznicului.
-      - name: zi_de_post
+      - name: fast_day
         label: Zi de post
         widget: boolean
         default: false
         required: false
-      - name: anulat
+      - name: cancelled
         label: Slujbele sunt anulate
         widget: boolean
         default: false
@@ -165,35 +165,35 @@ collections:
         hint: >
           Păstrați orele și bifați aici. Dacă ștergeți orele, cei abonați la
           calendar rămân cu vechiul program și nu află de anulare.
-      - name: note
+      - name: notes
         label: Observații
         widget: text
         required: false
-      - name: locatie
+      - name: location
         label: Alt loc decât capela obișnuită
         widget: string
         required: false
         hint: >
           Numele locului, fără punct la final. Textul apare ca atare pe site și în
           calendarul la care sunt abonați credincioșii.
-      - name: slujbe
+      - name: services
         label: Slujbe
         label_singular: Slujbă
         widget: list
-        summary: "{{fields.ora}} {{fields.slujba}}"
+        summary: "{{fields.time}} {{fields.service}}"
         hint: >
           Verificați ziua săptămânii înainte de a publica: duminica are de obicei
           Utrenia și Sfânta Liturghie. Nimic din site nu poate verifica asta
           în locul dumneavoastră.
         fields:
-          - name: ora
+          - name: time
             label: Ora
             widget: string
             pattern: ['^([01]?\d|2[0-3]):[0-5]\d$', 'Scrieți ora ca 08:30']
-          - name: slujba
+          - name: service
             label: Slujba
             widget: select
-            # IDENTICAL TO `NUME_SLUJBE` IN `src/lib/schema.ts`. See the note at
+            # IDENTICAL TO `SERVICE_NAMES` IN `src/lib/schema.ts`. See the note at
             # the top of this file before changing a single character here.
             options:
               - Utrenia
@@ -211,7 +211,7 @@ collections:
               - Botez
               - Cununie
               - Altceva
-          - name: detaliu
+          - name: detail
             label: Detaliu
             widget: string
             required: false

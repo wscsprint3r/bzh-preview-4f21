@@ -1,38 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { CEDILE, areVirgulaDedesubt, cedileIn, uPlus } from './cedile';
+import { CEDILLAS, hasCommaBelow, cedillasIn, uPlus } from './cedilla';
 import {
-  NUME_LUNI,
-  NUME_ZILE,
-  formatIntervalSaptamana,
-  numeLuna,
-  numeZi,
-  partiData,
-  ziuaDinLuna,
+  MONTH_NAMES,
+  DAY_NAMES,
+  formatWeekRange,
+  monthName,
+  dayName,
+  dateParts,
+  dayOfMonth,
 } from './date-ro';
 
 describe('vocabular', () => {
-  it('are șapte zile începând cu luni', () => {
-    expect(NUME_ZILE).toEqual([
+  it('has seven days starting with Monday', () => {
+    expect(DAY_NAMES).toEqual([
       'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică',
     ]);
   });
 
-  it('are douăsprezece luni', () => {
-    expect(NUME_LUNI).toHaveLength(12);
+  it('has twelve months', () => {
+    expect(MONTH_NAMES).toHaveLength(12);
     // Assert all twelve by value. Checking only the length and one entry let
     // `august` -> `aușust` and `martie` -> `marție` through the whole suite.
     // Every month name is pure ASCII, so any non-ASCII character here is wrong.
-    expect(NUME_LUNI).toEqual([
+    expect(MONTH_NAMES).toEqual([
       'ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie',
       'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie',
     ]);
   });
 
-  it('scrie zilele cu exact codepoint-urile corecte', () => {
+  it('writes the days with exactly the correct codepoints', () => {
     // Written as escapes deliberately: the day names are where every diacritic
     // in this module lives, and a look-alike glyph in the expectation would
     // silently agree with a corrupted table.
-    expect(NUME_ZILE).toEqual([
+    expect(DAY_NAMES).toEqual([
       'Luni',
       'Mar\u021Bi',                 // U+021B t-comma-below, never U+0163
       'Miercuri',
@@ -43,7 +43,7 @@ describe('vocabular', () => {
     ]);
   });
 
-  it('foloseste virgula dedesubt, nu sedila', () => {
+  it('uses comma below, not cedilla', () => {
     /*
      * Ultima gardă din proiect care scria chiar cele patru caractere interzise.
      * Era o clasă de caractere cu ele înăuntru, pe disc, într-un fișier urmărit —
@@ -52,117 +52,117 @@ describe('vocabular', () => {
      * din numere; aceasta era supraviețuitoarea decodării la scriere pe care o
      * documentează `CLAUDE.md`, și a rămas așa două runde.
      *
-     * Acum întreabă detectorul unic din `./cedile`, care le ține pe toate patru ca
+     * Acum întreabă detectorul unic din `./cedilla`, care le ține pe toate patru ca
      * numere. Titlul testului este ASCII curat dinadins: un titlu cu diacritice ar
      * fi fost încă un loc în care o sedilă ar fi trecut drept corectură.
      */
-    const tot = [...NUME_ZILE, ...NUME_LUNI].join('');
-    expect(cedileIn(tot)).toEqual([]);
+    const allText = [...DAY_NAMES, ...MONTH_NAMES].join('');
+    expect(cedillasIn(allText)).toEqual([]);
     // Și dovada că garda are ce prinde: tabelele chiar conțin virgulă dedesubt,
     // altfel „nicio sedilă” ar fi adevărat despre un corpus întâmplător ASCII.
-    expect(areVirgulaDedesubt(tot)).toBe(true);
+    expect(hasCommaBelow(allText)).toBe(true);
   });
 
-  it('detectorul chiar se declanșează pe fiecare dintre cele patru', () => {
+  it('the detector really does fire on each of the four', () => {
     // Control pozitiv, construit din numere: o gardă care nu poate să se
     // declanșeze nu verifică nimic.
-    for (const cp of CEDILE) {
-      expect(cedileIn(`Mar${String.fromCodePoint(cp)}i`), uPlus(cp)).toHaveLength(1);
+    for (const cp of CEDILLAS) {
+      expect(cedillasIn(`Mar${String.fromCodePoint(cp)}i`), uPlus(cp)).toHaveLength(1);
     }
   });
 });
 
-describe('numeZi', () => {
-  it('recunoaște o luni', () => {
-    expect(numeZi('2026-09-14')).toBe('Luni');
+describe('dayName', () => {
+  it('recognises a Monday', () => {
+    expect(dayName('2026-09-14')).toBe('Luni');
   });
 
-  it('recunoaște o duminică', () => {
-    expect(numeZi('2026-09-20')).toBe('Duminică');
+  it('recognises a Sunday', () => {
+    expect(dayName('2026-09-20')).toBe('Duminică');
   });
 
-  it('funcționează peste granița de an', () => {
-    expect(numeZi('2026-01-01')).toBe('Joi');
-  });
-});
-
-describe('numeLuna și ziuaDinLuna', () => {
-  it('întoarce luna cu literă mică', () => {
-    expect(numeLuna('2026-09-20')).toBe('septembrie');
-  });
-
-  it('întoarce ziua ca număr', () => {
-    expect(ziuaDinLuna('2026-09-07')).toBe(7);
+  it('works across the year boundary', () => {
+    expect(dayName('2026-01-01')).toBe('Joi');
   });
 });
 
-describe('formatIntervalSaptamana', () => {
-  it('comprimă o săptămână din aceeași lună', () => {
-    expect(formatIntervalSaptamana('2026-09-14', '2026-09-20'))
+describe('monthName and dayOfMonth', () => {
+  it('returns the month in lower case', () => {
+    expect(monthName('2026-09-20')).toBe('septembrie');
+  });
+
+  it('returns the day as a number', () => {
+    expect(dayOfMonth('2026-09-07')).toBe(7);
+  });
+});
+
+describe('formatWeekRange', () => {
+  it('compresses a week inside one month', () => {
+    expect(formatWeekRange('2026-09-14', '2026-09-20'))
       .toBe('14 – 20 septembrie 2026');
   });
 
-  it('scrie ambele luni când săptămâna le traversează', () => {
-    expect(formatIntervalSaptamana('2026-09-28', '2026-10-04'))
+  it('writes both months when the week crosses them', () => {
+    expect(formatWeekRange('2026-09-28', '2026-10-04'))
       .toBe('28 septembrie – 4 octombrie 2026');
   });
 
-  it('scrie ambii ani când săptămâna traversează anul', () => {
-    expect(formatIntervalSaptamana('2025-12-29', '2026-01-04'))
+  it('writes both years when the week crosses the year', () => {
+    expect(formatWeekRange('2025-12-29', '2026-01-04'))
       .toBe('29 decembrie 2025 – 4 ianuarie 2026');
   });
 });
 
-describe('partiData', () => {
-  it('desface o dată validă', () => {
-    expect(partiData('2026-09-14')).toEqual({ an: 2026, luna: 9, zi: 14 });
+describe('dateParts', () => {
+  it('splits a valid date', () => {
+    expect(dateParts('2026-09-14')).toEqual({ year: 2026, month: 9, day: 14 });
   });
 
-  it('respinge un format greșit', () => {
-    expect(() => partiData('2026-9-14')).toThrow(/invalidă/);
+  it('rejects a wrong format', () => {
+    expect(() => dateParts('2026-9-14')).toThrow(/invalidă/);
   });
 
   it('respinge luna 00', () => {
-    expect(() => partiData('2026-00-01')).toThrow(/inexistentă/);
+    expect(() => dateParts('2026-00-01')).toThrow(/inexistentă/);
   });
 
   it('respinge luna 13', () => {
-    expect(() => partiData('2026-13-01')).toThrow(/inexistentă/);
+    expect(() => dateParts('2026-13-01')).toThrow(/inexistentă/);
   });
 
   it('respinge 30 februarie', () => {
-    expect(() => partiData('2026-02-30')).toThrow(/inexistentă/);
+    expect(() => dateParts('2026-02-30')).toThrow(/inexistentă/);
   });
 
   it('respinge ziua 32', () => {
-    expect(() => partiData('2026-01-32')).toThrow(/inexistentă/);
+    expect(() => dateParts('2026-01-32')).toThrow(/inexistentă/);
   });
 
-  it('respinge 29 februarie într-un an obișnuit', () => {
-    expect(() => partiData('2026-02-29')).toThrow(/inexistentă/);
+  it('rejects 29 February in an ordinary year', () => {
+    expect(() => dateParts('2026-02-29')).toThrow(/inexistentă/);
   });
 
-  it('acceptă 29 februarie într-un an bisect', () => {
-    expect(partiData('2028-02-29')).toEqual({ an: 2028, luna: 2, zi: 29 });
-    expect(numeZi('2028-02-29')).toBe('Marți');
+  it('accepts 29 February in a leap year', () => {
+    expect(dateParts('2028-02-29')).toEqual({ year: 2028, month: 2, day: 29 });
+    expect(dayName('2028-02-29')).toBe('Marți');
   });
 
-  it('respinge un an sub 100, pe care Date.UTC l-ar muta în 1900+', () => {
-    expect(() => partiData('0026-01-01')).toThrow(/inexistentă/);
+  it('rejects a year below 100, which Date.UTC would move into the 1900s', () => {
+    expect(() => dateParts('0026-01-01')).toThrow(/inexistentă/);
   });
 });
 
-describe('validarea se aplică și funcțiilor publice', () => {
-  it('numeLuna nu mai întoarce undefined pentru luna 13', () => {
-    expect(() => numeLuna('2026-13-01')).toThrow(/inexistentă/);
+describe('the validation applies to the public functions too', () => {
+  it('monthName no longer returns undefined for month 13', () => {
+    expect(() => monthName('2026-13-01')).toThrow(/inexistentă/);
   });
 
-  it('numeZi nu mai raportează o zi pentru 30 februarie', () => {
-    expect(() => numeZi('2026-02-30')).toThrow(/inexistentă/);
+  it('dayName no longer reports a day for 30 February', () => {
+    expect(() => dayName('2026-02-30')).toThrow(/inexistentă/);
   });
 
-  it('formatIntervalSaptamana respinge o dată inexistentă', () => {
-    expect(() => formatIntervalSaptamana('2026-09-14', '2026-09-31'))
+  it('formatWeekRange rejects a date that does not exist', () => {
+    expect(() => formatWeekRange('2026-09-14', '2026-09-31'))
       .toThrow(/inexistentă/);
   });
 });

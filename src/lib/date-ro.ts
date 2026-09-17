@@ -27,11 +27,11 @@
  * public surface, so nothing here depends on the host timezone.
  */
 
-export const NUME_ZILE = [
+export const DAY_NAMES = [
   'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică',
 ] as const;
 
-export const NUME_LUNI = [
+export const MONTH_NAMES = [
   'ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie',
   'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie',
 ] as const;
@@ -45,39 +45,39 @@ export const NUME_LUNI = [
  * The returned parts are numbers, and the `Date` built below never escapes this
  * function, so the module's public surface stays free of `Date` and timezones.
  */
-export function partiData(data: string): { an: number; luna: number; zi: number } {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(data);
-  if (!m) throw new Error(`Dată invalidă: ${data}`);
-  const an = Number(m[1]);
-  const luna = Number(m[2]);
-  const zi = Number(m[3]);
+export function dateParts(date: string): { year: number; month: number; day: number } {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) throw new Error(`Dată invalidă: ${date}`);
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
   // Date.UTC rolls impossible dates over silently: 2026-02-30 becomes 2 March,
   // and month 13 becomes January of the next year. Compare the parts back to
   // catch that, so a bad filename fails loudly instead of rendering a wrong day.
-  const d = new Date(Date.UTC(an, luna - 1, zi));
-  if (d.getUTCFullYear() !== an || d.getUTCMonth() !== luna - 1 || d.getUTCDate() !== zi) {
-    throw new Error(`Dată inexistentă: ${data}`);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) {
+    throw new Error(`Dată inexistentă: ${date}`);
   }
-  return { an, luna, zi };
+  return { year, month, day };
 }
 
 /** 0 = Monday … 6 = Sunday. */
-export function indiceZi(data: string): number {
-  const { an, luna, zi } = partiData(data);
-  const jsDay = new Date(Date.UTC(an, luna - 1, zi)).getUTCDay(); // 0 = Sunday
+export function dayIndex(date: string): number {
+  const { year, month, day } = dateParts(date);
+  const jsDay = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0 = Sunday
   return (jsDay + 6) % 7;
 }
 
-export function numeZi(data: string): string {
-  return NUME_ZILE[indiceZi(data)];
+export function dayName(date: string): string {
+  return DAY_NAMES[dayIndex(date)];
 }
 
-export function numeLuna(data: string): string {
-  return NUME_LUNI[partiData(data).luna - 1];
+export function monthName(date: string): string {
+  return MONTH_NAMES[dateParts(date).month - 1];
 }
 
-export function ziuaDinLuna(data: string): number {
-  return partiData(data).zi;
+export function dayOfMonth(date: string): number {
+  return dateParts(date).day;
 }
 
 /**
@@ -91,19 +91,19 @@ export function ziuaDinLuna(data: string): number {
  *
  * No year: the card only ever names a day inside the schedule's own window.
  */
-export function titluZi(data: string): string {
-  return `${numeZi(data)}, ${ziuaDinLuna(data)} ${numeLuna(data)}`;
+export function dayHeading(date: string): string {
+  return `${dayName(date)}, ${dayOfMonth(date)} ${monthName(date)}`;
 }
 
-export function formatIntervalSaptamana(luni: string, duminica: string): string {
-  const a = partiData(luni);
-  const b = partiData(duminica);
+export function formatWeekRange(monday: string, sunday: string): string {
+  const a = dateParts(monday);
+  const b = dateParts(sunday);
 
-  if (a.an !== b.an) {
-    return `${a.zi} ${NUME_LUNI[a.luna - 1]} ${a.an} – ${b.zi} ${NUME_LUNI[b.luna - 1]} ${b.an}`;
+  if (a.year !== b.year) {
+    return `${a.day} ${MONTH_NAMES[a.month - 1]} ${a.year} – ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
   }
-  if (a.luna !== b.luna) {
-    return `${a.zi} ${NUME_LUNI[a.luna - 1]} – ${b.zi} ${NUME_LUNI[b.luna - 1]} ${b.an}`;
+  if (a.month !== b.month) {
+    return `${a.day} ${MONTH_NAMES[a.month - 1]} – ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
   }
-  return `${a.zi} – ${b.zi} ${NUME_LUNI[b.luna - 1]} ${b.an}`;
+  return `${a.day} – ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
 }

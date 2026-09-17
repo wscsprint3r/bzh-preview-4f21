@@ -44,4 +44,4 @@
  * line of it.
  * ===========================================================================
  */
-export const INDEXABIL = false;
+export const INDEXABLE = false;

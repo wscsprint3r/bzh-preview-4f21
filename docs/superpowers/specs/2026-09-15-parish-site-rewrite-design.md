@@ -207,9 +207,9 @@ Homepage layout: **program-first** — short hero, then the week's services as a
 
 Astro content collections, each with a Zod schema; Sveltia's `config.yml` mirrors them. Schema is the single source of truth — if the CMS writes something the schema rejects, the build fails before deploy and nothing broken goes live.
 
-### 6.1 `slujbe` — the weekly schedule
+### 6.1 `services` — the weekly schedule
 
-One file per service day. `src/content/slujbe/2026-09-14.md`:
+One file per service day. `src/content/services/2026-09-14.md`:
 
 ```yaml
 ---
@@ -229,17 +229,17 @@ slujbe:
 ---
 ```
 
-Zod validation: `data` is a real date; `ora` matches `/^([01]?\d|2[0-3]):[0-5]\d$/`; `slujbe` has at least one entry unless `anulat` is true; `praznic_mare` implies `praznic` is non-empty.
+Zod validation: `date` is a real date; `time` matches `/^([01]?\d|2[0-3]):[0-5]\d$/`; `services` has at least one entry unless `cancelled` is true; `great_feast` implies `feast` is non-empty.
 
 **Why one file per day rather than one per week**: past days fall out of the current view automatically without anyone deleting them; `.ics` events map one-to-one; the filename is the date, so ordering and de-duplication are free; and "duplicate last week" in the CMS is a per-entry action the editor already understands.
 
 **Editor affordances in Sveltia** — these are what make it fast enough to actually get used:
 
-- `slujba` is a **select**, not free text: Utrenia · Sfânta Liturghie · Vecernie · Spovedanie · Acatist · Paraclisul Maicii Domnului · Sfântul Maslu · Litie · Parastas · Priveghere · Denie · Liturghia Darurilor mai înainte sfințite · Botez · Cununie · Altceva (free text). Consistent naming without anyone having to be careful.
+- `service` is a **select**, not free text: Utrenia · Sfânta Liturghie · Vecernie · Spovedanie · Acatist · Paraclisul Maicii Domnului · Sfântul Maslu · Litie · Parastas · Priveghere · Denie · Liturghia Darurilor mai înainte sfințite · Botez · Cununie · Altceva (free text). Consistent naming without anyone having to be careful.
 - Default times pre-filled by weekday (Wed 17:00/18:30, Fri 17:00/18:30, Sat 15:30/17:00, Sun 08:45/10:00), matching the parish's standing rhythm.
 - The collection is sorted newest-first so last week is always the first thing on screen to duplicate.
 
-### 6.2 `articole` — news posts
+### 6.2 `articles` — news posts
 
 ```yaml
 titlu, data, autor (default "Parohia"), imagine, rezumat,
@@ -248,15 +248,15 @@ categorie (Noutăți | Anunțuri | Cateheză), publicat, body (markdown)
 
 Rendering the index from this collection is what eliminates the seven-step Elementor ritual: a published post appears on `/noutati` and on the homepage automatically.
 
-**`publicat: false` is the archive's holding pen, not a draft state.** §11 imports 31 posts whose dates were destroyed by a bulk import. They are real parish writing and they are not publishable as dated news, so they arrive unpublished with `data` set to the import stamp they carry. Two consequences the build must honour: an unpublished post is absent from `/noutati`, from the homepage and from `/rss.xml`, and it has **no page of its own** — otherwise "unpublished" would mean "reachable by anyone with the link", which is not what the parish was offered.
+**`publicat: false` is the archive's holding pen, not a draft state.** §11 imports 31 posts whose dates were destroyed by a bulk import. They are real parish writing and they are not publishable as dated news, so they arrive unpublished with `date` set to the import stamp they carry. Two consequences the build must honour: an unpublished post is absent from `/noutati`, from the homepage and from `/rss.xml`, and it has **no page of its own** — otherwise "unpublished" would mean "reachable by anyone with the link", which is not what the parish was offered.
 
-### 6.3 `evenimente`
+### 6.3 `events`
 
 ```yaml
 titlu, data_inceput, data_sfarsit?, ora?, loc, imagine, afis (PDF)?, descriere
 ```
 
-### 6.4 `pagini` — editable prose pages
+### 6.4 `pages` — editable prose pages
 
 Markdown body plus optional hero image, for Istoric, Catehism, Studii, Școala, Pictură, Consiliul, Servicii liturgice, Link-uri utile.
 
@@ -274,7 +274,7 @@ titlu, data, fisier, autor?
 
 10 PDFs totalling 36.7 MB, largest 13.1 MB — all under Cloudflare's 25 MiB per-file limit, so they live in the repo. No external object store needed.
 
-### 6.7 `setari` — site settings singleton
+### 6.7 `settings` — site settings singleton
 
 Parish name, address, phone numbers, email addresses, both IBANs, opening hours, social links, map URL, footer text. **Editable in the CMS**, so changing a phone number never requires a developer.
 
@@ -288,7 +288,7 @@ A static build freezes at deploy time, but "următoarea slujbă" and "săptămâ
 
 **Solution — progressive enhancement plus a nightly rebuild:**
 
-1. The build emits `/program/date.json`: every service day from 60 days past to 365 days future. For a year of a typical parish week that is roughly 2–3 KB gzipped.
+1. The build emits `/program/data.json`: every service day from 60 days past to 365 days future. For a year of a typical parish week that is roughly 2–3 KB gzipped.
 2. The HTML ships the **full upcoming list**, server-rendered. Without JavaScript the visitor sees every scheduled service — correct, just not focused.
 3. ~1 KB of inline JS computes the current ISO week in `Europe/Zurich` and reveals the matching week, hiding the rest. Always correct, no rebuild required, no layout shift beyond the initial reveal.
 4. A GitHub Actions cron at 03:00 Europe/Zurich rebuilds nightly, so the served HTML and any crawler's view stay honest. ~30 of the 500 monthly builds.
@@ -304,7 +304,7 @@ A static build freezes at deploy time, but "următoarea slujbă" and "săptămâ
 - One `VEVENT` per service.
 - `UID` stable across rebuilds: `<date>-<index>@bor-zh.ch`. Stability matters — a changing UID makes subscribers' calendars re-add every event on every rebuild.
 - `DTSTART;TZID=Europe/Zurich`, with the `VTIMEZONE` block included.
-- `SUMMARY` = service name (plus `detaliu`), `LOCATION` = chapel address, `DESCRIPTION` = praznic and notes.
+- `SUMMARY` = service name (plus `detail`), `LOCATION` = chapel address, `DESCRIPTION` = praznic and notes.
 - Cancelled days emit `STATUS:CANCELLED` rather than disappearing, so subscribers see the cancellation.
 - `Cache-Control: max-age=3600` — clients refetch hourly.
 
@@ -317,7 +317,7 @@ Plus a per-day "Adaugă în calendar" link for people who want one service rathe
 Two UBS accounts appear on the live site — `CH54 0021 5215 3048 5501 P` (contact page) and `CH11 0021 5215 3048 5502 K` (donation page), holder "Rumänisch-Orthodoxe Kirchgem. St. Nikolaus ZH Zürich". Which is for general giving and which for the building fund is an open question (§18).
 
 - Each IBAN in a bordered block with a copy-to-clipboard button.
-- A **Swiss QR-bill** (QR-Rechnung) generated at build from `setari` using the `swissqrbill` library. This is the correct static solution: every Swiss banking app scans it, TWINT's bill-scan included.
+- A **Swiss QR-bill** (QR-Rechnung) generated at build from `settings` using the `swissqrbill` library. This is the correct static solution: every Swiss banking app scans it, TWINT's bill-scan included.
 - A caveat to state plainly: a *TWINT-branded* static QR code requires a TWINT business account and is not something a static site can generate. The QR-bill covers the same use case for Swiss donors without one.
 - The QR-bill must be validated with one real test transfer before launch. A wrong reference field produces a payment nobody can reconcile.
 
@@ -475,9 +475,9 @@ That last one matters. When a build fails, the editor sees nothing happen and ha
 
 ## 19. Phasing
 
-**Phase 1 — Foundation.** Astro skeleton, design system, `slujbe` collection, `/program`, program-first homepage, Sveltia CMS + OAuth worker, deploy to preview. *At the end of this phase the parish can already edit the schedule.*
+**Phase 1 — Foundation.** Astro skeleton, design system, `services` collection, `/program`, program-first homepage, Sveltia CMS + OAuth worker, deploy to preview. *At the end of this phase the parish can already edit the schedule.*
 
-**Phase 2 — Content.** Migration scripts, 45 posts (§11), `/noutati` and `/rss.xml`, the homepage's news section, nine prose pages, the `setari` singleton, and the media pipeline. The nine are Istoric, Consiliul, Catehism, Studii, Doxologia, Link-uri, Școala, Pictură and Servicii liturgice; `/contact` and `/doneaza` wait for Phase 3, which owns the form and the QR-bill their pages are mostly about.
+**Phase 2 — Content.** Migration scripts, 45 posts (§11), `/noutati` and `/rss.xml`, the homepage's news section, nine prose pages, the `settings` singleton, and the media pipeline. The nine are Istoric, Consiliul, Catehism, Studii, Doxologia, Link-uri, Școala, Pictură and Servicii liturgice; `/contact` and `/doneaza` wait for Phase 3, which owns the form and the QR-bill their pages are mostly about.
 
 **Phase 3 — The rest.** Events, galleries, pastorale/PDFs, donations with QR-bill, contact form.
 

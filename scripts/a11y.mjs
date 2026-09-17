@@ -26,7 +26,7 @@
  * independently - Chrome refuses a window narrower than about 500px, so
  * `Emulation.setDeviceMetricsOverride` is the only way to ask for a phone width,
  * and the width must be PRINTED beside every result rather than assumed. Both
- * halves are here: the override in `pregateste`, and `innerWidth` on every line
+ * halves are here: the override in `prepare`, and `innerWidth` on every line
  * of output, checked against what the condition asked for.
  *
  * `Emulation.setDeviceMetricsOverride` and `Emulation.setScriptExecutionDisabled`
@@ -40,7 +40,7 @@
  * THAT COMPARISON WAS A ONE-TIME GATE, NOT A RUNNING GUARD, and this repository
  * no longer contains `@axe-core/cli` to repeat it with. Its result, the rule
  * inventory on this side, and the procedure to redo it if the engine or the
- * driver changes again are in `docs/a11y-differential.md`. Set `A11Y_REGULI=1`
+ * driver changes again are in `docs/a11y-differential.md`. Set `A11Y_RULES=1`
  * to make any pass print its rule ids, which is the input that document's
  * procedure diffs.
  * ===========================================================================
@@ -61,12 +61,12 @@
  *   - anything display:none, visibility:hidden, opacity:0 or [hidden]. This is
  *     why the JavaScript-off condition exists at all: with scripts running, the
  *     week picker hides every week but one and axe skips them.
- *   - viewports other than the ones some pass in `TRECERI` really loads THESE
+ *   - viewports other than the ones some pass in `PASSES` really loads THESE
  *     pages at. This is the one disclaimer here that is also a check:
- *     `verificaPraguri` derives the breakpoints from the built CSS and fails
+ *     `checkBreakpoints` derives the breakpoints from the built CSS and fails
  *     when they cut out a band of widths nothing runs in, so "unaudited branch"
  *     is a red build rather than a caveat. It counts a width only where a pass
- *     over this same set of pages uses it - a width declared in `CONDITII` and
+ *     over this same set of pages uses it - a width declared in `CONDITIONS` and
  *     run over some other build buys this one nothing. What stays uncovered is
  *     width WITHIN a band, and any axis that is not width.
  *   - colour-scheme branches other than dark
@@ -78,7 +78,7 @@
  *     host does with them.
  * ---------------------------------------------------------------------------
  *
- * Run with `npm run a11y`, `npm run a11y:mobil`, `npm run a11y:selector`, or as
+ * Run with `npm run a11y`, `npm run a11y:mobile`, `npm run a11y:picker`, or as
  * a step of `npm run test:build`.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -89,11 +89,11 @@ import { pathToFileURL } from 'node:url';
 import { Builder } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome.js';
 import chromedriver from 'chromedriver';
-import { anteteleRutei, parseazaHeaders } from './headers.mjs';
+import { headersForPath, parseHeaders } from './headers.mjs';
 
 const AXE = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
 
-const TIPURI = {
+const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
   '.js': 'text/javascript',
@@ -131,33 +131,32 @@ const TIPURI = {
  * Excluded BY EXACT PATH, not by folder - the same rule `stylesheet.itest.ts`
  * follows - so the next page put under `admin/` is audited like any other.
  *
- * KEYED BY PATH WITH THE REASON BESIDE IT, like `FARA_JS_MOTIVAT` and
- * `TRASATURI_NEAUDITATE`, and for the same reason those two are. This list is the
+ * KEYED BY PATH WITH THE REASON BESIDE IT, like `NO_JS_REASONS` and
+ * `UNAUDITED_FEATURES`, and for the same reason those two are. This list is the
  * one lever that SHRINKS the audit's subject: a page named here is audited by no
  * axe run, and its CSS leaves the derived breakpoint set with it. As a bare array
  * it was the last narrowing list in this file whose entries did not have to say
  * anything, and an entry nobody has to justify is the cheapest way out of a red
- * build. `verificaTreceri` fails on an entry with no reason written, so adding a
+ * build. `checkPasses` fails on an entry with no reason written, so adding a
  * page here is a decision somebody signed rather than a line somebody appended.
  *
  * @type {Record<string, string>}
  */
-export const FARA_AXE_MOTIVAT = {
+export const NO_AXE_REASONS = {
   'admin/index.html': [
-    'gazda Sveltia CMS: un `<script>` și un `<noscript>`, nimic altceva. Tot ce vede un editor',
-    'este desenat de bundle după încărcare, deci ce ar măsura axe este învelișul gol — de unde',
-    'și `landmark-one-main` și `page-has-heading-one` pe `<html>` însuși, și `color-contrast`',
-    'care nu rulează deloc. A-i da un `<main>` și un `<h1>` ca regulile să aibă în ce mușca ar fi',
-    'mai rău: markup-ul este înlocuit o secundă mai târziu de markup pe care nu l-am scris noi',
-    'și nu îl putem schimba, deci verdele ar fi despre un substitut și s-ar citi ca o garanție',
-    'despre CMS. Accesibilitatea ei este a lui Sveltia. NU este scutită de verificarea CSP —',
-    'este pagina pe care stă o credențială GitHub, deci pagina a cărei politică contează cel mai',
-    'mult.',
+    'the Sveltia CMS host: one `<script>` and one `<noscript>`, nothing else. Everything an',
+    'editor sees is drawn by the bundle after it loads, so what axe would measure is the empty',
+    'shell — hence `landmark-one-main` and `page-has-heading-one` on `<html>` itself, and',
+    '`color-contrast` never running at all. Giving it a `<main>` and an `<h1>` for the rules to',
+    'bite on would be worse: the markup is replaced a second later by markup we did not write',
+    'and cannot change, so the green would be about a stand-in and would read as a guarantee',
+    'about the CMS. Its accessibility is Sveltia\'s. It is NOT exempt from the CSP check — it is',
+    'the page a GitHub credential sits on, so the page whose policy matters most.',
   ].join('\n      '),
 };
 
 /** The paths above, which is all most of this file needs. */
-const FARA_AXE = Object.keys(FARA_AXE_MOTIVAT);
+const NO_AXE = Object.keys(NO_AXE_REASONS);
 
 /*
  * The CSP violations `/admin/` is EXPECTED to provoke, each measured in a real
@@ -175,7 +174,7 @@ const FARA_AXE = Object.keys(FARA_AXE_MOTIVAT);
  *
  * Keyed `directive <- blockedURI`, which is what Chrome reports.
  */
-const CSP_ASTEPTAT = {
+const CSP_EXPECTED = {
   'admin/index.html': [
     'connect-src <- data',
     'connect-src <- https://unpkg.com/@sveltia/cms/package.json',
@@ -185,14 +184,14 @@ const CSP_ASTEPTAT = {
 };
 
 /** Every `.html` in a build, as paths relative to it. */
-export function paginile(radacina, relativ = '') {
-  const gasite = [];
-  for (const intrare of readdirSync(join(radacina, relativ), { withFileTypes: true })) {
-    const cale = relativ === '' ? intrare.name : `${relativ}/${intrare.name}`;
-    if (intrare.isDirectory()) gasite.push(...paginile(radacina, cale));
-    else if (intrare.name.endsWith('.html')) gasite.push(cale);
+export function htmlPages(root, relative = '') {
+  const found = [];
+  for (const entry of readdirSync(join(root, relative), { withFileTypes: true })) {
+    const path = relative === '' ? entry.name : `${relative}/${entry.name}`;
+    if (entry.isDirectory()) found.push(...htmlPages(root, path));
+    else if (entry.name.endsWith('.html')) found.push(path);
   }
-  return gasite.sort();
+  return found.sort();
 }
 
 /*
@@ -209,38 +208,38 @@ export function paginile(radacina, relativ = '') {
  * refused and the control would report "scripts did not run" in both
  * conditions - agreeing with a broken switch instead of catching it.
  */
-const CALE_CONTROL = '/__control__.html';
-const CONTROL = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>inainte</title></head>
-<body><p id="p">inainte</p><script>document.title = 'dupa'; document.getElementById('p').textContent = 'dupa';</script></body></html>`;
+const CONTROL_PATH = '/__control__.html';
+const CONTROL = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>before</title></head>
+<body><p id="p">before</p><script>document.title = 'after'; document.getElementById('p').textContent = 'after';</script></body></html>`;
 
-function serveste(dist, reguli) {
+function serve(dist, rules) {
   return createServer((req, res) => {
-    const cale = decodeURIComponent(req.url.split('?')[0]);
-    if (cale === CALE_CONTROL) {
-      res.writeHead(200, { 'Content-Type': TIPURI['.html'] });
+    const path = decodeURIComponent(req.url.split('?')[0]);
+    if (path === CONTROL_PATH) {
+      res.writeHead(200, { 'Content-Type': MIME_TYPES['.html'] });
       res.end(CONTROL);
       return;
     }
-    const fisier = join(dist, cale.endsWith('/') ? `${cale}index.html` : cale);
-    if (!existsSync(fisier) || !statSync(fisier).isFile()) {
+    const file = join(dist, path.endsWith('/') ? `${path}index.html` : path);
+    if (!existsSync(file) || !statSync(file).isFile()) {
       res.writeHead(404);
       res.end('404');
       return;
     }
-    const antete = { 'Content-Type': TIPURI[extname(fisier)] ?? 'application/octet-stream' };
+    const headers = { 'Content-Type': MIME_TYPES[extname(file)] ?? 'application/octet-stream' };
     // Matched against the REQUEST path, which is what Cloudflare matches, not
     // against the file it resolved to: `/` and `/index.html` are different
     // strings to a rule like `/index.html`.
-    for (const [nume, valoare] of anteteleRutei(reguli, cale)) antete[nume] = valoare;
-    res.writeHead(200, antete);
-    res.end(readFileSync(fisier));
+    for (const [name, value] of headersForPath(rules, path)) headers[name] = value;
+    res.writeHead(200, headers);
+    res.end(readFileSync(file));
   });
 }
 
 /**
  * The conditions an audit runs under.
  *
- * `latime: null` means "whatever headless Chrome gives by default" - 756 CSS px
+ * `width: null` means "whatever headless Chrome gives by default" - 756 CSS px
  * on every machine this has run on, and MEASURED at the start of every run
  * rather than believed, because that number is what decides which layout the
  * default pass is looking at. `js: false` means the page's own scripts never
@@ -252,34 +251,34 @@ function serveste(dist, reguli) {
  *   - 1100px is above the `62rem` breakpoint, where the week band regrids to fit
  *     a seven-day Holy Week.
  *   - the default sits between the two, which is the only reason one pass is not
- *     enough - and `verificaPraguri` below is what keeps that true.
+ *     enough - and `checkBreakpoints` below is what keeps that true.
  *
- * `medii` is the intent, written down. It is checked from two sides: the browser
+ * `media` is the intent, written down. It is checked from two sides: the browser
  * answers each query with `matchMedia` at the measured width, and
- * `verificaPraguri` refuses any query here that the built CSS no longer
+ * `checkBreakpoints` refuses any query here that the built CSS no longer
  * declares. Only the second catches a breakpoint that MOVED - see the note
- * above `pragurile`.
+ * above `breakpointsFromCss`.
  */
-const TELEFON = '(max-width: 34rem)';
-const LARG = '(min-width: 62rem)';
+const PHONE = '(max-width: 34rem)';
+const WIDE = '(min-width: 62rem)';
 
-export const CONDITII = {
-  birou: { eticheta: 'birou, JS pornit', latime: null, js: true, medii: { [TELEFON]: false, [LARG]: false } },
-  birouFaraJs: { eticheta: 'birou, JS oprit', latime: null, js: false, medii: { [TELEFON]: false, [LARG]: false } },
-  telefon: { eticheta: 'telefon 390px, JS pornit', latime: 390, inaltime: 844, js: true, medii: { [TELEFON]: true, [LARG]: false } },
-  telefonFaraJs: { eticheta: 'telefon 390px, JS oprit', latime: 390, inaltime: 844, js: false, medii: { [TELEFON]: true, [LARG]: false } },
-  larg: { eticheta: 'larg 1100px, JS pornit', latime: 1100, inaltime: 900, js: true, medii: { [TELEFON]: false, [LARG]: true } },
-  largFaraJs: { eticheta: 'larg 1100px, JS oprit', latime: 1100, inaltime: 900, js: false, medii: { [TELEFON]: false, [LARG]: true } },
+export const CONDITIONS = {
+  desk: { label: 'desk, JS on', width: null, js: true, media: { [PHONE]: false, [WIDE]: false } },
+  deskNoJs: { label: 'desk, JS off', width: null, js: false, media: { [PHONE]: false, [WIDE]: false } },
+  phone: { label: 'phone 390px, JS on', width: 390, height: 844, js: true, media: { [PHONE]: true, [WIDE]: false } },
+  phoneNoJs: { label: 'phone 390px, JS off', width: 390, height: 844, js: false, media: { [PHONE]: true, [WIDE]: false } },
+  wide: { label: 'wide 1100px, JS on', width: 1100, height: 900, js: true, media: { [PHONE]: false, [WIDE]: true } },
+  wideNoJs: { label: 'wide 1100px, JS off', width: 1100, height: 900, js: false, media: { [PHONE]: false, [WIDE]: true } },
 };
 
 /* -------------------------------------------------------------------------- *
  * THE PASSES. A CONDITION NOTHING RUNS IS NOT COVERAGE.
  *
- * `CONDITII` above is a DECLARATION, and until this table existed the band
- * check below was measured against it. Measured: add one line to `CONDITII` -
- * `tableta: { latime: 850, … }` - and nothing else. No npm script, no argument,
+ * `CONDITIONS` above is a DECLARATION, and until this table existed the band
+ * check below was measured against it. Measured: add one line to `CONDITIONS` -
+ * `tablet: { width: 850, … }` - and nothing else. No npm script, no argument,
  * no pass. All three `dist` passes went green printing
- * `lățimi auditate: 390, 756, 850, 1100px` while NOTHING had ever loaded a page
+ * `widths audited by those passes: 390, 756, 850, 1100px` while NOTHING had ever loaded a page
  * at 850px, and the band that 850 was supposed to cover stayed audited by
  * nobody. The check credited a declaration instead of an execution - the third
  * time on this task that the audit wore the defect it exists to catch.
@@ -291,19 +290,19 @@ export const CONDITII = {
  *
  * So the audited widths are read from HERE instead. One entry per pass; a pass
  * is a command `package.json` actually runs, over one SET OF PAGES, with a named
- * list of conditions. `auditeaza` takes a key from this table rather than a list
+ * list of conditions. `runAudit` takes a key from this table rather than a list
  * of conditions, so the conditions a pass runs and the conditions its coverage
  * is credited for cannot be two different things.
  *
  * SETS OF PAGES, NOT ONE GLOBAL LIST, and that is the second hole this closes.
- * `dist` and the selector pass's scratch build are different builds with
+ * `dist` and the picker pass's scratch build are different builds with
  * different markup, so a width audited on one proves nothing about the other.
- * Crediting the whole matrix to both hid `BandaSaptamanii`'s `min-width: 62rem`
+ * Crediting the whole matrix to both hid `WeekBand`'s `min-width: 62rem`
  * branch completely: it renders in the fixture build with the picker bar
- * VISIBLE - the only build where that bar is not `hidden` - and no selector
+ * VISIBLE - the only build where that bar is not `hidden` - and no picker
  * width reached 992px, while in `dist/` the bar is hidden and axe skips it. The
  * Holy Week row with the bar showing had never been audited by anything. It is
- * `TRECERI.selector`'s third condition now.
+ * `PASSES.picker`'s third condition now.
  *
  * WHAT IS ASSERTED ABOUT THIS TABLE, on every run, before the browser opens -
  * each one a way a declaration can drift from what executes:
@@ -312,13 +311,13 @@ export const CONDITII = {
  *     `npm run` chains. A pass no suite runs audits nothing;
  *   - every a11y command anywhere in `package.json` is described by an entry. A
  *     pass this table does not know about is a pass whose widths go uncounted;
- *   - every `CONDITII` key is named by some entry - the hole above, by name;
- *   - every condition an entry names exists in `CONDITII`;
+ *   - every `CONDITIONS` key is named by some entry - the hole above, by name;
+ *   - every condition an entry names exists in `CONDITIONS`;
  *   - every condition declares at least one media query, because assertion (a)
- *     of the breakpoint check iterates exactly those and an empty `medii` makes
+ *     of the breakpoint check iterates exactly those and an empty `media` makes
  *     it a loop over nothing;
  *   - every set of pages is audited with scripts OFF by some entry, or is named
- *     in `FARA_JS_MOTIVAT` with the reason. See the block above this table.
+ *     in `NO_JS_REASONS` with the reason. See the block above this table.
  *
  * IT CANNOT PASS BY HAVING READ NOTHING: an unreadable or emptied `package.json`
  * makes all four commands unreachable and fails four times over, so there is no
@@ -334,49 +333,49 @@ export const CONDITII = {
  * -------------------------------------------------------------------------- */
 
 /**
- * @typedef {{ limita: number, px: number, texte: Set<string>, surse: Set<string> }} Prag
- * @typedef {{ nume: string, surse: Set<string>, conditii: Set<string> }} Trasatura
- * @typedef {{ eticheta: string, latime: number | null, inaltime?: number, js: boolean,
- *             medii: Record<string, boolean> }} Conditie
- * @typedef {{ fisier: string, argumente: string[], pagini: string, conditii: string[],
- *             eticheta: string }} Trecere
+ * @typedef {{ limit: number, px: number, texts: Set<string>, sources: Set<string> }} Breakpoint
+ * @typedef {{ name: string, sources: Set<string>, conditions: Set<string> }} MediaFeature
+ * @typedef {{ label: string, width: number | null, height?: number, js: boolean,
+ *             media: Record<string, boolean> }} Condition
+ * @typedef {{ file: string, args: string[], pages: string, conditions: string[],
+ *             label: string }} Pass
  */
 
 /** This file's own path as `package.json` spells it, read off the module URL. */
-const ACEST_FISIER = `scripts/${new URL(import.meta.url).pathname.split('/').pop()}`;
+const THIS_FILE = `scripts/${new URL(import.meta.url).pathname.split('/').pop()}`;
 
-export const TRECERI = {
-  implicita: {
-    fisier: 'scripts/a11y.mjs',
-    argumente: [],
-    pagini: 'dist',
-    conditii: ['birou', 'birouFaraJs'],
-    eticheta: 'axe la lățimea implicită',
+export const PASSES = {
+  defaultWidth: {
+    file: 'scripts/a11y.mjs',
+    args: [],
+    pages: 'dist',
+    conditions: ['desk', 'deskNoJs'],
+    label: 'axe at the default width',
   },
-  mobil: {
-    fisier: 'scripts/a11y.mjs',
-    argumente: ['--mobil'],
-    pagini: 'dist',
-    conditii: ['telefon', 'telefonFaraJs'],
-    eticheta: 'axe la lățime de telefon (390px)',
+  mobile: {
+    file: 'scripts/a11y.mjs',
+    args: ['--mobile'],
+    pages: 'dist',
+    conditions: ['phone', 'phoneNoJs'],
+    label: 'axe at phone width (390px)',
   },
-  larg: {
-    fisier: 'scripts/a11y.mjs',
-    argumente: ['--larg'],
-    pagini: 'dist',
-    conditii: ['larg', 'largFaraJs'],
-    eticheta: 'axe peste pragul de 62rem (1100px)',
+  wide: {
+    file: 'scripts/a11y.mjs',
+    args: ['--wide'],
+    pages: 'dist',
+    conditions: ['wide', 'wideNoJs'],
+    label: 'axe above the 62rem breakpoint (1100px)',
   },
-  selector: {
-    fisier: 'scripts/a11y-selector.mjs',
-    argumente: [],
-    pagini: 'proba',
-    // `larg` is here because the 62rem branch of the week band renders in this
+  picker: {
+    file: 'scripts/a11y-picker.mjs',
+    args: [],
+    pages: 'fixture',
+    // `wide` is here because the 62rem branch of the week band renders in this
     // build too, and this is the ONLY build in which the picker bar above it is
     // visible. Without it the ≥992px band of the scratch build is audited by
     // nothing at all - which is exactly what the check below now says.
-    conditii: ['birou', 'telefon', 'larg'],
-    eticheta: 'axe peste selectorul de săptămână (construcție de probă)',
+    conditions: ['desk', 'phone', 'wide'],
+    label: 'axe over the week picker (fixture build)',
   },
 };
 
@@ -386,14 +385,14 @@ export const TRECERI = {
  * The table above closed the WIDTH axis - no width counts unless some pass over
  * these pages really loads them at it. The JavaScript axis had nothing at all,
  * and it is the axis on which this site deliberately renders two different
- * pages. Measured: delete `birouFaraJs`, `telefonFaraJs` and `largFaraJs` from
- * `CONDITII` and from the three `TRECERI` entries that name them, change nothing
+ * pages. Measured: delete `deskNoJs`, `phoneNoJs` and `wideNoJs` from
+ * `CONDITIONS` and from the three `PASSES` entries that name them, change nothing
  * else, and all four browser passes plus the whole unit suite stay GREEN - while
  * the only audit that ever renders the weeks the picker hides has been removed.
  *
  * That pass is not optional and three places in this repository say so: the
  * plan's Global Constraints ("Neither pass alone is the guarantee"), the HONEST
- * SCOPE block at the top of this file, and `SelectorSaptamana.astro`, which
+ * SCOPE block at the top of this file, and `WeekPicker.astro`, which
  * explains that axe skips hidden elements and drives Chrome with scripts ON, so
  * every week but one leaves the audit the moment the picker works. Today the
  * parish publishes one week and nothing is hidden; the first week two are
@@ -402,7 +401,7 @@ export const TRECERI = {
  *
  * So each SET OF PAGES must be audited with scripts off by some pass that
  * `npm run test:all` really runs - or be named here, in words, with the reason.
- * The check reads `TRECERI` and `CONDITII`, the same tables the width check
+ * The check reads `PASSES` and `CONDITIONS`, the same tables the width check
  * reads and the same ones the browser is driven from, so what it credits is what
  * executes rather than what is declared.
  *
@@ -423,74 +422,74 @@ export const TRECERI = {
  *
  * @type {Record<string, string>}
  */
-export const FARA_JS_MOTIVAT = {
-  proba: [
-    'bara selectorului există numai cu scripturile pornite: componenta o trimite `hidden` și',
-    'scriptul o dezvăluie, deci cu JS oprit construcția de probă nu are nicio stare proprie de',
-    'auditat — randează exact ce randează `dist`, toate săptămânile vizibile, iar `verificaBara`',
-    'se și întoarce devreme pentru `conditie.js === false`. Starea fără JS a acestor pagini este',
-    'acoperită de trecerile peste `dist`, care chiar o au.',
+export const NO_JS_REASONS = {
+  fixture: [
+    'the picker bar exists only with scripts on: the component ships it `hidden` and the script',
+    'reveals it, so with JS off the fixture build has no state of its own to audit — it renders',
+    'exactly what `dist` renders, every week visible, and `checkPickerBar` returns early for',
+    '`condition.js === false` anyway. The no-JS state of these pages is covered by the passes',
+    'over `dist`, which really do have one.',
   ].join('\n      '),
 };
 
 /**
  * A pass as `package.json` has to spell it.
  *
- * @param {Trecere} trecere
+ * @param {Pass} pass
  */
-export function comandaTrecerii(trecere) {
-  return ['node', trecere.fisier, ...trecere.argumente].join(' ');
+export function passCommand(pass) {
+  return ['node', pass.file, ...pass.args].join(' ');
 }
 
 /**
- * Every command `npm run <nume>` ends up executing, `npm run` chains followed.
+ * Every command `npm run <name>` ends up executing, `npm run` chains followed.
  * Commands are normalised on whitespace so a reformatted `package.json` is not
  * a failure.
  *
- * @param {Record<string, string>} scripturi
- * @param {string} nume
- * @param {Set<string>} [vazute]
- * @returns {{ comenzi: string[], probleme: string[] }}
+ * @param {Record<string, string>} pageScripts
+ * @param {string} name
+ * @param {Set<string>} [seen]
+ * @returns {{ commands: string[], problems: string[] }}
  */
-export function comenzileScriptului(scripturi, nume, vazute = new Set()) {
-  const comenzi = [];
-  const probleme = [];
-  if (!(nume in scripturi)) {
-    probleme.push(`package.json nu are scriptul "${nume}" — nu se poate spune ce rulează suita.`);
-    return { comenzi, probleme };
+export function scriptCommands(pageScripts, name, seen = new Set()) {
+  const commands = [];
+  const problems = [];
+  if (!(name in pageScripts)) {
+    problems.push(`package.json has no script "${name}" — there is no way to say what the suite runs.`);
+    return { commands, problems };
   }
-  if (vazute.has(nume)) return { comenzi, probleme };
-  vazute.add(nume);
-  for (const bucata of scripturi[nume].split('&&')) {
-    const comanda = bucata.trim().replace(/\s+/g, ' ');
-    if (comanda === '') continue;
-    const inlantuit = comanda.match(/^npm run ([\w:.-]+)$/);
-    if (inlantuit === null) {
-      comenzi.push(comanda);
+  if (seen.has(name)) return { commands, problems };
+  seen.add(name);
+  for (const piece of pageScripts[name].split('&&')) {
+    const command = piece.trim().replace(/\s+/g, ' ');
+    if (command === '') continue;
+    const chained = command.match(/^npm run ([\w:.-]+)$/);
+    if (chained === null) {
+      commands.push(command);
       continue;
     }
-    const mai = comenzileScriptului(scripturi, inlantuit[1], vazute);
-    comenzi.push(...mai.comenzi);
-    probleme.push(...mai.probleme);
+    const more = scriptCommands(pageScripts, chained[1], seen);
+    commands.push(...more.commands);
+    problems.push(...more.problems);
   }
-  return { comenzi, probleme };
+  return { commands, problems };
 }
 
 /**
  * Every audit command `package.json` contains, wherever it sits.
  *
- * @param {Record<string, string>} scripturi
+ * @param {Record<string, string>} pageScripts
  * @returns {string[]}
  */
-export function comenziA11y(scripturi) {
-  const gasite = new Set();
-  for (const valoare of Object.values(scripturi)) {
-    for (const bucata of String(valoare).split('&&')) {
-      const comanda = bucata.trim().replace(/\s+/g, ' ');
-      if (/^node scripts\/a11y[\w.-]*\.mjs(\s|$)/.test(comanda)) gasite.add(comanda);
+export function a11yCommands(pageScripts) {
+  const found = new Set();
+  for (const value of Object.values(pageScripts)) {
+    for (const piece of String(value).split('&&')) {
+      const command = piece.trim().replace(/\s+/g, ' ');
+      if (/^node scripts\/a11y[\w.-]*\.mjs(\s|$)/.test(command)) found.add(command);
     }
   }
-  return [...gasite].sort();
+  return [...found].sort();
 }
 
 /**
@@ -499,168 +498,167 @@ export function comenziA11y(scripturi) {
  * expects of the CSS, and every set of pages is audited in both JavaScript
  * states or says why not.
  *
- * @param {{ scripts?: Record<string, string> }} [pachet]
- * @param {Record<string, Trecere>} [treceri]
- * @param {Record<string, Conditie>} [conditii]
- * @param {Record<string, string>} [motive]
- * @param {Record<string, string>} [faraAxe]
+ * @param {{ scripts?: Record<string, string> }} [pkg]
+ * @param {Record<string, Pass>} [passes]
+ * @param {Record<string, Condition>} [conditions]
+ * @param {Record<string, string>} [reasons]
+ * @param {Record<string, string>} [noAxe]
  * @returns {string[]}
  */
-export function verificaTreceri(
-  pachet = citestePachet(),
-  treceri = TRECERI,
-  conditii = CONDITII,
-  motive = FARA_JS_MOTIVAT,
-  faraAxe = FARA_AXE_MOTIVAT,
+export function checkPasses(
+  pkg = readPackageJson(),
+  passes = PASSES,
+  conditions = CONDITIONS,
+  reasons = NO_JS_REASONS,
+  noAxe = NO_AXE_REASONS,
 ) {
-  const scripturi = pachet.scripts ?? {};
-  const esecuri = [];
+  const pageScripts = pkg.scripts ?? {};
+  const failures = [];
 
-  const { comenzi, probleme } = comenzileScriptului(scripturi, 'test:all');
-  esecuri.push(...probleme);
-  const rulate = new Set(comenzi);
-  const descrise = new Map(Object.entries(treceri).map(([cheie, t]) => [comandaTrecerii(t), cheie]));
+  const { commands, problems } = scriptCommands(pageScripts, 'test:all');
+  failures.push(...problems);
+  const commandsRun = new Set(commands);
+  const described = new Map(Object.entries(passes).map(([key, t]) => [passCommand(t), key]));
 
-  for (const [comanda, cheie] of descrise) {
-    if (rulate.has(comanda)) continue;
-    esecuri.push(
-      `trecerea "${cheie}" nu este pornită de "npm run test:all": nimic din lanțul lui nu rulează \`${comanda}\`.\n` +
-        '    O trecere pe care suita nu o rulează nu auditează nicio lățime, oricâte ar declara TRECERI.',
+  for (const [command, key] of described) {
+    if (commandsRun.has(command)) continue;
+    failures.push(
+      `pass "${key}" is not started by "npm run test:all": nothing in its chain runs \`${command}\`.\n` +
+        '    A pass the suite never runs audits no width at all, whatever PASSES declares.',
     );
   }
-  for (const comanda of comenziA11y(scripturi)) {
-    if (descrise.has(comanda)) continue;
-    esecuri.push(
-      `package.json rulează \`${comanda}\`, dar nicio intrare din TRECERI nu o descrie.\n` +
-        '    Lățimile ei nu se socotesc nicăieri: adaug-o în TRECERI, cu setul de pagini și condițiile ei.',
+  for (const command of a11yCommands(pageScripts)) {
+    if (described.has(command)) continue;
+    failures.push(
+      `package.json runs \`${command}\`, but no entry in PASSES describes it.\n` +
+        '    Its widths are counted nowhere: add it to PASSES, with its set of pages and its conditions.',
     );
   }
 
-  const folosite = new Set(Object.values(treceri).flatMap((t) => t.conditii));
-  for (const [cheie, conditie] of Object.entries(conditii)) {
-    if (folosite.has(cheie)) continue;
-    esecuri.push(
-      `CONDITII declară "${cheie}" (${conditie.eticheta}), dar nicio trecere din TRECERI nu o rulează.\n` +
-        '    Nimeni nu încarcă nicio pagină la lățimea ei, deci ea nu acoperă nicio bandă. Pune-o în\n' +
-        '    condițiile unei treceri, și trecerea aceea într-un script pornit de "npm run test:all" —\n' +
-        '    ambele, fiindcă numai a doua jumătate face auditul să se întâmple.',
+  const used = new Set(Object.values(passes).flatMap((t) => t.conditions));
+  for (const [key, condition] of Object.entries(conditions)) {
+    if (used.has(key)) continue;
+    failures.push(
+      `CONDITIONS declares "${key}" (${condition.label}), but no pass in PASSES runs it.\n` +
+        '    Nobody loads any page at its width, so it covers no band. Put it in the conditions of a\n' +
+        '    pass, and that pass in a script "npm run test:all" starts — BOTH, because only the\n' +
+        '    second half makes the audit happen.',
     );
   }
-  for (const [cheie, t] of Object.entries(treceri)) {
-    for (const nume of t.conditii) {
-      if (nume in conditii) continue;
-      esecuri.push(`trecerea "${cheie}" numește condiția "${nume}", care nu există în CONDITII.`);
+  for (const [key, t] of Object.entries(passes)) {
+    for (const name of t.conditions) {
+      if (name in conditions) continue;
+      failures.push(`pass "${key}" names condition "${name}", which does not exist in CONDITIONS.`);
     }
   }
 
   /*
    * A CONDITION THAT DECLARES NOTHING MAKES ASSERTION (a) VACUOUS. That check
-   * iterates the union of the `medii` keys of the conditions a set of pages is
-   * loaded under; empty every `medii` and the loop body never runs, with no
-   * complaint. Measured: with `medii: {}` everywhere AND `RandZi.astro`'s phone
+   * iterates the union of the `media` keys of the conditions a set of pages is
+   * loaded under; empty every `media` and the loop body never runs, with no
+   * complaint. Measured: with `media: {}` everywhere AND `DayRow.astro`'s phone
    * breakpoint moved from 34rem to 30rem, all four passes are exit 0 - against
-   * exit 1 for the identical breakpoint move with `medii` populated. Band
+   * exit 1 for the identical breakpoint move with `media` populated. Band
    * coverage (b) still holds, so nothing else fires, and the default pass is
    * then auditing a layout branch nobody asked about.
    *
-   * `medii` is also the only thing the BROWSER checks about a width: it answers
+   * `media` is also the only thing the BROWSER checks about a width: it answers
    * each query with `matchMedia` at the measured viewport. An empty one leaves
    * that silent too.
    */
-  for (const [cheie, conditie] of Object.entries(conditii)) {
-    if (Object.keys(conditie.medii ?? {}).length > 0) continue;
-    esecuri.push(
-      `CONDITII declară "${cheie}" (${conditie.eticheta}) fără nicio interogare în medii.\n` +
-        '    Verificarea (a) din verificaPraguri iterează exact aceste interogări, deci cu medii gol\n' +
-        '    nu verifică nimic: un prag care se MUTĂ trece nevăzut, iar browserul nu are ce\n' +
-        '    confirma cu matchMedia la lățimea măsurată. Scrie ce trebuie și ce nu trebuie să se\n' +
-        '    potrivească acolo — o condiție care nu declară nimic nu poate contrazice nimic.',
+  for (const [key, condition] of Object.entries(conditions)) {
+    if (Object.keys(condition.media ?? {}).length > 0) continue;
+    failures.push(
+      `CONDITIONS declares "${key}" (${condition.label}) with no query at all in media.\n` +
+        '    Assertion (a) of checkBreakpoints iterates exactly those queries, so an empty media\n' +
+        '    checks nothing: a breakpoint that MOVES goes unseen, and the browser has nothing to\n' +
+        '    confirm with matchMedia at the measured width. Write what must and must not match\n' +
+        '    there — a condition that declares nothing can contradict nothing.',
     );
   }
 
   // Every set of pages is audited with scripts off, or says why it is not.
-  const seturi = [...new Set(Object.values(treceri).map((t) => t.pagini))].sort();
-  for (const setPagini of seturi) {
-    const { faraJs } = moduriAuditate(setPagini, treceri, conditii);
-    const motiv = motive[setPagini];
-    if (!faraJs && motiv === undefined) {
-      esecuri.push(
-        `nicio trecere nu auditează setul de pagini „${setPagini}” cu scripturile OPRITE.\n` +
-          '    axe sare peste tot ce e ascuns, iar selectorul de săptămână ascunde toate\n' +
-          '    săptămânile în afară de una — deci cu JS pornit banda săptămânii este auditată pe o\n' +
-          '    singură săptămână, și fără trecerea fără JS restul nu e auditat de nimeni. La fel\n' +
-          '    pentru orice altceva dezvăluit de un script.\n' +
-          '    Se închide în trei pași, ca și o lățime: o condiție cu js: false în CONDITII, numele\n' +
-          `    ei în conditii-le unei treceri cu pagini: "${setPagini}", și comanda acelei treceri\n` +
-          '    într-un script pornit de "npm run test:all".\n' +
-          `    Sau, dacă setul acesta chiar nu are o stare fără JS de auditat, scrie motivul în\n` +
-          '    FARA_JS_MOTIVAT din scripts/a11y.mjs — o lipsă spusă e mai bună decât o trecere degeaba.',
+  const pageSets = [...new Set(Object.values(passes).map((t) => t.pages))].sort();
+  for (const pageSet of pageSets) {
+    const { withoutJs } = auditedStates(pageSet, passes, conditions);
+    const reason = reasons[pageSet];
+    if (!withoutJs && reason === undefined) {
+      failures.push(
+        `no pass audits the set of pages \u201e${pageSet}\u201d with scripts OFF.\n` +
+          '    axe skips everything hidden, and the week picker hides every week but one — so with\n' +
+          '    JS on the week band is audited on a single week, and without the no-JS pass the rest\n' +
+          '    is audited by nobody. The same goes for anything else a script reveals.\n' +
+          '    It closes in three steps, as a width does: a condition with js: false in CONDITIONS,\n' +
+          `    its name in the conditions of a pass with pages: "${pageSet}", and that pass\'s\n` +
+          '    command in a script "npm run test:all" starts.\n' +
+          '    Or, if this set really has no no-JS state to audit, write the reason in\n' +
+          '    NO_JS_REASONS in scripts/a11y.mjs — a gap said out loud beats a pass for nothing.',
       );
     }
-    if (faraJs && motiv !== undefined) {
-      esecuri.push(
-        `FARA_JS_MOTIVAT scuză setul de pagini „${setPagini}”, dar o trecere chiar îl auditează cu\n` +
-          '    scripturile oprite. Scoate scuza: una de care nu are nimeni nevoie rămâne în cod\n' +
-          '    arătând ca o regulă, gata să acopere altceva cu același nume.',
+    if (withoutJs && reason !== undefined) {
+      failures.push(
+        `NO_JS_REASONS excuses the set of pages \u201e${pageSet}\u201d, but a pass really does audit it\n` +
+          '    with scripts off. Remove the excuse: one nobody needs stays in the code looking like\n' +
+          '    a rule, ready to cover something else under the same name.',
       );
     }
   }
-  for (const setPagini of Object.keys(motive)) {
-    if (seturi.includes(setPagini)) continue;
-    esecuri.push(
-      `FARA_JS_MOTIVAT numește setul de pagini „${setPagini}”, pe care nicio trecere din TRECERI\n` +
-        '    nu îl auditează. Scuza a rămas în urma tabelului.',
+  for (const pageSet of Object.keys(reasons)) {
+    if (pageSets.includes(pageSet)) continue;
+    failures.push(
+      `NO_JS_REASONS names the set of pages \u201e${pageSet}\u201d, which no pass in PASSES audits.\n` +
+        '    The excuse has fallen behind the table.',
     );
   }
   /*
    * Every page excluded from axe says why, in words. The other direction - an
-   * exclusion for a page that does not exist - is checked in `auditeaza`, where
+   * exclusion for a page that does not exist - is checked in `runAudit`, where
    * the build is in hand.
    */
-  for (const [cale, motiv] of Object.entries(faraAxe)) {
-    if (typeof motiv === 'string' && motiv.trim().length > 40) continue;
-    esecuri.push(
-      `FARA_AXE_MOTIVAT scoate „${cale}” din auditul axe fără să spună de ce.\n` +
-        '    Lista aceasta este singura pârghie care MICȘOREAZĂ subiectul auditului: pagina nu mai\n' +
-        '    este auditată de nicio trecere, iar CSS-ul ei iese odată cu ea din setul de praguri\n' +
-        '    derivat. Scrie motivul lângă cale — o scutire pe care nu trebuie s-o justifice nimeni\n' +
-        '    este cea mai ieftină ieșire dintr-o construcție roșie.',
+  for (const [path, reason] of Object.entries(noAxe)) {
+    if (typeof reason === 'string' && reason.trim().length > 40) continue;
+    failures.push(
+      `NO_AXE_REASONS takes \u201e${path}\u201d out of the axe audit without saying why.\n` +
+        '    This list is the one lever that SHRINKS the audit\'s subject: the page is no longer\n' +
+        '    audited by any pass, and its CSS leaves the derived breakpoint set with it. Write the\n' +
+        '    reason beside the path — an exemption nobody has to justify is the cheapest way out\n' +
+        '    of a red build.',
     );
   }
-  return esecuri;
+  return failures;
 }
 
 /**
  * The widths at which some pass really loads this set of pages, and which passes
- * they come from. Never the whole of `CONDITII`.
+ * they come from. Never the whole of `CONDITIONS`.
  *
- * @param {string} setPagini
- * @param {number} latimeImplicita
- * @param {Record<string, Trecere>} [treceri]
- * @param {Record<string, Conditie>} [conditii]
- * @returns {{ treceri: string[], latimi: number[] }}
+ * @param {string} pageSet
+ * @param {number} measuredDefaultWidth
+ * @param {Record<string, Pass>} [passes]
+ * @param {Record<string, Condition>} [conditions]
+ * @returns {{ passes: string[], widths: number[] }}
  */
-export function latimiAuditate(setPagini, latimeImplicita, treceri = TRECERI, conditii = CONDITII) {
-  const cheile = Object.keys(treceri).filter((cheie) => treceri[cheie].pagini === setPagini);
-  const latimi = new Set();
-  for (const cheie of cheile) {
-    for (const nume of treceri[cheie].conditii) {
-      const conditie = conditii[nume];
-      if (conditie !== undefined) latimi.add(conditie.latime ?? latimeImplicita);
+export function auditedWidths(pageSet, measuredDefaultWidth, passes = PASSES, conditions = CONDITIONS) {
+  const passKeys = Object.keys(passes).filter((key) => passes[key].pages === pageSet);
+  const widths = new Set();
+  for (const key of passKeys) {
+    for (const name of passes[key].conditions) {
+      const condition = conditions[name];
+      if (condition !== undefined) widths.add(condition.width ?? measuredDefaultWidth);
     }
   }
-  return { treceri: cheile, latimi: [...latimi].sort((a, b) => a - b) };
+  return { passes: passKeys, widths: [...widths].sort((a, b) => a - b) };
 }
 
 /**
  * The widths this set of pages is really loaded at, SPLIT BY JAVASCRIPT STATE.
  *
- * `latimiAuditate` answers "which widths", `moduriAuditate` answers "which
+ * `auditedWidths` answers "which widths", `auditedStates` answers "which
  * states", and the guard asked those two questions separately. That is the sixth
  * blind arrangement, found while closing the fifth and measured before it was
- * closed: delete `telefonFaraJs` from `CONDITII` and from `TRECERI.mobil`, change
+ * closed: delete `phoneNoJs` from `CONDITIONS` and from `PASSES.mobile`, change
  * nothing else, and the unit guard is 28 passed, both `dist` passes exit 0, and
- * the run prints `stari JavaScript auditate: JS pornit - JS oprit` - true of the
+ * the run prints `JavaScript states audited: JS on - JS off` - true of the
  * SET, false of the phone band, which has just lost its only scripts-off audit.
  * The band below 34rem is where the day row drops its month name, where the week
  * band stacks, and where most of the parish reads this; with scripts on the
@@ -668,69 +666,69 @@ export function latimiAuditate(setPagini, latimeImplicita, treceri = TRECERI, co
  *
  * Coverage is therefore a property of the PAIR, and that is what this returns.
  *
- * @param {string} setPagini
- * @param {number} latimeImplicita
- * @param {Record<string, Trecere>} [treceri]
- * @param {Record<string, Conditie>} [conditii]
- * @returns {{ cuJs: number[], faraJs: number[] }}
+ * @param {string} pageSet
+ * @param {number} measuredDefaultWidth
+ * @param {Record<string, Pass>} [passes]
+ * @param {Record<string, Condition>} [conditions]
+ * @returns {{ withJs: number[], withoutJs: number[] }}
  */
-export function latimiPeStare(setPagini, latimeImplicita, treceri = TRECERI, conditii = CONDITII) {
-  const pe = { cuJs: new Set(), faraJs: new Set() };
-  for (const cheie of Object.keys(treceri).filter((k) => treceri[k].pagini === setPagini)) {
-    for (const nume of treceri[cheie].conditii) {
-      const conditie = conditii[nume];
-      if (conditie === undefined) continue;
-      pe[conditie.js === true ? 'cuJs' : 'faraJs'].add(conditie.latime ?? latimeImplicita);
+export function widthsByState(pageSet, measuredDefaultWidth, passes = PASSES, conditions = CONDITIONS) {
+  const sets = { withJs: new Set(), withoutJs: new Set() };
+  for (const key of Object.keys(passes).filter((k) => passes[k].pages === pageSet)) {
+    for (const name of passes[key].conditions) {
+      const condition = conditions[name];
+      if (condition === undefined) continue;
+      sets[condition.js === true ? 'withJs' : 'withoutJs'].add(condition.width ?? measuredDefaultWidth);
     }
   }
   return {
-    cuJs: [...pe.cuJs].sort((a, b) => a - b),
-    faraJs: [...pe.faraJs].sort((a, b) => a - b),
+    withJs: [...sets.withJs].sort((a, b) => a - b),
+    withoutJs: [...sets.withoutJs].sort((a, b) => a - b),
   };
 }
 
 /** The two JavaScript states, as they are named in output and in code. */
-export const STARI = [
-  { cheie: 'cuJs', eticheta: 'PORNITE', scurt: 'JS pornit' },
-  { cheie: 'faraJs', eticheta: 'OPRITE', scurt: 'JS oprit' },
+export const STATES = [
+  { key: 'withJs', label: 'ON', short: 'JS on' },
+  { key: 'withoutJs', label: 'OFF', short: 'JS off' },
 ];
 
 /**
  * The states a set of pages must be audited in: scripts on always, scripts off
- * unless `FARA_JS_MOTIVAT` says in words why that set has no such state.
+ * unless `NO_JS_REASONS` says in words why that set has no such state.
  *
- * @param {string} setPagini
- * @param {Record<string, string>} [motive]
+ * @param {string} pageSet
+ * @param {Record<string, string>} [reasons]
  */
-export function stariCerute(setPagini, motive = FARA_JS_MOTIVAT) {
-  return STARI.filter((s) => s.cheie === 'cuJs' || motive[setPagini] === undefined);
+export function requiredStates(pageSet, reasons = NO_JS_REASONS) {
+  return STATES.filter((s) => s.key === 'withJs' || reasons[pageSet] === undefined);
 }
 
 /**
  * The JavaScript states some pass really loads this set of pages in, and which
- * passes they come from. Never the whole of `CONDITII` - the same rule as
- * `latimiAuditate`, on the other axis: a scripts-off condition run over some
+ * passes they come from. Never the whole of `CONDITIONS` - the same rule as
+ * `auditedWidths`, on the other axis: a scripts-off condition run over some
  * other build buys this one nothing.
  *
- * @param {string} setPagini
- * @param {Record<string, Trecere>} [treceri]
- * @param {Record<string, Conditie>} [conditii]
- * @returns {{ treceri: string[], cuJs: boolean, faraJs: boolean }}
+ * @param {string} pageSet
+ * @param {Record<string, Pass>} [passes]
+ * @param {Record<string, Condition>} [conditions]
+ * @returns {{ passes: string[], withJs: boolean, withoutJs: boolean }}
  */
-export function moduriAuditate(setPagini, treceri = TRECERI, conditii = CONDITII) {
-  const cheile = Object.keys(treceri).filter((cheie) => treceri[cheie].pagini === setPagini);
-  const stari = new Set();
-  for (const cheie of cheile) {
-    for (const nume of treceri[cheie].conditii) {
-      const conditie = conditii[nume];
-      if (conditie !== undefined) stari.add(conditie.js === true);
+export function auditedStates(pageSet, passes = PASSES, conditions = CONDITIONS) {
+  const passKeys = Object.keys(passes).filter((key) => passes[key].pages === pageSet);
+  const states = new Set();
+  for (const key of passKeys) {
+    for (const name of passes[key].conditions) {
+      const condition = conditions[name];
+      if (condition !== undefined) states.add(condition.js === true);
     }
   }
-  return { treceri: cheile, cuJs: stari.has(true), faraJs: stari.has(false) };
+  return { passes: passKeys, withJs: states.has(true), withoutJs: states.has(false) };
 }
 
 /** `package.json`, resolved next to this file rather than to a working directory. */
-export function citestePachet() {
+export function readPackageJson() {
   return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 }
 
@@ -740,7 +738,7 @@ export function citestePachet() {
  * This file used to write `(max-width: 34rem)` and `(min-width: 62rem)` out by
  * hand. They were right, and they were a SECOND COPY of two numbers whose first
  * copy lives in the components' styles, with nothing tying the two spellings
- * together. Measured: change `RandZi.astro` to `48rem`, rebuild, and all four
+ * together. Measured: change `DayRow.astro` to `48rem`, rebuild, and all four
  * passes stay green while the default pass at 756px is silently auditing the
  * phone branch and the 769-991px band is audited by nobody at all.
  *
@@ -755,8 +753,8 @@ export function citestePachet() {
  * WHY THE AXES KEPT ARRIVING, AND THE RESTATEMENT THAT IS MEANT TO STOP THEM.
  *
  * This guard has been green while blind FIVE TIMES, found by three different
- * reviewers: hardcoded breakpoints; widths declared in `CONDITII` that no pass
- * ran; the JavaScript axis, which nothing indexed; `medii: {}`, which made the
+ * reviewers: hardcoded breakpoints; widths declared in `CONDITIONS` that no pass
+ * ran; the JavaScript axis, which nothing indexed; `media: {}`, which made the
  * comparison a loop over nothing; and assertion (a) being one-directional. Each
  * fix closed the arrangement it was shown. A SIXTH was then found here while
  * closing the fifth - coverage indexed on the page SET rather than on the band,
@@ -776,15 +774,15 @@ export function citestePachet() {
  * decomposed into width comparisons (which this file indexes, into breakpoints
  * and bands) and everything else (which it cannot, and therefore must not
  * silently drop). "What the suite runs" is the (width, JavaScript state) pairs of
- * the `TRECERI` entries whose `pagini` is this set. Five assertions, and the
+ * the `PASSES` entries whose `pages` is this set. Five assertions, and the
  * letters say which direction each one goes:
  *
  *   (a)  declaration -> CSS. Every query a condition DECLARES is still a
  *        breakpoint the CSS has, so a breakpoint that MOVED is named immediately,
  *        at its old value.
- *   (a') CSS -> declaration. Every breakpoint the CSS HAS is named by the `medii`
+ *   (a') CSS -> declaration. Every breakpoint the CSS HAS is named by the `media`
  *        of some condition this set is loaded under. Without this, dropping a
- *        breakpoint from every `medii` and then moving it is green on everything:
+ *        breakpoint from every `media` and then moving it is green on everything:
  *        measured, all four passes and the unit guard, with a 62rem breakpoint
  *        sitting at 60rem and printed in the output. There is deliberately NO
  *        exemption table beside it - a breakpoint the CSS has is a branch of the
@@ -797,7 +795,7 @@ export function citestePachet() {
  *        soon as it opens a band nothing looks at; a state dropped from one band
  *        fails even though other bands still have it.
  *   (c)  CSS -> named. Every media feature that is NOT a width comparison is
- *        named in `TRASATURI_NEAUDITATE` with the reason in words. This is the
+ *        named in `UNAUDITED_FEATURES` with the reason in words. This is the
  *        assertion that closes the CLASS rather than an instance:
  *        `prefers-reduced-motion` has been in the built CSS the whole time,
  *        indexed by nothing, declared by nothing and silent - a seventh
@@ -808,8 +806,8 @@ export function citestePachet() {
  *        that the CSS no longer has is a stale excuse and fails.
  *
  * "AUDITED" MEANS A PASS RUNS THERE, over these pages. Every assertion takes its
- * widths, its states and its declared queries from the `TRECERI` entries whose
- * `pagini` is the set being audited, never from `CONDITII` as a whole - see the
+ * widths, its states and its declared queries from the `PASSES` entries whose
+ * `pages` is the set being audited, never from `CONDITIONS` as a whole - see the
  * table above for the two green arrangements that taught us the difference.
  *
  * WHAT IS STILL NOT CLOSED, said plainly rather than left to be found seventh:
@@ -823,8 +821,8 @@ export function citestePachet() {
  *
  * SCOPE, SAID PLAINLY, BECAUSE IT CUTS AGAINST A RULE THIS PROJECT HOLDS. The
  * expectation here is derived FROM the artifact a defect would edit - our own
- * built CSS - which is exactly what `CSP_ASTEPTAT` above must never do. The
- * difference is what each list is for. `CSP_ASTEPTAT` is a boundary against a
+ * built CSS - which is exactly what `CSP_EXPECTED` above must never do. The
+ * difference is what each list is for. `CSP_EXPECTED` is a boundary against a
  * third party: if a Sveltia upgrade could add its own entries it could excuse
  * any origin it liked, so that set is written by hand. The CSS is not a suspect
  * to be held to a fixed list - it is the SUBJECT, and the property being checked
@@ -839,15 +837,15 @@ export function citestePachet() {
  * therefore, by specification and not by measurement.
  * -------------------------------------------------------------------------- */
 
-const PX_PE_UNITATE = { px: 1, rem: 16, em: 16 };
-const OGLINDA = { '<': '>', '<=': '>=', '>': '<', '>=': '<=' };
+const PX_PER_UNIT = { px: 1, rem: 16, em: 16 };
+const MIRROR = { '<': '>', '<=': '>=', '>': '<', '>=': '<=' };
 
 /*
  * MEDIA FEATURES THIS AUDIT DOES NOT VARY, each with the reason in words.
  *
  * Assertion (c) above. Width is the only axis this file indexes; every other
  * feature a built stylesheet asks about is a branch of the page that no pass here
- * renders, and until this table existed it was dropped in silence. `comparatii`
+ * renders, and until this table existed it was dropped in silence. `widthComparisons`
  * consumed the width comparisons and the leftover was only inspected for the word
  * "width" - so `@media (prefers-reduced-motion: reduce)` went through every
  * version of this guard, including the two written specifically to close blind
@@ -859,20 +857,20 @@ const OGLINDA = { '<': '>', '<=': '>=', '>': '<', '>=': '<=' };
  * merely inconvenient to audit - if a branch can change what a visitor reads, the
  * repair is a condition that renders it.
  *
- * Both directions fail, as with `FARA_JS_MOTIVAT` and the command strings: a
+ * Both directions fail, as with `NO_JS_REASONS` and the command strings: a
  * feature the CSS no longer has, named here, is a stale excuse.
  *
  * @type {Record<string, string>}
  */
-export const TRASATURI_NEAUDITATE = {
+export const UNAUDITED_FEATURES = {
   'prefers-reduced-motion': [
-    'nicio trecere nu schimbă preferința: Chrome pornește pe `no-preference`, deci ramura',
-    '`reduce` nu este randată de nimeni. Ce face ea este să stingă animațiile și tranzițiile',
-    '(`animation: none`, `transition: none` în src/styles/global.css) — scoate mișcare, nu',
-    'adaugă nimic: nu poate strica un contrast, un nume accesibil sau un inel de focalizare pe',
-    'care ramura implicită să nu le aibă deja, iar axe măsoară oricum starea rezolvată a unui',
-    'DOM static, nu mișcarea. Ce ar putea ascunde este un control a cărui singură indicație',
-    'vizuală este o animație; situl nu are niciunul. Deci este o lipsă spusă, nu una acoperită.',
+    'no pass changes the preference: Chrome starts on `no-preference`, so the `reduce` branch is',
+    'rendered by nobody. What that branch does is switch animations and transitions off',
+    '(`animation: none`, `transition: none` in src/styles/global.css) — it removes motion and adds',
+    'nothing: it cannot break a contrast, an accessible name or a focus ring that the default',
+    'branch does not already have, and axe measures the resolved state of a static DOM anyway,',
+    'not motion. What it could hide is a control whose only visual cue is an animation; the site',
+    'has none. So this is a gap said out loud, not one covered over.',
   ].join('\n      '),
 };
 
@@ -887,10 +885,10 @@ export const TRASATURI_NEAUDITATE = {
  * viewport, and this audit is one browser by construction - that gap is in the
  * HONEST SCOPE block at the top of the file, where it belongs.
  */
-const REGULI_DE_MEDIU = ['container'];
+const ENVIRONMENT_AT_RULES = ['container'];
 
 /** The logical words that join media features, which are not features. */
-const CUVINTE_LOGICE = new Set(['and', 'not', 'only', 'or']);
+const LOGICAL_WORDS = new Set(['and', 'not', 'only', 'or']);
 
 /**
  * Every media feature in one `@media` condition that is NOT a width comparison,
@@ -898,19 +896,19 @@ const CUVINTE_LOGICE = new Set(['and', 'not', 'only', 'or']);
  * leftover this file failed to parse: a guard that derives its subject can only
  * check what it recognised, so what it did not recognise has to be loud.
  */
-export function trasaturileConditiei(conditie) {
-  const { rest } = comparatii(conditie);
-  const nume = new Set();
-  const ramas = rest.replace(/\(\s*([a-zA-Z][\w-]*)\s*(?::[^()]*)?\)/g, (_, f) => {
-    nume.add(f.toLowerCase());
+export function conditionFeatures(condition) {
+  const { rest } = widthComparisons(condition);
+  const names = new Set();
+  const leftover = rest.replace(/\(\s*([a-zA-Z][\w-]*)\s*(?::[^()]*)?\)/g, (_, f) => {
+    names.add(f.toLowerCase());
     return ' ';
   });
-  for (const bucata of ramas.split(/[\s,]+/)) {
-    const cuvant = bucata.trim().toLowerCase();
-    if (cuvant === '' || CUVINTE_LOGICE.has(cuvant)) continue;
-    nume.add(cuvant);
+  for (const piece of leftover.split(/[\s,]+/)) {
+    const word = piece.trim().toLowerCase();
+    if (word === '' || LOGICAL_WORDS.has(word)) continue;
+    names.add(word);
   }
-  return [...nume].sort();
+  return [...names].sort();
 }
 
 /*
@@ -921,44 +919,44 @@ export function trasaturileConditiei(conditie) {
  * makes `(width<=34rem)` - the form the minifier emits - and
  * `(max-width: 34rem)` comparable at all.
  */
-function limitaJoasa(semn, px) {
-  return semn === '<=' || semn === '>' ? Math.floor(px) : Math.ceil(px) - 1;
+function lowerLimit(sign, px) {
+  return sign === '<=' || sign === '>' ? Math.floor(px) : Math.ceil(px) - 1;
 }
 
 /** Every width comparison in one `@media` condition, and what was left over. */
-export function comparatii(conditie) {
-  const gasite = [];
-  let rest = conditie;
-  const strange = (tipar, citeste) => {
-    rest = rest.replace(tipar, (...m) => {
-      const c = citeste(m);
-      const px = parseFloat(c.numar) * (PX_PE_UNITATE[(c.unitate ?? 'px').toLowerCase()] ?? Number.NaN);
-      gasite.push({ text: m[0].trim(), px, limita: limitaJoasa(c.semn, px) });
+export function widthComparisons(condition) {
+  const found = [];
+  let rest = condition;
+  const collect = (pattern, read) => {
+    rest = rest.replace(pattern, (...m) => {
+      const c = read(m);
+      const px = parseFloat(c.number) * (PX_PER_UNIT[(c.unit ?? 'px').toLowerCase()] ?? Number.NaN);
+      found.push({ text: m[0].trim(), px, limit: lowerLimit(c.sign, px) });
       return ' ';
     });
   };
-  strange(/\(\s*(min|max)-width\s*:\s*([\d.]+)(px|rem|em)?\s*\)/gi, (m) => ({
-    semn: m[1].toLowerCase() === 'max' ? '<=' : '>=',
-    numar: m[2],
-    unitate: m[3],
+  collect(/\(\s*(min|max)-width\s*:\s*([\d.]+)(px|rem|em)?\s*\)/gi, (m) => ({
+    sign: m[1].toLowerCase() === 'max' ? '<=' : '>=',
+    number: m[2],
+    unit: m[3],
   }));
-  strange(/\(\s*width\s*(<=|>=|<|>)\s*([\d.]+)(px|rem|em)?\s*\)/gi, (m) => ({
-    semn: m[1],
-    numar: m[2],
-    unitate: m[3],
+  collect(/\(\s*width\s*(<=|>=|<|>)\s*([\d.]+)(px|rem|em)?\s*\)/gi, (m) => ({
+    sign: m[1],
+    number: m[2],
+    unit: m[3],
   }));
-  strange(/\(\s*([\d.]+)(px|rem|em)?\s*(<=|>=|<|>)\s*width\s*\)/gi, (m) => ({
-    semn: OGLINDA[m[3]],
-    numar: m[1],
-    unitate: m[2],
+  collect(/\(\s*([\d.]+)(px|rem|em)?\s*(<=|>=|<|>)\s*width\s*\)/gi, (m) => ({
+    sign: MIRROR[m[3]],
+    number: m[1],
+    unit: m[2],
   }));
-  return { gasite, rest };
+  return { found, rest };
 }
 
 /** The CSS one built page ships: every inline `<style>` and every stylesheet it links. */
-function cssPaginii(dist, pagina) {
-  const html = readFileSync(join(dist, pagina), 'utf8');
-  const bucati = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => ({ css: m[1], mediu: '' }));
+function pageStylesheets(dist, page) {
+  const html = readFileSync(join(dist, page), 'utf8');
+  const pieces = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => ({ css: m[1], media: '' }));
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
     if (!/rel\s*=\s*["']?stylesheet/i.test(m[0])) continue;
     const href = m[0].match(/\bhref\s*=\s*["']([^"']*)["']/i)?.[1] ?? '';
@@ -966,10 +964,10 @@ function cssPaginii(dist, pagina) {
     // are not in the derived set, which would make the coverage check below
     // pass by having looked at less. Say so instead.
     if (href === '' || /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//')) {
-      throw new Error(`${pagina}: foaia de stil "${href}" nu e un fișier din build — pragurile ei nu pot fi citite.`);
+      throw new Error(`${page}: the stylesheet "${href}" is not a file in the build — its breakpoints cannot be read.`);
     }
-    const cale = href.startsWith('/') ? href.slice(1) : join(dirname(pagina), href);
-    if (!existsSync(join(dist, cale))) throw new Error(`${pagina}: leagă ${href}, care nu există în build.`);
+    const path = href.startsWith('/') ? href.slice(1) : join(dirname(page), href);
+    if (!existsSync(join(dist, path))) throw new Error(`${page}: links ${href}, which does not exist in the build.`);
     /*
      * THE `media` ATTRIBUTE IS A MEDIA CONDITION LIKE ANY OTHER, and reading the
      * file while ignoring it would fold a `media="print"` stylesheet into the set
@@ -977,12 +975,12 @@ function cssPaginii(dist, pagina) {
      * unconditional, and the `print` axis invisible. It is carried alongside the
      * text and joined onto every `@media` condition inside it.
      */
-    bucati.push({
-      css: readFileSync(join(dist, cale), 'utf8'),
-      mediu: (m[0].match(/\bmedia\s*=\s*["']([^"']*)["']/i)?.[1] ?? '').trim(),
+    pieces.push({
+      css: readFileSync(join(dist, path), 'utf8'),
+      media: (m[0].match(/\bmedia\s*=\s*["']([^"']*)["']/i)?.[1] ?? '').trim(),
     });
   }
-  return bucati;
+  return pieces;
 }
 
 /**
@@ -991,154 +989,154 @@ function cssPaginii(dist, pagina) {
  * not a width comparison. Each carries the pages it was found in.
  *
  * The second half is assertion (c)'s subject. It used to be thrown away: the
- * leftover of `comparatii` was tested for the word "width" and otherwise dropped,
+ * leftover of `widthComparisons` was tested for the word "width" and otherwise dropped,
  * so every `@media` question this file cannot ask was invisible to it.
  */
-export function pragurile(dist, pagini) {
-  const dupaLimita = new Map();
-  const trasaturi = new Map();
-  const probleme = [];
-  const noteaza = (nume, pagina, conditie) => {
-    const intrare = trasaturi.get(nume) ?? { nume, surse: new Set(), conditii: new Set() };
-    intrare.surse.add(pagina);
-    intrare.conditii.add(conditie);
-    trasaturi.set(nume, intrare);
+export function breakpointsFromCss(dist, pages) {
+  const byLimit = new Map();
+  const features = new Map();
+  const problems = [];
+  const noteFeature = (name, page, condition) => {
+    const entry = features.get(name) ?? { name, sources: new Set(), conditions: new Set() };
+    entry.sources.add(page);
+    entry.conditions.add(condition);
+    features.set(name, entry);
   };
-  for (const pagina of pagini) {
-    let bucati;
+  for (const page of pages) {
+    let pieces;
     try {
-      bucati = cssPaginii(dist, pagina);
+      pieces = pageStylesheets(dist, page);
     } catch (e) {
-      probleme.push(e.message);
+      problems.push(e.message);
       continue;
     }
-    const css = bucati.map((b) => b.css).join('\n');
+    const css = pieces.map((b) => b.css).join('\n');
     /*
      * A STYLESHEET THIS FILE DOES NOT FOLLOW IS A SUBJECT SILENTLY NARROWED.
-     * `cssPaginii` follows `<link rel=stylesheet>` and throws on one it cannot
+     * `pageStylesheets` follows `<link rel=stylesheet>` and throws on one it cannot
      * read; an `@import` inside a stylesheet it DID read was followed by nobody
      * and reported by nobody, so every breakpoint behind one would be missing
      * from the derived set while the coverage check below said it had looked.
      */
     for (const m of css.matchAll(/@import\b([^;]*);/g)) {
-      probleme.push(
-        `${pagina}: CSS-ul construit conține @import${m[1].trim() === '' ? '' : ` ${m[1].trim()}`}, ` +
-          'pe care acest fișier nu îl urmărește — pragurile din foaia importată nu sunt în setul derivat. ' +
-          'Fie o legi cu <link>, fie o urmărești aici.',
+      problems.push(
+        `${page}: the built CSS contains @import${m[1].trim() === '' ? '' : ` ${m[1].trim()}`}, ` +
+          'which this file does not follow — the breakpoints of the imported sheet are not in the derived set. ' +
+          'Either link it with <link>, or follow it here.',
       );
     }
     // The `media` attribute of a linked stylesheet conditions everything in it.
-    for (const b of bucati) {
-      if (b.mediu === '' || b.mediu.toLowerCase() === 'all') continue;
-      for (const nume of trasaturileConditiei(b.mediu)) noteaza(nume, pagina, `<link media="${b.mediu}">`);
-      for (const g of comparatii(b.mediu).gasite) {
+    for (const b of pieces) {
+      if (b.media === '' || b.media.toLowerCase() === 'all') continue;
+      for (const name of conditionFeatures(b.media)) noteFeature(name, page, `<link media="${b.media}">`);
+      for (const g of widthComparisons(b.media).found) {
         if (!Number.isFinite(g.px)) {
-          probleme.push(`${pagina}: <link media="${b.mediu}"> — unitate necunoscută în "${g.text}".`);
+          problems.push(`${page}: <link media="${b.media}"> — unknown unit in "${g.text}".`);
           continue;
         }
-        const intrare = dupaLimita.get(g.limita) ?? { limita: g.limita, px: g.px, texte: new Set(), surse: new Set() };
-        intrare.texte.add(g.text);
-        intrare.surse.add(pagina);
-        dupaLimita.set(g.limita, intrare);
+        const entry = byLimit.get(g.limit) ?? { limit: g.limit, px: g.px, texts: new Set(), sources: new Set() };
+        entry.texts.add(g.text);
+        entry.sources.add(page);
+        byLimit.set(g.limit, entry);
       }
     }
-    for (const nume of REGULI_DE_MEDIU) {
-      for (const m of css.matchAll(new RegExp(`@${nume}([^{]*)\\{`, 'g'))) {
-        noteaza(`@${nume}`, pagina, `@${nume} ${m[1].trim()}`);
+    for (const name of ENVIRONMENT_AT_RULES) {
+      for (const m of css.matchAll(new RegExp(`@${name}([^{]*)\\{`, 'g'))) {
+        noteFeature(`@${name}`, page, `@${name} ${m[1].trim()}`);
       }
     }
     for (const m of css.matchAll(/@media([^{]*)\{/g)) {
-      const conditie = m[1].trim();
-      const { gasite, rest } = comparatii(conditie);
+      const condition = m[1].trim();
+      const { found, rest } = widthComparisons(condition);
       // Anything width-shaped that this parser did not consume. A guard that
       // derives its subject can only check what it recognised, so the part it
       // failed to recognise has to be loud rather than absent.
       if (/width/i.test(rest)) {
-        probleme.push(
-          `${pagina}: @media ${conditie} — o condiție de lățime pe care acest fișier nu o înțelege ` +
-            `(a rămas necitit: "${rest.trim()}"). Adaug-o în comparatii() din scripts/a11y.mjs.`,
+        problems.push(
+          `${page}: @media ${condition} — a width condition this file does not understand ` +
+            `(left unread: "${rest.trim()}"). Add it to widthComparisons() in scripts/a11y.mjs.`,
         );
       }
       // Everything that is not a width. Silent until this line existed.
-      for (const nume of trasaturileConditiei(conditie)) noteaza(nume, pagina, `@media ${conditie}`);
-      for (const g of gasite) {
+      for (const name of conditionFeatures(condition)) noteFeature(name, page, `@media ${condition}`);
+      for (const g of found) {
         if (!Number.isFinite(g.px)) {
-          probleme.push(`${pagina}: @media ${conditie} — unitate necunoscută în "${g.text}".`);
+          problems.push(`${page}: @media ${condition} — unknown unit in "${g.text}".`);
           continue;
         }
-        const intrare = dupaLimita.get(g.limita) ?? { limita: g.limita, px: g.px, texte: new Set(), surse: new Set() };
-        intrare.texte.add(g.text);
-        intrare.surse.add(pagina);
-        dupaLimita.set(g.limita, intrare);
+        const entry = byLimit.get(g.limit) ?? { limit: g.limit, px: g.px, texts: new Set(), sources: new Set() };
+        entry.texts.add(g.text);
+        entry.sources.add(page);
+        byLimit.set(g.limit, entry);
       }
     }
   }
   return {
-    praguri: [...dupaLimita.values()].sort((a, b) => a.limita - b.limita),
-    trasaturi: [...trasaturi.values()].sort((a, b) => (a.nume < b.nume ? -1 : a.nume > b.nume ? 1 : 0)),
-    probleme,
+    breakpoints: [...byLimit.values()].sort((a, b) => a.limit - b.limit),
+    features: [...features.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
+    problems,
   };
 }
 
 /** How a breakpoint reads in output: the query as the CSS writes it, plus its px. */
-function scriePrag(p) {
-  return `${[...p.texte].join('/')} = ${p.px}px (${[...p.surse].join(', ')})`;
+function formatBreakpoint(p) {
+  return `${[...p.texts].join('/')} = ${p.px}px (${[...p.sources].join(', ')})`;
 }
 
 /**
  * EVERYTHING THE CSS DEMANDS AGAINST EVERYTHING THE SUITE RUNS, IN BOTH
  * DIRECTIONS - the five assertions (a), (a'), (b), (c) and (c') listed in the
  * block above this section, as lines to print and problems to report.
- * `latimeImplicita` is the measured default viewport.
+ * `measuredDefaultWidth` is the measured default viewport.
  *
  * The widths and states are those of every pass over THIS SET OF PAGES, not the
  * subset the current run happens to execute: the claim is about what
  * `npm run test:all` covers over these pages between all of its passes, so an
  * uncovered band must fail every one of them rather than whichever happens to
- * hold the guilty width. What it is NOT is the whole of `CONDITII` - a width
+ * hold the guilty width. What it is NOT is the whole of `CONDITIONS` - a width
  * declared there and run over some other build says nothing about this one.
  *
  * The tables are arguments with the real ones as defaults, so every assertion
- * below has a unit-level positive control in `a11y-treceri.test.ts` that runs in
+ * below has a unit-level positive control in `a11y-passes.test.ts` that runs in
  * milliseconds instead of four Chrome launches.
  *
- * @param {{ praguri: Prag[], trasaturi?: Trasatura[], probleme: string[] }} derivat
- * @param {number} latimeImplicita
- * @param {string} setPagini
- * @param {{ tabele?: Record<string, Trecere>, conditii?: Record<string, Conditie>,
- *           motive?: Record<string, string>, neauditate?: Record<string, string> }} [optiuni]
- * @returns {{ linii: string[], esecuri: string[] }}
+ * @param {{ breakpoints: Breakpoint[], features?: MediaFeature[], problems: string[] }} derived
+ * @param {number} measuredDefaultWidth
+ * @param {string} pageSet
+ * @param {{ passTable?: Record<string, Pass>, conditions?: Record<string, Condition>,
+ *           reasons?: Record<string, string>, unaudited?: Record<string, string> }} [options]
+ * @returns {{ lines: string[], failures: string[] }}
  */
-export function verificaPraguri(
-  { praguri, trasaturi = [], probleme },
-  latimeImplicita,
-  setPagini,
-  { tabele = TRECERI, conditii = CONDITII, motive = FARA_JS_MOTIVAT, neauditate = TRASATURI_NEAUDITATE } = {},
+export function checkBreakpoints(
+  { breakpoints, features = [], problems },
+  measuredDefaultWidth,
+  pageSet,
+  { passTable = PASSES, conditions = CONDITIONS, reasons = NO_JS_REASONS, unaudited = UNAUDITED_FEATURES } = {},
 ) {
-  const esecuri = [...probleme];
-  const { treceri, latimi } = latimiAuditate(setPagini, latimeImplicita, tabele, conditii);
-  const numeleTrecerilor = treceri.map((cheie) => `${cheie} (${comandaTrecerii(tabele[cheie])})`).join(' · ');
-  const peStare = latimiPeStare(setPagini, latimeImplicita, tabele, conditii);
-  const cerute = stariCerute(setPagini, motive);
+  const failures = [...problems];
+  const { passes, widths } = auditedWidths(pageSet, measuredDefaultWidth, passTable, conditions);
+  const passNames = passes.map((key) => `${key} (${passCommand(passTable[key])})`).join(' · ');
+  const byState = widthsByState(pageSet, measuredDefaultWidth, passTable, conditions);
+  const required = requiredStates(pageSet, reasons);
   // Printed rather than only asserted, on every axis, for the same reason the
   // widths are: the line below is what a later reader checks a claim against.
-  const { cuJs, faraJs } = moduriAuditate(setPagini, tabele, conditii);
-  const stari = [cuJs ? 'JS pornit' : null, faraJs ? 'JS oprit' : null].filter(Boolean);
-  const linii = [
-    `praguri din CSS-ul construit: ${praguri.length > 0 ? praguri.map(scriePrag).join(' · ') : '(niciunul)'}`,
-    `trăsături de mediu care nu sunt lățimi: ${
-      trasaturi.length > 0 ? trasaturi.map((t) => `${t.nume} (${[...t.surse].join(', ')})`).join(' · ') : '(niciuna)'
+  const { withJs, withoutJs } = auditedStates(pageSet, passTable, conditions);
+  const states = [withJs ? 'JS on' : null, withoutJs ? 'JS off' : null].filter(Boolean);
+  const lines = [
+    `breakpoints in the built CSS: ${breakpoints.length > 0 ? breakpoints.map(formatBreakpoint).join(' · ') : '(none)'}`,
+    `media features that are not widths: ${
+      features.length > 0 ? features.map((t) => `${t.name} (${[...t.sources].join(', ')})`).join(' · ') : '(none)'
     }`,
-    `set de pagini „${setPagini}” — treceri care îl auditează: ${numeleTrecerilor === '' ? '(niciuna)' : numeleTrecerilor}`,
-    `lățimi auditate de aceste treceri: ${latimi.join(', ')}px (implicita măsurată: ${latimeImplicita}px)`,
-    `stări JavaScript auditate: ${stari.length > 0 ? stari.join(' · ') : '(niciuna)'}` +
-      `${faraJs ? '' : ` — scutit: ${motive[setPagini] === undefined ? 'NU' : 'da'}`}`,
+    `page set \u201e${pageSet}\u201d — passes that audit it: ${passNames === '' ? '(none)' : passNames}`,
+    `widths audited by those passes: ${widths.join(', ')}px (measured default: ${measuredDefaultWidth}px)`,
+    `JavaScript states audited: ${states.length > 0 ? states.join(' · ') : '(none)'}` +
+      `${withoutJs ? '' : ` — exempt: ${reasons[pageSet] === undefined ? 'NO' : 'yes'}`}`,
     // The PAIR, which is what coverage is a property of. Two axes printed apart
     // is exactly what let one width lose its scripts-off pass unnoticed.
-    ...STARI.map(
+    ...STATES.map(
       (st) =>
-        `  lățimi cu scripturile ${st.eticheta}: ${peStare[st.cheie].length > 0 ? `${peStare[st.cheie].join(', ')}px` : '(niciuna)'}` +
-        `${cerute.some((c) => c.cheie === st.cheie) ? '' : ' — scutit, cu motiv scris'}`,
+        `  widths with scripts ${st.label}: ${byState[st.key].length > 0 ? `${byState[st.key].join(', ')}px` : '(none)'}` +
+        `${required.some((c) => c.key === st.key) ? '' : ' — exempt, with a written reason'}`,
     ),
   ];
 
@@ -1156,71 +1154,71 @@ export function verificaPraguri(
    * width breakpoint would otherwise leave this loop unrun, and an early return
    * that skips a check is the shape this project has paid for most.
    */
-  const numite = new Set(Object.keys(neauditate));
-  for (const t of trasaturi) {
-    if (numite.has(t.nume)) continue;
-    esecuri.push(
-      `CSS-ul construit ramifică pe „${t.nume}”, pe care acest audit nu o variază și nimeni nu a numit-o.\n` +
-        `    Găsită în: ${[...t.surse].join(', ')} — ${[...t.conditii].join(' · ')}.\n` +
-        '    Lățimea este singura axă pe care fișierul acesta o indexează, deci ramura aceasta nu\n' +
-        '    este randată de nicio trecere. Ori o auditezi (o condiție care o pune în starea ei),\n' +
-        '    ori o scrii în TRASATURI_NEAUDITATE din scripts/a11y.mjs cu motivul în cuvinte.\n' +
-        '    O lipsă spusă e mai bună decât o ramură pe care nimeni nu a văzut-o.',
+  const named = new Set(Object.keys(unaudited));
+  for (const t of features) {
+    if (named.has(t.name)) continue;
+    failures.push(
+      `the built CSS branches on \u201e${t.name}\u201d, which this audit does not vary and nobody has named.\n` +
+        `    Found in: ${[...t.sources].join(', ')} — ${[...t.conditions].join(' · ')}.\n` +
+        '    Width is the only axis this file indexes, so this branch is rendered by no pass. Either\n' +
+        '    audit it (a condition that puts it in its state), or write it into UNAUDITED_FEATURES in\n' +
+        '    scripts/a11y.mjs with the reason in words.\n' +
+        '    A gap said out loud beats a branch nobody has ever seen.',
     );
   }
-  for (const nume of [...numite].sort()) {
-    if (trasaturi.some((t) => t.nume === nume)) continue;
-    esecuri.push(
-      `TRASATURI_NEAUDITATE numește „${nume}”, pe care CSS-ul construit al setului „${setPagini}” ` +
-        'nu-l mai conține.\n' +
-        '    Scuza a rămas în urma foilor de stil: scoate-o. Una de care nu are nimeni nevoie rămâne\n' +
-        '    în cod arătând ca o regulă, gata să acopere altceva cu același nume.',
+  for (const name of [...named].sort()) {
+    if (features.some((t) => t.name === name)) continue;
+    failures.push(
+      `UNAUDITED_FEATURES names \u201e${name}\u201d, which the built CSS of the set \u201e${pageSet}\u201d ` +
+        'no longer contains.\n' +
+        '    The excuse has fallen behind the stylesheets: remove it. One nobody needs stays in the\n' +
+        '    code looking like a rule, ready to cover something else under the same name.',
     );
   }
 
   // A set of pages nothing audits cannot be said to cover any band. Without
   // this the loop below would report every band as uncovered and bury the
-  // actual mistake, which is a `pagini` nobody spells the same way twice.
-  if (treceri.length === 0) {
-    esecuri.push(
-      `nicio trecere din TRECERI nu are pagini: "${setPagini}". Auditul rulează peste un set de pagini ` +
-        'pe care tabelul nu îl cunoaște, deci nicio lățime nu i se poate socoti.',
+  // actual mistake, which is a `pages` nobody spells the same way twice.
+  if (passes.length === 0) {
+    failures.push(
+      `no pass in PASSES has pages: "${pageSet}". The audit is running over a set of pages the ` +
+        'table does not know about, so no width can be counted for it.',
     );
-    return { linii, esecuri };
+    return { lines, failures };
   }
 
   // A guard that reads files must prove it read something.
-  if (praguri.length === 0) {
-    esecuri.push(
-      'paginile auditate nu declară niciun prag de lățime. Ori CSS-ul construit le-a pierdut, ' +
-        'ori comparatii() nu le mai recunoaște — în ambele cazuri acoperirea de mai jos nu ar dovedi nimic.',
+  if (breakpoints.length === 0) {
+    failures.push(
+      'the audited pages declare no width breakpoint at all. Either the built CSS has lost them, ' +
+        'or widthComparisons() no longer recognises them — either way the coverage below would prove nothing.',
     );
-    return { linii, esecuri };
+    return { lines, failures };
   }
 
   // The conditions this set of pages is actually loaded under, and the queries
   // they declare. Both (a) and (a') are about these two sets and nothing else.
-  const numeConditii = new Set(treceri.flatMap((cheie) => tabele[cheie].conditii));
-  const declarate = new Set(
-    [...numeConditii].flatMap((nume) => Object.keys(conditii[nume]?.medii ?? {})),
+  const conditionNames = new Set(passes.flatMap((key) => passTable[key].conditions));
+  const declared = new Set(
+    [...conditionNames].flatMap((name) => Object.keys(conditions[name]?.media ?? {})),
   );
 
   // (a) declaration -> CSS. Every query a condition declares still names a
   // breakpoint the CSS has, so a breakpoint that MOVED is named at its old value.
-  const limiteDeclarate = new Set();
-  for (const interogare of [...declarate].sort()) {
-    const { gasite } = comparatii(interogare);
-    const limite = gasite.map((g) => g.limita);
-    if (limite.length !== 1) {
-      esecuri.push(`CONDITII declară "${interogare}", pe care comparatii() nu o citește ca un singur prag.`);
+  const declaredLimits = new Set();
+  for (const mediaQuery of [...declared].sort()) {
+    const { found } = widthComparisons(mediaQuery);
+    const limits = found.map((g) => g.limit);
+    if (limits.length !== 1) {
+      failures.push(`CONDITIONS declares "${mediaQuery}", which widthComparisons() does not read as a single breakpoint.`);
       continue;
     }
-    limiteDeclarate.add(limite[0]);
-    if (!praguri.some((p) => p.limita === limite[0])) {
-      esecuri.push(
-        `CONDITII declară "${interogare}", dar CSS-ul construit nu mai are un prag acolo.\n` +
-          `    Praguri găsite: ${praguri.map(scriePrag).join(' · ')}.\n` +
-          '    Un prag s-a mutat: mută-l și aici, și verifică ce lățime îl mai auditează.',
+    declaredLimits.add(limits[0]);
+    if (!breakpoints.some((p) => p.limit === limits[0])) {
+      failures.push(
+        `CONDITIONS declares "${mediaQuery}", but the built CSS no longer has a breakpoint there.\n` +
+          `    Breakpoints found: ${breakpoints.map(formatBreakpoint).join(' · ')}.\n` +
+          '    A breakpoint has moved: move it here too, and check which width still audits it.',
       );
     }
   }
@@ -1228,10 +1226,10 @@ export function verificaPraguri(
   /*
    * (a') CSS -> declaration, AND THIS IS THE DIRECTION THAT WAS MISSING.
    *
-   * (a) iterates the declarations, so a breakpoint dropped from every `medii`
+   * (a) iterates the declarations, so a breakpoint dropped from every `media`
    * leaves its loop with nothing to say about it. Measured before this existed:
-   * remove `(min-width: 62rem)` from all six conditions - each `medii` still
-   * non-empty, so the `medii: {}` check is satisfied - then move that breakpoint
+   * remove `(min-width: 62rem)` from all six conditions - each `media` still
+   * non-empty, so the `media: {}` check is satisfied - then move that breakpoint
    * in the component to 60rem and rebuild. All four browser passes and the unit
    * guard are exit 0, while the run PRINTS a breakpoint at 960px that nothing
    * declares and nothing compares against anything.
@@ -1241,16 +1239,16 @@ export function verificaPraguri(
    * at it, which is one line in each condition, and an excuse would be a way to
    * keep the branch and stop looking at it.
    */
-  for (const prag of praguri) {
-    if (limiteDeclarate.has(prag.limita)) continue;
-    esecuri.push(
-      `CSS-ul construit declară un prag pe care nicio condiție nu-l numește: ${scriePrag(prag)}.\n` +
-        `    Condițiile sub care se încarcă setul „${setPagini}”: ${[...numeConditii].sort().join(', ')}.\n` +
-        `    Interogări declarate de ele: ${[...declarate].sort().join(' · ') || '(niciuna)'}.\n` +
-        '    Verificarea (a) iterează exact interogările declarate, deci un prag scos din toate\n' +
-        '    `medii` iese din raza ei și supraviețuiește numai pe acoperirea benzilor — care vede\n' +
-        '    doar mutările destul de mari cât să golească o bandă. Scrie interogarea în `medii`-le\n' +
-        '    condițiilor de mai sus, cu ce trebuie și ce nu trebuie să se potrivească la fiecare.',
+  for (const breakpoint of breakpoints) {
+    if (declaredLimits.has(breakpoint.limit)) continue;
+    failures.push(
+      `the built CSS declares a breakpoint no condition names: ${formatBreakpoint(breakpoint)}.\n` +
+        `    The conditions the set \u201e${pageSet}\u201d is loaded under: ${[...conditionNames].sort().join(', ')}.\n` +
+        `    Queries they declare: ${[...declared].sort().join(' · ') || '(none)'}.\n` +
+        '    Assertion (a) iterates exactly the declared queries, so a breakpoint dropped from every\n' +
+        '    `media` leaves its range and survives on band coverage alone — which only sees moves\n' +
+        '    big enough to empty a band. Write the query into the `media` of the conditions above,\n' +
+        '    with what must and must not match at each.',
     );
   }
 
@@ -1259,41 +1257,41 @@ export function verificaPraguri(
    *
    * These two used to be checked apart: bands against the union of the widths,
    * and JavaScript states against the set of pages. Measured while closing (a'):
-   * delete `telefonFaraJs` from `CONDITII` and from `TRECERI.mobil` and
+   * delete `phoneNoJs` from `CONDITIONS` and from `PASSES.mobile` and
    * everything stays green - the unit guard, both `dist` passes - while the band
    * below 34rem loses its only scripts-off audit and the output still says the
    * set is audited in both states. True of the set, false of the band.
    */
-  const limite = praguri.map((p) => p.limita);
-  for (const stare of cerute) {
-    const aleStarii = peStare[stare.cheie];
-    for (let i = 0; i <= limite.length; i += 1) {
-      const jos = i === 0 ? 0 : limite[i - 1] + 1;
-      const sus = i === limite.length ? Number.POSITIVE_INFINITY : limite[i];
-      if (aleStarii.some((l) => l >= jos && l <= sus)) continue;
-      const vecine = praguri.filter((p) => p.limita === limite[i - 1] || p.limita === limite[i]).map(scriePrag);
-      esecuri.push(
-        `nicio trecere nu auditează lățimile ${jos}-${sus === Number.POSITIVE_INFINITY ? '∞' : sus}px ` +
-          `din setul de pagini „${setPagini}” cu scripturile ${stare.eticheta}.\n` +
-          `    Banda e delimitată de: ${vecine.join(' · ')}.\n` +
-          `    Lățimile care chiar se rulează peste aceste pagini cu scripturile ${stare.eticheta}: ` +
-          `${aleStarii.join(', ') || '(niciuna)'}px.\n` +
-          `    (Pe cealaltă stare: ${peStare[stare.cheie === 'cuJs' ? 'faraJs' : 'cuJs'].join(', ') || '(niciuna)'}px — ` +
-          'acoperirea este o proprietate a PERECHII, nu a celor două axe luate separat.)\n' +
-          '    Se închide în TREI pași, toți trei verificați — niciunul singur nu ajunge:\n' +
-          `      1. o condiție în CONDITII cu o lățime din bandă și js: ${stare.cheie === 'cuJs' ? 'true' : 'false'};\n` +
-          `      2. numele ei în conditii-le unei treceri din TRECERI cu pagini: "${setPagini}";\n` +
-          '      3. comanda trecerii aceleia într-un script pornit de "npm run test:all".\n' +
-          '    Sau, dacă banda chiar nu trebuie auditată, scrie aici care e și de ce — o lipsă spusă ' +
-          'e mai bună decât o trecere degeaba.',
+  const limits = breakpoints.map((p) => p.limit);
+  for (const state of required) {
+    const ofThisState = byState[state.key];
+    for (let i = 0; i <= limits.length; i += 1) {
+      const low = i === 0 ? 0 : limits[i - 1] + 1;
+      const high = i === limits.length ? Number.POSITIVE_INFINITY : limits[i];
+      if (ofThisState.some((l) => l >= low && l <= high)) continue;
+      const neighbours = breakpoints.filter((p) => p.limit === limits[i - 1] || p.limit === limits[i]).map(formatBreakpoint);
+      failures.push(
+        `no pass audits the widths ${low}-${high === Number.POSITIVE_INFINITY ? '∞' : high}px ` +
+          `of the page set \u201e${pageSet}\u201d with scripts ${state.label}.\n` +
+          `    The band is bounded by: ${neighbours.join(' · ')}.\n` +
+          `    The widths really run over these pages with scripts ${state.label}: ` +
+          `${ofThisState.join(', ') || '(none)'}px.\n` +
+          `    (On the other state: ${byState[state.key === 'withJs' ? 'withoutJs' : 'withJs'].join(', ') || '(none)'}px — ` +
+          'coverage is a property of the PAIR, not of the two axes taken apart.)\n' +
+          '    It closes in THREE steps, all three checked — no single one is enough:\n' +
+          `      1. a condition in CONDITIONS with a width from the band and js: ${state.key === 'withJs' ? 'true' : 'false'};\n` +
+          `      2. its name in the conditions of a pass in PASSES with pages: "${pageSet}";\n` +
+          '      3. that pass\'s command in a script "npm run test:all" starts.\n' +
+          '    Or, if the band really should not be audited, write here which it is and why — a gap ' +
+          'said out loud beats a pass for nothing.',
       );
     }
   }
 
-  return { linii, esecuri };
+  return { lines, failures };
 }
 
-function deschide() {
+function openBrowser() {
   return new Builder()
     .forBrowser('chrome')
     .setChromeOptions(new chrome.Options().addArguments('headless=new', 'no-sandbox', 'disable-gpu'))
@@ -1302,13 +1300,13 @@ function deschide() {
 }
 
 /** Puts the driver into one condition. Takes effect on the NEXT navigation. */
-async function pregateste(driver, conditie) {
-  if (conditie.latime === null) {
+async function prepare(driver, condition) {
+  if (condition.width === null) {
     await driver.sendDevToolsCommand('Emulation.clearDeviceMetricsOverride', {});
   } else {
     await driver.sendDevToolsCommand('Emulation.setDeviceMetricsOverride', {
-      width: conditie.latime,
-      height: conditie.inaltime,
+      width: condition.width,
+      height: condition.height,
       deviceScaleFactor: 0,
       // `mobile: false`, so the layout viewport IS the width asked for. With
       // `true` the page is laid out at 980px unless it carries a viewport meta
@@ -1317,7 +1315,7 @@ async function pregateste(driver, conditie) {
       mobile: false,
     });
   }
-  await driver.sendDevToolsCommand('Emulation.setScriptExecutionDisabled', { value: !conditie.js });
+  await driver.sendDevToolsCommand('Emulation.setScriptExecutionDisabled', { value: !condition.js });
 }
 
 /*
@@ -1331,16 +1329,16 @@ async function pregateste(driver, conditie) {
  * a page whose script rewrites its own title and body - unchanged under this
  * sequence, changed in the control with scripts enabled.
  */
-async function ruleazaAxe(driver) {
+async function runAxe(driver) {
   await driver.sendDevToolsCommand('Emulation.setScriptExecutionDisabled', { value: false });
   await driver.executeScript(AXE);
   return driver.executeAsyncScript(
-    'const gata = arguments[arguments.length - 1];' +
-      'axe.run(document).then((r) => gata({ ok: true, r })).catch((e) => gata({ ok: false, e: String(e) }));',
+    'const done = arguments[arguments.length - 1];' +
+      'axe.run(document).then((r) => done({ ok: true, r })).catch((e) => done({ ok: false, e: String(e) }));',
   );
 }
 
-const SURSA_CSP = `window.__csp = [];
+const CSP_LISTENER = `window.__csp = [];
 document.addEventListener('securitypolicyviolation', (e) => {
   window.__csp.push(e.effectiveDirective + ' <- ' + (e.blockedURI || '(inline)'));
 });`;
@@ -1356,27 +1354,27 @@ document.addEventListener('securitypolicyviolation', (e) => {
  * ones were printed; a check that had merely said "0 unexpected" would have been
  * green and empty.
  *
- * So: poll until the list has been unchanged for `LINISTE` and every expected
- * violation has arrived, up to `PLAFON`. Quiet pages leave after one quiet
+ * So: poll until the list has been unchanged for `QUIET` and every expected
+ * violation has arrived, up to `CEILING`. Quiet pages leave after one quiet
  * second; `/admin/` takes as long as the bundle takes.
  */
-const LINISTE = 1000;
-const PLAFON = 20000;
+const QUIET = 1000;
+const CEILING = 20000;
 
-async function asteaptaCsp(driver, asteptat) {
-  const pornire = Date.now();
-  let ultimele = [];
-  let schimbat = Date.now();
+async function waitForCsp(driver, expected) {
+  const startedAt = Date.now();
+  let previous = [];
+  let wasChanged = Date.now();
   for (;;) {
-    const acum = (await driver.executeScript('return window.__csp')) ?? null;
-    if (acum === null) return null;
-    if (acum.length !== ultimele.length) {
-      ultimele = acum;
-      schimbat = Date.now();
+    const now = (await driver.executeScript('return window.__csp')) ?? null;
+    if (now === null) return null;
+    if (now.length !== previous.length) {
+      previous = now;
+      wasChanged = Date.now();
     }
-    const toateVenite = asteptat.every((a) => acum.includes(a));
-    if (toateVenite && Date.now() - schimbat >= LINISTE) return acum;
-    if (Date.now() - pornire >= PLAFON) return acum;
+    const allArrived = expected.every((a) => now.includes(a));
+    if (allArrived && Date.now() - wasChanged >= QUIET) return now;
+    if (Date.now() - startedAt >= CEILING) return now;
     await driver.sleep(200);
   }
 }
@@ -1384,20 +1382,20 @@ async function asteaptaCsp(driver, asteptat) {
 /**
  * Runs the audit and returns true when everything passed.
  *
- * `trecere` is a key of `TRECERI`, not a list of conditions: the conditions this
+ * `pass` is a key of `PASSES`, not a list of conditions: the conditions this
  * runs and the conditions its band coverage is credited for are then the same
  * list by construction, which is the whole of finding A.
  *
- * `cerinta` is an optional check run ONCE PER CONDITION, after that condition's
+ * `extraCheck` is an optional check run ONCE PER CONDITION, after that condition's
  * page loop, for things only one build can show - the week picker's bar, which
  * needs two rendered weeks. It navigates itself, so it is not tied to whichever
  * page the loop happened to leave loaded, and its line appears once per
  * condition in the output.
  */
-export async function auditeaza({ dist, trecere, cerinta = null, spune = console.log }) {
-  const definitia = TRECERI[trecere];
-  if (definitia === undefined) {
-    spune(`Trecere necunoscută: "${trecere}". Cunoscute: ${Object.keys(TRECERI).join(', ')}.`);
+export async function runAudit({ dist, pass, extraCheck = null, log = console.log }) {
+  const definition = PASSES[pass];
+  if (definition === undefined) {
+    log(`Unknown pass: "${pass}". Known: ${Object.keys(PASSES).join(', ')}.`);
     return false;
   }
 
@@ -1406,66 +1404,66 @@ export async function auditeaza({ dist, trecere, cerinta = null, spune = console
    * every width below meaningless and there is no reason to spend a Chrome
    * launch finding that out.
    */
-  const problemeTabel = verificaTreceri();
-  if (problemeTabel.length > 0) {
-    spune(`\n=== ${definitia.eticheta} ===`);
-    for (const problema of problemeTabel) spune(`  ${problema}`);
-    spune('\nAUDIT PICAT.');
+  const tableProblems = checkPasses();
+  if (tableProblems.length > 0) {
+    log(`\n=== ${definition.label} ===`);
+    for (const problem of tableProblems) log(`  ${problem}`);
+    log('\nAUDIT FAILED.');
     return false;
   }
 
-  const conditii = definitia.conditii.map((nume) => CONDITII[nume]);
-  const eticheta = definitia.eticheta;
+  const conditions = definition.conditions.map((name) => CONDITIONS[name]);
+  const label = definition.label;
 
   if (!existsSync(dist)) {
-    spune(`${dist}/ nu există — rulează mai întâi build-ul.`);
+    log(`${dist}/ does not exist — run the build first.`);
     return false;
   }
-  const toate = paginile(dist);
-  if (toate.length === 0) {
-    spune(`${dist}/ nu conține nicio pagină .html.`);
+  const all = htmlPages(dist);
+  if (all.length === 0) {
+    log(`${dist}/ contains no .html page at all.`);
     return false;
   }
 
   // An exception for a page that no longer exists excuses nothing: it stays in
   // the code looking like a rule, ready to excuse something else of that name.
-  const lipsa = FARA_AXE.filter((e) => !toate.includes(e));
-  if (lipsa.length > 0) {
-    spune(`Excepții axe pentru pagini care nu există: ${lipsa.join(', ')}. Șterge-le.`);
+  const missing = NO_AXE.filter((e) => !all.includes(e));
+  if (missing.length > 0) {
+    log(`axe exceptions for pages that do not exist: ${missing.join(', ')}. Delete them.`);
     return false;
   }
-  const deAuditat = toate.filter((p) => !FARA_AXE.includes(p));
-  if (deAuditat.length === 0) {
-    spune('Excepțiile au cuprins toate paginile — auditul nu ar verifica nimic.');
+  const toAudit = all.filter((p) => !NO_AXE.includes(p));
+  if (toAudit.length === 0) {
+    log('The exceptions covered every page — the audit would check nothing.');
     return false;
   }
 
-  const fisierHeaders = join(dist, '_headers');
-  if (!existsSync(fisierHeaders)) {
-    spune(`${fisierHeaders} lipsește — politica de securitate nu ar fi verificată deloc.`);
+  const headersFile = join(dist, '_headers');
+  if (!existsSync(headersFile)) {
+    log(`${headersFile} is missing — the security policy would not be checked at all.`);
     return false;
   }
-  const reguli = parseazaHeaders(readFileSync(fisierHeaders, 'utf8'));
+  const rules = parseHeaders(readFileSync(headersFile, 'utf8'));
 
-  const server = serveste(dist, reguli);
-  await new Promise((gata) => server.listen(0, gata));
+  const server = serve(dist, rules);
+  await new Promise((done) => server.listen(0, done));
   const port = server.address().port;
-  const url = (pagina) => `http://localhost:${port}/${pagina.replace(/index\.html$/, '')}`;
+  const url = (page) => `http://localhost:${port}/${page.replace(/index\.html$/, '')}`;
 
-  spune(`\n=== ${eticheta} ===`);
-  spune(`${dist}/ · ${toate.length} pagină(i) · ${conditii.length} condiție(i)`);
-  spune(`axe sare peste: ${FARA_AXE.join(', ')} (CSP le verifică pe toate)`);
+  log(`\n=== ${label} ===`);
+  log(`${dist}/ · ${all.length} page(s) · ${conditions.length} condition(s)`);
+  log(`axe skips: ${NO_AXE.join(', ')} (CSP checks all of them)`);
 
-  let esec = false;
-  const nereusit = (mesaj) => {
-    esec = true;
-    spune(mesaj);
+  let failed = false;
+  const fail = (message) => {
+    failed = true;
+    log(message);
   };
 
-  const driver = await deschide();
+  const driver = await openBrowser();
   try {
     await driver.sendDevToolsCommand('Page.enable', {});
-    await driver.sendDevToolsCommand('Page.addScriptToEvaluateOnNewDocument', { source: SURSA_CSP });
+    await driver.sendDevToolsCommand('Page.addScriptToEvaluateOnNewDocument', { source: CSP_LISTENER });
 
     /*
      * The default viewport is MEASURED, once, before anything else - on the
@@ -1475,54 +1473,54 @@ export async function auditeaza({ dist, trecere, cerinta = null, spune = console
      * over these pages and must fail all of them, not only the one running.
      */
     await driver.sendDevToolsCommand('Emulation.clearDeviceMetricsOverride', {});
-    await driver.get(`http://localhost:${port}${CALE_CONTROL}`);
-    const latimeImplicita = await driver.executeScript('return window.innerWidth');
-    const { linii, esecuri } = verificaPraguri(pragurile(dist, deAuditat), latimeImplicita, definitia.pagini);
-    for (const linie of linii) spune(`  ${linie}`);
-    for (const problema of esecuri) nereusit(`  ${problema}`);
+    await driver.get(`http://localhost:${port}${CONTROL_PATH}`);
+    const measuredDefaultWidth = await driver.executeScript('return window.innerWidth');
+    const { lines, failures } = checkBreakpoints(breakpointsFromCss(dist, toAudit), measuredDefaultWidth, definition.pages);
+    for (const line of lines) log(`  ${line}`);
+    for (const problem of failures) fail(`  ${problem}`);
 
-    for (const conditie of conditii) {
-      spune(`\n--- ${conditie.eticheta} ---`);
-      await pregateste(driver, conditie);
+    for (const condition of conditions) {
+      log(`\n--- ${condition.label} ---`);
+      await prepare(driver, condition);
 
       // The control first, so a broken switch is reported before any result
       // that depends on it.
-      await driver.get(`http://localhost:${port}${CALE_CONTROL}`);
-      const aRulat = (await driver.getTitle()) === 'dupa';
-      if (aRulat !== conditie.js) {
-        nereusit(
-          `Controlul spune că scripturile paginii ${aRulat ? 'AU' : 'NU au'} rulat, ` +
-            `dar condiția cere ${conditie.js ? 'să ruleze' : 'să nu ruleze'}.`,
+      await driver.get(`http://localhost:${port}${CONTROL_PATH}`);
+      const didRun = (await driver.getTitle()) === 'after';
+      if (didRun !== condition.js) {
+        fail(
+          `The control says the page's scripts ${didRun ? 'DID' : 'did NOT'} run, ` +
+            `but the condition asks for them ${condition.js ? 'to run' : 'not to run'}.`,
         );
       } else {
-        spune(`  control: scripturile paginii ${aRulat ? 'rulează' : 'nu rulează'}, cum se cere`);
+        log(`  control: the page's scripts ${didRun ? 'run' : 'do not run'}, as required`);
       }
 
-      const masurate = await driver.executeScript(
-        'return { latime: window.innerWidth, medii: ' +
-          JSON.stringify(Object.keys(conditie.medii)) +
+      const measured = await driver.executeScript(
+        'return { width: window.innerWidth, media: ' +
+          JSON.stringify(Object.keys(condition.media)) +
           '.map((q) => [q, window.matchMedia(q).matches]) };',
       );
-      for (const [interogare, potriveste] of masurate.medii) {
-        if (potriveste !== conditie.medii[interogare]) {
-          nereusit(
-            `  la ${masurate.latime}px, ${interogare} ${potriveste ? 'se potrivește' : 'nu se potrivește'}, ` +
-              `dar condiția cere contrariul. Un prag s-a mutat, sau lățimea nu e cea cerută.`,
+      for (const [mediaQuery, matches] of measured.media) {
+        if (matches !== condition.media[mediaQuery]) {
+          fail(
+            `  at ${measured.width}px, ${mediaQuery} ${matches ? 'matches' : 'does not match'}, ` +
+              `but the condition asks for the opposite. A breakpoint has moved, or the width is not the one asked for.`,
           );
         }
       }
-      spune(
-        `  ${masurate.latime}px · ` +
-          masurate.medii.map(([q, m]) => `${q} ${m ? 'DA' : 'nu'}`).join(' · '),
+      log(
+        `  ${measured.width}px · ` +
+          measured.media.map(([q, m]) => `${q} ${m ? 'YES' : 'no'}`).join(' · '),
       );
 
-      await pregateste(driver, conditie);
+      await prepare(driver, condition);
 
-      for (const pagina of toate) {
-        await driver.get(url(pagina));
-        const latime = await driver.executeScript('return window.innerWidth');
-        if (conditie.latime !== null && latime !== conditie.latime) {
-          nereusit(`  ${pagina}: lățimea măsurată este ${latime}px, nu ${conditie.latime}px.`);
+      for (const page of all) {
+        await driver.get(url(page));
+        const width = await driver.executeScript('return window.innerWidth');
+        if (condition.width !== null && width !== condition.width) {
+          fail(`  ${page}: the measured width is ${width}px, not ${condition.width}px.`);
         }
 
         /*
@@ -1532,19 +1530,19 @@ export async function auditeaza({ dist, trecere, cerinta = null, spune = console
          * this doubles as a second control on the switch: an expected
          * violation appearing here would mean the page's scripts ran after all.
          */
-        const asteptat = conditie.js ? (CSP_ASTEPTAT[pagina] ?? []) : [];
-        const violari = await asteaptaCsp(driver, asteptat);
-        if (violari === null) {
-          nereusit(`  ${pagina}: ascultătorul de CSP nu s-a instalat — nu s-a verificat nimic.`);
+        const expected = condition.js ? (CSP_EXPECTED[page] ?? []) : [];
+        const violations = await waitForCsp(driver, expected);
+        if (violations === null) {
+          fail(`  ${page}: the CSP listener did not install — nothing was checked.`);
         } else {
-          const neasteptate = violari.filter((v) => !asteptat.includes(v));
-          const lipsuri = asteptat.filter((a) => !violari.includes(a));
-          spune(`  ${pagina} @ ${latime}px · CSP: ${violari.length} violare(ări), ${neasteptate.length} neașteptată(e)`);
-          if (neasteptate.length > 0) {
-            nereusit(
-              `  ${pagina}: politica din _headers respinge ceva ce nimeni nu a prevăzut:\n` +
-                neasteptate.map((v) => `    ${v}`).join('\n') +
-                '\n    Dacă e legitim, adaugă-l în CSP_ASTEPTAT sau în politică — cu un motiv.',
+          const unexpected = violations.filter((v) => !expected.includes(v));
+          const neverArrived = expected.filter((a) => !violations.includes(a));
+          log(`  ${page} @ ${width}px · CSP: ${violations.length} violation(s), ${unexpected.length} unexpected`);
+          if (unexpected.length > 0) {
+            fail(
+              `  ${page}: the policy in _headers refuses something nobody planned for:\n` +
+                unexpected.map((v) => `    ${v}`).join('\n') +
+                '\n    If it is legitimate, add it to CSP_EXPECTED or to the policy — with a reason.',
             );
           }
           /*
@@ -1559,33 +1557,33 @@ export async function auditeaza({ dist, trecere, cerinta = null, spune = console
            * run. A red build that costs a line beats a green one that means
            * nothing.
            */
-          if (lipsuri.length > 0) {
-            nereusit(
-              `  ${pagina}: aceste violări așteptate nu au apărut în ${PLAFON} ms:\n` +
-                lipsuri.map((v) => `    ${v}`).join('\n') +
-                '\n    Ori CMS-ul nu mai cere acele origini — scoate-le din CSP_ASTEPTAT —, ' +
-                'ori pagina nu a apucat să pornească, și atunci verificarea nu a dovedit nimic.',
+          if (neverArrived.length > 0) {
+            fail(
+              `  ${page}: these expected violations did not arrive within ${CEILING} ms:\n` +
+                neverArrived.map((v) => `    ${v}`).join('\n') +
+                '\n    Either the CMS no longer reaches for those origins — remove them from CSP_EXPECTED — ' +
+                'or the page never got as far as starting, in which case this check proved nothing.',
             );
           }
         }
 
-        if (FARA_AXE.includes(pagina)) continue;
+        if (NO_AXE.includes(page)) continue;
 
-        const raspuns = await ruleazaAxe(driver);
-        if (!raspuns?.ok) {
-          nereusit(`  ${pagina}: axe nu a rulat — ${raspuns?.e ?? 'niciun rezultat'}`);
-          await pregateste(driver, conditie);
+        const response = await runAxe(driver);
+        if (!response?.ok) {
+          fail(`  ${page}: axe did not run — ${response?.e ?? 'no result'}`);
+          await prepare(driver, condition);
           continue;
         }
-        const audit = raspuns.r;
-        const rulate = [...(audit.passes ?? []), ...(audit.violations ?? []), ...(audit.incomplete ?? [])];
+        const audit = response.r;
+        const commandsRun = [...(audit.passes ?? []), ...(audit.violations ?? []), ...(audit.incomplete ?? [])];
         // If color-contrast never ran, "0 violations" says nothing at all.
-        if (!rulate.some((r) => r.id === 'color-contrast')) {
-          nereusit(`  ${pagina}: regula color-contrast nu a rulat — un rezultat curat nu ar dovedi nimic.`);
+        if (!commandsRun.some((r) => r.id === 'color-contrast')) {
+          fail(`  ${page}: the color-contrast rule did not run — a clean result would prove nothing.`);
         }
-        spune(
-          `    axe: ${audit.violations.length} violare(ări), ${audit.incomplete.length} nedecis(e), ` +
-            `${audit.passes.length} regulă(i) trecute`,
+        log(
+          `    axe: ${audit.violations.length} violation(s), ${audit.incomplete.length} incomplete, ` +
+            `${audit.passes.length} rule(s) passed`,
         );
         /*
          * The rule IDS, not just how many - off by default because they are
@@ -1594,39 +1592,39 @@ export async function auditeaza({ dist, trecere, cerinta = null, spune = console
          * counts above are a summary of this; `docs/a11y-differential.md` says
          * what to do with it.
          */
-        if (process.env.A11Y_REGULI) {
-          for (const [fel, lista] of [
+        if (process.env.A11Y_RULES) {
+          for (const [kind, list] of [
             ['passes', audit.passes],
             ['violations', audit.violations],
             ['incomplete', audit.incomplete],
           ]) {
-            const ids = (lista ?? []).map((r) => r.id).sort();
-            spune(`    REGULI ${pagina} ${conditie.eticheta} ${fel} (${ids.length}): ${ids.join(' ')}`);
+            const ids = (list ?? []).map((r) => r.id).sort();
+            log(`    RULES ${page} ${condition.label} ${kind} (${ids.length}): ${ids.join(' ')}`);
           }
         }
         for (const v of audit.violations) {
-          nereusit(`  ${pagina} [${v.impact ?? 'n/a'}] ${v.id}: ${v.help}`);
-          for (const nod of v.nodes ?? []) spune(`      ${(nod.target ?? []).join(' ')}`);
+          fail(`  ${page} [${v.impact ?? 'n/a'}] ${v.id}: ${v.help}`);
+          for (const node of v.nodes ?? []) log(`      ${(node.target ?? []).join(' ')}`);
         }
-        for (const nedecis of audit.incomplete ?? []) {
-          if (nedecis.id !== 'color-contrast') continue;
-          nereusit(`  ${pagina}: contrast nedeterminat (de obicei text peste un gradient sau o imagine):`);
-          for (const nod of nedecis.nodes ?? []) {
-            spune(`      ${(nod.target ?? []).join(' ')}`);
-            const motiv = (nod.any ?? []).map((a) => a.message).filter(Boolean).join('; ');
-            if (motiv) spune(`        ${motiv}`);
+        for (const undecided of audit.incomplete ?? []) {
+          if (undecided.id !== 'color-contrast') continue;
+          fail(`  ${page}: contrast undetermined (usually text over a gradient or an image):`);
+          for (const node of undecided.nodes ?? []) {
+            log(`      ${(node.target ?? []).join(' ')}`);
+            const reason = (node.any ?? []).map((a) => a.message).filter(Boolean).join('; ');
+            if (reason) log(`        ${reason}`);
           }
         }
 
-        // `ruleazaAxe` re-enabled script execution to run axe; put the
+        // `runAxe` re-enabled script execution to run axe; put the
         // condition back before the next page loads.
-        await pregateste(driver, conditie);
+        await prepare(driver, condition);
       }
 
-      if (cerinta) {
-        const rezultat = await cerinta(driver, conditie, url);
-        if (rezultat !== null) nereusit(`  ${rezultat}`);
-        await pregateste(driver, conditie);
+      if (extraCheck) {
+        const result = await extraCheck(driver, condition, url);
+        if (result !== null) fail(`  ${result}`);
+        await prepare(driver, condition);
       }
     }
   } finally {
@@ -1634,35 +1632,35 @@ export async function auditeaza({ dist, trecere, cerinta = null, spune = console
     server.close();
   }
 
-  spune(esec ? '\nAUDIT PICAT.' : '\nAudit trecut.');
-  return !esec;
+  log(failed ? '\nAUDIT FAILED.' : '\nAudit passed.');
+  return !failed;
 }
 
 /* -------------------------------------------------------------------------- *
- * Command line: `node scripts/a11y.mjs [--mobil|--larg]`.
+ * Command line: `node scripts/a11y.mjs [--mobile|--wide]`.
  * -------------------------------------------------------------------------- */
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   /*
-   * The arguments are not parsed here - they are LOOKED UP in `TRECERI`, which
+   * The arguments are not parsed here - they are LOOKED UP in `PASSES`, which
    * is the same table the coverage check reads. A flag this file understood but
    * the table did not would be a pass whose widths nothing counts; a flag the
    * table declares but `package.json` never passes is caught by
-   * `verificaTreceri`. There is no third place where the two could disagree.
+   * `checkPasses`. There is no third place where the two could disagree.
    */
-  const argumente = process.argv.slice(2);
-  const cheie = Object.keys(TRECERI).find(
+  const args = process.argv.slice(2);
+  const key = Object.keys(PASSES).find(
     (k) =>
-      TRECERI[k].fisier === ACEST_FISIER &&
-      TRECERI[k].argumente.length === argumente.length &&
-      TRECERI[k].argumente.every((a, i) => a === argumente[i]),
+      PASSES[k].file === THIS_FILE &&
+      PASSES[k].args.length === args.length &&
+      PASSES[k].args.every((a, i) => a === args[i]),
   );
-  if (cheie === undefined) {
-    console.log(`Argumente pe care TRECERI nu le descrie: ${argumente.join(' ') || '(niciunul)'}.`);
-    console.log('Treceri pornite din acest fișier:');
-    for (const [k, t] of Object.entries(TRECERI)) {
-      if (t.fisier === ACEST_FISIER) console.log(`  ${comandaTrecerii(t)}   (${k})`);
+  if (key === undefined) {
+    console.log(`Arguments PASSES does not describe: ${args.join(' ') || '(none)'}.`);
+    console.log('Passes started from this file:');
+    for (const [k, t] of Object.entries(PASSES)) {
+      if (t.file === THIS_FILE) console.log(`  ${passCommand(t)}   (${k})`);
     }
     process.exit(1);
   }
-  process.exit((await auditeaza({ dist: 'dist', trecere: cheie })) ? 0 : 1);
+  process.exit((await runAudit({ dist: 'dist', pass: key })) ? 0 : 1);
 }

@@ -8,7 +8,7 @@ Regulile de lucru: `AGENTS.md` (`CLAUDE.md` este o legătură simbolică spre el
 
 ## Pentru cei care actualizează programul
 
-Deschideți `https://<proiect>.pages.dev/admin/` și intrați cu contul GitHub
+Deschideți `https://<project>.pages.dev/admin/` și intrați cu contul GitHub
 (**Sign In with GitHub**). Adresa exactă v-o dă persoana care se ocupă de site.
 
 > **<https://www.bor-zh.ch/> este deocamdată vechiul site.** Până la mutarea
@@ -58,7 +58,7 @@ dezvoltare al lui Astro servește `public/` ca fișiere statice și nu rezolvă
 singur indexul unui director, așa că `/admin/` răspundea 404, iar
 `/admin/index.html` răspundea 200 — în timp ce Cloudflare Pages și serverul din
 `scripts/a11y.mjs` rezolvau amândouă directorul, deci nici producția, nici
-auditurile nu vedeau nimic. Integrarea `indexe-directoare` din
+auditurile nu vedeau nimic. Integrarea `directory-indexes` din
 `astro.config.mjs` rescrie cererea numai în `astro dev`. `/admin` fără bară
 rămâne 404, fiindcă `trailingSlash: 'always'` spune că adresa este cea cu bară.
 
@@ -120,7 +120,7 @@ fel sunt în `docs/handover.md`, pasul F.
 - Datele se păstrează ca `YYYY-MM-DD`, orele ca `HH:MM`, ora locală. Niciodată
   ca momente UTC.
 - Lista de slujbe din `public/admin/config.yml` trebuie să rămână identică cu
-  `NUME_SLUJBE` din `src/lib/schema.ts`.
+  `SERVICE_NAMES` din `src/lib/schema.ts`.
 - Diacriticele românești sunt cu virgulă dedesubt, nu cu sedilă. Cele două
   perechi arată la fel în fonturile sitului, deci se verifică numai după cod,
   niciodată din ochi. Vezi `AGENTS.md`.

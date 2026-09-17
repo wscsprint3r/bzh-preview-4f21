@@ -2,7 +2,7 @@
 # falls back to its build-time value when JavaScript does not run, so the
 # rebuild interval IS the worst-case staleness a no-JS visitor sees. Four builds
 # a day bounds that at six hours; one a day would bound it at twenty-four.
-name: Reconstruire la fiecare șase ore
+name: Rebuild every six hours
 
 on:
   schedule:
@@ -19,17 +19,17 @@ permissions:
   contents: read
 
 jobs:
-  reconstruieste:
+  rebuild:
     runs-on: ubuntu-latest
     steps:
       # The secret is checked by name first. `curl -X POST ""` fails too, but it
       # fails with a usage message about a URL, which is not what a person
       # reading a red build at 03:00 needs to see.
-      - name: Declanșează build-ul Cloudflare Pages
+      - name: Trigger the Cloudflare Pages build
         env:
-          CARLIG: ${{ secrets.CF_DEPLOY_HOOK }}
+          HOOK: ${{ secrets.CF_DEPLOY_HOOK }}
         run: |
-          if [ -z "$CARLIG" ]; then
+          if [ -z "$HOOK" ]; then
             echo "Secretul CF_DEPLOY_HOOK nu este configurat."
             echo "Settings -> Secrets and variables -> Actions -> New repository secret."
             echo "Valoarea este URL-ul deploy hook-ului din Cloudflare Pages"
@@ -39,7 +39,7 @@ jobs:
           # -f so an HTTP error is a failed job rather than a silent success:
           # without it curl prints the error body and exits 0, and a rebuild
           # that stopped happening would look exactly like one that works.
-          curl -fsS -X POST "$CARLIG"
+          curl -fsS -X POST "$HOOK"
 
       # GitHub runs `schedule` triggers ONLY from the repository's default
       # branch. A rebuild.yml living anywhere else therefore never fires - no
@@ -57,25 +57,25 @@ jobs:
       # case worth catching - step E3 of `docs/handover.md` has somebody press
       # "Run workflow" precisely to confirm the rebuild works, and a green run
       # from the wrong branch is the false reassurance that ends the enquiry.
-      - name: Programarea funcționează doar din ramura implicită
+      - name: Scheduling only works from the default branch
         env:
-          RAMURA: ${{ github.ref_name }}
-          IMPLICITA: ${{ github.event.repository.default_branch }}
+          BRANCH: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [ "$RAMURA" = "$IMPLICITA" ]; then
-            echo "Ramura '$RAMURA' este ramura implicită a depozitului."
+          if [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "Ramura '$BRANCH' este ramura implicită a depozitului."
             exit 0
           fi
           echo "Reconstrucția a fost cerută, dar PROGRAMAREA NU VA RULA DE AICI."
           echo
-          echo "Ramura curentă:  '$RAMURA'"
-          echo "Ramura implicită: '$IMPLICITA'"
+          echo "Ramura curentă:  '$BRANCH'"
+          echo "Ramura implicită: '$DEFAULT_BRANCH'"
           echo
           echo "GitHub declanșează 'schedule' numai din ramura implicită, deci din"
-          echo "'$RAMURA' reconstrucția la fiecare șase ore nu s-ar întâmpla niciodată,"
+          echo "'$BRANCH' reconstrucția la fiecare șase ore nu s-ar întâmpla niciodată,"
           echo "iar cartonașul 'Următoarea slujbă' fără JavaScript ar rămâne vechi"
           echo "până când publică cineva ceva. Nimic nu ar semnala asta."
           echo
-          echo "Fă din '$RAMURA' ramura implicită, sau lucrează din '$IMPLICITA'."
+          echo "Fă din '$BRANCH' ramura implicită, sau lucrează din '$DEFAULT_BRANCH'."
           echo "Vezi pasul A1 din docs/handover.md."
           exit 1

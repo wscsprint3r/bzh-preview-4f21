@@ -2,75 +2,75 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { NUME_SLUJBE, idDinNumeFisier, slujbaSchema, ziSchema } from './schema';
+import { SERVICE_NAMES, idFromFilename, serviceSchema, daySchema } from './schema';
 
 const valid = {
-  praznic: 'Înălțarea Sfintei Cruci',
-  praznic_mare: true,
-  zi_de_post: true,
-  slujbe: [
-    { ora: '07:30', slujba: 'Utrenia' },
-    { ora: '08:30', slujba: 'Sfânta Liturghie' },
+  feast: 'Înălțarea Sfintei Cruci',
+  great_feast: true,
+  fast_day: true,
+  services: [
+    { time: '07:30', service: 'Utrenia' },
+    { time: '08:30', service: 'Sfânta Liturghie' },
   ],
 };
 
-describe('ziSchema', () => {
-  it('acceptă o zi completă', () => {
-    expect(ziSchema.safeParse(valid).success).toBe(true);
+describe('daySchema', () => {
+  it('accepts a complete day', () => {
+    expect(daySchema.safeParse(valid).success).toBe(true);
   });
 
-  it('acceptă o zi minimă', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] });
+  it('accepts a minimal day', () => {
+    const r = daySchema.safeParse({ services: [{ time: '10:00', service: 'Sfânta Liturghie' }] });
     expect(r.success).toBe(true);
   });
 
-  it('pune valori implicite pentru steaguri', () => {
-    const r = ziSchema.parse({ slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] });
-    expect(r.zi_de_post).toBe(false);
-    expect(r.praznic_mare).toBe(false);
-    expect(r.anulat).toBe(false);
+  it('applies defaults for the flags', () => {
+    const r = daySchema.parse({ services: [{ time: '10:00', service: 'Sfânta Liturghie' }] });
+    expect(r.fast_day).toBe(false);
+    expect(r.great_feast).toBe(false);
+    expect(r.cancelled).toBe(false);
   });
 
-  it('respinge o oră fără două puncte', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '0830', slujba: 'Utrenia' }] });
+  it('rejects a time with no colon', () => {
+    const r = daySchema.safeParse({ services: [{ time: '0830', service: 'Utrenia' }] });
     expect(r.success).toBe(false);
   });
 
-  it('respinge o oră imposibilă', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '25:00', slujba: 'Utrenia' }] });
+  it('rejects an impossible time', () => {
+    const r = daySchema.safeParse({ services: [{ time: '25:00', service: 'Utrenia' }] });
     expect(r.success).toBe(false);
   });
 
-  it('acceptă ora fără zero la început', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '7:30', slujba: 'Utrenia' }] });
+  it('accepts a time with no leading zero', () => {
+    const r = daySchema.safeParse({ services: [{ time: '7:30', service: 'Utrenia' }] });
     expect(r.success).toBe(true);
   });
 
-  it('respinge o zi fără slujbe', () => {
-    const r = ziSchema.safeParse({ slujbe: [] });
+  it('rejects a day with no services', () => {
+    const r = daySchema.safeParse({ services: [] });
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(r.error.issues[0].message).toContain('cel puțin o slujbă');
     }
   });
 
-  it('respinge o zi anulată fără slujbe, ca anularea să ajungă la abonați', () => {
+  it('rejects a cancelled day with no services, so the cancellation reaches subscribers', () => {
     // Spec §8: o zi anulată emite STATUS:CANCELLED în loc să dispară. Dar
     // feed-ul scrie câte un eveniment pe slujbă, așa că o zi anulată rămasă
     // fără ore nu emite nimic: abonatul păstrează vechiul program în calendar,
     // nu află de anulare și vine la o biserică încuiată. Orele rămân, steagul
     // duce anularea.
-    const r = ziSchema.safeParse({ slujbe: [], anulat: true, note: 'Părintele este plecat' });
+    const r = daySchema.safeParse({ services: [], cancelled: true, notes: 'Părintele este plecat' });
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(r.error.issues[0].message).toContain('păstrați orele');
     }
   });
 
-  it('respinge praznic_mare fără praznic', () => {
-    const r = ziSchema.safeParse({
-      praznic_mare: true,
-      slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }],
+  it('rejects great_feast without feast', () => {
+    const r = daySchema.safeParse({
+      great_feast: true,
+      services: [{ time: '10:00', service: 'Sfânta Liturghie' }],
     });
     expect(r.success).toBe(false);
     if (!r.success) {
@@ -78,38 +78,38 @@ describe('ziSchema', () => {
     }
   });
 
-  it('respinge o slujbă necunoscută', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '10:00', slujba: 'Brunch' }] });
+  it('rejects an unknown service', () => {
+    const r = daySchema.safeParse({ services: [{ time: '10:00', service: 'Brunch' }] });
     expect(r.success).toBe(false);
   });
 
-  it('respinge Altceva fără detaliu', () => {
+  it('rejects Altceva with no detail', () => {
     // "Altceva" is the escape hatch for a service not on the dropdown. Without
-    // `detaliu` the word "Altceva" itself is what a visitor would read.
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '10:00', slujba: 'Altceva' }] });
+    // `detail` the word "Altceva" itself is what a visitor would read.
+    const r = daySchema.safeParse({ services: [{ time: '10:00', service: 'Altceva' }] });
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(r.error.issues[0].message).toContain('detaliu');
     }
   });
 
-  it('respinge Altceva cu detaliu gol', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '10:00', slujba: 'Altceva', detaliu: '   ' }] });
+  it('rejects Altceva with an empty detail', () => {
+    const r = daySchema.safeParse({ services: [{ time: '10:00', service: 'Altceva', detail: '   ' }] });
     expect(r.success).toBe(false);
   });
 
-  it('acceptă Altceva cu detaliu', () => {
-    const r = ziSchema.safeParse({
-      slujbe: [{ ora: '10:00', slujba: 'Altceva', detaliu: 'Sfințirea apei' }],
+  it('accepts Altceva with a detail', () => {
+    const r = daySchema.safeParse({
+      services: [{ time: '10:00', service: 'Altceva', detail: 'Sfințirea apei' }],
     });
     expect(r.success).toBe(true);
   });
 
-  it('respinge aceeași slujbă de două ori la aceeași oră', () => {
-    const r = ziSchema.safeParse({
-      slujbe: [
-        { ora: '17:00', slujba: 'Spovedanie' },
-        { ora: '17:00', slujba: 'Spovedanie' },
+  it('rejects the same service twice at the same time', () => {
+    const r = daySchema.safeParse({
+      services: [
+        { time: '17:00', service: 'Spovedanie' },
+        { time: '17:00', service: 'Spovedanie' },
       ],
     });
     expect(r.success).toBe(false);
@@ -118,74 +118,74 @@ describe('ziSchema', () => {
     }
   });
 
-  it('acceptă două slujbe diferite la aceeași oră', () => {
+  it('accepts two different services at the same time', () => {
     // Confession runs during vespers - an ordinary parish arrangement, and the
     // reason this rule is narrower than "one service per time slot".
-    const r = ziSchema.safeParse({
-      slujbe: [
-        { ora: '17:00', slujba: 'Spovedanie' },
-        { ora: '17:00', slujba: 'Vecernie' },
+    const r = daySchema.safeParse({
+      services: [
+        { time: '17:00', service: 'Spovedanie' },
+        { time: '17:00', service: 'Vecernie' },
       ],
     });
     expect(r.success).toBe(true);
   });
 
-  it('prinde duplicatul chiar dacă ora este scrisă diferit', () => {
+  it('catches the duplicate even when the time is spelled differently', () => {
     // `7:30` and `07:30` are normalised before the duplicate check runs, so the
     // rule cannot be sidestepped by typing the hour differently.
-    const r = ziSchema.safeParse({
-      slujbe: [
-        { ora: '7:30', slujba: 'Utrenia' },
-        { ora: '07:30', slujba: 'Utrenia' },
+    const r = daySchema.safeParse({
+      services: [
+        { time: '7:30', service: 'Utrenia' },
+        { time: '07:30', service: 'Utrenia' },
       ],
     });
     expect(r.success).toBe(false);
   });
 
-  it('normalizează ora la două cifre', () => {
-    const r = ziSchema.parse({ slujbe: [{ ora: '7:30', slujba: 'Utrenia' }] });
-    expect(r.slujbe[0].ora).toBe('07:30');
+  it('normalises the time to two digits', () => {
+    const r = daySchema.parse({ services: [{ time: '7:30', service: 'Utrenia' }] });
+    expect(r.services[0].time).toBe('07:30');
   });
 
-  it('lasă ora canonică neschimbată', () => {
-    const r = ziSchema.parse({ slujbe: [{ ora: '07:30', slujba: 'Utrenia' }] });
-    expect(r.slujbe[0].ora).toBe('07:30');
+  it('leaves a canonical time unchanged', () => {
+    const r = daySchema.parse({ services: [{ time: '07:30', service: 'Utrenia' }] });
+    expect(r.services[0].time).toBe('07:30');
   });
 
-  it('respinge o cheie necunoscută în zi', () => {
-    // The quiet failure this exists to stop: `praznicmare` never becomes
+  it('rejects an unknown key on the day', () => {
+    // The quiet failure this exists to stop: `greatfeast` never becomes
     // `praznic_mare`, so the day silently loses its feast styling.
-    const r = ziSchema.safeParse({
-      praznicmare: true,
-      slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }],
+    const r = daySchema.safeParse({
+      greatfeast: true,
+      services: [{ time: '10:00', service: 'Sfânta Liturghie' }],
     });
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(r.error.issues[0].message).toContain('Câmp necunoscut');
-      expect(r.error.issues[0].message).toContain('praznicmare');
+      expect(r.error.issues[0].message).toContain('greatfeast');
     }
   });
 
-  it('respinge o cheie necunoscută într-o slujbă', () => {
-    const r = ziSchema.safeParse({
-      slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie', slujbaa: 'Utrenia' }],
+  it('rejects an unknown key inside a service', () => {
+    const r = daySchema.safeParse({
+      services: [{ time: '10:00', service: 'Sfânta Liturghie', servicee: 'Utrenia' }],
     });
     expect(r.success).toBe(false);
     if (!r.success) {
-      expect(r.error.issues[0].message).toContain('slujbaa');
+      expect(r.error.issues[0].message).toContain('servicee');
     }
   });
 
   // Deliberate, not an oversight, and the reasoning is in schema.ts above
-  // `ziSchema`: declaring `$schema` in the shape fails EVERY build, because
+  // `daySchema`: declaring `$schema` in the shape fails EVERY build, because
   // Astro calls `.extend({ $schema })` and Zod 4 will not overwrite an existing
   // key on a schema that carries refinements. This test exists so that anyone
   // who "fixes" it by adding the key gets a red test pointing at that comment,
   // rather than a red build pointing into Zod's internals.
-  it('respinge $schema, deși editoarele îl pot scrie', () => {
-    const r = ziSchema.safeParse({
-      $schema: '../../../.astro/collections/slujbe.schema.json',
-      slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }],
+  it('rejects $schema, although editors may write it', () => {
+    const r = daySchema.safeParse({
+      $schema: '../../../.astro/collections/services.schema.json',
+      services: [{ time: '10:00', service: 'Sfânta Liturghie' }],
     });
     expect(r.success).toBe(false);
     if (!r.success) {
@@ -194,56 +194,56 @@ describe('ziSchema', () => {
   });
 });
 
-describe('idDinNumeFisier', () => {
-  it('acceptă un nume de fișier corect', () => {
-    expect(idDinNumeFisier('2026-09-14.yml')).toBe('2026-09-14');
+describe('idFromFilename', () => {
+  it('accepts a correct filename', () => {
+    expect(idFromFilename('2026-09-14.yml')).toBe('2026-09-14');
   });
 
-  it('respinge o dată inexistentă', () => {
-    // The whole reason this reuses partiData rather than trusting the regex:
+  it('rejects a date that does not exist', () => {
+    // The whole reason this reuses dateParts rather than trusting the regex:
     // 2026-02-30 matches \d{4}-\d{2}-\d{2} but is not a day.
-    expect(() => idDinNumeFisier('2026-02-30.yml')).toThrow();
+    expect(() => idFromFilename('2026-02-30.yml')).toThrow();
   });
 
-  it('respinge o lună imposibilă', () => {
-    expect(() => idDinNumeFisier('2026-13-01.yml')).toThrow();
+  it('rejects an impossible month', () => {
+    expect(() => idFromFilename('2026-13-01.yml')).toThrow();
   });
 
-  it('respinge o dată fără zero la început', () => {
-    expect(() => idDinNumeFisier('2026-9-21.yml')).toThrow();
+  it('rejects a date with no leading zero', () => {
+    expect(() => idFromFilename('2026-9-21.yml')).toThrow();
   });
 
   it('respinge extensia .yaml', () => {
-    expect(() => idDinNumeFisier('2026-09-14.yaml')).toThrow();
+    expect(() => idFromFilename('2026-09-14.yaml')).toThrow();
   });
 
-  it('respinge un fișier dintr-un subdirector', () => {
-    expect(() => idDinNumeFisier('arhiva/2026-09-14.yml')).toThrow();
+  it('rejects a file in a subdirectory', () => {
+    expect(() => idFromFilename('arhiva/2026-09-14.yml')).toThrow();
   });
 
-  it('respinge un nume care nu este o dată', () => {
-    expect(() => idDinNumeFisier('program.yml')).toThrow();
+  it('rejects a name that is not a date', () => {
+    expect(() => idFromFilename('program.yml')).toThrow();
   });
 
-  it('numește fișierul respins în mesaj', () => {
+  it('names the rejected file in the message', () => {
     // Without the filename the build error would not say which file to fix.
-    expect(() => idDinNumeFisier('program.yml')).toThrow(/program\.yml/);
+    expect(() => idFromFilename('program.yml')).toThrow(/program\.yml/);
   });
 
-  it('numește fișierul și când data nu există', () => {
-    // partiData alone names only the date, and points its stack at date-ro.ts.
-    expect(() => idDinNumeFisier('2026-02-30.yml')).toThrow(/2026-02-30\.yml/);
+  it('names the file when the date does not exist too', () => {
+    // dateParts alone names only the date, and points its stack at date-ro.ts.
+    expect(() => idFromFilename('2026-02-30.yml')).toThrow(/2026-02-30\.yml/);
   });
 });
 
 /** The messages the schema actually emits, rather than a copy of them. */
-function mesaje(input: unknown): string[] {
-  const r = ziSchema.safeParse(input);
+function messages(input: unknown): string[] {
+  const r = daySchema.safeParse(input);
   return r.success ? [] : r.error.issues.map((i) => i.message);
 }
 
 /** Likewise for the messages thrown rather than returned as Zod issues. */
-function mesajAruncat(fn: () => unknown): string {
+function thrownMessage(fn: () => unknown): string {
   try {
     fn();
     return '';
@@ -253,12 +253,12 @@ function mesajAruncat(fn: () => unknown): string {
 }
 
 describe('diacritice', () => {
-  it('scrie numele slujbelor cu exact codepoint-urile corecte', () => {
+  it('writes the service names with exactly the correct codepoints', () => {
     // Written as escapes deliberately: a look-alike glyph in the expectation
     // would silently agree with a corrupted table. This list is also mirrored
     // into the CMS dropdown, so a wrong character here reaches the editor and
     // from there every page that groups services by name.
-    expect(NUME_SLUJBE).toEqual([
+    expect(SERVICE_NAMES).toEqual([
       'Utrenia',
       'Sf\u00E2nta Liturghie', // U+00E2 a-circumflex
       'Vecernie',
@@ -278,61 +278,61 @@ describe('diacritice', () => {
     ]);
   });
 
-  it('folosește virgulă dedesubt, nu sedilă', () => {
-    const tot = [
-      ...NUME_SLUJBE,
-      ...mesaje({ slujbe: [{ ora: '0830', slujba: 'Utrenia' }] }),
-      ...mesaje({ slujbe: [] }),
-      ...mesaje({ praznic_mare: true, slujbe: [{ ora: '10:00', slujba: 'Sf\u00E2nta Liturghie' }] }),
-      ...mesaje({ praznicmare: true, slujbe: [{ ora: '10:00', slujba: 'Utrenia' }] }),
-      ...mesaje({ slujbe: [{ ora: '10:00', slujba: 'Altceva' }] }),
-      ...mesaje({
-        slujbe: [
-          { ora: '17:00', slujba: 'Utrenia' },
-          { ora: '17:00', slujba: 'Utrenia' },
+  it('uses comma below, not cedilla', () => {
+    const allText = [
+      ...SERVICE_NAMES,
+      ...messages({ services: [{ time: '0830', service: 'Utrenia' }] }),
+      ...messages({ services: [] }),
+      ...messages({ great_feast: true, services: [{ time: '10:00', service: 'Sf\u00E2nta Liturghie' }] }),
+      ...messages({ greatfeast: true, services: [{ time: '10:00', service: 'Utrenia' }] }),
+      ...messages({ services: [{ time: '10:00', service: 'Altceva' }] }),
+      ...messages({
+        services: [
+          { time: '17:00', service: 'Utrenia' },
+          { time: '17:00', service: 'Utrenia' },
         ],
       }),
-      mesajAruncat(() => idDinNumeFisier('program.yml')),
-      mesajAruncat(() => idDinNumeFisier('2026-02-30.yml')),
+      thrownMessage(() => idFromFilename('program.yml')),
+      thrownMessage(() => idFromFilename('2026-02-30.yml')),
     ].join('');
     // The Turkish cedilla look-alikes, written as escapes so that this guard
     // cannot be defeated by pasting the very characters it is meant to reject:
     // U+015F, U+0163 and their capitals U+015E, U+0162.
-    expect(tot).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    expect(allText).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
     // And prove the guard has something to catch, rather than passing because
     // the strings it scans turned out to be empty.
-    expect(tot).toMatch(/\u0219/); // ș, in "și numele praznicului"
-    expect(tot).toMatch(/\u021B/); // ț, in "cel puțin" and "sfințite"
+    expect(allText).toMatch(/\u0219/); // ș, in "și numele praznicului"
+    expect(allText).toMatch(/\u021B/); // ț, in "cel puțin" and "sfințite"
   });
 });
 
-describe('locatie, normalizată la graniță', () => {
-  const loc = (locatie: unknown) =>
-    ziSchema.parse({ locatie, slujbe: [{ ora: '10:00', slujba: 'Utrenia' }] }).locatie;
+describe('location, normalised at the boundary', () => {
+  const withLocation = (location: unknown) =>
+    daySchema.parse({ location, services: [{ time: '10:00', service: 'Utrenia' }] }).location;
 
-  it('taie spațiile din jur', () => {
-    expect(loc('  Capela Sf. Gallus, Winterthur  ')).toBe('Capela Sf. Gallus, Winterthur');
+  it('trims the surrounding whitespace', () => {
+    expect(withLocation('  Capela Sf. Gallus, Winterthur  ')).toBe('Capela Sf. Gallus, Winterthur');
   });
 
-  it('transformă un câmp doar cu spații în ceva fals', () => {
+  it('turns a whitespace-only field into something falsy', () => {
     // Altfel pagina ar scrie „…au loc la  ." iar ics.ts ar pune spații în
     // LOCATION în loc să cadă pe adresa parohiei.
-    expect(loc('   ')).toBe('');
-    expect(Boolean(loc('   '))).toBe(false);
+    expect(withLocation('   ')).toBe('');
+    expect(Boolean(withLocation('   '))).toBe(false);
   });
 
-  it('NU taie punctul final — acela se rezolvă la compunerea propoziției', () => {
+  it('does NOT trim the full stop — that is solved where the sentence is composed', () => {
     // Regula: normalizezi pentru afișare la momentul afișării; nu modifici
     // datele stocate ca să arate bine. Tăierea punctului ar pierde informație
     // („Capela Sf." ar deveni „Capela Sf") și ar schimba ce scrie ics.ts în
     // LOCATION, care e dată păstrată de clientul de calendar, nu propoziție.
-    expect(loc('Capela Sf. Gallus, Winterthur.')).toBe('Capela Sf. Gallus, Winterthur.');
-    expect(loc('Winterthur.')).toBe('Winterthur.');
-    expect(loc('Capela Sf.')).toBe('Capela Sf.');
+    expect(withLocation('Capela Sf. Gallus, Winterthur.')).toBe('Capela Sf. Gallus, Winterthur.');
+    expect(withLocation('Winterthur.')).toBe('Winterthur.');
+    expect(withLocation('Capela Sf.')).toBe('Capela Sf.');
   });
 
-  it('lasă lipsa neatinsă', () => {
-    expect(ziSchema.parse({ slujbe: [{ ora: '10:00', slujba: 'Utrenia' }] }).locatie).toBeUndefined();
+  it('leaves an absent field untouched', () => {
+    expect(daySchema.parse({ services: [{ time: '10:00', service: 'Utrenia' }] }).location).toBeUndefined();
   });
 });
 
@@ -360,46 +360,46 @@ describe('locatie, normalizată la graniță', () => {
  * ---------------------------------------------------------------------------
  */
 
-interface CampCms {
+interface CmsField {
   name: string;
   widget?: string;
   options?: unknown;
   pattern?: unknown;
-  fields?: CampCms[];
+  fields?: CmsField[];
 }
 
-interface ColectieCms {
+interface CmsCollection {
   name: string;
   slug?: string;
   identifier_field?: string;
-  fields: CampCms[];
+  fields: CmsField[];
 }
 
-const CONFIG_CMS = parse(
+const CMS_CONFIG = parse(
   readFileSync(fileURLToPath(new URL('../../public/admin/config.yml', import.meta.url)), 'utf8'),
-) as { collections?: ColectieCms[] };
+) as { collections?: CmsCollection[] };
 
-function colectie(nume: string): ColectieCms {
-  const gasita = CONFIG_CMS.collections?.find((c) => c.name === nume);
-  if (!gasita) throw new Error(`config.yml nu conține colecția "${nume}"`);
-  return gasita;
+function collection(name: string): CmsCollection {
+  const matched = CMS_CONFIG.collections?.find((c) => c.name === name);
+  if (!matched) throw new Error(`config.yml nu conține colecția "${name}"`);
+  return matched;
 }
 
-function camp(campuri: CampCms[] | undefined, nume: string): CampCms {
-  const gasit = campuri?.find((c) => c.name === nume);
-  if (!gasit) throw new Error(`config.yml nu conține câmpul "${nume}"`);
-  return gasit;
+function field(fields: CmsField[] | undefined, name: string): CmsField {
+  const hit = fields?.find((c) => c.name === name);
+  if (!hit) throw new Error(`config.yml nu conține câmpul "${name}"`);
+  return hit;
 }
 
-const SLUJBE = colectie('slujbe');
-const CAMP_SLUJBA = camp(camp(SLUJBE.fields, 'slujbe').fields, 'slujba');
-const CAMP_ORA = camp(camp(SLUJBE.fields, 'slujbe').fields, 'ora');
+const SERVICES = collection('services');
+const SERVICE_FIELD = field(field(SERVICES.fields, 'services').fields, 'service');
+const TIME_FIELD = field(field(SERVICES.fields, 'services').fields, 'time');
 
-describe('configurația CMS', () => {
-  it('oferă exact aceleași slujbe ca schema', () => {
+describe('the CMS configuration', () => {
+  it('offers exactly the same services as the schema', () => {
     // O singură egalitate prinde tot ce contează: o opțiune lipsă, una în plus,
     // o greșeală de scriere și o reordonare.
-    expect(CAMP_SLUJBA.options).toEqual([...NUME_SLUJBE]);
+    expect(SERVICE_FIELD.options).toEqual([...SERVICE_NAMES]);
   });
 
   /*
@@ -410,24 +410,24 @@ describe('configurația CMS', () => {
    * verdictele: pentru fiecare oră de mai jos, tiparul din CMS și schema trebuie
    * să spună același lucru.
    */
-  it('acceptă exact aceleași ore ca schema', () => {
-    const tipar = (CAMP_ORA.pattern as [string, string])[0];
-    const dinCms = new RegExp(tipar);
-    const ore = [
+  it('accepts exactly the same times as the schema', () => {
+    const pattern = (TIME_FIELD.pattern as [string, string])[0];
+    const fromCms = new RegExp(pattern);
+    const times = [
       '08:30', '8:30', '7:30', '00:00', '23:59', '0:00', '19:05',
       '0830', '25:00', '24:00', '12:60', '8:5', '008:30', '08:30 ', ' 08:30', '', 'zece',
     ];
-    const verdicte = ore.map((ora) => ({
-      ora,
-      cms: dinCms.test(ora),
-      schema: slujbaSchema.safeParse({ ora, slujba: 'Utrenia' }).success,
+    const verdicts = times.map((time) => ({
+      time,
+      cms: fromCms.test(time),
+      schema: serviceSchema.safeParse({ time, service: 'Utrenia' }).success,
     }));
     // Controlul pozitiv: dacă tabelul ar fi doar ore bune sau doar ore rele,
     // „amândouă spun la fel" nu ar mai însemna nimic.
-    expect(verdicte.some((v) => v.schema)).toBe(true);
-    expect(verdicte.some((v) => !v.schema)).toBe(true);
-    for (const v of verdicte) {
-      expect(v.cms, `ora ${JSON.stringify(v.ora)}`).toBe(v.schema);
+    expect(verdicts.some((v) => v.schema)).toBe(true);
+    expect(verdicts.some((v) => !v.schema)).toBe(true);
+    for (const v of verdicts) {
+      expect(v.cms, `ora ${JSON.stringify(v.time)}`).toBe(v.schema);
     }
   });
 
@@ -435,40 +435,40 @@ describe('configurația CMS', () => {
    * Numele fișierului este cheia primară a colecției, iar acesta este locul din
    * care CMS-ul o compune. Fără `slug`, Sveltia numește fișierul după
    * `identifier_field`; fără niciunul, după un șir aleator - și
-   * `idDinNumeFisier` respinge fiecare fișier pe care l-ar scrie.
+   * `idFromFilename` respinge fiecare fișier pe care l-ar scrie.
    */
-  it('numește fișierul după data zilei', () => {
-    expect(SLUJBE.slug).toBe('{{fields.data}}');
-    expect(SLUJBE.identifier_field).toBe('data');
+  it("names the file after the day's date", () => {
+    expect(SERVICES.slug).toBe('{{fields.date}}');
+    expect(SERVICES.identifier_field).toBe('date');
     // Și câmpul pe care îl numesc amândouă chiar există, cu widget de dată.
-    expect(camp(SLUJBE.fields, 'data').widget).toBe('datetime');
+    expect(field(SERVICES.fields, 'date').widget).toBe('datetime');
   });
 
   /*
    * MULȚIMEA CÂMPURILOR ESTE ÎNCHISĂ, în amândouă sensurile, fiindcă fiecare
    * sens strică altceva:
    *
-   * - un câmp în formular pe care schema nu îl are: `ziSchema` este strict, deci
+   * - un câmp în formular pe care schema nu îl are: `daySchema` este strict, deci
    *   prima zi publicată pică build-ul cu „Câmp necunoscut".
    * - un câmp în schemă pe care formularul nu îl are: câmpul nu mai poate fi
    *   completat de nimeni prin `/admin/`. Nimic nu pică, nimeni nu află, iar
-   *   `locatie` sau `anulat` pur și simplu nu se mai pot pune - exact felul de
+   *   `location` sau `anulat` pur și simplu nu se mai pot pune - exact felul de
    *   pierdere tăcută pentru care există toată munca asta.
    *
    * Mulțimea așteptată se ia din `.shape`-ul schemei, nu dintr-o listă scrisă cu
    * mâna aici: o listă ar trebui ținută la zi în două locuri și ar rămâne în
    * urmă exact ca lista de slujbe.
    */
-  it('are exact câmpurile schemei, nici unul în plus, nici unul în minus', () => {
-    const numeCampuri = (c: CampCms[] | undefined) => (c ?? []).map((x) => x.name).sort();
-    expect(numeCampuri(SLUJBE.fields)).toEqual(Object.keys(ziSchema.shape).sort());
-    expect(numeCampuri(camp(SLUJBE.fields, 'slujbe').fields)).toEqual(
-      Object.keys(slujbaSchema.shape).sort(),
+  it("has exactly the schema's fields, not one more, not one fewer", () => {
+    const fieldNames = (c: CmsField[] | undefined) => (c ?? []).map((x) => x.name).sort();
+    expect(fieldNames(SERVICES.fields)).toEqual(Object.keys(daySchema.shape).sort());
+    expect(fieldNames(field(SERVICES.fields, 'services').fields)).toEqual(
+      Object.keys(serviceSchema.shape).sort(),
     );
     // Controlul pozitiv: dacă `.shape` s-ar goli vreodată, egalitățile de mai
     // sus ar fi mulțumite de un formular fără niciun câmp.
-    expect(Object.keys(ziSchema.shape).length).toBeGreaterThan(5);
-    expect(Object.keys(slujbaSchema.shape).length).toBeGreaterThan(2);
+    expect(Object.keys(daySchema.shape).length).toBeGreaterThan(5);
+    expect(Object.keys(serviceSchema.shape).length).toBeGreaterThan(2);
   });
 });
 
@@ -476,21 +476,21 @@ describe('configurația CMS', () => {
  * ---------------------------------------------------------------------------
  * THE DATE IN THE FILE AGAINST THE DATE IN ITS NAME.
  *
- * The CMS writes `data:` into every file it creates, because that is the field
+ * The CMS writes `date:` into every file it creates, because that is the field
  * it names the file after. The two can come apart, and when they do nothing
- * downstream notices: every consumer builds its day as `{ ...e.data, data: e.id }`
+ * downstream notices: every consumer builds its day as `{ ...e.data, date: e.id }`
  * with the filename last. So the correction a volunteer makes to a wrong date
  * would change the file and not the site.
  * ---------------------------------------------------------------------------
  */
-describe('data din fișier față de data din nume', () => {
-  it('acceptă un fișier care spune aceeași dată ca numele lui', () => {
-    expect(idDinNumeFisier('2026-09-14.yml', { data: '2026-09-14' })).toBe('2026-09-14');
+describe('the date inside the file against the date in its name', () => {
+  it('accepts a file that states the same date as its name', () => {
+    expect(idFromFilename('2026-09-14.yml', { date: '2026-09-14' })).toBe('2026-09-14');
   });
 
-  it('acceptă un fișier scris de mână, fără câmpul data', () => {
-    expect(idDinNumeFisier('2026-09-14.yml', { praznic: 'Ceva' })).toBe('2026-09-14');
-    expect(idDinNumeFisier('2026-09-14.yml')).toBe('2026-09-14');
+  it('accepts a hand-written file, with no date field', () => {
+    expect(idFromFilename('2026-09-14.yml', { feast: 'Ceva' })).toBe('2026-09-14');
+    expect(idFromFilename('2026-09-14.yml')).toBe('2026-09-14');
   });
 
   /*
@@ -500,41 +500,41 @@ describe('data din fișier față de data din nume', () => {
    * fiecare sens. „Faceți-le să coincidă" ar lăsa cititorul să ghicească ce
    * jumătate să modifice, iar ghicitul greșit înseamnă o slujbă în ziua greșită.
    */
-  it('respinge un fișier cu două date diferite, numind-o pe fiecare', () => {
-    const cadere = () => idDinNumeFisier('2026-09-14.yml', { data: '2026-09-21' });
-    expect(cadere).toThrow(/2026-09-14/); // data din nume
-    expect(cadere).toThrow(/2026-09-21/); // data dinăuntru
-    expect(cadere).toThrow(/numele fișierului este cel care decide/i);
-    expect(cadere).toThrow(/ștergeți-o din administrare/i); // leacul dacă ziua e cea dinăuntru
-    expect(cadere).toThrow(/puneți la loc/i); // leacul dacă ziua e cea din nume
+  it('rejects a file with two different dates, naming each of them', () => {
+    const failing = () => idFromFilename('2026-09-14.yml', { date: '2026-09-21' });
+    expect(failing).toThrow(/2026-09-14/); // data din nume
+    expect(failing).toThrow(/2026-09-21/); // data dinăuntru
+    expect(failing).toThrow(/numele fișierului este cel care decide/i);
+    expect(failing).toThrow(/ștergeți-o din administrare/i); // leacul dacă ziua e cea dinăuntru
+    expect(failing).toThrow(/puneți la loc/i); // leacul dacă ziua e cea din nume
   });
 
   /*
    * Data fără ghilimele este o greșeală cu alt leac decât cealaltă, deci are alt
-   * mesaj: YAML citește `data: 2026-09-14` ca dată calendaristică, nu ca text,
+   * mesaj: YAML citește `date: 2026-09-14` ca dată calendaristică, nu ca text,
    * iar `config.yml` cere de aceea `output.yaml.quote: double`.
    */
-  it('respinge o dată scrisă fără ghilimele, cerând ghilimelele', () => {
-    const cadere = () => idDinNumeFisier('2026-09-14.yml', { data: new Date('2026-09-14') });
-    expect(cadere).toThrow(/ghilimele/);
+  it('rejects a date written without quotation marks, asking for them', () => {
+    const failing = () => idFromFilename('2026-09-14.yml', { date: new Date('2026-09-14') });
+    expect(failing).toThrow(/ghilimele/);
   });
 
-  it('judecă numele înaintea conținutului', () => {
+  it('judges the name before the contents', () => {
     // Un nume imposibil pică pentru numele lui, nu pentru ce scrie înăuntru.
-    expect(() => idDinNumeFisier('2026-02-30.yml', { data: '2026-02-30' })).toThrow(/nu există/);
+    expect(() => idFromFilename('2026-02-30.yml', { date: '2026-02-30' })).toThrow(/nu există/);
   });
 
-  it('schema acceptă ziua exact așa cum o scrie CMS-ul', () => {
+  it('the schema accepts the day exactly as the CMS writes it', () => {
     // O reconstrucție a fișierului, nu fișierul însuși: nimic de aici nu poate
     // rula Sveltia. Ce dovedește este că forma pe care o descrie `config.yml` -
-    // `data` prezent, orele ca text, o slujbă din listă - trece prin schemă.
-    const brut = parse('data: "2026-09-14"\nslujbe:\n  - ora: "07:30"\n    slujba: "Utrenia"\n');
-    const r = ziSchema.safeParse(brut);
+    // `date` prezent, orele ca text, o slujbă din listă - trece prin schemă.
+    const raw = parse('date: "2026-09-14"\nservices:\n  - time: "07:30"\n    service: "Utrenia"\n');
+    const r = daySchema.safeParse(raw);
     expect(r.success, JSON.stringify(r.error?.issues)).toBe(true);
-    expect(idDinNumeFisier('2026-09-14.yml', brut as Record<string, unknown>)).toBe('2026-09-14');
+    expect(idFromFilename('2026-09-14.yml', raw as Record<string, unknown>)).toBe('2026-09-14');
   });
 
-  it('respinge o dată de altă formă în câmpul data', () => {
-    expect(ziSchema.safeParse({ data: '14.09.2026', slujbe: [{ ora: '07:30', slujba: 'Utrenia' }] }).success).toBe(false);
+  it('rejects a differently shaped date in the date field', () => {
+    expect(daySchema.safeParse({ date: '14.09.2026', services: [{ time: '07:30', service: 'Utrenia' }] }).success).toBe(false);
   });
 });

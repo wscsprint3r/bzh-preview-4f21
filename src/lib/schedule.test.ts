@@ -1,563 +1,563 @@
 import { describe, expect, it } from 'vitest';
-import { NUME_SLUJBE, type Slujba, type ZiSlujba } from './schema';
-import { formatIntervalSaptamana } from './date-ro';
-import { adaugaZile } from './week';
-import { AZI_FIXTURA, ZILE_FIXTURA } from './fixturi';
+import { SERVICE_NAMES, type Service, type ServiceDay } from './schema';
+import { formatWeekRange } from './date-ro';
+import { addDays } from './week';
+import { FIXTURE_TODAY, FIXTURE_DAYS } from './fixtures';
 import {
-  ZILE_INSULA,
-  etichetaSlujba,
-  grupeazaPeSaptamani,
-  listaRomaneasca,
-  minute,
-  programPentruInsula,
-  punctFinal,
-  saptamaniViitoare,
-  slujbeInOrdine,
-  slujbeLaAceeasiOra,
-  urmatoareaSlujba,
+  ISLAND_DAYS,
+  serviceLabel,
+  groupIntoWeeks,
+  romanianList,
+  minutes,
+  scheduleForIsland,
+  fullStop,
+  upcomingWeeks,
+  servicesInOrder,
+  servicesAtSameTime,
+  nextService,
 } from './schedule';
 
-describe('minute', () => {
-  it('numără minutele de la miezul nopții', () => {
-    expect(minute('00:00')).toBe(0);
-    expect(minute('10:00')).toBe(600);
-    expect(minute('23:59')).toBe(1439);
+describe('minutes', () => {
+  it('counts the minutes from midnight', () => {
+    expect(minutes('00:00')).toBe(0);
+    expect(minutes('10:00')).toBe(600);
+    expect(minutes('23:59')).toBe(1439);
   });
 
-  it('acceptă și ora nepadată, pe care schema o normalizează oricum', () => {
-    expect(minute('9:30')).toBe(570);
-    expect(minute('09:30')).toBe(570);
+  it('accepts an unpadded time too, which the schema normalises anyway', () => {
+    expect(minutes('9:30')).toBe(570);
+    expect(minutes('09:30')).toBe(570);
   });
 
-  it('ordonează orele numeric, acolo unde textul le-ar ordona invers', () => {
+  it('orders the times numerically, where text would order them the other way', () => {
     // Exact inversiunea din care se naște bug-ul: alfabetic, „9:30" vine după
     // „10:00". Numeric, nu.
     expect('9:30' > '10:00').toBe(true);
-    expect(minute('9:30') > minute('10:00')).toBe(false);
+    expect(minutes('9:30') > minutes('10:00')).toBe(false);
   });
 });
 
-describe('etichetaSlujba', () => {
-  it('întoarce numele slujbei', () => {
-    expect(etichetaSlujba({ ora: '10:00', slujba: 'Sfânta Liturghie' })).toBe('Sfânta Liturghie');
+describe('serviceLabel', () => {
+  it('returns the service name', () => {
+    expect(serviceLabel({ time: '10:00', service: 'Sfânta Liturghie' })).toBe('Sfânta Liturghie');
   });
 
-  it('adaugă detaliul la numele slujbei', () => {
-    expect(etichetaSlujba({ ora: '10:00', slujba: 'Sfânta Liturghie', detaliu: 'și Parastas' }))
+  it('appends the detail to the service name', () => {
+    expect(serviceLabel({ time: '10:00', service: 'Sfânta Liturghie', detail: 'și Parastas' }))
       .toBe('Sfânta Liturghie și Parastas');
   });
 
-  it('ignoră spațiile din jurul detaliului', () => {
-    expect(etichetaSlujba({ ora: '18:30', slujba: 'Acatist', detaliu: '  la Sfântul Nicolae  ' }))
+  it('ignores the whitespace around the detail', () => {
+    expect(serviceLabel({ time: '18:30', service: 'Acatist', detail: '  la Sfântul Nicolae  ' }))
       .toBe('Acatist la Sfântul Nicolae');
   });
 
-  it('pentru „Altceva" folosește detaliul ca nume', () => {
-    expect(etichetaSlujba({ ora: '19:00', slujba: 'Altceva', detaliu: 'Cerc de studiu biblic' }))
+  it('uses the detail as the name for „Altceva"', () => {
+    expect(serviceLabel({ time: '19:00', service: 'Altceva', detail: 'Cerc de studiu biblic' }))
       .toBe('Cerc de studiu biblic');
   });
 
-  it('nu lasă „Altceva" să apară pe site fără detaliu', () => {
-    expect(etichetaSlujba({ ora: '19:00', slujba: 'Altceva' })).toBe('Slujbă');
-    expect(etichetaSlujba({ ora: '19:00', slujba: 'Altceva', detaliu: '   ' })).toBe('Slujbă');
+  it('does not let „Altceva" appear on the site without a detail', () => {
+    expect(serviceLabel({ time: '19:00', service: 'Altceva' })).toBe('Slujbă');
+    expect(serviceLabel({ time: '19:00', service: 'Altceva', detail: '   ' })).toBe('Slujbă');
   });
 
-  it('nu lasă cuvântul „Altceva" în nicio etichetă', () => {
+  it('leaves the word „Altceva" in no label at all', () => {
     // Motivul pentru care funcția aceasta există: „Altceva" este portița din
     // CMS, nu un nume de slujbă. Niciun nume din listă nu are voie să îl scoată
     // pe pagină sau în feed-ul de calendar.
-    for (const slujba of NUME_SLUJBE) {
-      const detaliu = slujba === 'Altceva' ? 'Cerc de studiu biblic' : undefined;
-      expect(etichetaSlujba({ ora: '19:00', slujba, detaliu })).not.toContain('Altceva');
+    for (const service of SERVICE_NAMES) {
+      const detail = service === 'Altceva' ? 'Cerc de studiu biblic' : undefined;
+      expect(serviceLabel({ time: '19:00', service, detail })).not.toContain('Altceva');
     }
   });
 });
 
 describe('diacriticele etichetelor', () => {
-  it('folosește virgulă dedesubt, nu sedilă', () => {
-    const tot = [
-      ...NUME_SLUJBE.map((slujba) => etichetaSlujba({ ora: '10:00', slujba })),
-      etichetaSlujba({ ora: '10:00', slujba: 'Sfânta Liturghie', detaliu: 'și Parastas' }),
+  it('uses comma below, not cedilla', () => {
+    const allText = [
+      ...SERVICE_NAMES.map((service) => serviceLabel({ time: '10:00', service })),
+      serviceLabel({ time: '10:00', service: 'Sfânta Liturghie', detail: 'și Parastas' }),
     ].join('');
     // Sedilele turcești, scrise ca escape-uri pentru ca garda să nu poată fi
     // înfrântă lipind chiar caracterele pe care le respinge:
     // U+015F, U+0163 și majusculele lor U+015E, U+0162.
-    expect(tot).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    expect(allText).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
     // Și dovada că garda are ce prinde, nu că trece fiindcă șirurile scanate
-    // s-au dovedit a fi ASCII. Primul vine din NUME_SLUJBE, prin etichetaSlujba.
-    expect(tot).toMatch(/\u021B/); // ț, din „Liturghia Darurilor … sfințite"
-    expect(tot).toMatch(/\u0219/); // ș, din detaliul „și Parastas"
+    // s-au dovedit a fi ASCII. Primul vine din SERVICE_NAMES, prin serviceLabel.
+    expect(allText).toMatch(/\u021B/); // ț, din „Liturghia Darurilor … sfințite"
+    expect(allText).toMatch(/\u0219/); // ș, din detaliul „și Parastas"
     // Singurul literal românesc din schedule.ts, afirmat pe codepoint: ă = U+0103.
-    expect(etichetaSlujba({ ora: '19:00', slujba: 'Altceva' })).toBe('Slujb\u0103');
+    expect(serviceLabel({ time: '19:00', service: 'Altceva' })).toBe('Slujb\u0103');
   });
 });
 
-function zi(data: string, slujbe: Array<[string, string]>, extra: Partial<ZiSlujba> = {}): ZiSlujba {
+function day(date: string, services: Array<[string, string]>, extra: Partial<ServiceDay> = {}): ServiceDay {
   return {
-    data,
-    praznic_mare: false,
-    zi_de_post: false,
-    anulat: false,
-    slujbe: slujbe.map(([ora, slujba]) => ({ ora, slujba: slujba as never })),
+    date,
+    great_feast: false,
+    fast_day: false,
+    cancelled: false,
+    services: services.map(([time, service]) => ({ time, service: service as never })),
     ...extra,
-  } as ZiSlujba;
+  } as ServiceDay;
 }
 
-const date = [
-  zi('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']]),
-  zi('2026-09-16', [['17:00', 'Spovedanie'], ['18:30', 'Acatist']]),
-  zi('2026-09-20', [['08:45', 'Utrenia'], ['10:00', 'Sfânta Liturghie']]),
-  zi('2026-09-23', [['18:30', 'Acatist']]),
-  zi('2026-10-04', [['10:00', 'Sfânta Liturghie']]),
+const sampleDays = [
+  day('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']]),
+  day('2026-09-16', [['17:00', 'Spovedanie'], ['18:30', 'Acatist']]),
+  day('2026-09-20', [['08:45', 'Utrenia'], ['10:00', 'Sfânta Liturghie']]),
+  day('2026-09-23', [['18:30', 'Acatist']]),
+  day('2026-10-04', [['10:00', 'Sfânta Liturghie']]),
 ];
 
-describe('grupeazaPeSaptamani', () => {
-  it('grupează zilele în săptămâni ISO', () => {
-    const s = grupeazaPeSaptamani(date);
-    expect(s.map((x) => x.cheie)).toEqual(['2026-W38', '2026-W39', '2026-W40']);
+describe('groupIntoWeeks', () => {
+  it('groups the days into ISO weeks', () => {
+    const s = groupIntoWeeks(sampleDays);
+    expect(s.map((x) => x.key)).toEqual(['2026-W38', '2026-W39', '2026-W40']);
   });
 
-  it('pune limitele corecte pe fiecare săptămână', () => {
-    const [prima] = grupeazaPeSaptamani(date);
-    expect(prima.luni).toBe('2026-09-14');
-    expect(prima.duminica).toBe('2026-09-20');
-    expect(prima.zile).toHaveLength(3);
+  it('puts the correct bounds on each week', () => {
+    const [first] = groupIntoWeeks(sampleDays);
+    expect(first.monday).toBe('2026-09-14');
+    expect(first.sunday).toBe('2026-09-20');
+    expect(first.days).toHaveLength(3);
   });
 
-  it('sortează zilele în interiorul săptămânii', () => {
-    const s = grupeazaPeSaptamani([date[2], date[0], date[1]]);
-    expect(s[0].zile.map((z) => z.data)).toEqual(['2026-09-14', '2026-09-16', '2026-09-20']);
+  it('sorts the days inside the week', () => {
+    const s = groupIntoWeeks([sampleDays[2], sampleDays[0], sampleDays[1]]);
+    expect(s[0].days.map((z) => z.date)).toEqual(['2026-09-14', '2026-09-16', '2026-09-20']);
   });
 
-  it('nu modifică lista primită', () => {
-    const neordonate = [date[2], date[0], date[1]];
-    const ordineaInitiala = [...neordonate];
-    grupeazaPeSaptamani(neordonate);
-    expect(neordonate).toEqual(ordineaInitiala);
+  it('does not modify the list it was handed', () => {
+    const unordered = [sampleDays[2], sampleDays[0], sampleDays[1]];
+    const originalOrder = [...unordered];
+    groupIntoWeeks(unordered);
+    expect(unordered).toEqual(originalOrder);
   });
 
-  it('omite săptămânile fără intrări', () => {
-    const s = grupeazaPeSaptamani(date);
-    expect(s.map((x) => x.cheie)).not.toContain('2026-W41');
+  it('omits weeks with no entries', () => {
+    const s = groupIntoWeeks(sampleDays);
+    expect(s.map((x) => x.key)).not.toContain('2026-W41');
   });
 
-  it('întoarce o listă goală pentru date goale', () => {
-    expect(grupeazaPeSaptamani([])).toEqual([]);
+  it('returns an empty list for empty data', () => {
+    expect(groupIntoWeeks([])).toEqual([]);
   });
 
-  it('refuză o zi cu dată inexistentă', () => {
-    expect(() => grupeazaPeSaptamani([zi('2026-02-30', [['10:00', 'Utrenia']])]))
+  it('refuses a day whose date does not exist', () => {
+    expect(() => groupIntoWeeks([day('2026-02-30', [['10:00', 'Utrenia']])]))
       .toThrow(/inexistent/);
   });
 
-  it('păstrează două slujbe diferite care încep la aceeași oră', () => {
+  it('keeps two different services that start at the same time', () => {
     // O seară obișnuită: spovedania se ține în timpul vecerniei. Gruparea nu
     // are voie nici să le contopească, nici să piardă ziua.
-    const s = grupeazaPeSaptamani([
-      zi('2026-09-16', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie'], ['18:30', 'Acatist']]),
+    const s = groupIntoWeeks([
+      day('2026-09-16', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie'], ['18:30', 'Acatist']]),
     ]);
     expect(s).toHaveLength(1);
-    expect(s[0].zile).toHaveLength(1);
-    expect(s[0].zile[0].slujbe.map((x) => [x.ora, x.slujba])).toEqual([
+    expect(s[0].days).toHaveLength(1);
+    expect(s[0].days[0].services.map((x) => [x.time, x.service])).toEqual([
       ['17:00', 'Spovedanie'],
       ['17:00', 'Vecernie'],
       ['18:30', 'Acatist'],
     ]);
   });
 
-  it('grupează după săptămâna ISO, nu după anul calendaristic', () => {
+  it('groups by ISO week, not by calendar year', () => {
     // 2027-01-03 este duminica săptămânii ISO 2026-W53; 2027-01-05 deja W01.
-    const s = grupeazaPeSaptamani([
-      zi('2027-01-05', [['18:30', 'Acatist']]),
-      zi('2026-12-30', [['18:30', 'Acatist']]),
-      zi('2027-01-03', [['10:00', 'Sfânta Liturghie']]),
+    const s = groupIntoWeeks([
+      day('2027-01-05', [['18:30', 'Acatist']]),
+      day('2026-12-30', [['18:30', 'Acatist']]),
+      day('2027-01-03', [['10:00', 'Sfânta Liturghie']]),
     ]);
-    expect(s.map((x) => x.cheie)).toEqual(['2026-W53', '2027-W01']);
-    expect(s[0]).toMatchObject({ luni: '2026-12-28', duminica: '2027-01-03' });
-    expect(s[0].zile.map((z) => z.data)).toEqual(['2026-12-30', '2027-01-03']);
-    expect(s[1]).toMatchObject({ luni: '2027-01-04', duminica: '2027-01-10' });
+    expect(s.map((x) => x.key)).toEqual(['2026-W53', '2027-W01']);
+    expect(s[0]).toMatchObject({ monday: '2026-12-28', sunday: '2027-01-03' });
+    expect(s[0].days.map((z) => z.date)).toEqual(['2026-12-30', '2027-01-03']);
+    expect(s[1]).toMatchObject({ monday: '2027-01-04', sunday: '2027-01-10' });
   });
 });
 
-describe('urmatoareaSlujba', () => {
-  it('alege următoarea slujbă din ziua curentă', () => {
-    expect(urmatoareaSlujba(date, '2026-09-14', '08:00')).toMatchObject({
-      data: '2026-09-14',
-      ora: '08:30',
-      slujba: 'Sfânta Liturghie',
+describe('nextService', () => {
+  it("picks the next service on today's day", () => {
+    expect(nextService(sampleDays, '2026-09-14', '08:00')).toMatchObject({
+      date: '2026-09-14',
+      time: '08:30',
+      service: 'Sfânta Liturghie',
     });
   });
 
-  it('trece la ziua următoare când ziua curentă s-a încheiat', () => {
-    expect(urmatoareaSlujba(date, '2026-09-14', '09:00')).toMatchObject({
-      data: '2026-09-16',
-      ora: '17:00',
+  it('moves to the next day once the current day has ended', () => {
+    expect(nextService(sampleDays, '2026-09-14', '09:00')).toMatchObject({
+      date: '2026-09-16',
+      time: '17:00',
     });
   });
 
-  it('compară orele numeric, nu alfabetic', () => {
-    const d = [zi('2026-09-14', [['09:00', 'Utrenia'], ['10:00', 'Sfânta Liturghie']])];
+  it('compares the times numerically, not alphabetically', () => {
+    const d = [day('2026-09-14', [['09:00', 'Utrenia'], ['10:00', 'Sfânta Liturghie']])];
     // Lexicographically '9:00' > '10:00'; numerically it is not.
-    expect(urmatoareaSlujba(d, '2026-09-14', '9:30')).toMatchObject({ ora: '10:00' });
+    expect(nextService(d, '2026-09-14', '9:30')).toMatchObject({ time: '10:00' });
   });
 
-  it('caută în ziua cea mai apropiată, oricum ar fi ordonată lista', () => {
-    const d = [date[4], date[3], date[1]];
-    expect(urmatoareaSlujba(d, '2026-09-15', '00:00')).toMatchObject({ data: '2026-09-16' });
+  it('searches the nearest day, however the list is ordered', () => {
+    const d = [sampleDays[4], sampleDays[3], sampleDays[1]];
+    expect(nextService(d, '2026-09-15', '00:00')).toMatchObject({ date: '2026-09-16' });
   });
 
-  it('alege cea mai devreme slujbă a zilei fără să reordoneze ziua primită', () => {
-    const z = zi('2026-09-16', [['18:30', 'Acatist'], ['17:00', 'Spovedanie']]);
-    expect(urmatoareaSlujba([z], '2026-09-16', '00:00')).toMatchObject({ ora: '17:00' });
-    expect(z.slujbe.map((s) => s.ora)).toEqual(['18:30', '17:00']);
+  it("picks the earliest service of the day without reordering the day it was handed", () => {
+    const z = day('2026-09-16', [['18:30', 'Acatist'], ['17:00', 'Spovedanie']]);
+    expect(nextService([z], '2026-09-16', '00:00')).toMatchObject({ time: '17:00' });
+    expect(z.services.map((s) => s.time)).toEqual(['18:30', '17:00']);
   });
 
-  it('alege prima slujbă scrisă, când două încep la aceeași oră', () => {
-    const z = zi('2026-09-16', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie']]);
-    expect(urmatoareaSlujba([z], '2026-09-16', '16:00')).toMatchObject({
-      ora: '17:00',
-      slujba: 'Spovedanie',
+  it('picks the first service written, when two start at the same time', () => {
+    const z = day('2026-09-16', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie']]);
+    expect(nextService([z], '2026-09-16', '16:00')).toMatchObject({
+      time: '17:00',
+      service: 'Spovedanie',
     });
   });
 
-  it('întoarce o slujbă care începe chiar acum', () => {
-    expect(urmatoareaSlujba(date, '2026-09-14', '08:30')).toMatchObject({ ora: '08:30' });
+  it('returns a service that starts right now', () => {
+    expect(nextService(sampleDays, '2026-09-14', '08:30')).toMatchObject({ time: '08:30' });
   });
 
   it('sare peste zilele anulate', () => {
     const d = [
-      zi('2026-09-16', [['18:30', 'Acatist']], { anulat: true }),
-      zi('2026-09-20', [['10:00', 'Sfânta Liturghie']]),
+      day('2026-09-16', [['18:30', 'Acatist']], { cancelled: true }),
+      day('2026-09-20', [['10:00', 'Sfânta Liturghie']]),
     ];
-    expect(urmatoareaSlujba(d, '2026-09-15', '12:00')).toMatchObject({ data: '2026-09-20' });
+    expect(nextService(d, '2026-09-15', '12:00')).toMatchObject({ date: '2026-09-20' });
   });
 
-  it('întoarce null când nu mai urmează nimic', () => {
-    expect(urmatoareaSlujba(date, '2027-01-01', '00:00')).toBeNull();
+  it('returns null when nothing else is coming', () => {
+    expect(nextService(sampleDays, '2027-01-01', '00:00')).toBeNull();
   });
 
-  it('întoarce null pentru date goale', () => {
-    expect(urmatoareaSlujba([], '2026-09-14', '08:00')).toBeNull();
+  it('returns null for empty data', () => {
+    expect(nextService([], '2026-09-14', '08:00')).toBeNull();
   });
 
-  it('refuză o dată invalidă în loc să întoarcă prima slujbă din program', () => {
+  it('refuses an invalid date instead of returning the first service in the schedule', () => {
     // Fără gardă, '15/09/2026' se compară sub orice dată stocată: fiecare zi ar
     // trece de filtru și funcția ar întoarce, sigură pe ea, slujba de la
     // 2026-09-14 07:30. O oră greșită, spusă cu toată convingerea.
-    expect(() => urmatoareaSlujba(date, '15/09/2026', '08:00')).toThrow(/invalid/);
-    expect(() => urmatoareaSlujba(date, '2026-9-21', '08:00')).toThrow(/invalid/);
+    expect(() => nextService(sampleDays, '15/09/2026', '08:00')).toThrow(/invalid/);
+    expect(() => nextService(sampleDays, '2026-9-21', '08:00')).toThrow(/invalid/);
     // Prins de verificarea existenței, nu de regex: 30 februarie trece de formă.
-    expect(() => urmatoareaSlujba(date, '2026-02-30', '08:00')).toThrow(/inexistent/);
+    expect(() => nextService(sampleDays, '2026-02-30', '08:00')).toThrow(/inexistent/);
   });
 });
 
-describe('saptamaniViitoare', () => {
-  it('începe cu săptămâna care conține ziua curentă', () => {
-    const s = saptamaniViitoare(date, '2026-09-16', 3);
-    expect(s[0].cheie).toBe('2026-W38');
+describe('upcomingWeeks', () => {
+  it('starts with the week that contains today', () => {
+    const s = upcomingWeeks(sampleDays, '2026-09-16', 3);
+    expect(s[0].key).toBe('2026-W38');
   });
 
-  it('limitează numărul de săptămâni', () => {
-    expect(saptamaniViitoare(date, '2026-09-16', 2)).toHaveLength(2);
+  it('limits the number of weeks', () => {
+    expect(upcomingWeeks(sampleDays, '2026-09-16', 2)).toHaveLength(2);
   });
 
-  it('păstrează întreagă săptămâna curentă, cu tot cu zilele deja trecute', () => {
-    const s = saptamaniViitoare(date, '2026-09-20', 1);
-    expect(s.map((x) => x.cheie)).toEqual(['2026-W38']);
-    expect(s[0].zile.map((z) => z.data)).toEqual(['2026-09-14', '2026-09-16', '2026-09-20']);
+  it('keeps the current week whole, including the days already past', () => {
+    const s = upcomingWeeks(sampleDays, '2026-09-20', 1);
+    expect(s.map((x) => x.key)).toEqual(['2026-W38']);
+    expect(s[0].days.map((z) => z.date)).toEqual(['2026-09-14', '2026-09-16', '2026-09-20']);
   });
 
-  it('exclude săptămânile complet trecute', () => {
-    const s = saptamaniViitoare(date, '2026-09-23', 3);
-    expect(s.map((x) => x.cheie)).toEqual(['2026-W39', '2026-W40']);
+  it('excludes weeks entirely in the past', () => {
+    const s = upcomingWeeks(sampleDays, '2026-09-23', 3);
+    expect(s.map((x) => x.key)).toEqual(['2026-W39', '2026-W40']);
   });
 
-  it('întoarce o listă goală când totul este în trecut', () => {
-    expect(saptamaniViitoare(date, '2027-01-01', 3)).toEqual([]);
+  it('returns an empty list when everything is in the past', () => {
+    expect(upcomingWeeks(sampleDays, '2027-01-01', 3)).toEqual([]);
   });
 
-  it('refuză o dată invalidă, la fel ca urmatoareaSlujba', () => {
+  it('refuses an invalid date, just as nextService does', () => {
     // Cele trei funcții care primesc o dată o resping la fel, ca să nu existe
     // o singură poartă prin care o dată stricată să intre tăcută în pagină.
-    expect(() => saptamaniViitoare(date, '15/09/2026', 3)).toThrow(/invalid/);
-    expect(() => saptamaniViitoare(date, '2026-02-30', 3)).toThrow(/inexistent/);
+    expect(() => upcomingWeeks(sampleDays, '15/09/2026', 3)).toThrow(/invalid/);
+    expect(() => upcomingWeeks(sampleDays, '2026-02-30', 3)).toThrow(/inexistent/);
   });
 
-  it('întoarce o listă goală pentru un număr de săptămâni nepozitiv', () => {
-    expect(saptamaniViitoare(date, '2026-09-16', 0)).toEqual([]);
+  it('returns an empty list for a non-positive number of weeks', () => {
+    expect(upcomingWeeks(sampleDays, '2026-09-16', 0)).toEqual([]);
     // Fără gardă, slice(0, -1) ar tăia ultima săptămână și ar întoarce restul.
-    expect(saptamaniViitoare(date, '2026-09-16', -1)).toEqual([]);
+    expect(upcomingWeeks(sampleDays, '2026-09-16', -1)).toEqual([]);
   });
 });
 
-describe('slujbeLaAceeasiOra', () => {
-  const seara = [
-    { ora: '17:00', slujba: 'Spovedanie' },
-    { ora: '17:00', slujba: 'Vecernie' },
-    { ora: '18:30', slujba: 'Paraclisul Maicii Domnului' },
-  ] as Slujba[];
+describe('servicesAtSameTime', () => {
+  const evening = [
+    { time: '17:00', service: 'Spovedanie' },
+    { time: '17:00', service: 'Vecernie' },
+    { time: '18:30', service: 'Paraclisul Maicii Domnului' },
+  ] as Service[];
 
-  it('întoarce ambele slujbe care încep în același minut', () => {
-    expect(slujbeLaAceeasiOra(seara, '17:00').map((s) => s.slujba)).toEqual([
+  it('returns both services that start in the same minute', () => {
+    expect(servicesAtSameTime(evening, '17:00').map((s) => s.service)).toEqual([
       'Spovedanie',
       'Vecernie',
     ]);
   });
 
-  it('păstrează ordinea în care le-a scris redactorul', () => {
-    const invers = [seara[1], seara[0]] as Slujba[];
-    expect(slujbeLaAceeasiOra(invers, '17:00').map((s) => s.slujba)).toEqual([
+  it('keeps the order the editor wrote them in', () => {
+    const reversed = [evening[1], evening[0]] as Service[];
+    expect(servicesAtSameTime(reversed, '17:00').map((s) => s.service)).toEqual([
       'Vecernie',
       'Spovedanie',
     ]);
   });
 
-  it('nu ia și slujba de la altă oră', () => {
-    expect(slujbeLaAceeasiOra(seara, '18:30').map((s) => s.slujba)).toEqual([
+  it('does not also take the service at another time', () => {
+    expect(servicesAtSameTime(evening, '18:30').map((s) => s.service)).toEqual([
       'Paraclisul Maicii Domnului',
     ]);
   });
 
-  it('compară minute, nu text', () => {
+  it('compares minutes, not text', () => {
     // Schema normalizează ora înainte ca funcția să o vadă, așa că egalitatea de
     // șiruri ar fi de acord astăzi. Aici se dovedește că acordul nu e o
     // coincidență de padare: „9:30" și „09:30" sunt același minut.
-    const nepadat = [{ ora: '9:30', slujba: 'Utrenia' }] as Slujba[];
-    expect(slujbeLaAceeasiOra(nepadat, '09:30')).toHaveLength(1);
-    expect(slujbeLaAceeasiOra(nepadat, '9:30')).toHaveLength(1);
+    const unpadded = [{ time: '9:30', service: 'Utrenia' }] as Service[];
+    expect(servicesAtSameTime(unpadded, '09:30')).toHaveLength(1);
+    expect(servicesAtSameTime(unpadded, '9:30')).toHaveLength(1);
   });
 
-  it('întoarce o listă goală când nimic nu începe atunci', () => {
-    expect(slujbeLaAceeasiOra(seara, '10:00')).toEqual([]);
-    expect(slujbeLaAceeasiOra([], '17:00')).toEqual([]);
+  it('returns an empty list when nothing starts then', () => {
+    expect(servicesAtSameTime(evening, '10:00')).toEqual([]);
+    expect(servicesAtSameTime([], '17:00')).toEqual([]);
   });
 });
 
 /*
- * The homepage renders `saptamaniViitoare(zile, azi, 3)` and prints each week's
+ * The homepage renders `upcomingWeeks(days, today, 3)` and prints each week's
  * own interval under its band. The seed content has entries in a single week,
  * so none of that composition runs on a normal build — it ran only when someone
- * remembered to force it by hand. `ZILE_FIXTURA` makes it run on every test.
+ * remembered to force it by hand. `FIXTURE_DAYS` makes it run on every test.
  */
-describe('fereastra de trei săptămâni a paginii de start', () => {
-  const trei = saptamaniViitoare(ZILE_FIXTURA, AZI_FIXTURA, 3);
+describe("the homepage's three-week window", () => {
+  const three = upcomingWeeks(FIXTURE_DAYS, FIXTURE_TODAY, 3);
 
-  it('sare peste săptămâna fără intrări', () => {
+  it('skips the week with no entries', () => {
     // 2026-W39 lipsește din fixtură și trebuie să lipsească și de aici.
-    expect(trei.map((s) => s.cheie)).toEqual(['2026-W38', '2026-W40', '2026-W41']);
+    expect(three.map((s) => s.key)).toEqual(['2026-W38', '2026-W40', '2026-W41']);
   });
 
-  it('numără săptămâni cu intrări, nu săptămâni calendaristice', () => {
+  it('counts weeks with entries, not calendar weeks', () => {
     // Trei săptămâni afișate, patru săptămâni de calendar acoperite: de luni 14
     // septembrie până duminică 11 octombrie. De aceea niciun titlu nu are voie
     // să promită „următoarele trei săptămâni" ca interval de date.
-    const [prima] = trei;
-    const ultima = trei[trei.length - 1];
-    expect(trei).toHaveLength(3);
-    expect(prima.luni).toBe('2026-09-14');
-    expect(ultima.duminica).toBe('2026-10-11');
+    const [first] = three;
+    const last = three[three.length - 1];
+    expect(three).toHaveLength(3);
+    expect(first.monday).toBe('2026-09-14');
+    expect(last.sunday).toBe('2026-10-11');
     // Ultima săptămână începe la trei săptămâni după prima, deci intervalul
-    // acoperă patru. Cu `adaugaZile`, nu cu aritmetică pe `Date`: în proiectul
+    // acoperă patru. Cu `addDays`, nu cu aritmetică pe `Date`: în proiectul
     // ăsta datele calendaristice nu trec niciodată printr-un instant UTC.
-    expect(adaugaZile(prima.luni, 21)).toBe(ultima.luni);
+    expect(addDays(first.monday, 21)).toBe(last.monday);
   });
 
-  it('dă fiecărei săptămâni intervalul ei, singurul care e adevărat', () => {
-    expect(trei.map((s) => formatIntervalSaptamana(s.luni, s.duminica))).toEqual([
+  it('gives each week its own interval, the only one that is true', () => {
+    expect(three.map((s) => formatWeekRange(s.monday, s.sunday))).toEqual([
       '14 – 20 septembrie 2026',
       '28 septembrie – 4 octombrie 2026',
       '5 – 11 octombrie 2026',
     ]);
   });
 
-  it('exclude săptămâna deja încheiată', () => {
+  it('excludes the week that has already ended', () => {
     // 2026-09-09 este în fixtură tocmai ca excluderea să fie dovedită pe date.
-    expect(saptamaniViitoare(ZILE_FIXTURA, AZI_FIXTURA, 9).map((s) => s.cheie)).not.toContain(
+    expect(upcomingWeeks(FIXTURE_DAYS, FIXTURE_TODAY, 9).map((s) => s.key)).not.toContain(
       '2026-W37',
     );
   });
 
-  it('trece corect peste granița de an', () => {
-    const peste = saptamaniViitoare(ZILE_FIXTURA, '2026-12-28', 3);
-    expect(peste.map((s) => s.cheie)).toEqual(['2026-W53', '2027-W01']);
-    expect(peste.map((s) => formatIntervalSaptamana(s.luni, s.duminica))).toEqual([
+  it('crosses the year boundary correctly', () => {
+    const acrossYearEnd = upcomingWeeks(FIXTURE_DAYS, '2026-12-28', 3);
+    expect(acrossYearEnd.map((s) => s.key)).toEqual(['2026-W53', '2027-W01']);
+    expect(acrossYearEnd.map((s) => formatWeekRange(s.monday, s.sunday))).toEqual([
       '28 decembrie 2026 – 3 ianuarie 2027',
       '4 – 10 ianuarie 2027',
     ]);
   });
 
-  it('cheile sunt ordonate lexical, cum le va compara selectorul din Task 10', () => {
-    const chei = saptamaniViitoare(ZILE_FIXTURA, AZI_FIXTURA, 9).map((s) => s.cheie);
-    expect(chei).toEqual([...chei].sort());
+  it("the keys are ordered lexically, as Task 10's picker will compare them", () => {
+    const keys = upcomingWeeks(FIXTURE_DAYS, FIXTURE_TODAY, 9).map((s) => s.key);
+    expect(keys).toEqual([...keys].sort());
   });
 
-  it('cardul „următoarea slujbă" numește ambele slujbe de la 17:00', () => {
-    const u = urmatoareaSlujba(ZILE_FIXTURA, AZI_FIXTURA, '09:00');
+  it('the „next service" card names both services at 17:00', () => {
+    const u = nextService(FIXTURE_DAYS, FIXTURE_TODAY, '09:00');
     expect(u).not.toBeNull();
-    expect(u?.data).toBe('2026-09-16');
-    expect(u?.ora).toBe('17:00');
-    const ziua = ZILE_FIXTURA.find((z) => z.data === u?.data);
-    expect(slujbeLaAceeasiOra(ziua?.slujbe ?? [], u!.ora).map(etichetaSlujba)).toEqual([
+    expect(u?.date).toBe('2026-09-16');
+    expect(u?.time).toBe('17:00');
+    const theDay = FIXTURE_DAYS.find((z) => z.date === u?.date);
+    expect(servicesAtSameTime(theDay?.services ?? [], u!.time).map(serviceLabel)).toEqual([
       'Spovedanie',
       'Vecernie',
     ]);
   });
 
-  it('sare peste ziua anulată în întregime', () => {
+  it('skips the cancelled day entirely', () => {
     // 2026-10-04 este anulată și își păstrează ora; cardul trebuie să treacă la
     // 7 octombrie, nu să anunțe o slujbă care nu are loc.
-    const u = urmatoareaSlujba(ZILE_FIXTURA, '2026-10-04', '00:00');
-    expect(u?.data).toBe('2026-10-07');
+    const u = nextService(FIXTURE_DAYS, '2026-10-04', '00:00');
+    expect(u?.date).toBe('2026-10-07');
   });
 });
 
 /*
- * `ziSchema` neither sorts a day's services nor requires them sorted, so the
- * order in the YAML is whatever the volunteer typed. `urmatoareaSlujba` and
+ * `daySchema` neither sorts a day's services nor requires them sorted, so the
+ * order in the YAML is whatever the volunteer typed. `nextService` and
  * `ics.ts` have always sorted their own copy; the two pages did not, and both
- * read the schedule through `grupeazaPeSaptamani`.
+ * read the schedule through `groupIntoWeeks`.
  */
-describe('ordinea slujbelor dintr-o zi', () => {
-  const ziuaNeordonata = ZILE_FIXTURA.find((z) => z.data === '2026-09-16')!;
+describe("the order of a day's services", () => {
+  const unorderedDay = FIXTURE_DAYS.find((z) => z.date === '2026-09-16')!;
 
-  it('control: fixtura chiar este neordonată', () => {
+  it('control: the fixture really is unordered', () => {
     // Fără asta, testele de mai jos ar putea trece fiindcă nu au ce sorta.
-    expect(ziuaNeordonata.slujbe.map((s) => s.ora)).toEqual(['18:30', '17:00', '17:00']);
+    expect(unorderedDay.services.map((s) => s.time)).toEqual(['18:30', '17:00', '17:00']);
   });
 
-  it('slujbeInOrdine le pune în ordinea în care se întâmplă', () => {
-    expect(slujbeInOrdine(ziuaNeordonata.slujbe).map((s) => s.ora)).toEqual([
+  it('servicesInOrder puts them in the order they happen', () => {
+    expect(servicesInOrder(unorderedDay.services).map((s) => s.time)).toEqual([
       '17:00',
       '17:00',
       '18:30',
     ]);
   });
 
-  it('păstrează perechea de la aceeași oră în ordinea redactorului', () => {
+  it("keeps the same-time pair in the editor's order", () => {
     // Sortarea e stabilă din ES2019. Spovedania scrisă înaintea vecerniei
     // rămâne înaintea ei: a le inversa ar fi o decizie pe care codul nu o poate
     // lua, fiindcă nu vede ce înseamnă perechea.
-    expect(slujbeInOrdine(ziuaNeordonata.slujbe).map((s) => s.slujba)).toEqual([
+    expect(servicesInOrder(unorderedDay.services).map((s) => s.service)).toEqual([
       'Spovedanie',
       'Vecernie',
       'Paraclisul Maicii Domnului',
     ]);
   });
 
-  it('nu modifică lista primită', () => {
-    const inainteDeSortare = [...ziuaNeordonata.slujbe];
-    slujbeInOrdine(ziuaNeordonata.slujbe);
-    expect(ziuaNeordonata.slujbe).toEqual(inainteDeSortare);
+  it('does not modify the list it was handed', () => {
+    const beforeSort = [...unorderedDay.services];
+    servicesInOrder(unorderedDay.services);
+    expect(unorderedDay.services).toEqual(beforeSort);
   });
 
-  it('compară minute, nu text', () => {
-    // Aceeași verificare pe care o are sora ei, `slujbeLaAceeasiOra`, și pentru
-    // același motiv: `ziSchema` padează `ora` înainte ca funcția să o vadă, așa
+  it('compares minutes, not text', () => {
+    // Aceeași verificare pe care o are sora ei, `servicesAtSameTime`, și pentru
+    // același motiv: `daySchema` padează `time` înainte ca funcția să o vadă, așa
     // că o comparație de șiruri ar fi de acord astăzi. Nepadat, „10:00" sortează
     // lexical înaintea lui „9:30", adică fix invers decât se întâmplă.
-    const nepadate = [{ ora: '10:00', slujba: 'Sfânta Liturghie' }, { ora: '9:30', slujba: 'Utrenia' }] as Slujba[];
-    expect(slujbeInOrdine(nepadate).map((s) => s.ora)).toEqual(['9:30', '10:00']);
+    const unpaddedTimes = [{ time: '10:00', service: 'Sfânta Liturghie' }, { time: '9:30', service: 'Utrenia' }] as Service[];
+    expect(servicesInOrder(unpaddedTimes).map((s) => s.time)).toEqual(['9:30', '10:00']);
   });
 
-  it('ambele pagini o primesc ordonată, fiindcă amândouă citesc prin grupare', () => {
-    // /program/ cheamă grupeazaPeSaptamani direct, pagina de start prin
-    // saptamaniViitoare. Un singur loc le acoperă pe amândouă.
-    const prinGrupare = grupeazaPeSaptamani(ZILE_FIXTURA)
-      .flatMap((s) => s.zile)
-      .find((z) => z.data === '2026-09-16');
-    const prinFereastra = saptamaniViitoare(ZILE_FIXTURA, AZI_FIXTURA, 3)
-      .flatMap((s) => s.zile)
-      .find((z) => z.data === '2026-09-16');
-    expect(prinGrupare?.slujbe.map((s) => s.ora)).toEqual(['17:00', '17:00', '18:30']);
-    expect(prinFereastra?.slujbe.map((s) => s.ora)).toEqual(['17:00', '17:00', '18:30']);
+  it('both pages receive it ordered, because both read it through the grouping', () => {
+    // /program/ cheamă groupIntoWeeks direct, pagina de start prin
+    // upcomingWeeks. Un singur loc le acoperă pe amândouă.
+    const throughGrouping = groupIntoWeeks(FIXTURE_DAYS)
+      .flatMap((s) => s.days)
+      .find((z) => z.date === '2026-09-16');
+    const throughTheWindow = upcomingWeeks(FIXTURE_DAYS, FIXTURE_TODAY, 3)
+      .flatMap((s) => s.days)
+      .find((z) => z.date === '2026-09-16');
+    expect(throughGrouping?.services.map((s) => s.time)).toEqual(['17:00', '17:00', '18:30']);
+    expect(throughTheWindow?.services.map((s) => s.time)).toEqual(['17:00', '17:00', '18:30']);
   });
 
-  it('gruparea nu strică ziua originală din colecție', () => {
-    grupeazaPeSaptamani(ZILE_FIXTURA);
-    expect(ziuaNeordonata.slujbe.map((s) => s.ora)).toEqual(['18:30', '17:00', '17:00']);
+  it('the grouping does not damage the original day from the collection', () => {
+    groupIntoWeeks(FIXTURE_DAYS);
+    expect(unorderedDay.services.map((s) => s.time)).toEqual(['18:30', '17:00', '17:00']);
   });
 });
 
-describe('punctFinal', () => {
-  it('adaugă punctul când valoarea nu are unul', () => {
-    expect(punctFinal('Capela Sf. Gallus, Winterthur')).toBe('.');
-    expect(punctFinal('Winterthur')).toBe('.');
+describe('fullStop', () => {
+  it('adds the full stop when the value has none', () => {
+    expect(fullStop('Capela Sf. Gallus, Winterthur')).toBe('.');
+    expect(fullStop('Winterthur')).toBe('.');
   });
 
-  it('nu adaugă al doilea punct', () => {
+  it('does not add a second full stop', () => {
     // Bug-ul: „Slujbele acestei zile au loc la Winterthur.." — două puncte,
     // fiindcă și redactorul și propoziția pun câte unul.
-    expect(punctFinal('Winterthur.')).toBe('');
-    expect(punctFinal('Capela Sf. Gallus, Winterthur.')).toBe('');
+    expect(fullStop('Winterthur.')).toBe('');
+    expect(fullStop('Capela Sf. Gallus, Winterthur.')).toBe('');
   });
 
-  it('tratează și punctele de suspensie ca sfârșit de propoziție', () => {
-    expect(punctFinal('și altele…')).toBe('');
+  it('treats an ellipsis as the end of a sentence too', () => {
+    expect(fullStop('și altele…')).toBe('');
   });
 
-  it('nu ghicește pentru semnul exclamării sau al întrebării', () => {
+  it('does not guess for an exclamation or question mark', () => {
     // Nimic din proiect nu compune o propoziție în jurul unei valori care s-ar
     // putea termina așa; a le trata ca terminatori ar fi o presupunere.
-    expect(punctFinal('Winterthur!')).toBe('.');
-    expect(punctFinal('Winterthur?')).toBe('.');
+    expect(fullStop('Winterthur!')).toBe('.');
+    expect(fullStop('Winterthur?')).toBe('.');
   });
 
-  it('pune punct după un șir gol, fără să arunce', () => {
-    expect(punctFinal('')).toBe('.');
+  it('puts a full stop after an empty string, without throwing', () => {
+    expect(fullStop('')).toBe('.');
   });
 
-  it('locația din fixtură se termină cu punct, ca să fie ce trebuie de pinuit', () => {
+  it('the location in the fixture ends with a full stop, so there is something to pin', () => {
     // Control: dacă cineva „curăță" fixtura, testul de mai jos nu mai dovedește
     // nimic, așa că valoarea e afirmată explicit.
-    const zi = ZILE_FIXTURA.find((z) => z.data === '2026-09-30');
-    expect(zi?.locatie).toBe('Capela Sf. Gallus, Winterthur.');
-    expect(punctFinal(zi!.locatie!)).toBe('');
+    const day = FIXTURE_DAYS.find((z) => z.date === '2026-09-30');
+    expect(day?.location).toBe('Capela Sf. Gallus, Winterthur.');
+    expect(fullStop(day!.location!)).toBe('');
   });
 
-  it('schema nu taie punctul din fixtură, oricât ar trece prin grupare', () => {
+  it('the schema does not trim the full stop from the fixture, however far it travels through the grouping', () => {
     // ics.ts scrie exact valoarea asta în LOCATION; pagina e cea care omite
     // punctul ei, nu datele.
-    const prinGrupare = grupeazaPeSaptamani(ZILE_FIXTURA)
-      .flatMap((s) => s.zile)
-      .find((z) => z.data === '2026-09-30');
-    expect(prinGrupare?.locatie).toBe('Capela Sf. Gallus, Winterthur.');
+    const throughGrouping = groupIntoWeeks(FIXTURE_DAYS)
+      .flatMap((s) => s.days)
+      .find((z) => z.date === '2026-09-30');
+    expect(throughGrouping?.location).toBe('Capela Sf. Gallus, Winterthur.');
   });
 });
 
-describe('listaRomaneasca', () => {
+describe('romanianList', () => {
   /*
    * Această funcție era o expresie scrisă direct în `index.astro`. Din Task 10
    * cardul „următoarea slujbă" se recalculează și în browser, așa că expresia ar
    * fi existat în două locuri — exact forma în care au ajuns să se contrazică
-   * cele trei sortări pe care le-a unificat `slujbeInOrdine`.
+   * cele trei sortări pe care le-a unificat `servicesInOrder`.
    */
-  it('un singur nume rămâne neatins', () => {
-    expect(listaRomaneasca(['Vecernie'])).toBe('Vecernie');
+  it('a single name is left untouched', () => {
+    expect(romanianList(['Vecernie'])).toBe('Vecernie');
   });
 
-  it('două nume se leagă cu „și", fără virgulă', () => {
-    expect(listaRomaneasca(['Spovedanie', 'Vecernie'])).toBe('Spovedanie și Vecernie');
+  it('two names are joined with „și", with no comma', () => {
+    expect(romanianList(['Spovedanie', 'Vecernie'])).toBe('Spovedanie și Vecernie');
   });
 
-  it('trei nume: virgulă între primele, „și" înaintea ultimului', () => {
-    expect(listaRomaneasca(['Utrenia', 'Spovedanie', 'Vecernie'])).toBe(
+  it('three names: a comma between the first two, „și" before the last', () => {
+    expect(romanianList(['Utrenia', 'Spovedanie', 'Vecernie'])).toBe(
       'Utrenia, Spovedanie și Vecernie',
     );
   });
 
-  it('lista goală dă șirul gol, nu „undefined"', () => {
+  it('an empty list gives the empty string, not „undefined"', () => {
     // Pagina nu randează cardul fără o slujbă următoare, dar o funcție care
     // întoarce `undefined` pune cuvântul „undefined" pe pagină în ziua în care
     // se schimbă paza de deasupra ei.
-    expect(listaRomaneasca([])).toBe('');
+    expect(romanianList([])).toBe('');
   });
 
-  it('nu pune sedilă în legătură', () => {
+  it('puts no cedilla in the conjunction', () => {
     // Legătura este „și": s cu virgulă dedesubt, U+0219. Garda e scrisă pe
     // codepoint, nu pe glifă, ca fișierul să rămână scanabil pentru sedile.
-    const legat = listaRomaneasca(['A', 'B']);
-    expect(legat).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
-    expect(legat).toMatch(/\u0219/);
+    const joined = romanianList(['A', 'B']);
+    expect(joined).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    expect(joined).toMatch(/\u0219/);
   });
 });
 
@@ -568,8 +568,8 @@ describe('listaRomaneasca', () => {
  * NIMIC NU O MAI FOLOSEȘTE. Cardul „următoarea slujbă" de pe pagina de start a
  * fost scos la cererea parohiei — programul de dedesubt spune același lucru — și
  * odată cu el au plecat insula JSON și recalcularea din browser.
- * `programPentruInsula`, `urmatoareaSlujba`, `slujbeLaAceeasiOra` și
- * `listaRomaneasca` au rămas în `schedule.ts`, testate și nefolosite de nicio
+ * `scheduleForIsland`, `nextService`, `servicesAtSameTime` și
+ * `romanianList` au rămas în `schedule.ts`, testate și nefolosite de nicio
  * pagină: ele sunt din ce s-ar construi un „următoarea slujbă" oriunde altundeva.
  * Ce urmează este deci o proprietate a unei funcții de bibliotecă, NU o măsură
  * a paginii de start de azi — numerele de mai jos descriu pagina de atunci, și
@@ -595,67 +595,67 @@ describe('listaRomaneasca', () => {
  * rezultă: insula nu crește cu orizontul publicat.
  * ===========================================================================
  */
-describe('insula de date (nefolosită de nicio pagină; vezi nota de mai sus)', () => {
+describe('the data island (used by no page; see the note above)', () => {
   /** N săptămâni de program parohial obișnuit, începând din lunea lui `de la`. */
-  function programLung(dela: string, saptamani: number): ZiSlujba[] {
-    const zile: ZiSlujba[] = [];
-    for (let s = 0; s < saptamani; s += 1) {
-      for (const [offset, slujbe] of [
-        [2, [{ ora: '18:30', slujba: 'Acatist' }]],
-        [4, [{ ora: '18:00', slujba: 'Vecernie' }]],
-        [5, [{ ora: '17:00', slujba: 'Spovedanie' }, { ora: '17:00', slujba: 'Vecernie' }]],
-        [6, [{ ora: '08:30', slujba: 'Utrenia' }, { ora: '10:00', slujba: 'Sfânta Liturghie' }]],
-      ] as Array<[number, Slujba[]]>) {
-        zile.push({
-          data: adaugaZile(dela, s * 7 + offset),
-          praznic_mare: false, zi_de_post: false, anulat: false,
-          slujbe,
-        } as ZiSlujba);
+  function longSchedule(from: string, weeks: number): ServiceDay[] {
+    const days: ServiceDay[] = [];
+    for (let s = 0; s < weeks; s += 1) {
+      for (const [offset, services] of [
+        [2, [{ time: '18:30', service: 'Acatist' }]],
+        [4, [{ time: '18:00', service: 'Vecernie' }]],
+        [5, [{ time: '17:00', service: 'Spovedanie' }, { time: '17:00', service: 'Vecernie' }]],
+        [6, [{ time: '08:30', service: 'Utrenia' }, { time: '10:00', service: 'Sfânta Liturghie' }]],
+      ] as Array<[number, Service[]]>) {
+        days.push({
+          date: addDays(from, s * 7 + offset),
+          great_feast: false, fast_day: false, cancelled: false,
+          services,
+        } as ServiceDay);
       }
     }
-    return zile;
+    return days;
   }
 
-  const AZI = '2026-09-14'; // o luni
-  const DOI_ANI = programLung(AZI, 104);
+  const TODAY = '2026-09-14'; // o luni
+  const TWO_YEARS = longSchedule(TODAY, 104);
 
-  it('control: programul construit chiar este mult mai lung decât marginea', () => {
+  it('control: the constructed schedule really is far longer than the bound', () => {
     // Fără asta, tot ce urmează ar putea trece fiindcă nu are ce tăia.
-    expect(DOI_ANI.length).toBe(416);
-    expect(DOI_ANI.length).toBeGreaterThan(ZILE_INSULA * 4);
+    expect(TWO_YEARS.length).toBe(416);
+    expect(TWO_YEARS.length).toBeGreaterThan(ISLAND_DAYS * 4);
   });
 
-  it('se oprește la ZILE_INSULA zile, oricât de departe ar publica parohia', () => {
-    expect(programPentruInsula(DOI_ANI, AZI)).toHaveLength(ZILE_INSULA);
+  it('stops at ISLAND_DAYS days, however far ahead the parish publishes', () => {
+    expect(scheduleForIsland(TWO_YEARS, TODAY)).toHaveLength(ISLAND_DAYS);
   });
 
-  it('a publica mai departe nu schimbă insula deloc', () => {
+  it('publishing further ahead does not change the island at all', () => {
     // Proprietatea, spusă direct: doi ani publicați și zece săptămâni publicate
     // produc aceeași insulă, octet cu octet.
-    const zeceSaptamani = programLung(AZI, 10);
-    expect(zeceSaptamani.length).toBeGreaterThanOrEqual(ZILE_INSULA);
-    expect(programPentruInsula(DOI_ANI, AZI)).toEqual(programPentruInsula(zeceSaptamani, AZI));
+    const tenWeeks = longSchedule(TODAY, 10);
+    expect(tenWeeks.length).toBeGreaterThanOrEqual(ISLAND_DAYS);
+    expect(scheduleForIsland(TWO_YEARS, TODAY)).toEqual(scheduleForIsland(tenWeeks, TODAY));
   });
 
-  it('rămâne mult sub buget serializată, chiar cu doi ani publicați', () => {
-    const octeti = Buffer.byteLength(JSON.stringify(programPentruInsula(DOI_ANI, AZI)));
-    const nemarginit = Buffer.byteLength(JSON.stringify(programPentruInsula(DOI_ANI, AZI, DOI_ANI.length)));
+  it('stays well under budget once serialised, even with two years published', () => {
+    const bytes = Buffer.byteLength(JSON.stringify(scheduleForIsland(TWO_YEARS, TODAY)));
+    const unbounded = Buffer.byteLength(JSON.stringify(scheduleForIsland(TWO_YEARS, TODAY, TWO_YEARS.length)));
     // Tipărit, nu doar verificat: numărul de mai jos este cel pe care îl verifică
     // un cititor de mai târziu dacă un comentariu îl contrazice.
     process.stdout.write(
-      `\nInsula la 104 săptămâni publicate: ${octeti} octeți (${ZILE_INSULA} zile)` +
-        ` — nemărginită ar fi ${nemarginit} octeți (${DOI_ANI.length} zile).\n` +
+      `\nInsula la 104 săptămâni publicate: ${bytes} octeți (${ISLAND_DAYS} zile)` +
+        ` — nemărginită ar fi ${unbounded} octeți (${TWO_YEARS.length} zile).\n` +
         `Pagina de atunci, fără insulă, măsura 20693 octeți; bugetul este ${45 * 1024}.\n`,
     );
     // Marginea de aici este generoasă fiindcă o zi poate purta mai multe slujbe,
-    // o `locatie` sau un `detaliu` mai lung decât cele de mai sus. Bugetul adevărat
+    // o `location` sau un `detail` mai lung decât cele de mai sus. Bugetul adevărat
     // se măsoară pe pagina construită, în scripts/check-budget.mjs.
-    expect(octeti).toBeLessThan(20 * 1024);
+    expect(bytes).toBeLessThan(20 * 1024);
     // Și controlul pozitiv: fără margine, aceleași date chiar depășesc.
-    expect(20693 + nemarginit).toBeGreaterThan(45 * 1024);
+    expect(20693 + unbounded).toBeGreaterThan(45 * 1024);
   });
 
-  it('cardul dă același răspuns ca peste tot programul, pentru orice ceas din fereastră', () => {
+  it('the card gives the same answer as the whole schedule, for any clock inside the window', () => {
     /*
      * Asta este proprietatea de care depinde tăierea. Insula trebuie să răspundă
      * exact ce ar fi răspuns lista întreagă, pentru orice moment de la construcție
@@ -663,75 +663,75 @@ describe('insula de date (nefolosită de nicio pagină; vezi nota de mai sus)', 
      *
      * Comparate sunt răspunsurile pe care le pune cardul pe pagină — ziua, ora și
      * numele slujbelor care încep atunci — nu obiectele întregi: proiecția poartă
-     * `nume` deja randat acolo unde ziua din colecție poartă `slujba`, fiindcă
+     * `name` deja randat acolo unde ziua din colecție poartă `service`, fiindcă
      * browserului i se trimite decizia, nu regula de randare.
      */
-    const insula = programPentruInsula(DOI_ANI, AZI);
-    const raspuns = <S extends { ora: string; data: string }>(
-      zile: Array<{ data: string; anulat: boolean; slujbe: Array<{ ora: string }> }>,
-      urm: S | null,
-      eticheta: (s: never) => string,
+    const island = scheduleForIsland(TWO_YEARS, TODAY);
+    const answer = <S extends { time: string; date: string }>(
+      days: Array<{ date: string; cancelled: boolean; services: Array<{ time: string }> }>,
+      nextOne: S | null,
+      label: (s: never) => string,
     ) => {
-      if (urm === null) return null;
-      const ziua = zile.find((z) => z.data === urm.data)!;
+      if (nextOne === null) return null;
+      const theDay = days.find((z) => z.date === nextOne.date)!;
       return {
-        data: urm.data,
-        ora: urm.ora,
-        nume: slujbeLaAceeasiOra(ziua.slujbe, urm.ora).map((s) => eticheta(s as never)),
+        date: nextOne.date,
+        time: nextOne.time,
+        name: servicesAtSameTime(theDay.services, nextOne.time).map((s) => label(s as never)),
       };
     };
-    let verificate = 0;
-    for (let zi = 0; zi < 60; zi += 1) {
-      const cand = adaugaZile(AZI, zi);
-      for (const ora of ['00:00', '09:00', '17:30', '23:59']) {
-        const dinInsula = raspuns(insula, urmatoareaSlujba(insula, cand, ora), (s: never) => (s as { nume: string }).nume);
-        const dinTot = raspuns(DOI_ANI, urmatoareaSlujba(DOI_ANI, cand, ora), etichetaSlujba);
-        expect(dinInsula, `${cand} ${ora}`).toEqual(dinTot);
-        verificate += 1;
+    let checked = 0;
+    for (let day = 0; day < 60; day += 1) {
+      const when = addDays(TODAY, day);
+      for (const time of ['00:00', '09:00', '17:30', '23:59']) {
+        const fromIsland = answer(island, nextService(island, when, time), (s: never) => (s as { name: string }).name);
+        const fromWholeSchedule = answer(TWO_YEARS, nextService(TWO_YEARS, when, time), serviceLabel);
+        expect(fromIsland, `${when} ${time}`).toEqual(fromWholeSchedule);
+        checked += 1;
       }
     }
     // O gardă care citește ceva trebuie să dovedească faptul că a citit ceva.
-    expect(verificate).toBe(240);
+    expect(checked).toBe(240);
   });
 
-  it('dincolo de fereastră cardul dispare, în loc să spună altceva decât pagina', () => {
+  it('past the window the card disappears, instead of saying something other than the page', () => {
     // Direcția sigură, și singura degradare pe care o are tăierea: scriptul
     // găsește lista goală și ascunde cardul. Pentru asta situl trebuie să fi stat
     // nereconstruit mai mult decât fereastra, adică mult peste bariera de 60 de
     // zile după care GitHub oprește oricum reconstrucția programată.
-    const insula = programPentruInsula(DOI_ANI, AZI);
-    const dupaFereastra = adaugaZile(insula[insula.length - 1].data, 1);
-    expect(urmatoareaSlujba(insula, dupaFereastra, '00:00')).toBeNull();
-    expect(urmatoareaSlujba(DOI_ANI, dupaFereastra, '00:00')).not.toBeNull();
+    const island = scheduleForIsland(TWO_YEARS, TODAY);
+    const pastTheWindow = addDays(island[island.length - 1].date, 1);
+    expect(nextService(island, pastTheWindow, '00:00')).toBeNull();
+    expect(nextService(TWO_YEARS, pastTheWindow, '00:00')).not.toBeNull();
   });
 
-  it('nu poartă zile trecute și nici zile anulate', () => {
-    const cuAnulat: ZiSlujba[] = [
-      { data: '2026-09-12', praznic_mare: false, zi_de_post: false, anulat: false,
-        slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] } as ZiSlujba,
-      { data: '2026-09-16', praznic_mare: false, zi_de_post: false, anulat: true,
-        slujbe: [{ ora: '18:30', slujba: 'Acatist' }] } as ZiSlujba,
-      { data: '2026-09-20', praznic_mare: false, zi_de_post: false, anulat: false,
-        slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] } as ZiSlujba,
+  it('carries neither past days nor cancelled days', () => {
+    const withCancelled: ServiceDay[] = [
+      { date: '2026-09-12', great_feast: false, fast_day: false, cancelled: false,
+        services: [{ time: '10:00', service: 'Sfânta Liturghie' }] } as ServiceDay,
+      { date: '2026-09-16', great_feast: false, fast_day: false, cancelled: true,
+        services: [{ time: '18:30', service: 'Acatist' }] } as ServiceDay,
+      { date: '2026-09-20', great_feast: false, fast_day: false, cancelled: false,
+        services: [{ time: '10:00', service: 'Sfânta Liturghie' }] } as ServiceDay,
     ];
-    const insula = programPentruInsula(cuAnulat, AZI);
-    expect(insula.map((z) => z.data)).toEqual(['2026-09-20']);
-    expect(insula[0].anulat).toBe(false);
+    const island = scheduleForIsland(withCancelled, TODAY);
+    expect(island.map((z) => z.date)).toEqual(['2026-09-20']);
+    expect(island[0].cancelled).toBe(false);
     // Câmpul rămâne în proiecție deși este acum întotdeauna fals: este a doua
-    // curea, iar `urmatoareaSlujba` din browser tot îl citește. Dacă dispare din
+    // curea, iar `nextService` din browser tot îl citește. Dacă dispare din
     // JSON, testul acesta pică înainte să dispară comportamentul.
-    expect(Object.keys(insula[0])).toContain('anulat');
-    // Numele sunt randate aici, nu în browser: `etichetaSlujba` deține portița
+    expect(Object.keys(island[0])).toContain('cancelled');
+    // Numele sunt randate aici, nu în browser: `serviceLabel` deține portița
     // `Altceva`, iar cuvântul acela nu are voie să ajungă pe pagină.
-    expect(insula[0].slujbe).toEqual([{ ora: '10:00', nume: 'Sfânta Liturghie' }]);
-    expect(insula[0].titlu).toBe('Duminică, 20 septembrie');
+    expect(island[0].services).toEqual([{ time: '10:00', name: 'Sfânta Liturghie' }]);
+    expect(island[0].title).toBe('Duminică, 20 septembrie');
   });
 
   /*
    * ZILELE ANULATE NU CONSUMĂ MARGINEA, și de ce are cazul acesta un test al lui.
    *
-   * Tăierea rula ÎNAINTE de filtrarea anulatelor, iar `urmatoareaSlujba` filtrează
-   * după. Deci primele `ZILE_INSULA` zile publicate viitoare, toate anulate,
+   * Tăierea rula ÎNAINTE de filtrarea anulatelor, iar `nextService` filtrează
+   * după. Deci primele `ISLAND_DAYS` zile publicate viitoare, toate anulate,
    * goleau insula de răspunsuri în timp ce programul era plin de ele: serverul
    * randa un card corect și clientul îl ascundea, PE O CONSTRUCȚIE PROASPĂTĂ, fără
    * nicio vechime la mijloc. Pragul, măsurat pe funcțiile astea: 39 de zile anulate
@@ -742,54 +742,54 @@ describe('insula de date (nefolosită de nicio pagină; vezi nota de mai sus)', 
    * cum cere proiectul: `README.md` și hotărârea #28 spun editorului să PĂSTREZE
    * orele și să bifeze anularea, ca abonații la calendar să afle.
    */
-  it('zilele anulate nu consumă marginea insulei', () => {
-    /** `DOI_ANI` cu primele `n` zile viitoare anulate, orele păstrate. */
-    function cuPrimeleAnulate(n: number): ZiSlujba[] {
-      const ordonate = [...DOI_ANI].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0));
-      return ordonate.map((z, i) => ({ ...z, anulat: i < n }));
+  it("cancelled days do not eat into the island's bound", () => {
+    /** `TWO_YEARS` cu primele `n` zile viitoare anulate, orele păstrate. */
+    function withFirstCancelled(n: number): ServiceDay[] {
+      const ordered = [...TWO_YEARS].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+      return ordered.map((z, i) => ({ ...z, cancelled: i < n }));
     }
 
-    const masurat: string[] = [];
-    let verificate = 0;
+    const measuredLines: string[] = [];
+    let checked = 0;
     for (const n of [0, 38, 39, 40, 41, 80]) {
-      const zile = cuPrimeleAnulate(n);
-      const server = urmatoareaSlujba(zile, AZI, '00:00');
-      const client = urmatoareaSlujba(programPentruInsula(zile, AZI), AZI, '00:00');
-      masurat.push(
-        `  primele ${String(n).padStart(2)} zile anulate → server ${server?.data ?? 'NULL'}` +
-          ` | client ${client?.data ?? 'NULL'} | acord: ${server?.data === client?.data}`,
+      const days = withFirstCancelled(n);
+      const server = nextService(days, TODAY, '00:00');
+      const client = nextService(scheduleForIsland(days, TODAY), TODAY, '00:00');
+      measuredLines.push(
+        `  primele ${String(n).padStart(2)} zile anulate → server ${server?.date ?? 'NULL'}` +
+          ` | client ${client?.date ?? 'NULL'} | acord: ${server?.date === client?.date}`,
       );
       expect(server, `n=${n}: programul întreg mai are slujbe`).not.toBeNull();
-      expect(client?.data, `n=${n}: clientul nu răspunde ca serverul`).toBe(server?.data);
-      verificate += 1;
+      expect(client?.date, `n=${n}: clientul nu răspunde ca serverul`).toBe(server?.date);
+      checked += 1;
     }
-    process.stdout.write(`\nInsula cu zile anulate la început:\n${masurat.join('\n')}\n`);
-    expect(verificate).toBe(6);
+    process.stdout.write(`\nInsula cu zile anulate la început:\n${measuredLines.join('\n')}\n`);
+    expect(checked).toBe(6);
 
     /*
      * CONTROL POZITIV, în aceeași funcție: aranjamentul chiar este unul care rupe.
      * Aici este vechea ordine — taie întâi, filtrează după — pe exact aceleași
      * date. Fără el, cazul de mai sus ar putea fi verde fiindcă nu are ce sparge.
      */
-    const zile = cuPrimeleAnulate(ZILE_INSULA);
-    const insulaVeche = zile
-      .filter((z) => z.data >= AZI)
-      .sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
-      .slice(0, ZILE_INSULA);
-    expect(urmatoareaSlujba(insulaVeche, AZI, '00:00'), 'vechea ordine chiar golea insula').toBeNull();
-    expect(urmatoareaSlujba(zile, AZI, '00:00')).not.toBeNull();
+    const days = withFirstCancelled(ISLAND_DAYS);
+    const oldIsland = days
+      .filter((z) => z.date >= TODAY)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+      .slice(0, ISLAND_DAYS);
+    expect(nextService(oldIsland, TODAY, '00:00'), 'vechea ordine chiar golea insula').toBeNull();
+    expect(nextService(days, TODAY, '00:00')).not.toBeNull();
   });
 
-  it('o dată de azi stricată pică, în loc să pornească insula în trecut', () => {
-    // Aceeași pază ca la `urmatoareaSlujba`, și din același motiv: „15/09/2026"
+  it("a broken today's-date fails, instead of starting the island in the past", () => {
+    // Aceeași pază ca la `nextService`, și din același motiv: „15/09/2026"
     // sortează sub orice dată stocată, deci fiecare zi ar trece de filtru.
-    expect(() => programPentruInsula(DOI_ANI, '15/09/2026')).toThrow();
+    expect(() => scheduleForIsland(TWO_YEARS, '15/09/2026')).toThrow();
   });
 
-  it('păstrează ordinea cronologică, oricum ar veni colecția', () => {
-    const amestecat = [...DOI_ANI].reverse();
-    const date = programPentruInsula(amestecat, AZI).map((z) => z.data);
-    expect(date).toEqual([...date].sort());
-    expect(date).toEqual(programPentruInsula(DOI_ANI, AZI).map((z) => z.data));
+  it('keeps the chronological order, however the collection arrives', () => {
+    const shuffled = [...TWO_YEARS].reverse();
+    const sampleDays = scheduleForIsland(shuffled, TODAY).map((z) => z.date);
+    expect(sampleDays).toEqual([...sampleDays].sort());
+    expect(sampleDays).toEqual(scheduleForIsland(TWO_YEARS, TODAY).map((z) => z.date));
   });
 });

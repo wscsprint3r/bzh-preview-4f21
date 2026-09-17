@@ -16,7 +16,7 @@
 > paragraph stating it, and in three test sketches copied from it — seventeen occurrences, which for
 > the whole of Phase 1 made the repo-wide sweep the rule exists to enable impossible to run. They
 > have been rewritten by codepoint. Nothing else about the plan has been changed, and
-> `src/lib/diacritice-surse.test.ts` now fails on any tracked file that writes one again.
+> `src/lib/diacritics-sources.test.ts` now fails on any tracked file that writes one again.
 
 **Scope:** This plan implements **Phase 1 only** (spec §19). Phases 2 (content migration), 3 (events, galleries, donations, contact form) and 4 (redirects, DNS cutover) get their own plans. Phase 1 is independently shippable: at the end of it the parish can edit the schedule, which is the single biggest win.
 
@@ -34,15 +34,20 @@ Every task's requirements implicitly include this section.
 - **`#B08B3E` and `#C8A45C` are ornament only and MUST NEVER be used for text** at any size (2.95:1 and lower — fails WCAG AA entirely). Task 7 enforces this in CI.
 - **Fonts self-hosted**, `latin` + `latin-ext` subsets. `latin-ext` covers U+0100–U+024F, which includes U+0218–U+021B (Ș ș Ț ț with comma below). No Google Fonts CDN.
 - **Which words actually carry comma-below**, since it is easy to assert this of the wrong ones: `Marți`, `Ț`/`ț` and `Ș`/`ș` anywhere — and in this project's vocabulary that means `Marți`, `Sfântul Maslu` has none, `Spovedanie` has none. `Sâmbătă` carries **â** and **ă** only, not a comma-below character. `Duminică`, `Înălțarea` and `Sfânta` likewise carry only â/ă/Î. Check codepoints, not appearance: ș U+0219 and the Turkish form U+015F are near-identical in most fonts — which is why the wrong one is named by number here and never written out.
-- **Dates are plain `YYYY-MM-DD` strings. Times are plain `HH:MM` local strings.** Never store or compute a UTC instant for a service — a Liturgy at 10:00 is at 10:00 on both sides of a DST change. The single exception is `aziLaZurich()`, which converts the real clock into a Zürich calendar date.
+- **Dates are plain `YYYY-MM-DD` strings. Times are plain `HH:MM` local strings.** Never store or compute a UTC instant for a service — a Liturgy at 10:00 is at 10:00 on both sides of a DST change. The single exception is `todayInZurich()`, which converts the real clock into a Zürich calendar date.
 - **All user-facing copy is Romanian**, with correct comma-below diacritics — ș U+0219 and ț U+021B, never the Turkish cedilla forms U+015F and U+0163.
 - **Performance budget** (spec §13), enforced in CI by Task 13: homepage HTML ≤ 30 KB, CSS ≤ 15 KB, JS ≤ 3,800 B (just under Astro's inline threshold), ≤ 12 requests. Lighthouse accessibility 100. Because `inlineStylesheets: 'always'` puts the CSS inside the document, Task 13 enforces the first two as one combined **45 KB** limit on `dist/index.html`; the reasoning is in that task.
 - **Cloudflare Pages free tier:** 20,000 files/deploy, 25 MiB/file, 500 builds/month, 2,000 static redirects.
-- **`data` is overloaded — beware.** In this project `data` is Romanian for *date* and is the
-  service day's date string. In Astro, `entry.data` is the parsed frontmatter object. Every
+- **`data` and `date` are one letter apart — beware.** In Astro, `entry.data` is the parsed
+  frontmatter object; in this project `date` is the service day's own date string. Every
   page and endpoint that reads the collection must therefore write
-  `intrari.map((e) => ({ ...e.data, data: e.id }))` — spreading Astro's parsed object, then
-  overwriting `data` with the entry id, which is the date from the filename.
+  `entries.map((e) => ({ ...e.data, date: e.id }))` — spreading Astro's parsed object, then
+  overwriting `date` with the entry id, which is the date from the filename.
+- **Identifiers, filenames and test names are English.** Romanian is for what a person reads:
+  page copy, CMS labels and hints, and the schema's validation messages. Everything a
+  developer reads — variables, functions, types, constants, object and YAML field keys, file
+  and directory names, `it()`/`describe()` names, and build-time diagnostics — is English.
+  Code comments were always English; this extends the same split to names.
 - **Never read a pass/fail verdict from `.vitest/json/output.json`. Use the process exit code.**
   The `rtk` wrapper intercepts `vitest` and writes that file **whether or not anyone asked for a
   JSON reporter** — verified by running with no reporter flag and watching it be rewritten. And
@@ -61,7 +66,7 @@ Every task's requirements implicitly include this section.
   Task 10's no-JS baseline. Run both passes; the disabled one covers what the enabled one
   cannot see — and they are not redundant in the other direction either, since the JS-on pass
   is the only one that ever sees the week picker itself. Neither pass alone is the guarantee.
-- **Opacity on text is not dimming, it is contrast reduction.** The plan's `.rz-anulat`
+- **Opacity on text is not dimming, it is contrast reduction.** The plan's `.rz-cancelled`
   `opacity: 0.75` produced six `color-contrast` violations on a genuinely cancelled day —
   times falling 4.67:1 to 2.96:1 — and `--gold-text` is unusable below opacity 0.981. Every
   static guard passed it; axe caught it. Say "not happening" with a strike or a label, never
@@ -95,7 +100,7 @@ Every task's requirements implicitly include this section.
   margin observed.
 - **Check each claim in a comment separately; a true half makes a false half look verified.**
   Three comments here fused two claims into one sentence — "spreading in the other order, *or
-  dropping the override*, leaves `zi.data` undefined". Reversing the spread does nothing at
+  dropping the override*, leaves `day.date` undefined". Reversing the spread does nothing at
   all (byte-identical output); dropping the override kills the build. Fused, the sentence read
   as checked because half of it was, and was unfalsifiable as written.
 - **Deleting an overclaim is not the fix if it takes a true warning with it.** The first
@@ -172,8 +177,8 @@ Every task's requirements implicitly include this section.
   JS budget step globbed `dist/_astro/*.js`, which matches nothing once Astro inlines the
   script — so the budget was never measured. Assert the number, not the absence of an error.
 - **Normalise for presentation at presentation time; never mutate stored data to fix how it
-  reads.** Canonicalising `ora` to `HH:MM` is the legitimate case — one value, one spelling,
-  no information lost. Stripping a trailing full stop from a free-text `locatie` is the other
+  reads.** Canonicalising `time` to `HH:MM` is the legitimate case — one value, one spelling,
+  no information lost. Stripping a trailing full stop from a free-text `location` is the other
   kind: it turns `Capela Sf.` into `Capela Sf`, and it changes what ships in the `.ics`
   `LOCATION`, which a calendar client stores as data rather than prose. Trim whitespace in the
   schema, because whitespace carries no meaning; compose punctuation where the sentence is
@@ -181,7 +186,7 @@ Every task's requirements implicitly include this section.
 - **A guard that names forbidden characters as glyphs cannot be scanned for them.** It lights
   up every future sweep for the thing it forbids and trains people to wave that sweep through
   — worse than no rule. Name them by codepoint.
-- **`locatie` must render wherever the schedule renders.** It is in the schema, exposed by the
+- **`location` must render wherever the schedule renders.** It is in the schema, exposed by the
   CMS, and written into the `.ics` `LOCATION`. A day held in a different chapel would
   otherwise produce a calendar that says so and a website that does not — sending a
   parishioner to the wrong building, which is worse than the field not existing.
@@ -261,9 +266,9 @@ Every task's requirements implicitly include this section.
 
 Two deliberate refinements. Both make the result better; neither changes the design.
 
-1. **Spec §7 specifies a `/program/date.json` endpoint that client JS reads to pick the current week. This plan drops `date.json` and server-renders the next three weeks instead.** The spec's own requirement is that the site be correct without JavaScript; rendering the weeks as HTML satisfies that directly, makes the JS smaller (it only toggles `hidden`), and removes a fetch. Combined with the nightly rebuild, correctness holds for three weeks even if every build fails. `/program` server-renders the full upcoming window.
+1. **Spec §7 specifies a `/program/data.json` endpoint that client JS reads to pick the current week. This plan drops `data.json` and server-renders the next three weeks instead.** The spec's own requirement is that the site be correct without JavaScript; rendering the weeks as HTML satisfies that directly, makes the JS smaller (it only toggles `hidden`), and removes a fetch. Combined with the nightly rebuild, correctness holds for three weeks even if every build fails. `/program` server-renders the full upcoming window.
 
-   > **Amended after Phase 1: this deviation stopped being true and nobody revisited it.** Task 10 needed the next-service card recomputed in the browser, so it reinstated the very payload this paragraph had dropped — inline in the homepage rather than as a separate file. The justification above ("it only toggles `hidden`") no longer held, and the spec's sizing came with the data unexamined: §7 sized it at "60 days past to 365 days future, roughly 2–3 KB gzipped", which is arithmetic about a SEPARATE, CACHEABLE, GZIPPED file. Inline and uncompressed it is about 133 bytes per future service day, so the homepage grew without bound with how far ahead the parish publishes and crossed §13's 45 KB budget at 48 weeks published — on content that is entirely valid. The island is now bounded by a COUNT of days (`ZILE_INSULA` in `src/lib/schedule.ts`), because a date window bounds calendar reach and not bytes. The lesson is the deviation rather than the number: a justification that names a property of the code ("the JS only does X") expires when the code changes, and nothing here pointed back at it.
+   > **Amended after Phase 1: this deviation stopped being true and nobody revisited it.** Task 10 needed the next-service card recomputed in the browser, so it reinstated the very payload this paragraph had dropped — inline in the homepage rather than as a separate file. The justification above ("it only toggles `hidden`") no longer held, and the spec's sizing came with the data unexamined: §7 sized it at "60 days past to 365 days future, roughly 2–3 KB gzipped", which is arithmetic about a SEPARATE, CACHEABLE, GZIPPED file. Inline and uncompressed it is about 133 bytes per future service day, so the homepage grew without bound with how far ahead the parish publishes and crossed §13's 45 KB budget at 48 weeks published — on content that is entirely valid. The island is now bounded by a COUNT of days (`ISLAND_DAYS` in `src/lib/schedule.ts`), because a date window bounds calendar reach and not bytes. The lesson is the deviation rather than the number: a justification that names a property of the code ("the JS only does X") expires when the code changes, and nothing here pointed back at it.
 2. **Spec §8 specifies `.ics` UIDs of the form `<date>-<index>@bor-zh.ch`. This plan uses `<date>T<time>-<slug>@bor-zh.ch`.** An index-based UID changes for every service on a day when the editor inserts one at the top, which makes subscribers' calendars delete and re-add every event.
 
    The first draft of this deviation used `<date>T<time>` alone. That was wrong: two services can legitimately share a start time — `17:00 Spovedanie` alongside `17:00 Vecernie` is an ordinary parish arrangement, since confession runs during vespers — and identical UIDs make every subscriber's calendar silently collapse them into one event. Appending a slug of the service name keeps distinct services distinct while staying stable under reordering. Task 4's schema rejects the only remaining collision, the same service listed twice at the same time, which is a data error rather than a real arrangement.
@@ -285,7 +290,7 @@ web/                                  ← the git repo; Cloudflare Pages builds 
 │   └── plans/2026-09-15-phase-1-schedule-and-cms.md     ← this file
 ├── src/
 │   ├── content.config.ts             collection definitions (imports schema from lib)
-│   ├── content/slujbe/               one .yml per service day — what the CMS writes
+│   ├── content/services/               one .yml per service day — what the CMS writes
 │   │   └── 2026-09-14.yml
 │   ├── lib/                          all pure logic, all unit-tested
 │   │   ├── schema.ts                 Zod schema for a service day
@@ -300,9 +305,9 @@ web/                                  ← the git repo; Cloudflare Pages builds 
 │   ├── components/
 │   │   ├── SiteHeader.astro
 │   │   ├── SiteFooter.astro
-│   │   ├── BandaSaptamanii.astro     5-column week band (homepage)
-│   │   ├── RandZi.astro              one day row (/program)
-│   │   └── SelectorSaptamana.astro   the inline <script> + prev/next controls
+│   │   ├── WeekBand.astro     5-column week band (homepage)
+│   │   ├── DayRow.astro              one day row (/program)
+│   │   └── WeekPicker.astro   the inline <script> + prev/next controls
 │   ├── layouts/Base.astro
 │   └── pages/
 │       ├── index.astro
@@ -420,11 +425,11 @@ Create `web/src/lib/smoke.test.ts`:
 
 ```typescript
 import { describe, expect, it } from 'vitest';
-import { numeleParohiei } from './smoke';
+import { parishName } from './smoke';
 
 describe('toolchain', () => {
   it('runs TypeScript from src/lib', () => {
-    expect(numeleParohiei()).toBe('Parohia Ortodoxă Română Sfântul Nicolae');
+    expect(parishName()).toBe('Parohia Ortodoxă Română Sfântul Nicolae');
   });
 });
 ```
@@ -439,7 +444,7 @@ Expected: FAIL — `Failed to resolve import "./smoke"`.
 Create `web/src/lib/smoke.ts`:
 
 ```typescript
-export function numeleParohiei(): string {
+export function parishName(): string {
   return 'Parohia Ortodoxă Română Sfântul Nicolae';
 }
 ```
@@ -487,70 +492,70 @@ Create `web/src/lib/date-ro.test.ts`:
 ```typescript
 import { describe, expect, it } from 'vitest';
 import {
-  NUME_LUNI,
-  NUME_ZILE,
-  formatIntervalSaptamana,
-  numeLuna,
-  numeZi,
-  ziuaDinLuna,
+  MONTH_NAMES,
+  DAY_NAMES,
+  formatWeekRange,
+  monthName,
+  dayName,
+  dayOfMonth,
 } from './date-ro';
 
 describe('vocabular', () => {
   it('are șapte zile începând cu luni', () => {
-    expect(NUME_ZILE).toEqual([
+    expect(DAY_NAMES).toEqual([
       'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică',
     ]);
   });
 
   it('are douăsprezece luni', () => {
-    expect(NUME_LUNI).toHaveLength(12);
-    expect(NUME_LUNI[8]).toBe('septembrie');
+    expect(MONTH_NAMES).toHaveLength(12);
+    expect(MONTH_NAMES[8]).toBe('septembrie');
   });
 
   it('folosește virgulă dedesubt, nu sedilă', () => {
-    const tot = [...NUME_ZILE, ...NUME_LUNI].join('');
-    expect(cedileIn(tot)).toEqual([]);
-    expect(areVirgulaDedesubt(tot)).toBe(true);
+    const allText = [...DAY_NAMES, ...MONTH_NAMES].join('');
+    expect(cedillasIn(allText)).toEqual([]);
+    expect(hasCommaBelow(allText)).toBe(true);
   });
 });
 
 describe('numeZi', () => {
   it('recunoaște o luni', () => {
-    expect(numeZi('2026-09-14')).toBe('Luni');
+    expect(dayName('2026-09-14')).toBe('Luni');
   });
 
   it('recunoaște o duminică', () => {
-    expect(numeZi('2026-09-20')).toBe('Duminică');
+    expect(dayName('2026-09-20')).toBe('Duminică');
   });
 
   it('funcționează peste granița de an', () => {
-    expect(numeZi('2026-01-01')).toBe('Joi');
+    expect(dayName('2026-01-01')).toBe('Joi');
   });
 });
 
 describe('numeLuna și ziuaDinLuna', () => {
   it('întoarce luna cu literă mică', () => {
-    expect(numeLuna('2026-09-20')).toBe('septembrie');
+    expect(monthName('2026-09-20')).toBe('septembrie');
   });
 
   it('întoarce ziua ca număr', () => {
-    expect(ziuaDinLuna('2026-09-07')).toBe(7);
+    expect(dayOfMonth('2026-09-07')).toBe(7);
   });
 });
 
 describe('formatIntervalSaptamana', () => {
   it('comprimă o săptămână din aceeași lună', () => {
-    expect(formatIntervalSaptamana('2026-09-14', '2026-09-20'))
+    expect(formatWeekRange('2026-09-14', '2026-09-20'))
       .toBe('14 – 20 septembrie 2026');
   });
 
   it('scrie ambele luni când săptămâna le traversează', () => {
-    expect(formatIntervalSaptamana('2026-09-28', '2026-10-04'))
+    expect(formatWeekRange('2026-09-28', '2026-10-04'))
       .toBe('28 septembrie – 4 octombrie 2026');
   });
 
   it('scrie ambii ani când săptămâna traversează anul', () => {
-    expect(formatIntervalSaptamana('2025-12-29', '2026-01-04'))
+    expect(formatWeekRange('2025-12-29', '2026-01-04'))
       .toBe('29 decembrie 2025 – 4 ianuarie 2026');
   });
 });
@@ -566,59 +571,59 @@ Expected: FAIL — `Failed to resolve import "./date-ro"`.
 Create `web/src/lib/date-ro.ts`:
 
 ```typescript
-export const NUME_ZILE = [
+export const DAY_NAMES = [
   'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică',
 ] as const;
 
-export const NUME_LUNI = [
+export const MONTH_NAMES = [
   'ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie',
   'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie',
 ] as const;
 
 /** Splits a plain YYYY-MM-DD string. No Date object, no timezone. */
-function parti(data: string): { an: number; luna: number; zi: number } {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(data);
-  if (!m) throw new Error(`Dată invalidă: ${data}`);
-  return { an: Number(m[1]), luna: Number(m[2]), zi: Number(m[3]) };
+function parts(date: string): { year: number; month: number; day: number } {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) throw new Error(`Dată invalidă: ${date}`);
+  return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
 }
 
 /** 0 = Monday … 6 = Sunday. */
-export function indiceZi(data: string): number {
-  const { an, luna, zi } = parti(data);
-  const jsDay = new Date(Date.UTC(an, luna - 1, zi)).getUTCDay(); // 0 = Sunday
+export function dayIndex(date: string): number {
+  const { year, month, day } = parts(date);
+  const jsDay = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0 = Sunday
   return (jsDay + 6) % 7;
 }
 
-export function numeZi(data: string): string {
-  return NUME_ZILE[indiceZi(data)];
+export function dayName(date: string): string {
+  return DAY_NAMES[dayIndex(date)];
 }
 
-export function numeLuna(data: string): string {
-  return NUME_LUNI[parti(data).luna - 1];
+export function monthName(date: string): string {
+  return MONTH_NAMES[parts(date).month - 1];
 }
 
-export function ziuaDinLuna(data: string): number {
-  return parti(data).zi;
+export function dayOfMonth(date: string): number {
+  return parts(date).day;
 }
 
-export function formatIntervalSaptamana(luni: string, duminica: string): string {
-  const a = parti(luni);
-  const b = parti(duminica);
+export function formatWeekRange(monday: string, sunday: string): string {
+  const a = parts(monday);
+  const b = parts(sunday);
 
-  if (a.an !== b.an) {
-    return `${a.zi} ${NUME_LUNI[a.luna - 1]} ${a.an} – ${b.zi} ${NUME_LUNI[b.luna - 1]} ${b.an}`;
+  if (a.year !== b.year) {
+    return `${a.day} ${MONTH_NAMES[a.month - 1]} ${a.year} – ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
   }
-  if (a.luna !== b.luna) {
-    return `${a.zi} ${NUME_LUNI[a.luna - 1]} – ${b.zi} ${NUME_LUNI[b.luna - 1]} ${b.an}`;
+  if (a.month !== b.month) {
+    return `${a.day} ${MONTH_NAMES[a.month - 1]} – ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
   }
-  return `${a.zi} – ${b.zi} ${NUME_LUNI[b.luna - 1]} ${b.an}`;
+  return `${a.day} – ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
 }
 ```
 
 - [ ] **Step 4: Run tests**
 
 Run: `cd web && npx vitest run src/lib/date-ro.test.ts`
-Expected: PASS. Do not hold the implementation to a predicted test count — the impossible-date validation and a full `toEqual` on `NUME_LUNI` push this well past the block shown here (23 as built).
+Expected: PASS. Do not hold the implementation to a predicted test count — the impossible-date validation and a full `toEqual` on `MONTH_NAMES` push this well past the block shown here (23 as built).
 
 - [ ] **Step 5: Commit**
 
@@ -636,7 +641,7 @@ git commit -m "feat: Romanian day and month names with comma-below diacritics"
 - Test: `web/src/lib/week.test.ts`
 
 **Interfaces:**
-- Consumes: `indiceZi` and **`partiData`** from `./date-ro`. `partiData` parses *and validates* a `YYYY-MM-DD` string, rejecting dates that do not exist (month 13, 30 February). **Use it in `laUtc` instead of writing a second regex parse** — duplicating the parse would leave the impossible-date hole open on this side, which is what Task 2's fix round closed.
+- Consumes: `dayIndex` and **`dateParts`** from `./date-ro`. `dateParts` parses *and validates* a `YYYY-MM-DD` string, rejecting dates that do not exist (month 13, 30 February). **Use it in `toUtc` instead of writing a second regex parse** — duplicating the parse would leave the impossible-date hole open on this side, which is what Task 2's fix round closed.
 - Produces:
   - `adaugaZile(data: string, n: number): string`
   - `inceputSaptamana(data: string): string` — the Monday of that date's week.
@@ -645,7 +650,7 @@ git commit -m "feat: Romanian day and month names with comma-below diacritics"
   - `aziLaZurich(acum?: Date): string` — the current calendar date in Europe/Zurich.
   - `oraLaZurich(acum?: Date): string` — the current `HH:MM` in Europe/Zurich.
 
-`aziLaZurich` and `oraLaZurich` are the **only** functions in the codebase that touch timezones. Everything downstream takes their output as plain strings.
+`todayInZurich` and `timeInZurich` are the **only** functions in the codebase that touch timezones. Everything downstream takes their output as plain strings.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -654,111 +659,111 @@ Create `web/src/lib/week.test.ts`:
 ```typescript
 import { describe, expect, it } from 'vitest';
 import {
-  adaugaZile,
-  aziLaZurich,
-  cheieSaptamana,
-  inceputSaptamana,
-  oraLaZurich,
-  sfarsitSaptamana,
+  addDays,
+  todayInZurich,
+  weekKey,
+  weekStart,
+  timeInZurich,
+  weekEnd,
 } from './week';
 
 describe('adaugaZile', () => {
   it('adună în interiorul lunii', () => {
-    expect(adaugaZile('2026-09-14', 6)).toBe('2026-09-20');
+    expect(addDays('2026-09-14', 6)).toBe('2026-09-20');
   });
 
   it('trece peste granița de lună', () => {
-    expect(adaugaZile('2026-09-28', 6)).toBe('2026-10-04');
+    expect(addDays('2026-09-28', 6)).toBe('2026-10-04');
   });
 
   it('trece peste granița de an', () => {
-    expect(adaugaZile('2025-12-29', 6)).toBe('2026-01-04');
+    expect(addDays('2025-12-29', 6)).toBe('2026-01-04');
   });
 
   it('scade cu numere negative', () => {
-    expect(adaugaZile('2026-03-01', -1)).toBe('2026-02-28');
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
   });
 
   it('respectă anii bisecți', () => {
-    expect(adaugaZile('2028-02-28', 1)).toBe('2028-02-29');
+    expect(addDays('2028-02-28', 1)).toBe('2028-02-29');
   });
 
   it('nu este afectată de trecerea la ora de vară', () => {
     // 2026-03-29 is the European DST switch. A naive local-time
     // implementation adding 24h in milliseconds lands back on the 29th.
-    expect(adaugaZile('2026-03-28', 1)).toBe('2026-03-29');
-    expect(adaugaZile('2026-03-29', 1)).toBe('2026-03-30');
+    expect(addDays('2026-03-28', 1)).toBe('2026-03-29');
+    expect(addDays('2026-03-29', 1)).toBe('2026-03-30');
   });
 
   it('nu este afectată de trecerea la ora de iarnă', () => {
-    expect(adaugaZile('2026-10-25', 1)).toBe('2026-10-26');
+    expect(addDays('2026-10-25', 1)).toBe('2026-10-26');
   });
 });
 
 describe('inceputSaptamana și sfarsitSaptamana', () => {
   it('o luni este propriul început de săptămână', () => {
-    expect(inceputSaptamana('2026-09-14')).toBe('2026-09-14');
+    expect(weekStart('2026-09-14')).toBe('2026-09-14');
   });
 
   it('o duminică aparține săptămânii care începe luni', () => {
-    expect(inceputSaptamana('2026-09-20')).toBe('2026-09-14');
-    expect(sfarsitSaptamana('2026-09-20')).toBe('2026-09-20');
+    expect(weekStart('2026-09-20')).toBe('2026-09-14');
+    expect(weekEnd('2026-09-20')).toBe('2026-09-20');
   });
 
   it('o miercuri se ancorează corect', () => {
-    expect(inceputSaptamana('2026-09-16')).toBe('2026-09-14');
-    expect(sfarsitSaptamana('2026-09-16')).toBe('2026-09-20');
+    expect(weekStart('2026-09-16')).toBe('2026-09-14');
+    expect(weekEnd('2026-09-16')).toBe('2026-09-20');
   });
 });
 
 describe('cheieSaptamana', () => {
   it('numerotează o săptămână obișnuită', () => {
-    expect(cheieSaptamana('2026-09-14')).toBe('2026-W38');
-    expect(cheieSaptamana('2026-09-20')).toBe('2026-W38');
+    expect(weekKey('2026-09-14')).toBe('2026-W38');
+    expect(weekKey('2026-09-20')).toBe('2026-W38');
   });
 
   it('atribuie zilele de la finalul lui decembrie anului ISO următor', () => {
     // 2026-01-01 is a Thursday, so ISO week 1 of 2026 starts Mon 2025-12-29.
-    expect(cheieSaptamana('2025-12-29')).toBe('2026-W01');
-    expect(cheieSaptamana('2026-01-04')).toBe('2026-W01');
+    expect(weekKey('2025-12-29')).toBe('2026-W01');
+    expect(weekKey('2026-01-04')).toBe('2026-W01');
   });
 
   it('atribuie 1 ianuarie anului ISO precedent când cade la finalul săptămânii', () => {
     // 2027-01-01 is a Friday, so it belongs to the week starting Mon 2026-12-28,
     // which is ISO week 53 of 2026.
-    expect(cheieSaptamana('2027-01-01')).toBe('2026-W53');
+    expect(weekKey('2027-01-01')).toBe('2026-W53');
   });
 
   it('completează cu zero săptămânile cu o cifră', () => {
-    expect(cheieSaptamana('2026-02-02')).toBe('2026-W06');
+    expect(weekKey('2026-02-02')).toBe('2026-W06');
   });
 });
 
 describe('aziLaZurich', () => {
   it('întoarce data din Zürich, nu din UTC', () => {
     // 22:30 UTC on 14 Sept is already 00:30 on 15 Sept in Zürich (CEST, UTC+2).
-    const acum = new Date('2026-09-14T22:30:00Z');
-    expect(aziLaZurich(acum)).toBe('2026-09-15');
+    const now = new Date('2026-09-14T22:30:00Z');
+    expect(todayInZurich(now)).toBe('2026-09-15');
   });
 
   it('întoarce data curentă în formatul așteptat', () => {
-    expect(aziLaZurich()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(todayInZurich()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 
 describe('oraLaZurich', () => {
   it('convertește UTC în ora locală de vară', () => {
-    expect(oraLaZurich(new Date('2026-09-14T08:30:00Z'))).toBe('10:30');
+    expect(timeInZurich(new Date('2026-09-14T08:30:00Z'))).toBe('10:30');
   });
 
   it('convertește UTC în ora locală de iarnă', () => {
-    expect(oraLaZurich(new Date('2026-12-14T08:30:00Z'))).toBe('09:30');
+    expect(timeInZurich(new Date('2026-12-14T08:30:00Z'))).toBe('09:30');
   });
 
   it('scrie miezul nopții ca 00:xx, nu 24:xx', () => {
     // 22:30 UTC is 00:30 the next day in Zürich (CEST). Some ICU builds format
     // this as "24:30" under hour12:false — which would break time comparison.
-    expect(oraLaZurich(new Date('2026-09-14T22:30:00Z'))).toBe('00:30');
+    expect(timeInZurich(new Date('2026-09-14T22:30:00Z'))).toBe('00:30');
   });
 });
 ```
@@ -773,18 +778,18 @@ Expected: FAIL — `Failed to resolve import "./week"`.
 Create `web/src/lib/week.ts`:
 
 ```typescript
-import { indiceZi, partiData } from './date-ro';
+import { dayIndex, dateParts } from './date-ro';
 
-const MS_PE_ZI = 86_400_000;
+const MS_PER_DAY = 86_400_000;
 
-function laUtc(data: string): number {
-  // partiData validates as well as parses — a second regex here would let
+function toUtc(date: string): number {
+  // dateParts validates as well as parses — a second regex here would let
   // 2026-02-30 through on this side of the codebase.
-  const { an, luna, zi } = partiData(data);
-  return Date.UTC(an, luna - 1, zi);
+  const { year, month, day } = dateParts(date);
+  return Date.UTC(year, month - 1, day);
 }
 
-function dinUtc(ms: number): string {
+function fromUtc(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
@@ -792,16 +797,16 @@ function dinUtc(ms: number): string {
  * Adds days to a calendar date. Arithmetic happens in UTC, where every day is
  * exactly 24h, so daylight saving cannot shift the result.
  */
-export function adaugaZile(data: string, n: number): string {
-  return dinUtc(laUtc(data) + n * MS_PE_ZI);
+export function addDays(date: string, n: number): string {
+  return fromUtc(toUtc(date) + n * MS_PER_DAY);
 }
 
-export function inceputSaptamana(data: string): string {
-  return adaugaZile(data, -indiceZi(data));
+export function weekStart(date: string): string {
+  return addDays(date, -dayIndex(date));
 }
 
-export function sfarsitSaptamana(data: string): string {
-  return adaugaZile(inceputSaptamana(data), 6);
+export function weekEnd(date: string): string {
+  return addDays(weekStart(date), 6);
 }
 
 /**
@@ -809,25 +814,25 @@ export function sfarsitSaptamana(data: string): string {
  * in that week, which is why it can differ from the calendar year in late
  * December and early January.
  */
-export function cheieSaptamana(data: string): string {
-  const joi = adaugaZile(inceputSaptamana(data), 3);
-  const anIso = Number(joi.slice(0, 4));
-  const primaJoi = adaugaZile(inceputSaptamana(`${anIso}-01-04`), 3);
-  const numar = Math.round((laUtc(joi) - laUtc(primaJoi)) / (7 * MS_PE_ZI)) + 1;
-  return `${anIso}-W${String(numar).padStart(2, '0')}`;
+export function weekKey(date: string): string {
+  const thursday = addDays(weekStart(date), 3);
+  const isoYear = Number(thursday.slice(0, 4));
+  const firstThursday = addDays(weekStart(`${isoYear}-01-04`), 3);
+  const number = Math.round((toUtc(thursday) - toUtc(firstThursday)) / (7 * MS_PER_DAY)) + 1;
+  return `${isoYear}-W${String(number).padStart(2, '0')}`;
 }
 
 /**
- * The current calendar date in Europe/Zurich. This and oraLaZurich are the only
+ * The current calendar date in Europe/Zurich. This and timeInZurich are the only
  * timezone-aware functions in the codebase. en-CA formats as YYYY-MM-DD.
  */
-export function aziLaZurich(acum: Date = new Date()): string {
+export function todayInZurich(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Zurich',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(acum);
+  }).format(now);
 }
 
 /**
@@ -835,16 +840,16 @@ export function aziLaZurich(acum: Date = new Date()): string {
  *
  * `hourCycle: 'h23'` rather than `hour12: false`: the latter selects the h24
  * cycle in some ICU builds, which formats midnight as "24:30" instead of
- * "00:30" — and urmatoareaSlujba compares that string, so a late-night visitor
+ * "00:30" — and nextService compares that string, so a late-night visitor
  * would be shown the wrong next service.
  */
-export function oraLaZurich(acum: Date = new Date()): string {
+export function timeInZurich(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Zurich',
     hour: '2-digit',
-    minute: '2-digit',
+    minutes: '2-digit',
     hourCycle: 'h23',
-  }).format(acum);
+  }).format(now);
 }
 ```
 
@@ -869,15 +874,15 @@ timezone-aware."
 ### Task 4: Service-day schema and content collection
 
 **Files:**
-- Create: `web/src/lib/schema.ts`, `web/src/content.config.ts`, `web/src/content/slujbe/2026-09-14.yml`, `web/src/content/slujbe/2026-09-16.yml`, `web/src/content/slujbe/2026-09-18.yml`, `web/src/content/slujbe/2026-09-19.yml`, `web/src/content/slujbe/2026-09-20.yml`
+- Create: `web/src/lib/schema.ts`, `web/src/content.config.ts`, `web/src/content/services/2026-09-14.yml`, `web/src/content/services/2026-09-16.yml`, `web/src/content/services/2026-09-18.yml`, `web/src/content/services/2026-09-19.yml`, `web/src/content/services/2026-09-20.yml`
 - Test: `web/src/lib/schema.test.ts`
 
 **Interfaces:**
 - Consumes: nothing.
 - Produces:
-  - `ziSchema` — the Zod object schema for one service day.
+  - `daySchema` — the Zod object schema for one service day.
   - `type ZiSlujba = z.infer<typeof ziSchema> & { data: string }` — the shape every later task consumes.
-  - Collection name `'slujbe'`, queried with `getCollection('slujbe')`; each entry's `id` is the filename stem, i.e. the date.
+  - Collection name `'services'`, queried with `getCollection('services')`; each entry's `id` is the filename stem, i.e. the date.
 
 The schema lives in `lib/` rather than inline in `content.config.ts` so it can be unit-tested without booting Astro.
 
@@ -887,52 +892,52 @@ Create `web/src/lib/schema.test.ts`:
 
 ```typescript
 import { describe, expect, it } from 'vitest';
-import { ziSchema } from './schema';
+import { daySchema } from './schema';
 
 const valid = {
-  praznic: 'Înălțarea Sfintei Cruci',
-  praznic_mare: true,
-  zi_de_post: true,
-  slujbe: [
-    { ora: '07:30', slujba: 'Utrenia' },
-    { ora: '08:30', slujba: 'Sfânta Liturghie' },
+  feast: 'Înălțarea Sfintei Cruci',
+  great_feast: true,
+  fast_day: true,
+  services: [
+    { time: '07:30', service: 'Utrenia' },
+    { time: '08:30', service: 'Sfânta Liturghie' },
   ],
 };
 
 describe('ziSchema', () => {
   it('acceptă o zi completă', () => {
-    expect(ziSchema.safeParse(valid).success).toBe(true);
+    expect(daySchema.safeParse(valid).success).toBe(true);
   });
 
   it('acceptă o zi minimă', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] });
+    const r = daySchema.safeParse({ services: [{ time: '10:00', service: 'Sfânta Liturghie' }] });
     expect(r.success).toBe(true);
   });
 
   it('pune valori implicite pentru steaguri', () => {
-    const r = ziSchema.parse({ slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }] });
-    expect(r.zi_de_post).toBe(false);
-    expect(r.praznic_mare).toBe(false);
-    expect(r.anulat).toBe(false);
+    const r = daySchema.parse({ services: [{ time: '10:00', service: 'Sfânta Liturghie' }] });
+    expect(r.fast_day).toBe(false);
+    expect(r.great_feast).toBe(false);
+    expect(r.cancelled).toBe(false);
   });
 
   it('respinge o oră fără două puncte', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '0830', slujba: 'Utrenia' }] });
+    const r = daySchema.safeParse({ services: [{ time: '0830', service: 'Utrenia' }] });
     expect(r.success).toBe(false);
   });
 
   it('respinge o oră imposibilă', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '25:00', slujba: 'Utrenia' }] });
+    const r = daySchema.safeParse({ services: [{ time: '25:00', service: 'Utrenia' }] });
     expect(r.success).toBe(false);
   });
 
   it('acceptă ora fără zero la început', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '7:30', slujba: 'Utrenia' }] });
+    const r = daySchema.safeParse({ services: [{ time: '7:30', service: 'Utrenia' }] });
     expect(r.success).toBe(true);
   });
 
   it('respinge o zi fără slujbe care nu este anulată', () => {
-    const r = ziSchema.safeParse({ slujbe: [] });
+    const r = daySchema.safeParse({ services: [] });
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(r.error.issues[0].message).toContain('cel puțin o slujbă');
@@ -940,14 +945,14 @@ describe('ziSchema', () => {
   });
 
   it('acceptă o zi fără slujbe dacă este anulată', () => {
-    const r = ziSchema.safeParse({ slujbe: [], anulat: true, note: 'Părintele este plecat' });
+    const r = daySchema.safeParse({ services: [], cancelled: true, notes: 'Părintele este plecat' });
     expect(r.success).toBe(true);
   });
 
   it('respinge praznic_mare fără praznic', () => {
-    const r = ziSchema.safeParse({
-      praznic_mare: true,
-      slujbe: [{ ora: '10:00', slujba: 'Sfânta Liturghie' }],
+    const r = daySchema.safeParse({
+      great_feast: true,
+      services: [{ time: '10:00', service: 'Sfânta Liturghie' }],
     });
     expect(r.success).toBe(false);
     if (!r.success) {
@@ -956,7 +961,7 @@ describe('ziSchema', () => {
   });
 
   it('respinge o slujbă necunoscută', () => {
-    const r = ziSchema.safeParse({ slujbe: [{ ora: '10:00', slujba: 'Brunch' }] });
+    const r = daySchema.safeParse({ services: [{ time: '10:00', service: 'Brunch' }] });
     expect(r.success).toBe(false);
   });
 });
@@ -977,9 +982,9 @@ import { z } from 'astro/zod';
 /**
  * The list the CMS offers as a dropdown. Keeping it closed is what stops
  * "Sf. Liturghie", "Sfanta Liturghie" and "Sfânta Liturghie" from all appearing
- * on the same page. "Altceva" plus `detaliu` is the escape hatch.
+ * on the same page. "Altceva" plus `detail` is the escape hatch.
  */
-export const NUME_SLUJBE = [
+export const SERVICE_NAMES = [
   'Utrenia',
   'Sfânta Liturghie',
   'Vecernie',
@@ -997,35 +1002,35 @@ export const NUME_SLUJBE = [
   'Altceva',
 ] as const;
 
-const ORA = /^([01]?\d|2[0-3]):[0-5]\d$/;
+const TIME = /^([01]?\d|2[0-3]):[0-5]\d$/;
 
-export const slujbaSchema = z.object({
-  ora: z.string().regex(ORA, 'Ora trebuie scrisă ca 08:30'),
-  slujba: z.enum(NUME_SLUJBE),
-  detaliu: z.string().optional(),
+export const serviceSchema = z.object({
+  time: z.string().regex(TIME, 'Ora trebuie scrisă ca 08:30'),
+  service: z.enum(SERVICE_NAMES),
+  detail: z.string().optional(),
 });
 
-export const ziSchema = z
+export const daySchema = z
   .object({
-    praznic: z.string().optional(),
-    praznic_mare: z.boolean().default(false),
-    zi_de_post: z.boolean().default(false),
-    anulat: z.boolean().default(false),
-    note: z.string().optional(),
-    locatie: z.string().optional(),
-    slujbe: z.array(slujbaSchema),
+    feast: z.string().optional(),
+    great_feast: z.boolean().default(false),
+    fast_day: z.boolean().default(false),
+    cancelled: z.boolean().default(false),
+    notes: z.string().optional(),
+    location: z.string().optional(),
+    services: z.array(serviceSchema),
   })
-  .refine((z_) => z_.anulat || z_.slujbe.length > 0, {
+  .refine((z_) => z_.cancelled || z_.services.length > 0, {
     message: 'Ziua trebuie să aibă cel puțin o slujbă, sau să fie marcată ca anulată.',
-    path: ['slujbe'],
+    path: ['services'],
   })
-  .refine((z_) => !z_.praznic_mare || Boolean(z_.praznic?.trim()), {
+  .refine((z_) => !z_.great_feast || Boolean(z_.feast?.trim()), {
     message: 'Un praznic mare trebuie să aibă și numele praznicului completat.',
-    path: ['praznic'],
+    path: ['feast'],
   });
 
-export type Slujba = z.infer<typeof slujbaSchema>;
-export type ZiSlujba = z.infer<typeof ziSchema> & { data: string };
+export type Service = z.infer<typeof serviceSchema>;
+export type ServiceDay = z.infer<typeof daySchema> & { date: string };
 ```
 
 - [ ] **Step 4: Run tests**
@@ -1040,79 +1045,79 @@ Create `web/src/content.config.ts`:
 ```typescript
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { ziSchema } from './lib/schema';
+import { daySchema } from './lib/schema';
 
-const slujbe = defineCollection({
+const services = defineCollection({
   loader: glob({
     pattern: '**/*.yml',
-    base: './src/content/slujbe',
+    base: './src/content/services',
     // The filename is the date, so use the stem verbatim rather than letting
     // github-slugger rewrite it.
     generateId: ({ entry }) => entry.replace(/\.yml$/, ''),
   }),
-  schema: ziSchema,
+  schema: daySchema,
 });
 
-export const collections = { slujbe };
+export const collections = { services };
 ```
 
 - [ ] **Step 6: Seed the real current week**
 
-These are the actual services from `bor-zh.ch/program-liturgic/` for 14–20 September 2026. Create five files under `web/src/content/slujbe/`.
+These are the actual services from `bor-zh.ch/program-liturgic/` for 14–20 September 2026. Create five files under `web/src/content/services/`.
 
 `2026-09-14.yml`:
 
 ```yaml
-praznic: Înălțarea Sfintei Cruci
-praznic_mare: true
-zi_de_post: true
-slujbe:
-  - ora: "07:30"
-    slujba: Utrenia
-  - ora: "08:30"
-    slujba: Sfânta Liturghie
+feast: Înălțarea Sfintei Cruci
+great_feast: true
+fast_day: true
+services:
+  - time: "07:30"
+    service: Utrenia
+  - time: "08:30"
+    service: Sfânta Liturghie
 ```
 
 `2026-09-16.yml`:
 
 ```yaml
-slujbe:
-  - ora: "17:00"
-    slujba: Spovedanie
-  - ora: "18:30"
-    slujba: Paraclisul Maicii Domnului
+services:
+  - time: "17:00"
+    service: Spovedanie
+  - time: "18:30"
+    service: Paraclisul Maicii Domnului
 ```
 
 `2026-09-18.yml`:
 
 ```yaml
-slujbe:
-  - ora: "17:00"
-    slujba: Spovedanie
-  - ora: "18:30"
-    slujba: Acatist
+services:
+  - time: "17:00"
+    service: Spovedanie
+  - time: "18:30"
+    service: Acatist
 ```
 
 `2026-09-19.yml`:
 
 ```yaml
-slujbe:
-  - ora: "15:30"
-    slujba: Spovedanie
-  - ora: "17:00"
-    slujba: Vecernie
+services:
+  - time: "15:30"
+    service: Spovedanie
+  - time: "17:00"
+    service: Vecernie
 ```
 
 `2026-09-20.yml`:
 
 ```yaml
-praznic: Duminica după Înălțarea Sfintei Cruci
-slujbe:
-  - ora: "08:45"
-    slujba: Utrenia
-  - ora: "10:00"
-    slujba: Sfânta Liturghie
-    detaliu: și Parastas
+feast: Duminica după Înălțarea Sfintei Cruci
+services:
+  - time: "08:45"
+    service: Utrenia
+  - time: "10:00"
+    service: Sfânta Liturghie
+    detail: și Parastas
 ```
 
 - [ ] **Step 7: Verify Astro loads and validates the collection**
@@ -1128,7 +1133,7 @@ This step is the whole argument for the schema — confirm it with your own eyes
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/lib/schema.ts src/lib/schema.test.ts src/content.config.ts src/content/slujbe/
+git add src/lib/schema.ts src/lib/schema.test.ts src/content.config.ts src/content/services/
 git commit -m "feat: service-day schema and slujbe collection
 
 A malformed entry fails the build instead of shipping."
@@ -1143,14 +1148,14 @@ A malformed entry fails the build instead of shipping."
 - Test: `web/src/lib/schedule.test.ts`
 
 **Interfaces:**
-- Consumes: `ZiSlujba` and `Slujba` from `./schema`; `cheieSaptamana`, `inceputSaptamana`, `sfarsitSaptamana` and `partiData` from `./week` / `./date-ro`. (`adaugaZile` is **not** needed — an earlier draft listed it and importing it would fail `astro check` as unused.)
+- Consumes: `ServiceDay` and `Service` from `./schema`; `weekKey`, `weekStart`, `weekEnd` and `dateParts` from `./week` / `./date-ro`. (`addDays` is **not** needed — an earlier draft listed it and importing it would fail `astro check` as unused.)
 - Produces:
   - `type Saptamana = { cheie: string; luni: string; duminica: string; zile: ZiSlujba[] }`
   - `minute(ora: string): number` — minutes since midnight; `ics.ts` imports this.
-  - `etichetaSlujba(s: Slujba): string` — the display label. **Every** place that shows a service name uses this: `RandZi`, `BandaSaptamanii` and the `.ics` `SUMMARY`. Without it, the `Altceva` escape hatch renders three different ways and the feed emits `Altceva Cerc de studiu`.
+  - `etichetaSlujba(s: Slujba): string` — the display label. **Every** place that shows a service name uses this: `DayRow`, `WeekBand` and the `.ics` `SUMMARY`. Without it, the `Altceva` escape hatch renders three different ways and the feed emits `Altceva Cerc de studiu`.
   - `grupeazaPeSaptamani(zile: ZiSlujba[]): Saptamana[]` — sorted ascending, weeks with no entries omitted.
-  - `urmatoareaSlujba(zile, azi: string, ora: string): (Slujba & { data: string }) | null` — returning `Slujba` rather than a loose object is what lets the homepage pass the result straight to `etichetaSlujba`.
-  - `saptamaniViitoare(zile, azi: string, nr: number): Saptamana[]` — the week containing `azi` plus the following `nr - 1` weeks that have entries.
+  - `urmatoareaSlujba(zile, azi: string, ora: string): (Slujba & { data: string }) | null` — returning `Service` rather than a loose object is what lets the homepage pass the result straight to `serviceLabel`.
+  - `saptamaniViitoare(zile, azi: string, nr: number): Saptamana[]` — the week containing `today` plus the following `nr - 1` weeks that have entries.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1158,133 +1163,133 @@ Create `web/src/lib/schedule.test.ts`:
 
 ```typescript
 import { describe, expect, it } from 'vitest';
-import type { ZiSlujba } from './schema';
-import { etichetaSlujba, grupeazaPeSaptamani, saptamaniViitoare, urmatoareaSlujba } from './schedule';
+import type { ServiceDay } from './schema';
+import { serviceLabel, groupIntoWeeks, upcomingWeeks, nextService } from './schedule';
 
 describe('etichetaSlujba', () => {
   it('întoarce numele slujbei', () => {
-    expect(etichetaSlujba({ ora: '10:00', slujba: 'Sfânta Liturghie' })).toBe('Sfânta Liturghie');
+    expect(serviceLabel({ time: '10:00', service: 'Sfânta Liturghie' })).toBe('Sfânta Liturghie');
   });
 
   it('adaugă detaliul la numele slujbei', () => {
-    expect(etichetaSlujba({ ora: '10:00', slujba: 'Sfânta Liturghie', detaliu: 'și Parastas' }))
+    expect(serviceLabel({ time: '10:00', service: 'Sfânta Liturghie', detail: 'și Parastas' }))
       .toBe('Sfânta Liturghie și Parastas');
   });
 
   it('pentru „Altceva" folosește detaliul ca nume', () => {
-    expect(etichetaSlujba({ ora: '19:00', slujba: 'Altceva', detaliu: 'Cerc de studiu biblic' }))
+    expect(serviceLabel({ time: '19:00', service: 'Altceva', detail: 'Cerc de studiu biblic' }))
       .toBe('Cerc de studiu biblic');
   });
 
   it('nu lasă „Altceva" să apară pe site fără detaliu', () => {
-    expect(etichetaSlujba({ ora: '19:00', slujba: 'Altceva' })).toBe('Slujbă');
-    expect(etichetaSlujba({ ora: '19:00', slujba: 'Altceva', detaliu: '   ' })).toBe('Slujbă');
+    expect(serviceLabel({ time: '19:00', service: 'Altceva' })).toBe('Slujbă');
+    expect(serviceLabel({ time: '19:00', service: 'Altceva', detail: '   ' })).toBe('Slujbă');
   });
 });
 
-function zi(data: string, slujbe: Array<[string, string]>, extra: Partial<ZiSlujba> = {}): ZiSlujba {
+function day(date: string, services: Array<[string, string]>, extra: Partial<ServiceDay> = {}): ServiceDay {
   return {
-    data,
-    praznic_mare: false,
-    zi_de_post: false,
-    anulat: false,
-    slujbe: slujbe.map(([ora, slujba]) => ({ ora, slujba: slujba as never })),
+    date,
+    great_feast: false,
+    fast_day: false,
+    cancelled: false,
+    services: services.map(([time, service]) => ({ time, service: service as never })),
     ...extra,
-  } as ZiSlujba;
+  } as ServiceDay;
 }
 
-const date = [
-  zi('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']]),
-  zi('2026-09-16', [['17:00', 'Spovedanie'], ['18:30', 'Acatist']]),
-  zi('2026-09-20', [['08:45', 'Utrenia'], ['10:00', 'Sfânta Liturghie']]),
-  zi('2026-09-23', [['18:30', 'Acatist']]),
-  zi('2026-10-04', [['10:00', 'Sfânta Liturghie']]),
+const sampleDays = [
+  day('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']]),
+  day('2026-09-16', [['17:00', 'Spovedanie'], ['18:30', 'Acatist']]),
+  day('2026-09-20', [['08:45', 'Utrenia'], ['10:00', 'Sfânta Liturghie']]),
+  day('2026-09-23', [['18:30', 'Acatist']]),
+  day('2026-10-04', [['10:00', 'Sfânta Liturghie']]),
 ];
 
 describe('grupeazaPeSaptamani', () => {
   it('grupează zilele în săptămâni ISO', () => {
-    const s = grupeazaPeSaptamani(date);
-    expect(s.map((x) => x.cheie)).toEqual(['2026-W38', '2026-W39', '2026-W40']);
+    const s = groupIntoWeeks(sampleDays);
+    expect(s.map((x) => x.key)).toEqual(['2026-W38', '2026-W39', '2026-W40']);
   });
 
   it('pune limitele corecte pe fiecare săptămână', () => {
-    const [prima] = grupeazaPeSaptamani(date);
-    expect(prima.luni).toBe('2026-09-14');
-    expect(prima.duminica).toBe('2026-09-20');
-    expect(prima.zile).toHaveLength(3);
+    const [first] = groupIntoWeeks(sampleDays);
+    expect(first.monday).toBe('2026-09-14');
+    expect(first.sunday).toBe('2026-09-20');
+    expect(first.days).toHaveLength(3);
   });
 
   it('sortează zilele în interiorul săptămânii', () => {
-    const s = grupeazaPeSaptamani([date[2], date[0], date[1]]);
-    expect(s[0].zile.map((z) => z.data)).toEqual(['2026-09-14', '2026-09-16', '2026-09-20']);
+    const s = groupIntoWeeks([sampleDays[2], sampleDays[0], sampleDays[1]]);
+    expect(s[0].days.map((z) => z.date)).toEqual(['2026-09-14', '2026-09-16', '2026-09-20']);
   });
 
   it('omite săptămânile fără intrări', () => {
-    const s = grupeazaPeSaptamani(date);
-    expect(s.map((x) => x.cheie)).not.toContain('2026-W41');
+    const s = groupIntoWeeks(sampleDays);
+    expect(s.map((x) => x.key)).not.toContain('2026-W41');
   });
 
   it('întoarce o listă goală pentru date goale', () => {
-    expect(grupeazaPeSaptamani([])).toEqual([]);
+    expect(groupIntoWeeks([])).toEqual([]);
   });
 });
 
 describe('urmatoareaSlujba', () => {
   it('alege următoarea slujbă din ziua curentă', () => {
-    expect(urmatoareaSlujba(date, '2026-09-14', '08:00')).toMatchObject({
-      data: '2026-09-14',
-      ora: '08:30',
-      slujba: 'Sfânta Liturghie',
+    expect(nextService(sampleDays, '2026-09-14', '08:00')).toMatchObject({
+      date: '2026-09-14',
+      time: '08:30',
+      service: 'Sfânta Liturghie',
     });
   });
 
   it('trece la ziua următoare când ziua curentă s-a încheiat', () => {
-    expect(urmatoareaSlujba(date, '2026-09-14', '09:00')).toMatchObject({
-      data: '2026-09-16',
-      ora: '17:00',
+    expect(nextService(sampleDays, '2026-09-14', '09:00')).toMatchObject({
+      date: '2026-09-16',
+      time: '17:00',
     });
   });
 
   it('compară orele numeric, nu alfabetic', () => {
-    const d = [zi('2026-09-14', [['09:00', 'Utrenia'], ['10:00', 'Sfânta Liturghie']])];
+    const d = [day('2026-09-14', [['09:00', 'Utrenia'], ['10:00', 'Sfânta Liturghie']])];
     // Lexicographically '9:00' > '10:00'; numerically it is not.
-    expect(urmatoareaSlujba(d, '2026-09-14', '9:30')).toMatchObject({ ora: '10:00' });
+    expect(nextService(d, '2026-09-14', '9:30')).toMatchObject({ time: '10:00' });
   });
 
   it('sare peste zilele anulate', () => {
     const d = [
-      zi('2026-09-16', [['18:30', 'Acatist']], { anulat: true }),
-      zi('2026-09-20', [['10:00', 'Sfânta Liturghie']]),
+      day('2026-09-16', [['18:30', 'Acatist']], { cancelled: true }),
+      day('2026-09-20', [['10:00', 'Sfânta Liturghie']]),
     ];
-    expect(urmatoareaSlujba(d, '2026-09-15', '12:00')).toMatchObject({ data: '2026-09-20' });
+    expect(nextService(d, '2026-09-15', '12:00')).toMatchObject({ date: '2026-09-20' });
   });
 
   it('întoarce null când nu mai urmează nimic', () => {
-    expect(urmatoareaSlujba(date, '2027-01-01', '00:00')).toBeNull();
+    expect(nextService(sampleDays, '2027-01-01', '00:00')).toBeNull();
   });
 
   it('întoarce null pentru date goale', () => {
-    expect(urmatoareaSlujba([], '2026-09-14', '08:00')).toBeNull();
+    expect(nextService([], '2026-09-14', '08:00')).toBeNull();
   });
 });
 
 describe('saptamaniViitoare', () => {
   it('începe cu săptămâna care conține ziua curentă', () => {
-    const s = saptamaniViitoare(date, '2026-09-16', 3);
-    expect(s[0].cheie).toBe('2026-W38');
+    const s = upcomingWeeks(sampleDays, '2026-09-16', 3);
+    expect(s[0].key).toBe('2026-W38');
   });
 
   it('limitează numărul de săptămâni', () => {
-    expect(saptamaniViitoare(date, '2026-09-16', 2)).toHaveLength(2);
+    expect(upcomingWeeks(sampleDays, '2026-09-16', 2)).toHaveLength(2);
   });
 
   it('exclude săptămânile complet trecute', () => {
-    const s = saptamaniViitoare(date, '2026-09-23', 3);
-    expect(s.map((x) => x.cheie)).toEqual(['2026-W39', '2026-W40']);
+    const s = upcomingWeeks(sampleDays, '2026-09-23', 3);
+    expect(s.map((x) => x.key)).toEqual(['2026-W39', '2026-W40']);
   });
 
   it('întoarce o listă goală când totul este în trecut', () => {
-    expect(saptamaniViitoare(date, '2027-01-01', 3)).toEqual([]);
+    expect(upcomingWeeks(sampleDays, '2027-01-01', 3)).toEqual([]);
   });
 });
 ```
@@ -1299,84 +1304,84 @@ Expected: FAIL — `Failed to resolve import "./schedule"`.
 Create `web/src/lib/schedule.ts`:
 
 ```typescript
-import type { Slujba, ZiSlujba } from './schema';
-import { adaugaZile } from './week';
-import { cheieSaptamana, inceputSaptamana, sfarsitSaptamana } from './week';
+import type { Service, ServiceDay } from './schema';
+import { addDays } from './week';
+import { weekKey, weekStart, weekEnd } from './week';
 
-export type Saptamana = {
-  cheie: string;
-  luni: string;
-  duminica: string;
-  zile: ZiSlujba[];
+export type Week = {
+  key: string;
+  monday: string;
+  sunday: string;
+  days: ServiceDay[];
 };
 
 /** Minutes since midnight. '9:30' and '09:30' both yield 570. */
-export function minute(ora: string): number {
-  const [h, m] = ora.split(':');
+export function minutes(time: string): number {
+  const [h, m] = time.split(':');
   return Number(h) * 60 + Number(m);
 }
 
 /**
  * The label shown to a visitor. `Altceva` is the CMS escape hatch for a service
- * not on the dropdown: the editor types the real name into `detaliu`, so the
+ * not on the dropdown: the editor types the real name into `detail`, so the
  * word "Altceva" itself must never reach the page or the calendar feed.
  */
-export function etichetaSlujba(s: Slujba): string {
-  const detaliu = s.detaliu?.trim() ?? '';
-  if (s.slujba === 'Altceva') return detaliu || 'Slujbă';
-  return detaliu ? `${s.slujba} ${detaliu}` : s.slujba;
+export function serviceLabel(s: Service): string {
+  const detail = s.detail?.trim() ?? '';
+  if (s.service === 'Altceva') return detail || 'Slujbă';
+  return detail ? `${s.service} ${detail}` : s.service;
 }
 
-export function grupeazaPeSaptamani(zile: ZiSlujba[]): Saptamana[] {
-  const cos = new Map<string, ZiSlujba[]>();
+export function groupIntoWeeks(days: ServiceDay[]): Week[] {
+  const buckets = new Map<string, ServiceDay[]>();
 
-  for (const z of zile) {
-    const cheie = cheieSaptamana(z.data);
-    const lista = cos.get(cheie);
-    if (lista) lista.push(z);
-    else cos.set(cheie, [z]);
+  for (const z of days) {
+    const key = weekKey(z.date);
+    const list = buckets.get(key);
+    if (list) list.push(z);
+    else buckets.set(key, [z]);
   }
 
-  return [...cos.values()]
-    .map((grup) => {
-      const sortate = [...grup].sort((a, b) => a.data.localeCompare(b.data));
-      const orice = sortate[0].data;
+  return [...buckets.values()]
+    .map((group) => {
+      const sorted = [...group].sort((a, b) => a.date.localeCompare(b.date));
+      const anyDate = sorted[0].date;
       return {
-        cheie: cheieSaptamana(orice),
-        luni: inceputSaptamana(orice),
-        duminica: sfarsitSaptamana(orice),
-        zile: sortate,
+        key: weekKey(anyDate),
+        monday: weekStart(anyDate),
+        sunday: weekEnd(anyDate),
+        days: sorted,
       };
     })
-    .sort((a, b) => a.luni.localeCompare(b.luni));
+    .sort((a, b) => a.monday.localeCompare(b.monday));
 }
 
-export function urmatoareaSlujba(
-  zile: ZiSlujba[],
-  azi: string,
-  ora: string,
-): (Slujba & { data: string }) | null {
-  const acum = minute(ora);
-  const candidate = [...zile]
-    .filter((z) => !z.anulat && z.data >= azi)
-    .sort((a, b) => a.data.localeCompare(b.data));
+export function nextService(
+  days: ServiceDay[],
+  today: string,
+  time: string,
+): (Service & { date: string }) | null {
+  const now = minutes(time);
+  const candidate = [...days]
+    .filter((z) => !z.cancelled && z.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   for (const z of candidate) {
-    const slujbe = [...z.slujbe].sort((a, b) => minute(a.ora) - minute(b.ora));
-    for (const s of slujbe) {
-      if (z.data > azi || minute(s.ora) >= acum) {
-        return { ...s, data: z.data };
+    const services = [...z.services].sort((a, b) => minutes(a.time) - minutes(b.time));
+    for (const s of services) {
+      if (z.date > today || minutes(s.time) >= now) {
+        return { ...s, date: z.date };
       }
     }
   }
   return null;
 }
 
-export function saptamaniViitoare(zile: ZiSlujba[], azi: string, nr: number): Saptamana[] {
-  const lunea = inceputSaptamana(azi);
-  return grupeazaPeSaptamani(zile)
-    .filter((s) => s.luni >= lunea)
-    .slice(0, nr);
+export function upcomingWeeks(days: ServiceDay[], today: string, count: number): Week[] {
+  const monday = weekStart(today);
+  return groupIntoWeeks(days)
+    .filter((s) => s.monday >= monday)
+    .slice(0, count);
 }
 ```
 
@@ -1404,7 +1409,7 @@ Altceva escape hatch cannot leak the word 'Altceva' onto the page."
 - Test: `web/src/lib/ics.test.ts`
 
 **Interfaces:**
-- Consumes: `ZiSlujba` from `./schema`; `minute` from `./schedule`.
+- Consumes: `ServiceDay` from `./schema`; `minutes` from `./schedule`.
 - Produces: `genereazaIcs(zile: ZiSlujba[], opts: { dtstamp: string; locatie: string }): string` — a complete RFC 5545 document with CRLF line endings.
 
 Three things are easy to get wrong here and each has a test: **line folding must count octets, not characters** (`Înălțarea` is 9 characters but 11 bytes, so a character-based fold produces lines that exceed 75 octets and some clients reject them); **text must be escaped** (`,` `;` `\` and newlines); and **UIDs must be stable** across rebuilds and across reordering, or every subscriber's calendar churns.
@@ -1417,107 +1422,107 @@ Create `web/src/lib/ics.test.ts`:
 
 ```typescript
 import { describe, expect, it } from 'vitest';
-import type { ZiSlujba } from './schema';
-import { NUME_SLUJBE } from './schema';
-import { genereazaIcs } from './ics';
+import type { ServiceDay } from './schema';
+import { SERVICE_NAMES } from './schema';
+import { generateIcs } from './ics';
 
-function zi(data: string, slujbe: Array<[string, string]>, extra: Partial<ZiSlujba> = {}): ZiSlujba {
+function day(date: string, services: Array<[string, string]>, extra: Partial<ServiceDay> = {}): ServiceDay {
   return {
-    data,
-    praznic_mare: false,
-    zi_de_post: false,
-    anulat: false,
-    slujbe: slujbe.map(([ora, slujba]) => ({ ora, slujba: slujba as never })),
+    date,
+    great_feast: false,
+    fast_day: false,
+    cancelled: false,
+    services: services.map(([time, service]) => ({ time, service: service as never })),
     ...extra,
-  } as ZiSlujba;
+  } as ServiceDay;
 }
 
-const opts = { dtstamp: '20260915T060000Z', locatie: 'Wehntalerstrasse 451, 8046 Zürich' };
+const opts = { dtstamp: '20260915T060000Z', location: 'Wehntalerstrasse 451, 8046 Zürich' };
 
-const ics = (zile: ZiSlujba[]) => genereazaIcs(zile, opts);
+const ics = (days: ServiceDay[]) => generateIcs(days, opts);
 
 describe('structura documentului', () => {
   it('se deschide și se închide corect', () => {
-    const out = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
+    const out = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(out.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
     expect(out.endsWith('END:VCALENDAR\r\n')).toBe(true);
   });
 
   it('folosește terminatori de linie CRLF', () => {
-    const out = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
+    const out = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(out.split('\n').every((l) => l === '' || l.endsWith('\r'))).toBe(true);
   });
 
   it('include fusul orar Europe/Zurich', () => {
-    const out = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
+    const out = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(out).toContain('BEGIN:VTIMEZONE');
     expect(out).toContain('TZID:Europe/Zurich');
   });
 
   it('emite un VEVENT pentru fiecare slujbă', () => {
-    const out = ics([zi('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']])]);
+    const out = ics([day('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']])]);
     expect(out.match(/BEGIN:VEVENT/g)).toHaveLength(2);
   });
 });
 
 describe('ora de început și de sfârșit', () => {
   it('scrie DTSTART cu fusul orar local', () => {
-    const out = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
+    const out = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(out).toContain('DTSTART;TZID=Europe/Zurich:20260920T100000');
   });
 
   it('completează ora cu zero la început', () => {
-    const out = ics([zi('2026-09-14', [['7:30', 'Utrenia']])]);
+    const out = ics([day('2026-09-14', [['7:30', 'Utrenia']])]);
     expect(out).toContain('DTSTART;TZID=Europe/Zurich:20260914T073000');
   });
 
   it('termină o slujbă când începe următoarea din aceeași zi', () => {
-    const out = ics([zi('2026-09-16', [['17:00', 'Spovedanie'], ['18:30', 'Acatist']])]);
+    const out = ics([day('2026-09-16', [['17:00', 'Spovedanie'], ['18:30', 'Acatist']])]);
     expect(out).toContain('DTEND;TZID=Europe/Zurich:20260916T183000');
   });
 
   it('dă ultimei slujbe din zi durata implicită de 90 de minute', () => {
-    const out = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
+    const out = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(out).toContain('DTEND;TZID=Europe/Zurich:20260920T113000');
   });
 });
 
 describe('UID', () => {
   it('derivă UID din dată, oră și numele slujbei, nu din poziție', () => {
-    const out = ics([zi('2026-09-14', [['07:30', 'Utrenia']])]);
+    const out = ics([day('2026-09-14', [['07:30', 'Utrenia']])]);
     expect(out).toContain('UID:20260914T0730-utrenia@bor-zh.ch');
   });
 
   it('păstrează UID-urile stabile când se inserează o slujbă mai devreme', () => {
-    const inainte = ics([zi('2026-09-14', [['08:30', 'Sfânta Liturghie']])]);
-    const dupa = ics([zi('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']])]);
-    expect(inainte).toContain('UID:20260914T0830-sfanta-liturghie@bor-zh.ch');
-    expect(dupa).toContain('UID:20260914T0830-sfanta-liturghie@bor-zh.ch');
+    const before = ics([day('2026-09-14', [['08:30', 'Sfânta Liturghie']])]);
+    const after = ics([day('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']])]);
+    expect(before).toContain('UID:20260914T0830-sfanta-liturghie@bor-zh.ch');
+    expect(after).toContain('UID:20260914T0830-sfanta-liturghie@bor-zh.ch');
   });
 
   it('dă UID-uri distincte la două slujbe care încep la aceeași oră', () => {
     // Spovedanie în timpul Vecerniei — o seară obișnuită de parohie.
-    const out = ics([zi('2026-09-19', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie']])]);
+    const out = ics([day('2026-09-19', [['17:00', 'Spovedanie'], ['17:00', 'Vecernie']])]);
     const uids = [...out.matchAll(/UID:(\S+)/g)].map((m) => m[1]);
     expect(uids).toHaveLength(2);
     expect(new Set(uids).size).toBe(2);
   });
 
   it('pliază diacriticele în slug, nu le șterge', () => {
-    const a = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
+    const a = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(a).toContain('-sfanta-liturghie@bor-zh.ch');
   });
 
   it('niciun nume de slujbă nu produce un UID care se împăturește', () => {
-    // Asserted against NUME_SLUJBE, not against today's longest name, so adding
+    // Asserted against SERVICE_NAMES, not against today's longest name, so adding
     // a longer service in future fails here instead of quietly folding a UID.
-    for (const nume of NUME_SLUJBE) {
-      const out = ics([zi('2026-09-20', [['10:00', nume]], {
-        slujbe: [{ ora: '10:00', slujba: nume, detaliu: nume === 'Altceva' ? 'Cerc biblic' : undefined }],
+    for (const name of SERVICE_NAMES) {
+      const out = ics([day('2026-09-20', [['10:00', name]], {
+        services: [{ time: '10:00', service: name, detail: name === 'Altceva' ? 'Cerc biblic' : undefined }],
       })]);
-      for (const linie of out.split('\r\n')) {
-        if (linie.startsWith('UID:')) {
-          expect(new TextEncoder().encode(linie).length).toBeLessThanOrEqual(75);
+      for (const line of out.split('\r\n')) {
+        if (line.startsWith('UID:')) {
+          expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
         }
       }
       expect(out).not.toMatch(/UID:[^\r\n]*\r\n /);
@@ -1527,28 +1532,28 @@ describe('UID', () => {
 
 describe('conținut', () => {
   it('pune numele slujbei în SUMMARY', () => {
-    const out = ics([zi('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
+    const out = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(out).toContain('SUMMARY:Sfânta Liturghie');
   });
 
   it('adaugă detaliul la SUMMARY', () => {
-    const z = zi('2026-09-20', [['10:00', 'Sfânta Liturghie']]);
-    z.slujbe[0].detaliu = 'și Parastas';
+    const z = day('2026-09-20', [['10:00', 'Sfânta Liturghie']]);
+    z.services[0].detail = 'și Parastas';
     expect(ics([z])).toContain('SUMMARY:Sfânta Liturghie și Parastas');
   });
 
   it('nu scrie niciodată cuvântul „Altceva" în SUMMARY', () => {
-    const z = zi('2026-09-20', [['19:00', 'Altceva']]);
-    z.slujbe[0].detaliu = 'Cerc de studiu biblic';
+    const z = day('2026-09-20', [['19:00', 'Altceva']]);
+    z.services[0].detail = 'Cerc de studiu biblic';
     const out = ics([z]);
     expect(out).toContain('SUMMARY:Cerc de studiu biblic');
     expect(out).not.toContain('Altceva');
   });
 
   it('pune praznicul în DESCRIPTION', () => {
-    const z = zi('2026-09-14', [['08:30', 'Sfânta Liturghie']], {
-      praznic: 'Înălțarea Sfintei Cruci',
-      zi_de_post: true,
+    const z = day('2026-09-14', [['08:30', 'Sfânta Liturghie']], {
+      feast: 'Înălțarea Sfintei Cruci',
+      fast_day: true,
     });
     const out = ics([z]);
     expect(out).toContain('Înălțarea Sfintei Cruci');
@@ -1556,51 +1561,51 @@ describe('conținut', () => {
   });
 
   it('marchează zilele anulate în loc să le omită', () => {
-    const z = zi('2026-09-16', [['18:30', 'Acatist']], { anulat: true });
+    const z = day('2026-09-16', [['18:30', 'Acatist']], { cancelled: true });
     expect(ics([z])).toContain('STATUS:CANCELLED');
   });
 });
 
 describe('escaping și folding', () => {
   it('escapează virgule, punct-virgule și backslash', () => {
-    const z = zi('2026-09-20', [['10:00', 'Altceva']], { praznic: 'Unu, doi; trei\\patru' });
+    const z = day('2026-09-20', [['10:00', 'Altceva']], { feast: 'Unu, doi; trei\\patru' });
     const out = ics([z]);
     expect(out).toContain('Unu\\, doi\\; trei\\\\patru');
   });
 
   it('transformă newline-urile în \\n literal', () => {
-    const z = zi('2026-09-20', [['10:00', 'Altceva']], { note: 'rândul unu\nrândul doi' });
+    const z = day('2026-09-20', [['10:00', 'Altceva']], { notes: 'rândul unu\nrândul doi' });
     expect(ics([z])).toContain('rândul unu\\nrândul doi');
   });
 
   it('nu depășește 75 de octeți pe linie, nici cu diacritice', () => {
-    const z = zi('2026-09-14', [['08:30', 'Sfânta Liturghie']], {
-      praznic: 'Înălțarea Sfintei Cruci și pomenirea tuturor sfinților părinți români '
+    const z = day('2026-09-14', [['08:30', 'Sfânta Liturghie']], {
+      feast: 'Înălțarea Sfintei Cruci și pomenirea tuturor sfinților părinți români '
         + 'care au strălucit în credință de-a lungul veacurilor în Țara Românească',
     });
-    const linii = ics([z]).split('\r\n');
-    for (const linie of linii) {
-      expect(new TextEncoder().encode(linie).length).toBeLessThanOrEqual(75);
+    const lines = ics([z]).split('\r\n');
+    for (const line of lines) {
+      expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
     }
   });
 
   it('continuă liniile împăturite cu un spațiu', () => {
-    const z = zi('2026-09-14', [['08:30', 'Sfânta Liturghie']], {
-      praznic: 'x'.repeat(200),
+    const z = day('2026-09-14', [['08:30', 'Sfânta Liturghie']], {
+      feast: 'x'.repeat(200),
     });
-    const linii = ics([z]).split('\r\n');
-    const continuari = linii.filter((l) => l.startsWith(' '));
-    expect(continuari.length).toBeGreaterThan(0);
+    const lines = ics([z]).split('\r\n');
+    const continuations = lines.filter((l) => l.startsWith(' '));
+    expect(continuations.length).toBeGreaterThan(0);
   });
 
   it('nu rupe un caracter multi-octet în două linii', () => {
-    const z = zi('2026-09-14', [['08:30', 'Sfânta Liturghie']], {
-      praznic: 'ă'.repeat(120),
+    const z = day('2026-09-14', [['08:30', 'Sfânta Liturghie']], {
+      feast: 'ă'.repeat(120),
     });
     const out = ics([z]);
     // If a fold split a 2-byte character, re-joining would not round-trip.
-    const dezimpaturit = out.replace(/\r\n /g, '');
-    expect(dezimpaturit).toContain('ă'.repeat(120));
+    const unfolded = out.replace(/\r\n /g, '');
+    expect(unfolded).toContain('ă'.repeat(120));
   });
 });
 ```
@@ -1615,15 +1620,15 @@ Expected: FAIL — `Failed to resolve import "./ics"`.
 Create `web/src/lib/ics.ts`:
 
 ```typescript
-import { etichetaSlujba, inainte, minute } from './schedule';
-import type { Slujba, ZiSlujba } from './schema';
-import { adaugaZile } from './week';
+import { serviceLabel, compareDates, minutes } from './schedule';
+import type { Service, ServiceDay } from './schema';
+import { addDays } from './week';
 
 const CRLF = '\r\n';
-const DURATA_IMPLICITA = 90; // minutes, for the last service of a day
+const DEFAULT_DURATION = 90; // minutes, for the last service of a day
 
 /** RFC 5545 §3.3.11 text escaping. Backslash first, or it doubles the others. */
-function escapeaza(text: string): string {
+function escapeText(text: string): string {
   return text
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
@@ -1636,27 +1641,27 @@ function escapeaza(text: string): string {
  * multi-byte character must not be split across the fold — so we walk the UTF-8
  * encoding and cut on character boundaries.
  */
-function impatureste(linie: string): string {
+function fold(line: string): string {
   const enc = new TextEncoder();
-  if (enc.encode(linie).length <= 75) return linie;
+  if (enc.encode(line).length <= 75) return line;
 
-  const bucati: string[] = [];
-  let curenta = '';
-  let octeti = 0;
+  const pieces: string[] = [];
+  let current = '';
+  let bytes = 0;
 
-  for (const ch of linie) {
+  for (const ch of line) {
     const n = enc.encode(ch).length;
-    if (octeti + n > 75) {
-      bucati.push(curenta);
-      curenta = ch;
-      octeti = n + 1; // the leading space on a continuation line counts
+    if (bytes + n > 75) {
+      pieces.push(current);
+      current = ch;
+      bytes = n + 1; // the leading space on a continuation line counts
     } else {
-      curenta += ch;
-      octeti += n;
+      current += ch;
+      bytes += n;
     }
   }
-  bucati.push(curenta);
-  return bucati.join(`${CRLF} `);
+  pieces.push(current);
+  return pieces.join(`${CRLF} `);
 }
 
 /**
@@ -1669,24 +1674,24 @@ function impatureste(linie: string): string {
  * should want — they are the same service, one of them misspelled.
  *
  * What actually prevents two different services colliding is Task 4's schema:
- * NUME_SLUJBE is a closed list, and no day may carry the same `slujba` twice at
- * the same `ora`.
+ * SERVICE_NAMES is a closed list, and no day may carry the same `service` twice at
+ * the same `time`.
  *
- * COUPLING: the residual gap is two `Altceva` entries whose `detaliu` values fold
+ * COUPLING: the residual gap is two `Altceva` entries whose `detail` values fold
  * to the same slug. The schema rejects those today because both carry
  * slujba: 'Altceva' — but that rejection has been flagged as a narrow
- * over-rejection, so if it is ever relaxed to key on `detaliu`, this slug must
+ * over-rejection, so if it is ever relaxed to key on `detail`, this slug must
  * join the same key.
  *
- * The 40-character cap is LOAD-BEARING. The longest name in NUME_SLUJBE,
+ * The 40-character cap is LOAD-BEARING. The longest name in SERVICE_NAMES,
  * "Liturghia Darurilor mai înainte sfințite", yields a 40-character slug and a
  * 68-octet UID line, which keeps UIDs under the 75-octet fold. A folded UID would
  * break clients and silently break the /UID:(\S+)/ assertions. A test asserts this
- * against NUME_SLUJBE itself, so adding a longer service name fails loudly.
+ * against SERVICE_NAMES itself, so adding a longer service name fails loudly.
  */
-function slugSlujba(s: Slujba): string {
-  const nume = s.slujba === 'Altceva' ? (s.detaliu ?? '') : s.slujba;
-  return nume
+function serviceSlug(s: Service): string {
+  const name = s.service === 'Altceva' ? (s.detail ?? '') : s.service;
+  return name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^A-Za-z0-9]+/g, '-')
@@ -1695,26 +1700,26 @@ function slugSlujba(s: Slujba): string {
     .slice(0, 40) || 'slujba';
 }
 
-function laOraIcs(ora: string): string {
-  const [h, m] = ora.split(':');
+function toIcsTime(time: string): string {
+  const [h, m] = time.split(':');
   return `${h.padStart(2, '0')}${m}00`;
 }
 
-function laDataIcs(data: string): string {
-  return data.replace(/-/g, '');
+function toIcsDate(date: string): string {
+  return date.replace(/-/g, '');
 }
 
-function adaugaMinute(data: string, ora: string, n: number): { data: string; ora: string } {
-  const total = minute(ora) + n;
-  const zileInPlus = Math.floor(total / 1440);
-  const ramas = ((total % 1440) + 1440) % 1440;
-  const h = String(Math.floor(ramas / 60)).padStart(2, '0');
-  const m = String(ramas % 60).padStart(2, '0');
-  if (zileInPlus === 0) return { data, ora: `${h}:${m}` };
-  // adaugaZile, not a third hand-rolled Date path. partiData is the one parser
-  // and adaugaZile the one arithmetic; both are tested far harder than anything
+function addMinutes(date: string, time: string, n: number): { date: string; time: string } {
+  const total = minutes(time) + n;
+  const extraDays = Math.floor(total / 1440);
+  const leftover = ((total % 1440) + 1440) % 1440;
+  const h = String(Math.floor(leftover / 60)).padStart(2, '0');
+  const m = String(leftover % 60).padStart(2, '0');
+  if (extraDays === 0) return { date, time: `${h}:${m}` };
+  // addDays, not a third hand-rolled Date path. dateParts is the one parser
+  // and addDays the one arithmetic; both are tested far harder than anything
   // inlined here, and an unvalidated third path is how 30 February got through.
-  return { data: adaugaZile(data, zileInPlus), ora: `${h}:${m}` };
+  return { date: addDays(date, extraDays), time: `${h}:${m}` };
 }
 
 const VTIMEZONE = [
@@ -1737,11 +1742,11 @@ const VTIMEZONE = [
   'END:VTIMEZONE',
 ];
 
-export function genereazaIcs(
-  zile: ZiSlujba[],
-  opts: { dtstamp: string; locatie: string },
+export function generateIcs(
+  days: ServiceDay[],
+  opts: { dtstamp: string; location: string },
 ): string {
-  const linii: string[] = [
+  const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//Parohia Ortodoxa Romana Sfantul Nicolae Zurich//Program//RO',
@@ -1752,58 +1757,58 @@ export function genereazaIcs(
     ...VTIMEZONE,
   ];
 
-  // `inainte`, not localeCompare: ICU collation varies between Node builds and
+  // `compareDates`, not localeCompare: ICU collation varies between Node builds and
   // treats hyphens as variable-weight. schedule.ts exports one comparison
   // semantics for these strings; this module uses it rather than a second.
-  const sortate = [...zile].sort((a, b) => inainte(a.data, b.data));
+  const sorted = [...days].sort((a, b) => compareDates(a.date, b.date));
 
-  for (const z of sortate) {
-    const slujbe = [...z.slujbe].sort((a, b) => minute(a.ora) - minute(b.ora));
+  for (const z of sorted) {
+    const services = [...z.services].sort((a, b) => minutes(a.time) - minutes(b.time));
 
-    slujbe.forEach((s, i) => {
+    services.forEach((s, i) => {
       // The next service that starts STRICTLY later — not simply the next by
       // index. Two services can share a start time (17:00 Spovedanie during
-      // 17:00 Vecernie), and `slujbe[i + 1]` would give the first of them a
+      // 17:00 Vecernie), and `services[i + 1]` would give the first of them a
       // DTEND equal to its DTSTART. RFC 5545 §3.6.1 requires DTEND to be later
       // than DTSTART, and a zero-length VEVENT renders unpredictably — for a
       // parish, as a service that looks like it is not happening.
-      const urmatoarea = slujbe.slice(i + 1).find((u) => minute(u.ora) > minute(s.ora));
-      const sfarsit = urmatoarea
-        ? { data: z.data, ora: urmatoarea.ora }
-        : adaugaMinute(z.data, s.ora, DURATA_IMPLICITA);
+      const nextLater = services.slice(i + 1).find((u) => minutes(u.time) > minutes(s.time));
+      const end = nextLater
+        ? { date: z.date, time: nextLater.time }
+        : addMinutes(z.date, s.time, DEFAULT_DURATION);
 
-      const descriere = [
-        z.praznic,
-        z.zi_de_post ? 'zi de post' : undefined,
-        z.note,
+      const description = [
+        z.feast,
+        z.fast_day ? 'zi de post' : undefined,
+        z.notes,
       ].filter(Boolean).join(' · ');
 
-      linii.push(
+      lines.push(
         'BEGIN:VEVENT',
-        // HHMM, not HHMMSS — laOraIcs returns HHMM00, so the first four suffice.
+        // HHMM, not HHMMSS — toIcsTime returns HHMM00, so the first four suffice.
         // The slug is what keeps two services that share a start time apart:
         // 17:00 Spovedanie and 17:00 Vecernie are one ordinary parish evening,
         // and identical UIDs would make subscribers' calendars merge them.
-        `UID:${laDataIcs(z.data)}T${laOraIcs(s.ora).slice(0, 4)}-${slugSlujba(s)}@bor-zh.ch`,
+        `UID:${toIcsDate(z.date)}T${toIcsTime(s.time).slice(0, 4)}-${serviceSlug(s)}@bor-zh.ch`,
         `DTSTAMP:${opts.dtstamp}`,
-        `DTSTART;TZID=Europe/Zurich:${laDataIcs(z.data)}T${laOraIcs(s.ora)}`,
-        `DTEND;TZID=Europe/Zurich:${laDataIcs(sfarsit.data)}T${laOraIcs(sfarsit.ora)}`,
-        `SUMMARY:${escapeaza(etichetaSlujba(s))}`,
-        `LOCATION:${escapeaza(z.locatie || opts.locatie)}`,
+        `DTSTART;TZID=Europe/Zurich:${toIcsDate(z.date)}T${toIcsTime(s.time)}`,
+        `DTEND;TZID=Europe/Zurich:${toIcsDate(end.date)}T${toIcsTime(end.time)}`,
+        `SUMMARY:${escapeText(serviceLabel(s))}`,
+        `LOCATION:${escapeText(z.location || opts.location)}`,
       );
-      if (descriere) linii.push(`DESCRIPTION:${escapeaza(descriere)}`);
-      if (z.anulat) linii.push('STATUS:CANCELLED');
-      linii.push('END:VEVENT');
+      if (description) lines.push(`DESCRIPTION:${escapeText(description)}`);
+      if (z.cancelled) lines.push('STATUS:CANCELLED');
+      lines.push('END:VEVENT');
     });
   }
 
-  linii.push('END:VCALENDAR');
+  lines.push('END:VCALENDAR');
 
   // Fold once, uniformly, at the end. Folding as lines are pushed would leave
   // the header lines unfolded and make the 75-octet guarantee depend on nobody
   // ever lengthening X-WR-CALNAME. No raw line contains CRLF at this point,
   // because escapeaza has already turned newlines into a literal \n.
-  return linii.map(impatureste).join(CRLF) + CRLF;
+  return lines.map(fold).join(CRLF) + CRLF;
 }
 ```
 
@@ -1820,12 +1825,12 @@ Passing tests prove the bytes are right; only a calendar application proves the 
 import { writeFileSync } from 'node:fs';
 
 it('scrie un fișier de probă pentru verificare manuală', () => {
-  const z = zi('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']], {
-    praznic: 'Înălțarea Sfintei Cruci',
-    praznic_mare: true,
-    zi_de_post: true,
+  const z = day('2026-09-14', [['07:30', 'Utrenia'], ['08:30', 'Sfânta Liturghie']], {
+    feast: 'Înălțarea Sfintei Cruci',
+    great_feast: true,
+    fast_day: true,
   });
-  writeFileSync('/tmp/proba.ics', genereazaIcs([z], opts));
+  writeFileSync('/tmp/proba.ics', generateIcs([z], opts));
 });
 ```
 
@@ -1869,28 +1874,28 @@ Create `web/src/lib/contrast.test.ts`:
 
 ```typescript
 import { describe, expect, it } from 'vitest';
-import { raportContrast } from './contrast';
+import { contrastRatio } from './contrast';
 
 describe('raportContrast', () => {
   it('dă 21 pentru negru pe alb', () => {
-    expect(raportContrast('#000000', '#FFFFFF')).toBeCloseTo(21, 1);
+    expect(contrastRatio('#000000', '#FFFFFF')).toBeCloseTo(21, 1);
   });
 
   it('dă 1 pentru o culoare cu ea însăși', () => {
-    expect(raportContrast('#6B1F26', '#6B1F26')).toBeCloseTo(1, 5);
+    expect(contrastRatio('#6B1F26', '#6B1F26')).toBeCloseTo(1, 5);
   });
 
   it('este simetric', () => {
-    expect(raportContrast('#6B1F26', '#FAF6EE'))
-      .toBeCloseTo(raportContrast('#FAF6EE', '#6B1F26'), 5);
+    expect(contrastRatio('#6B1F26', '#FAF6EE'))
+      .toBeCloseTo(contrastRatio('#FAF6EE', '#6B1F26'), 5);
   });
 
   it('acceptă hex scurt', () => {
-    expect(raportContrast('#000', '#fff')).toBeCloseTo(21, 1);
+    expect(contrastRatio('#000', '#fff')).toBeCloseTo(21, 1);
   });
 
   it('confirmă că aurul ornamental pică testul', () => {
-    expect(raportContrast('#B08B3E', '#FAF6EE')).toBeLessThan(3);
+    expect(contrastRatio('#B08B3E', '#FAF6EE')).toBeLessThan(3);
   });
 });
 ```
@@ -1905,7 +1910,7 @@ Expected: FAIL — `Failed to resolve import "./contrast"`.
 Create `web/src/lib/contrast.ts`:
 
 ```typescript
-function canale(hex: string): [number, number, number] {
+function channels(hex: string): [number, number, number] {
   let h = hex.replace('#', '');
   if (h.length === 3) h = h.split('').map((c) => c + c).join('');
   if (!/^[0-9a-fA-F]{6}$/.test(h)) throw new Error(`Culoare invalidă: ${hex}`);
@@ -1913,16 +1918,16 @@ function canale(hex: string): [number, number, number] {
 }
 
 /** WCAG 2.1 relative luminance. */
-function luminanta(hex: string): number {
-  const [r, g, b] = canale(hex).map((c) =>
+function luminance(hex: string): number {
+  const [r, g, b] = channels(hex).map((c) =>
     c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
   );
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-export function raportContrast(a: string, b: string): number {
-  const la = luminanta(a);
-  const lb = luminanta(b);
+export function contrastRatio(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 ```
@@ -1938,26 +1943,26 @@ Create `web/src/lib/tokens.test.ts`:
 
 ```typescript
 import { describe, expect, it } from 'vitest';
-import { raportContrast } from './contrast';
-import { PALETA, ROLURI_TEXT, cssTokens } from './tokens';
+import { contrastRatio } from './contrast';
+import { PALETTE, TEXT_ROLES, cssTokens } from './tokens';
 
 describe('paleta', () => {
   it('folosește valorile din specificație', () => {
-    expect(PALETA.parchment).toBe('#FAF6EE');
-    expect(PALETA.oxblood).toBe('#6B1F26');
-    expect(PALETA['gold-text']).toBe('#8A6A28');
-    expect(PALETA.gold).toBe('#B08B3E');
+    expect(PALETTE.parchment).toBe('#FAF6EE');
+    expect(PALETTE.oxblood).toBe('#6B1F26');
+    expect(PALETTE['gold-text']).toBe('#8A6A28');
+    expect(PALETTE.gold).toBe('#B08B3E');
   });
 });
 
 describe('contrast pe fundalul de pergament', () => {
-  it.each(ROLURI_TEXT)('%s trece WCAG AA pentru text normal', (rol) => {
-    expect(raportContrast(PALETA[rol], PALETA.parchment)).toBeGreaterThanOrEqual(4.5);
+  it.each(TEXT_ROLES)('%s trece WCAG AA pentru text normal', (role) => {
+    expect(contrastRatio(PALETTE[role], PALETTE.parchment)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('aurul ornamental nu este trecut ca rol de text', () => {
-    expect(ROLURI_TEXT).not.toContain('gold');
-    expect(ROLURI_TEXT).not.toContain('gold-lt');
+    expect(TEXT_ROLES).not.toContain('gold');
+    expect(TEXT_ROLES).not.toContain('gold-lt');
   });
 });
 
@@ -1981,7 +1986,7 @@ Expected: FAIL — `Failed to resolve import "./tokens"`.
 Create `web/src/lib/tokens.ts`:
 
 ```typescript
-export const PALETA: Record<string, string> = {
+export const PALETTE: Record<string, string> = {
   parchment: '#FAF6EE',
   raised: '#FFFDF8',
   rule: '#E3D9C6',
@@ -2001,11 +2006,11 @@ export const PALETA: Record<string, string> = {
  * and the feast-row top rule. The approved mockups used `gold` for service
  * times; tokens.test.ts is what stops that regressing.
  */
-export const ROLURI_TEXT = ['oxblood', 'oxblood-dk', 'gold-text', 'ink', 'muted', 'faint'] as const;
+export const TEXT_ROLES = ['oxblood', 'oxblood-dk', 'gold-text', 'ink', 'muted', 'faint'] as const;
 
 export function cssTokens(): string {
-  const linii = Object.entries(PALETA).map(([k, v]) => `  --${k}: ${v};`);
-  return `:root {\n${linii.join('\n')}\n}`;
+  const lines = Object.entries(PALETTE).map(([k, v]) => `  --${k}: ${v};`);
+  return `:root {\n${lines.join('\n')}\n}`;
 }
 ```
 
@@ -2123,11 +2128,11 @@ import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 
 interface Props {
-  titlu: string;
-  descriere?: string;
+  title: string;
+  description?: string;
 }
 
-const { titlu, descriere = 'Parohia Ortodoxă Română Sfântul Nicolae din Zürich — program liturgic, noutăți și informații parohiale.' } = Astro.props;
+const { title, description = 'Parohia Ortodoxă Română Sfântul Nicolae din Zürich — program liturgic, noutăți și informații parohiale.' } = Astro.props;
 ---
 
 <!doctype html>
@@ -2135,8 +2140,8 @@ const { titlu, descriere = 'Parohia Ortodoxă Română Sfântul Nicolae din Zür
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>{titlu} · Parohia Sfântul Nicolae Zürich</title>
-    <meta name="description" content={descriere} />
+    <title>{title} · Parohia Sfântul Nicolae Zürich</title>
+    <meta name="description" content={description} />
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
     <link rel="alternate" type="text/calendar" href="/program.ics" title="Program liturgic" />
   </head>
@@ -2155,8 +2160,8 @@ Create `web/src/components/SiteHeader.astro`:
 
 ```astro
 ---
-const cale = Astro.url.pathname;
-const linkuri = [
+const path = Astro.url.pathname;
+const links = [
   { href: '/', text: 'Acasă' },
   { href: '/program/', text: 'Program' },
 ];
@@ -2173,9 +2178,9 @@ const linkuri = [
     </a>
     <nav aria-label="Navigare principală">
       <ul class="sh-nav">
-        {linkuri.map((l) => (
+        {links.map((l) => (
           <li>
-            <a href={l.href} aria-current={cale === l.href ? 'page' : undefined}>{l.text}</a>
+            <a href={l.href} aria-current={path === l.href ? 'page' : undefined}>{l.text}</a>
           </li>
         ))}
       </ul>
@@ -2255,49 +2260,49 @@ ornamental gold from the mockups (2.95:1) is excluded from text roles."
 ### Task 8: The /program page
 
 **Files:**
-- Create: `web/src/components/RandZi.astro`, `web/src/pages/program/index.astro`
+- Create: `web/src/components/DayRow.astro`, `web/src/pages/program/index.astro`
 
 **Interfaces:**
-- Consumes: `getCollection('slujbe')`; `grupeazaPeSaptamani`, `saptamaniViitoare` from `lib/schedule`; `aziLaZurich` from `lib/week`; `formatIntervalSaptamana`, `numeZi`, `numeLuna`, `ziuaDinLuna` from `lib/date-ro`.
-- Produces: `RandZi.astro` with props `{ zi: ZiSlujba }`. Each week section carries `data-saptamana={cheie}` — Task 10's script depends on that attribute name.
+- Consumes: `getCollection('services')`; `groupIntoWeeks`, `upcomingWeeks` from `lib/schedule`; `todayInZurich` from `lib/week`; `formatWeekRange`, `dayName`, `monthName`, `dayOfMonth` from `lib/date-ro`.
+- Produces: `DayRow.astro` with props `{ zi: ZiSlujba }`. Each week section carries `date-week={key}` — Task 10's script depends on that attribute name.
 
 - [ ] **Step 1: Write the day row component**
 
-Create `web/src/components/RandZi.astro`:
+Create `web/src/components/DayRow.astro`:
 
 ```astro
 ---
-import type { ZiSlujba } from '../lib/schema';
-import { numeLuna, numeZi, ziuaDinLuna } from '../lib/date-ro';
-import { etichetaSlujba } from '../lib/schedule';
+import type { ServiceDay } from '../lib/schema';
+import { monthName, dayName, dayOfMonth } from '../lib/date-ro';
+import { serviceLabel } from '../lib/schedule';
 
-interface Props { zi: ZiSlujba }
-const { zi } = Astro.props;
-const praznic = Boolean(zi.praznic_mare || zi.praznic);
+interface Props { day: ServiceDay }
+const { day } = Astro.props;
+const feast = Boolean(day.great_feast || day.feast);
 ---
 
-<div class:list={['rz', praznic && 'rz-praznic', zi.anulat && 'rz-anulat']}>
+<div class:list={['rz', feast && 'rz-praznic', day.cancelled && 'rz-anulat']}>
   <div class="rz-data">
-    <span class="rz-zi">{numeZi(zi.data)}</span>
-    <span class="rz-nr">{ziuaDinLuna(zi.data)}</span>
-    <span class="rz-luna">{numeLuna(zi.data)}</span>
+    <span class="rz-zi">{dayName(day.date)}</span>
+    <span class="rz-nr">{dayOfMonth(day.date)}</span>
+    <span class="rz-luna">{monthName(day.date)}</span>
   </div>
   <div>
-    {zi.anulat && <p class="rz-anulat-txt">Slujbele acestei zile sunt anulate.</p>}
-    {zi.slujbe.map((s) => (
+    {day.cancelled && <p class="rz-anulat-txt">Slujbele acestei days sunt cancelled.</p>}
+    {day.services.map((s) => (
       <div class="rz-slujba">
-        <b>{s.ora}</b>
-        <span>{etichetaSlujba(s)}</span>
+        <b>{s.time}</b>
+        <span>{serviceLabel(s)}</span>
       </div>
     ))}
-    {zi.praznic && (
+    {day.feast && (
       <p class="rz-praznic-txt">
-        {zi.praznic_mare && <span aria-hidden="true">† </span>}{zi.praznic}
-        {zi.zi_de_post && <span class="rz-post">Zi de post</span>}
+        {day.great_feast && <span aria-hidden="true">† </span>}{zi.praznic}
+        {day.fast_day && <span class="rz-post">Zi de post</span>}
       </p>
     )}
-    {!zi.praznic && zi.zi_de_post && <p class="rz-praznic-txt"><span class="rz-post">Zi de post</span></p>}
-    {zi.note && <p class="rz-note">{zi.note}</p>}
+    {!day.feast && day.fast_day && <p class="rz-praznic-txt"><span class="rz-post">Zi de post</span></p>}
+    {day.notes && <p class="rz-note">{day.notes}</p>}
   </div>
 </div>
 
@@ -2308,19 +2313,19 @@ const praznic = Boolean(zi.praznic_mare || zi.praznic);
      `incomplete`, which `npm run a11y` treats as a failure — so a gradient here would
      turn the feast row, the one row that matters most, into an unverifiable surface.
      The gradient's own contribution measured 1.06:1 against the page, so nothing is lost. */
-  .rz-praznic { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
-  .rz-anulat { opacity: 0.75; }
-  .rz-zi { display: block; font-family: var(--display); font-size: 0.6875rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
-  .rz-nr { display: block; font-family: var(--display); font-size: 1.875rem; line-height: 1.05; color: var(--ink); }
-  .rz-luna { display: block; font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
-  .rz-slujba { display: grid; grid-template-columns: 3.5rem 1fr; gap: 0.75rem; padding-block: 0.15rem; align-items: baseline; }
-  .rz-slujba b { font-family: var(--display); font-size: 1.0625rem; font-weight: 600; color: var(--gold-text); }
-  .rz-praznic-txt { font-family: var(--display); font-style: italic; font-size: 1.0625rem; color: var(--oxblood); margin: 0.5rem 0 0; }
+  .rz-feast { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
+  .rz-cancelled { opacity: 0.75; }
+  .rz-day { display: block; font-family: var(--display); font-size: 0.6875rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
+  .rz-count { display: block; font-family: var(--display); font-size: 1.875rem; line-height: 1.05; color: var(--ink); }
+  .rz-month { display: block; font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+  .rz-service { display: grid; grid-template-columns: 3.5rem 1fr; gap: 0.75rem; padding-block: 0.15rem; align-items: baseline; }
+  .rz-service b { font-family: var(--display); font-size: 1.0625rem; font-weight: 600; color: var(--gold-text); }
+  .rz-feast-txt { font-family: var(--display); font-style: italic; font-size: 1.0625rem; color: var(--oxblood); margin: 0.5rem 0 0; }
   .rz-post { display: inline-block; font-family: var(--body); font-style: normal; font-size: 0.625rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.4rem; margin-left: 0.5rem; vertical-align: middle; }
-  .rz-note, .rz-anulat-txt { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
+  .rz-notes, .rz-cancelled-txt { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
   @media (max-width: 34rem) {
     .rz { grid-template-columns: 4rem 1fr; gap: 0.75rem; }
-    .rz-luna { display: none; }
+    .rz-month { display: none; }
   }
 </style>
 ```
@@ -2333,30 +2338,30 @@ Create `web/src/pages/program/index.astro`:
 ---
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
-import RandZi from '../../components/RandZi.astro';
-import { formatIntervalSaptamana } from '../../lib/date-ro';
-import { grupeazaPeSaptamani } from '../../lib/schedule';
-import { aziLaZurich, inceputSaptamana } from '../../lib/week';
+import DayRow from '../../components/DayRow.astro';
+import { formatWeekRange } from '../../lib/date-ro';
+import { groupIntoWeeks } from '../../lib/schedule';
+import { todayInZurich, weekStart } from '../../lib/week';
 
-const intrari = await getCollection('slujbe');
-const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
+const entries = await getCollection('slujbe');
+const days = entries.map((e) => ({ ...e.date, date: e.id }));
 
-const lunea = inceputSaptamana(aziLaZurich());
-const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
+const monday = weekStart(todayInZurich());
+const weeks = groupIntoWeeks(days).filter((s) => s.sunday >= monday);
 ---
 
-<Base titlu="Program liturgic" descriere="Programul slujbelor la Parohia Ortodoxă Română Sfântul Nicolae din Zürich.">
+<Base title="Program liturgic" description="Programul slujbelor la Parohia Ortodoxă Română Sfântul Nicolae din Zürich.">
   <div class="container">
     <p class="eyebrow" style="margin-top:2rem">Informații parohiale</p>
     <h1>Program liturgic</h1>
 
-    {saptamani.length === 0 ? (
-      <p class="gol">Programul următoarei perioade nu a fost încă publicat.</p>
+    {weeks.length === 0 ? (
+      <p class="gol">Programul nextOneătoarei perioade nu a fost încă published.</p>
     ) : (
-      saptamani.map((s) => (
-        <section data-saptamana={s.cheie} aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}>
-          <h2 class="sapt">{formatIntervalSaptamana(s.luni, s.duminica)}</h2>
-          {s.zile.map((z) => <RandZi zi={z} />)}
+      weeks.map((s) => (
+        <section date-week={s.key} aria-label={`Săptămâna ${formatWeekRange(s.monday, s.sunday)}`}>
+          <h2 class="sapt">{formatWeekRange(s.monday, s.sunday)}</h2>
+          {s.days.map((z) => <DayRow day={z} />)}
         </section>
       ))
     )}
@@ -2367,7 +2372,7 @@ const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
 
 <style>
   .sapt { font-size: 1.375rem; margin-block: 2rem 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--rule); }
-  .gol { color: var(--muted); font-style: italic; }
+  .empty { color: var(--muted); font-style: italic; }
   .abonare { margin-block: 2rem; }
   .abonare a { display: inline-block; border: 1px solid var(--gold-lt); color: var(--oxblood); text-decoration: none; font-size: 0.8125rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.75rem 1.25rem; }
 </style>
@@ -2385,7 +2390,7 @@ Confirm diacritics with the reference string from Task 7: `Înălțarea`, `Sfân
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/components/RandZi.astro src/pages/program/index.astro
+git add src/components/DayRow.astro src/pages/program/index.astro
 git commit -m "feat: /program page with feast and fast-day marking"
 ```
 
@@ -2394,60 +2399,60 @@ git commit -m "feat: /program page with feast and fast-day marking"
 ### Task 9: The program-first homepage
 
 **Files:**
-- Create: `web/src/components/BandaSaptamanii.astro`
+- Create: `web/src/components/WeekBand.astro`
 - Modify: `web/src/pages/index.astro` (replace the scaffold contents entirely)
 
 **Interfaces:**
-- Consumes: the same helpers as Task 8, plus `urmatoareaSlujba` from `lib/schedule`.
-- Produces: `BandaSaptamanii.astro` with props `{ saptamana: Saptamana }`. The homepage renders **three** weeks, each in a `<section data-saptamana>`.
+- Consumes: the same helpers as Task 8, plus `nextService` from `lib/schedule`.
+- Produces: `WeekBand.astro` with props `{ saptamana: Saptamana }`. The homepage renders **three** weeks, each in a `<section data-saptamana>`.
 
 Three weeks, not the full window: the homepage has a 30 KB HTML budget (Global Constraints) and three weeks is roughly 3 KB. `/program` carries the full list.
 
 - [ ] **Step 1: Write the week band**
 
-Create `web/src/components/BandaSaptamanii.astro`:
+Create `web/src/components/WeekBand.astro`:
 
 ```astro
 ---
-import type { Saptamana } from '../lib/schedule';
-import { etichetaSlujba } from '../lib/schedule';
-import { numeZi, ziuaDinLuna } from '../lib/date-ro';
+import type { Week } from '../lib/schedule';
+import { serviceLabel } from '../lib/schedule';
+import { dayName, dayOfMonth } from '../lib/date-ro';
 
-interface Props { saptamana: Saptamana }
-const { saptamana } = Astro.props;
+interface Props { week: Week }
+const { week } = Astro.props;
 ---
 
 <div class="bs">
-  {saptamana.zile.map((z) => (
-    <div class:list={['bs-zi', (z.praznic_mare || z.praznic) && 'bs-praznic']}>
+  {week.days.map((z) => (
+    <div class:list={['bs-zi', (z.great_feast || z.feast) && 'bs-praznic']}>
       <div class="bs-cap">
-        <span class="bs-nume">{numeZi(z.data)}</span>
-        <span class="bs-nr">{ziuaDinLuna(z.data)}</span>
+        <span class="bs-nume">{dayName(z.date)}</span>
+        <span class="bs-nr">{dayOfMonth(z.date)}</span>
       </div>
-      {z.anulat ? (
+      {z.cancelled ? (
         <p class="bs-anulat">Anulat</p>
       ) : (
-        z.slujbe.map((s) => (
-          <p class="bs-slujba"><b>{s.ora}</b>{etichetaSlujba(s)}</p>
+        z.services.map((s) => (
+          <p class="bs-slujba"><b>{s.time}</b>{etichetaSlujba(s)}</p>
         ))
       )}
-      {z.praznic && <p class="bs-praznic-txt">{z.praznic_mare && <span aria-hidden="true">† </span>}{z.praznic}</p>}
-      {z.zi_de_post && <p class="bs-post">Zi de post</p>}
+      {z.feast && <p class="bs-praznic-txt">{z.great_feast && <span aria-hidden="true">† </span>}{z.praznic}</p>}
+      {z.fast_day && <p class="bs-post">Zi de post</p>}
     </div>
   ))}
 </div>
 
 <style>
   .bs { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); border-top: 1px solid var(--rule); }
-  .bs-zi { padding: 0.875rem 0.875rem 1.125rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
-  .bs-praznic { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
-  .bs-nume { font-family: var(--display); font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); display: block; }
-  .bs-nr { font-family: var(--display); font-size: 1.5rem; line-height: 1.05; color: var(--oxblood); display: block; margin-bottom: 0.4rem; }
-  .bs-slujba { margin: 0; font-size: 0.8125rem; line-height: 1.5; }
-  .bs-slujba b { color: var(--gold-text); font-weight: 600; margin-right: 0.4rem; }
-  .bs-praznic-txt { font-family: var(--display); font-style: italic; font-size: 0.8125rem; color: var(--oxblood); margin: 0.4rem 0 0; }
+  .bs-day { padding: 0.875rem 0.875rem 1.125rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  .bs-feast { background: var(--raised); box-shadow: inset 0 2px 0 var(--gold-lt); }
+  .bs-name { font-family: var(--display); font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); display: block; }
+  .bs-count { font-family: var(--display); font-size: 1.5rem; line-height: 1.05; color: var(--oxblood); display: block; margin-bottom: 0.4rem; }
+  .bs-service { margin: 0; font-size: 0.8125rem; line-height: 1.5; }
+  .bs-service b { color: var(--gold-text); font-weight: 600; margin-right: 0.4rem; }
+  .bs-feast-txt { font-family: var(--display); font-style: italic; font-size: 0.8125rem; color: var(--oxblood); margin: 0.4rem 0 0; }
   .bs-post { font-size: 0.5625rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--oxblood); border: 1px solid var(--rule); padding: 0.05rem 0.35rem; display: inline-block; margin: 0.4rem 0 0; }
-  .bs-anulat { margin: 0; font-size: 0.8125rem; color: var(--muted); font-style: italic; }
+  .bs-cancelled { margin: 0; font-size: 0.8125rem; color: var(--muted); font-style: italic; }
 </style>
 ```
 
@@ -2459,46 +2464,46 @@ Replace `web/src/pages/index.astro` entirely:
 ---
 import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
-import BandaSaptamanii from '../components/BandaSaptamanii.astro';
-import { formatIntervalSaptamana, numeLuna, numeZi, ziuaDinLuna } from '../lib/date-ro';
-import { etichetaSlujba, saptamaniViitoare, urmatoareaSlujba } from '../lib/schedule';
-import { aziLaZurich, oraLaZurich } from '../lib/week';
+import WeekBand from '../components/WeekBand.astro';
+import { formatWeekRange, monthName, dayName, dayOfMonth } from '../lib/date-ro';
+import { serviceLabel, upcomingWeeks, nextService } from '../lib/schedule';
+import { todayInZurich, timeInZurich } from '../lib/week';
 
-const intrari = await getCollection('slujbe');
-const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
+const entries = await getCollection('slujbe');
+const days = entries.map((e) => ({ ...e.date, date: e.id }));
 
-const azi = aziLaZurich();
-const saptamani = saptamaniViitoare(zile, azi, 3);
-const urmatoarea = urmatoareaSlujba(zile, azi, oraLaZurich());
+const today = todayInZurich();
+const weeks = upcomingWeeks(days, today, 3);
+const nextLater = nextService(days, today, timeInZurich());
 ---
 
-<Base titlu="Bine ați venit">
+<Base title="Bine ați venit">
   <section class="hero">
     <div class="container hero-in">
       <p class="hero-kick">Wehntalerstrasse 451 · 8046 Zürich</p>
       <h1>Bine ați venit în casa Domnului</h1>
-      <p class="hero-verset">„Căutați mai întâi împărăția lui Dumnezeu și dreptatea Lui” — Matei 6:33</p>
+      <p class="hero-verset">„Căutați more întâi împărăția lui Dumnezeu și dreptatea Lui” — Matei 6:33</p>
     </div>
   </section>
 
   <div class="container">
-    {urmatoarea && (
+    {nextLater && (
       <p class="urm">
         <span class="eyebrow">Următoarea slujbă</span>
-        <b>{numeZi(urmatoarea.data)}, {ziuaDinLuna(urmatoarea.data)} {numeLuna(urmatoarea.data)}</b>
-        <span>{urmatoarea.ora} — {etichetaSlujba(urmatoarea)}</span>
+        <b>{dayName(nextLater.date)}, {dayOfMonth(nextLater.date)} {monthName(nextLater.date)}</b>
+        <span>{nextLater.time} — {serviceLabel(nextLater)}</span>
       </p>
     )}
 
     <h2 class="titlu-sect">Programul săptămânii</h2>
 
-    {saptamani.length === 0 ? (
-      <p class="gol">Programul următoarei perioade nu a fost încă publicat. <a href="/program/">Vezi programul complet</a>.</p>
+    {weeks.length === 0 ? (
+      <p class="gol">Programul nextOneătoarei perioade nu a fost încă published. <a href="/program/">Vezi programul complet</a>.</p>
     ) : (
-      saptamani.map((s) => (
-        <section data-saptamana={s.cheie} aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}>
-          <p class="interval">{formatIntervalSaptamana(s.luni, s.duminica)}</p>
-          <BandaSaptamanii saptamana={s} />
+      weeks.map((s) => (
+        <section date-week={s.key} aria-label={`Săptămâna ${formatWeekRange(s.monday, s.sunday)}`}>
+          <p class="interval">{formatWeekRange(s.monday, s.sunday)}</p>
+          <WeekBand week={s} />
         </section>
       ))
     )}
@@ -2513,13 +2518,13 @@ const urmatoarea = urmatoareaSlujba(zile, azi, oraLaZurich());
   .hero-kick { font-size: 0.625rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold-lt); margin: 0 0 0.75rem; }
   .hero h1 { color: var(--parchment); font-size: clamp(1.875rem, 5vw, 2.75rem); font-weight: 500; }
   .hero-verset { font-style: italic; color: var(--rule); max-width: var(--masura); margin: 0.75rem 0 0; }
-  .urm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; border: 1px solid var(--gold-lt); background: var(--raised); padding: 1rem 1.25rem; margin-block: 1.75rem 0; }
-  .urm b { font-family: var(--display); font-size: 1.25rem; color: var(--oxblood); }
-  .urm > span:last-child { color: var(--muted); }
-  .titlu-sect { font-size: 1.375rem; margin-block: 2rem 0.25rem; }
+  .nextOne { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem; border: 1px solid var(--gold-lt); background: var(--raised); padding: 1rem 1.25rem; margin-block: 1.75rem 0; }
+  .nextOne b { font-family: var(--display); font-size: 1.25rem; color: var(--oxblood); }
+  .nextOne > span:last-child { color: var(--muted); }
+  .title-sect { font-size: 1.375rem; margin-block: 2rem 0.25rem; }
   .interval { font-family: var(--display); font-size: 1.0625rem; color: var(--faint); margin: 0 0 0.75rem; }
-  .gol { color: var(--muted); font-style: italic; }
-  .tot { margin-block: 1.75rem 0; }
+  .empty { color: var(--muted); font-style: italic; }
+  .allText { margin-block: 1.75rem 0; }
 </style>
 ```
 
@@ -2536,7 +2541,7 @@ Expected: under 46,080 bytes. The stylesheet is inlined into the document by `in
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/components/BandaSaptamanii.astro src/pages/index.astro
+git add src/components/WeekBand.astro src/pages/index.astro
 git commit -m "feat: program-first homepage with next-service card"
 ```
 
@@ -2545,15 +2550,15 @@ git commit -m "feat: program-first homepage with next-service card"
 ### Task 10: Week selection without a rebuild
 
 **Files:**
-- Create: `web/src/lib/week-picker.ts`, `web/src/components/SelectorSaptamana.astro`
+- Create: `web/src/lib/week-picker.ts`, `web/src/components/WeekPicker.astro`
 - Test: `web/src/lib/week-picker.test.ts`
 - Modify: `web/src/pages/index.astro`, `web/src/pages/program/index.astro`
 
 **Interfaces:**
-- Consumes: `cheieSaptamana`, `aziLaZurich` from `lib/week`.
+- Consumes: `weekKey`, `todayInZurich` from `lib/week`.
 - Produces: `alegeSaptamana(chei: string[], cheieAzi: string): number` — index of the week to reveal, or `-1` if every week is in the past.
 
-This is the answer to spec §7. The pure decision lives in a tested function; the DOM wiring is short enough to read at a glance. See "Deviations from the spec" for why there is no `date.json`.
+This is the answer to spec §7. The pure decision lives in a tested function; the DOM wiring is short enough to read at a glance. See "Deviations from the spec" for why there is no `data.json`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2561,39 +2566,39 @@ Create `web/src/lib/week-picker.test.ts`:
 
 ```typescript
 import { describe, expect, it } from 'vitest';
-import { alegeSaptamana } from './week-picker';
+import { pickWeek } from './week-picker';
 
-const chei = ['2026-W38', '2026-W39', '2026-W40'];
+const keys = ['2026-W38', '2026-W39', '2026-W40'];
 
 describe('alegeSaptamana', () => {
   it('alege săptămâna curentă când există', () => {
-    expect(alegeSaptamana(chei, '2026-W39')).toBe(1);
+    expect(pickWeek(keys, '2026-W39')).toBe(1);
   });
 
   it('alege prima săptămână viitoare când cea curentă lipsește', () => {
-    expect(alegeSaptamana(['2026-W38', '2026-W41'], '2026-W39')).toBe(1);
+    expect(pickWeek(['2026-W38', '2026-W41'], '2026-W39')).toBe(1);
   });
 
   it('alege prima săptămână când toate sunt în viitor', () => {
-    expect(alegeSaptamana(chei, '2026-W30')).toBe(0);
+    expect(pickWeek(keys, '2026-W30')).toBe(0);
   });
 
   it('întoarce -1 când toate săptămânile sunt în trecut', () => {
-    expect(alegeSaptamana(chei, '2026-W45')).toBe(-1);
+    expect(pickWeek(keys, '2026-W45')).toBe(-1);
   });
 
   it('întoarce -1 pentru o listă goală', () => {
-    expect(alegeSaptamana([], '2026-W39')).toBe(-1);
+    expect(pickWeek([], '2026-W39')).toBe(-1);
   });
 
   it('compară corect peste granița de an', () => {
     // String comparison works because the key is zero-padded ISO year + week.
-    expect(alegeSaptamana(['2026-W52', '2027-W01'], '2027-W01')).toBe(1);
-    expect(alegeSaptamana(['2026-W52', '2027-W01'], '2026-W53')).toBe(1);
+    expect(pickWeek(['2026-W52', '2027-W01'], '2027-W01')).toBe(1);
+    expect(pickWeek(['2026-W52', '2027-W01'], '2026-W53')).toBe(1);
   });
 
   it('compară corect săptămânile cu o cifră', () => {
-    expect(alegeSaptamana(['2026-W06', '2026-W10'], '2026-W07')).toBe(1);
+    expect(pickWeek(['2026-W06', '2026-W10'], '2026-W07')).toBe(1);
   });
 });
 ```
@@ -2613,11 +2618,11 @@ Create `web/src/lib/week-picker.ts`:
  * future one, else -1 when every rendered week has passed.
  *
  * Keys are `YYYY-Www` with a zero-padded week number, so lexical comparison is
- * chronological — that is why cheieSaptamana pads.
+ * chronological — that is why weekKey pads.
  */
-export function alegeSaptamana(chei: string[], cheieAzi: string): number {
-  for (let i = 0; i < chei.length; i += 1) {
-    if (chei[i] >= cheieAzi) return i;
+export function pickWeek(keys: string[], todayKey: string): number {
+  for (let i = 0; i < keys.length; i += 1) {
+    if (keys[i] >= todayKey) return i;
   }
   return -1;
 }
@@ -2630,7 +2635,7 @@ Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Write the component**
 
-Create `web/src/components/SelectorSaptamana.astro`:
+Create `web/src/components/WeekPicker.astro`:
 
 ```astro
 ---
@@ -2645,37 +2650,37 @@ Create `web/src/components/SelectorSaptamana.astro`:
 </div>
 
 <script>
-  import { alegeSaptamana } from '../lib/week-picker';
-  import { aziLaZurich, cheieSaptamana } from '../lib/week';
+  import { pickWeek } from '../lib/week-picker';
+  import { todayInZurich, weekKey } from '../lib/week';
 
-  const bara = document.querySelector<HTMLElement>('.ss');
-  const sectiuni = [...document.querySelectorAll<HTMLElement>('section[data-saptamana]')];
+  const bar = document.querySelector<HTMLElement>('.ss');
+  const sections = [...document.querySelectorAll<HTMLElement>('section[data-saptamana]')];
 
-  if (bara && sectiuni.length > 0) {
-    const chei = sectiuni.map((s) => s.dataset.saptamana!);
-    const start = alegeSaptamana(chei, cheieSaptamana(aziLaZurich()));
+  if (bar && sections.length > 0) {
+    const keys = sections.map((s) => s.dataset.week!);
+    const start = pickWeek(keys, weekKey(todayInZurich()));
 
     // Every week stays visible when all of them are in the past, and when
     // JavaScript never runs at all. Hiding is the enhancement, not the baseline.
     if (start !== -1) {
       let i = start;
-      const eticheta = bara.querySelector<HTMLElement>('[data-ss-eticheta]')!;
-      const prev = bara.querySelector<HTMLButtonElement>('[data-ss-prev]')!;
-      const next = bara.querySelector<HTMLButtonElement>('[data-ss-next]')!;
+      const label = bar.querySelector<HTMLElement>('[data-ss-eticheta]')!;
+      const prev = bar.querySelector<HTMLButtonElement>('[data-ss-prev]')!;
+      const next = bar.querySelector<HTMLButtonElement>('[data-ss-next]')!;
 
-      const arata = () => {
-        sectiuni.forEach((s, j) => { s.hidden = j !== i; });
-        const titlu = sectiuni[i].getAttribute('aria-label') ?? '';
-        eticheta.textContent = titlu.replace(/^Săptămâna\s*/, '');
+      const show = () => {
+        sections.forEach((s, j) => { s.hidden = j !== i; });
+        const title = sections[i].getAttribute('aria-label') ?? '';
+        label.textContent = title.replace(/^Săptămâna\s*/, '');
         prev.disabled = i === 0;
-        next.disabled = i === sectiuni.length - 1;
+        next.disabled = i === sections.length - 1;
       };
 
-      prev.addEventListener('click', () => { if (i > 0) { i -= 1; arata(); } });
-      next.addEventListener('click', () => { if (i < sectiuni.length - 1) { i += 1; arata(); } });
+      prev.addEventListener('click', () => { if (i > 0) { i -= 1; show(); } });
+      next.addEventListener('click', () => { if (i < sections.length - 1) { i += 1; show(); } });
 
-      bara.hidden = false;
-      arata();
+      bar.hidden = false;
+      show();
     }
   }
 </script>
@@ -2692,25 +2697,25 @@ Create `web/src/components/SelectorSaptamana.astro`:
 
 Spec §7 exists because a static build cannot know what "next" means. The plan solved that for the week band and left the **card** outside the solution — so it announces whatever was next at build time. At 20:00 on a Sunday it reads "următoarea slujbă · Duminică 20 · 10:00", ten hours after that Liturgy ended. A wrong time under a heading that promises the next one is the worst output this site can produce, and the nightly rebuild does not fix it: from 03:00 onward the card is simply frozen at 03:00.
 
-The script already reads the clock, so it should own this too. Emit the upcoming services as an inline `<script type="application/json">` island — date, `ora`, `slujba`, `detaliu`, `anulat` — and have the script recompute the card the same way `urmatoareaSlujba` does: earliest service at or after now, skipping cancelled days, **including every service that shares that earliest time**. Three weeks of services is well under a kilobyte; measure it against the ≤3 KB JS budget rather than assuming.
+The script already reads the clock, so it should own this too. Emit the upcoming services as an inline `<script type="application/json">` island — date, `time`, `service`, `detail`, `cancelled` — and have the script recompute the card the same way `nextService` does: earliest service at or after now, skipping cancelled days, **including every service that shares that earliest time**. Three weeks of services is well under a kilobyte; measure it against the ≤3 KB JS budget rather than assuming.
 
 Without JavaScript the card keeps its build-time value, which Task 13 bounds by rebuilding every six hours. Say that in a comment so the limit is a decision rather than an oversight.
 
 - [ ] **Step 6: Wire it into both pages**
 
-The component finds the week sections itself via `section[data-saptamana]`, so it takes no props — it only needs to be placed above them.
+The component finds the week sections itself via `section[date-week]`, so it takes no props — it only needs to be placed above them.
 
-In `web/src/pages/program/index.astro`, add the import after the `RandZi` import:
+In `web/src/pages/program/index.astro`, add the import after the `DayRow` import:
 
 ```astro
-import SelectorSaptamana from '../../components/SelectorSaptamana.astro';
+import WeekPicker from '../../components/WeekPicker.astro';
 ```
 
-and insert the component immediately before the `saptamani.map(...)` block, changing:
+and insert the component immediately before the `weeks.map(...)` block, changing:
 
 ```astro
     ) : (
-      saptamani.map((s) => (
+      weeks.map((s) => (
 ```
 
 to:
@@ -2718,8 +2723,8 @@ to:
 ```astro
     ) : (
       <>
-        <SelectorSaptamana />
-        {saptamani.map((s) => (
+        <WeekPicker />
+        {weeks.map((s) => (
 ```
 
 and closing the fragment after the map — the block ends `))}</>`  instead of `))`:
@@ -2730,7 +2735,7 @@ and closing the fragment after the map — the block ends `))}</>`  instead of `
     )}
 ```
 
-Apply the identical three changes to `web/src/pages/index.astro`, with the import path `'../components/SelectorSaptamana.astro'`.
+Apply the identical three changes to `web/src/pages/index.astro`, with the import path `'../components/WeekPicker.astro'`.
 
 - [ ] **Step 7: Verify both paths**
 
@@ -2756,7 +2761,7 @@ crossing the inline threshold fails the build instead of quietly changing how th
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/lib/week-picker.ts src/lib/week-picker.test.ts src/components/SelectorSaptamana.astro src/pages/index.astro src/pages/program/index.astro
+git add src/lib/week-picker.ts src/lib/week-picker.test.ts src/components/WeekPicker.astro src/pages/index.astro src/pages/program/index.astro
 git commit -m "feat: reveal the current week client-side, correct without JS
 
 All rendered weeks are in the HTML; the script hides the irrelevant ones.
@@ -2773,12 +2778,12 @@ even if every build fails."
 - Test: `web/src/lib/build-output.itest.ts`
 
 **Interfaces:**
-- Consumes: `genereazaIcs` from `lib/ics`; `getCollection`.
+- Consumes: `generateIcs` from `lib/ics`; `getCollection`.
 - Produces: `dist/program.ics` at build time.
 
 The test here reads `dist/`, so it runs only after a build. It is the one integration test in Phase 1: it proves the collection, the schema and the generator are wired together, which no unit test can.
 
-**Do not assert a specific week key in the HTML.** The homepage and `/program/` render only the current and future weeks, so `expect(html).toContain('data-saptamana="2026-W38"')` would pass today and start failing on 21 September 2026 — a test that fails for a reason unrelated to any change anyone made. Date-specific assertions belong on the `.ics`, which emits every seeded day regardless of the build date.
+**Do not assert a specific week key in the HTML.** The homepage and `/program/` render only the current and future weeks, so `expect(html).toContain('date-week="2026-W38"')` would pass today and start failing on 21 September 2026 — a test that fails for a reason unrelated to any change anyone made. Date-specific assertions belong on the `.ics`, which emits every seeded day regardless of the build date.
 
 - [ ] **Step 1: Write the endpoint**
 
@@ -2787,20 +2792,20 @@ Create `web/src/pages/program.ics.ts`:
 ```typescript
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
-import { genereazaIcs } from '../lib/ics';
+import { generateIcs } from '../lib/ics';
 
-const LOCATIE = 'Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich';
+const LOCATION = 'Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich';
 
 export const GET: APIRoute = async () => {
-  const intrari = await getCollection('slujbe');
-  const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
+  const entries = await getCollection('slujbe');
+  const days = entries.map((e) => ({ ...e.date, date: e.id }));
 
-  // genereazaIcs does not validate dtstamp — it is a parameter precisely so output
+  // generateIcs does not validate dtstamp — it is a parameter precisely so output
   // is deterministic in tests, which means this call site owns its correctness.
   // Must be exactly YYYYMMDDTHHMMSSZ.
   const dtstamp = `${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`;
 
-  return new Response(genereazaIcs(zile, { dtstamp, locatie: LOCATIE }), {
+  return new Response(generateIcs(days, { dtstamp, location: LOCATION }), {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': 'inline; filename="program-liturgic.ics"',
@@ -2842,13 +2847,13 @@ describe('ieșirea build-ului', () => {
   it('feed-ul păstrează diacriticele cu virgulă dedesubt', () => {
     const ics = readFileSync(`${DIST}program.ics`, 'utf8');
     expect(ics).toContain('Înălțarea Sfintei Cruci');
-    expect(cedileIn(ics)).toEqual([]); // cele patru, ca numere, din src/lib/cedile.ts
+    expect(cedillasIn(ics)).toEqual([]); // cele patru, ca numere, din src/lib/cedilla.ts
   });
 
   it('feed-ul respectă limita de 75 de octeți pe linie', () => {
     const ics = readFileSync(`${DIST}program.ics`, 'utf8');
-    for (const linie of ics.split('\r\n')) {
-      expect(new TextEncoder().encode(linie).length).toBeLessThanOrEqual(75);
+    for (const line of ics.split('\r\n')) {
+      expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
     }
   });
 
@@ -2863,7 +2868,7 @@ describe('ieșirea build-ului', () => {
       const html = readFileSync(`${DIST}${p}`, 'utf8');
       expect(html).toContain('<html lang="ro"');
       expect(html).toContain('Sfântul Nicolae');
-      expect(cedileIn(html)).toEqual([]);
+      expect(cedillasIn(html)).toEqual([]);
     }
   });
 
@@ -2877,9 +2882,9 @@ describe('ieșirea build-ului', () => {
       const hrefs = [...html.matchAll(/(?:href|src)="([^"]*\.ics)"/g)].map((m) => m[1]);
       expect(hrefs.length).toBeGreaterThan(0);
       for (const href of hrefs) {
-        const tinta = `${DIST}${href.replace(/^\//, '')}`;
-        expect(existsSync(tinta), `${p} trimite la ${href}, care nu există`).toBe(true);
-        expect(readFileSync(tinta, 'utf8').length).toBeGreaterThan(0);
+        const target = `${DIST}${href.replace(/^\//, '')}`;
+        expect(existsSync(target), `${p} trimite la ${href}, care nu există`).toBe(true);
+        expect(readFileSync(target, 'utf8').length).toBeGreaterThan(0);
       }
     }
   });
@@ -2948,7 +2953,7 @@ git commit -m "feat: /program.ics endpoint with build-output integration test"
 - Modify: `web/package.json` (prebuild hook), `web/.gitignore`
 
 **Interfaces:**
-- Consumes: the `slujbe` collection layout from Task 4 — the CMS writes files that `content.config.ts` reads, so the field names must match the Zod schema exactly.
+- Consumes: the `services` collection layout from Task 4 — the CMS writes files that `content.config.ts` reads, so the field names must match the Zod schema exactly.
 - Produces: a working `/admin/` that commits to `main`.
 
 Sveltia is loaded from the repo, not a CDN, so the CSP in Task 13 can stay at `script-src 'self'`. The bundle is copied from `node_modules` at build time and is git-ignored.
@@ -2971,12 +2976,12 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const sursa = require.resolve('@sveltia/cms');
+const source = require.resolve('@sveltia/cms');
 
 mkdirSync('public/admin', { recursive: true });
-copyFileSync(sursa, 'public/admin/sveltia-cms.mjs');
+copyFileSync(source, 'public/admin/sveltia-cms.mjs');
 
-console.log(`CMS copiat din ${sursa}`);
+console.log(`CMS copiat din ${source}`);
 ```
 
 - [ ] **Step 3: Hook it into the build**
@@ -3034,72 +3039,72 @@ public_folder: /uploads
 locale: ro
 
 collections:
-  - name: slujbe
+  - name: services
     label: Program liturgic
     label_singular: Zi de slujbă
-    folder: src/content/slujbe
+    folder: src/content/services
     extension: yml
     format: yaml
     create: true
     delete: true
-    slug: '{{fields.data}}'
-    identifier_field: data
-    sortable_fields: [data]
-    summary: '{{data}} — {{praznic}}'
+    slug: '{{fields.date}}'
+    identifier_field: date
+    sortable_fields: [date]
+    summary: '{{date}} — {{feast}}'
     description: >
       Fiecare intrare este o zi cu slujbe. Pentru o săptămână obișnuită,
       deschideți ziua din săptămâna trecută, apăsați „Duplicate" și schimbați
       data. Zilele trecute dispar singure de pe site.
     fields:
-      - name: data
+      - name: date
         label: Data
         widget: datetime
         date_format: YYYY-MM-DD
         time_format: false
         picker_utc: false
-      - name: praznic
+      - name: feast
         label: Praznic sau sărbătoare
         widget: string
         required: false
         hint: Lăsați gol pentru o zi obișnuită.
-      - name: praznic_mare
+      - name: great_feast
         label: Praznic mare
         widget: boolean
         default: false
         required: false
         hint: Marchează ziua cu cruce și chenar auriu. Necesită numele praznicului.
-      - name: zi_de_post
+      - name: fast_day
         label: Zi de post
         widget: boolean
         default: false
         required: false
-      - name: anulat
+      - name: cancelled
         label: Slujbele sunt anulate
         widget: boolean
         default: false
         required: false
-      - name: note
+      - name: notes
         label: Observații
         widget: text
         required: false
-      - name: locatie
+      - name: location
         label: Alt loc decât capela obișnuită
         widget: string
         required: false
         hint: >
           Numele locului, fără punct la final. Textul apare ca atare pe site și în
           calendarul la care sunt abonați credincioșii.
-      - name: slujbe
+      - name: services
         label: Slujbe
         label_singular: Slujbă
         widget: list
-        summary: '{{fields.ora}} {{fields.slujba}}'
+        summary: '{{fields.time}} {{fields.service}}'
         fields:
-          - name: ora
+          - name: time
             label: Ora
             widget: string
             pattern: ['^([01]?\d|2[0-3]):[0-5]\d$', 'Scrieți ora ca 08:30']
-          - name: slujba
+          - name: service
             label: Slujba
             widget: select
             options:
@@ -3118,14 +3123,14 @@ collections:
               - Botez
               - Cununie
               - Altceva
-          - name: detaliu
+          - name: detail
             label: Detaliu
             widget: string
             required: false
             hint: 'De exemplu „și Parastas". Pentru „Altceva", scrieți aici numele slujbei.'
 ```
 
-The `options` list must stay identical to `NUME_SLUJBE` in `src/lib/schema.ts`. If they drift, the CMS will happily write a value the build then rejects.
+The `options` list must stay identical to `SERVICE_NAMES` in `src/lib/schema.ts`. If they drift, the CMS will happily write a value the build then rejects.
 
 - [ ] **Step 6: Guard the drift with a test**
 
@@ -3133,7 +3138,7 @@ Append to `web/src/lib/schema.test.ts`:
 
 ```typescript
 import { readFileSync } from 'node:fs';
-import { NUME_SLUJBE } from './schema';
+import { SERVICE_NAMES } from './schema';
 
 /**
  * Reads the `options:` list out of config.yml without a YAML parser: take the
@@ -3141,16 +3146,16 @@ import { NUME_SLUJBE } from './schema';
  * Indentation-agnostic, so reformatting the file does not break the test.
  */
 function optiuniDinConfig(yml: string): string[] {
-  const linii = yml.split('\n');
-  const start = linii.findIndex((l) => l.trim() === 'options:');
+  const lines = yml.split('\n');
+  const start = lines.findIndex((l) => l.trim() === 'options:');
   if (start === -1) throw new Error('config.yml nu conține o listă `options:`');
-  const adancime = linii[start].search(/\S/);
+  const adancime = lines[start].search(/\S/);
 
   const out: string[] = [];
-  for (const linie of linii.slice(start + 1)) {
-    if (linie.trim() === '') continue;
-    if (linie.search(/\S/) <= adancime) break;
-    const m = /^\s*-\s+(.*?)\s*$/.exec(linie);
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '') continue;
+    if (line.search(/\S/) <= adancime) break;
+    const m = /^\s*-\s+(.*?)\s*$/.exec(line);
     if (!m) break;
     out.push(m[1]);
   }
@@ -3163,7 +3168,7 @@ describe('configurația CMS', () => {
       new URL('../../public/admin/config.yml', import.meta.url).pathname,
       'utf8',
     );
-    expect(optiuniDinConfig(yml)).toEqual([...NUME_SLUJBE]);
+    expect(optiuniDinConfig(yml)).toEqual([...SERVICE_NAMES]);
   });
 });
 ```
@@ -3209,7 +3214,7 @@ This is the one manual, out-of-repo step in Phase 1. Per the `sveltia-cms-auth` 
 
 After Task 13 deploys a preview, open `https://<preview>.pages.dev/admin/`, sign in with GitHub, add a service day for next Sunday, and press Publish.
 
-Expected: a commit appears on `main` adding `src/content/slujbe/<date>.yml`; Cloudflare Pages rebuilds; the new day appears on `/program/` within about a minute. **This round trip is the deliverable of Phase 1** — verify it before calling the phase done.
+Expected: a commit appears on `main` adding `src/content/services/<date>.yml`; Cloudflare Pages rebuilds; the new day appears on `/program/` within about a minute. **This round trip is the deliverable of Phase 1** — verify it before calling the phase done.
 
 - [ ] **Step 10: Commit**
 
@@ -3291,7 +3296,7 @@ import { join } from 'node:path';
  * CSS. The honest translation of those two numbers under inlining is one
  * combined 45 KB limit on the document.
  */
-const BUGET_PAGINI = {
+const PAGE_BUDGET = {
   'index.html': 45 * 1024,
   'program/index.html': 135 * 1024,
 };
@@ -3302,41 +3307,41 @@ const BUGET_PAGINI = {
 // next-service card is real work the browser must do, and a budget that makes
 // the correct architecture uncomfortable gets met by moving rendering back into
 // the browser, which is the thing this budget exists to prevent.
-const BUGET_JS = 3800;
+const JS_BUDGET = 3800;
 
 // The Sveltia CMS bundle lives under dist/admin/. It is a few hundred KB of
 // third-party code that only a signed-in editor ever loads, and it is not part
 // of what a visitor downloads — so it is excluded from the visitor JS budget.
-const EXCLUSE = ['admin'];
+const EXCLUDED = ['admin'];
 
-let esec = false;
+let failed = false;
 
-function raporteaza(eticheta, octeti, limita) {
-  const ok = octeti <= limita;
-  if (!ok) esec = true;
-  console.log(`${ok ? 'OK       ' : 'PREA MARE'} ${eticheta}: ${octeti} / ${limita} octeți`);
+function report(label, bytes, limit) {
+  const ok = bytes <= limit;
+  if (!ok) failed = true;
+  console.log(`${ok ? 'OK       ' : 'PREA MARE'} ${label}: ${bytes} / ${limit} octeți`);
 }
 
-for (const [cale, limita] of Object.entries(BUGET_PAGINI)) {
-  raporteaza(cale, statSync(join('dist', cale)).size, limita);
+for (const [path, limit] of Object.entries(PAGE_BUDGET)) {
+  report(path, statSync(join('dist', path)).size, limit);
 }
 
 function totalJs(dir) {
   let total = 0;
-  for (const nume of readdirSync(dir, { withFileTypes: true })) {
-    if (nume.isDirectory()) {
-      if (dir === 'dist' && EXCLUSE.includes(nume.name)) continue;
-      total += totalJs(join(dir, nume.name));
-    } else if (/\.m?js$/.test(nume.name)) {
-      total += statSync(join(dir, nume.name)).size;
+  for (const name of readdirSync(dir, { withFileTypes: true })) {
+    if (name.isDirectory()) {
+      if (dir === 'dist' && EXCLUDED.includes(name.name)) continue;
+      total += totalJs(join(dir, name.name));
+    } else if (/\.m?js$/.test(name.name)) {
+      total += statSync(join(dir, name.name)).size;
     }
   }
   return total;
 }
 
-raporteaza('JS pentru vizitatori', totalJs('dist'), BUGET_JS);
+report('JS pentru vizitatori', totalJs('dist'), JS_BUDGET);
 
-if (esec) {
+if (failed) {
   console.error('\nBugetul de performanță a fost depășit (specificație §13).');
   process.exit(1);
 }
@@ -3361,7 +3366,7 @@ Then add both to the CI job below. What axe covers and what it does not is docum
 
 The picker's bar un-hides only when a page renders two or more weeks. The homepage is now its only home, and the parish's real schedule is one week — so on every real build `sectiuni.length > 1` is false, the bar stays `hidden`, and axe skips it. Its focus ring, its disabled-arrow colour and its label contrast are checked by nothing.
 
-Add a fixture-driven pass: build into a scratch directory with `src/lib/fixturi.ts`'s multi-week days as content, audit that build, discard it. The fixtures are already parsed through `ziSchema`, so they can only contain days the CMS could produce — and because the build is temporary, no invented liturgical content reaches the seeds, which remain the parish's real published schedule.
+Add a fixture-driven pass: build into a scratch directory with `src/lib/fixtures.ts`'s multi-week days as content, audit that build, discard it. The fixtures are already parsed through `daySchema`, so they can only contain days the CMS could produce — and because the build is temporary, no invented liturgical content reaches the seeds, which remain the parish's real published schedule.
 
 This is the only way the bar is ever audited. Do not let it be quietly dropped as redundant with the other two passes; it covers what neither of them can reach.
 
@@ -3400,7 +3405,7 @@ jobs:
       - run: npm run a11y:mobil
 ```
 
-`TZ: Europe/Zurich` matters: `aziLaZurich` is explicit about its timezone, but pinning the runner removes any doubt about what "today" meant during a build.
+`TZ: Europe/Zurich` matters: `todayInZurich` is explicit about its timezone, but pinning the runner removes any doubt about what "today" meant during a build.
 
 - [ ] **Step 4: Set up Cloudflare Pages**
 
@@ -3522,7 +3527,7 @@ e-mailul primit de la GitHub, care spune ce fișier are problema.
 - Datele se păstrează ca `YYYY-MM-DD`, orele ca `HH:MM`, ora locală. Niciodată
   ca momente UTC.
 - Lista de slujbe din `public/admin/config.yml` trebuie să rămână identică cu
-  `NUME_SLUJBE` din `src/lib/schema.ts`.
+  `SERVICE_NAMES` din `src/lib/schema.ts`.
 ```
 
 - [ ] **Step 8: Push and verify the deployment**
@@ -3569,7 +3574,7 @@ Phase 1 is done when a person who has never seen the repository can:
 2. See those services on the homepage and `/program/` about a minute later.
 3. Subscribe to the calendar feed from a phone and get the right times.
 
-And when CI enforces: the schema (a bad `ora` fails the build), the contrast rules (ornamental gold cannot become text), and the performance budget.
+And when CI enforces: the schema (a bad `time` fails the build), the contrast rules (ornamental gold cannot become text), and the performance budget.
 
 ---
 

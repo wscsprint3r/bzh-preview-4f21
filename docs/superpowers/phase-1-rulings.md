@@ -78,10 +78,10 @@ on CLI surface that moves between majors.
 
 ## Task 2 — dates and Romanian names
 
-**11. `parti` validated shape, not validity — fix, do not defer.**
+**11. `parts` validated shape, not validity — fix, do not defer.**
 `2026-13-01` rendered the literal string `undefined`; `2026-02-30` reported "Luni" after rolling
 over to 2 March. The reviewer called it minor. It reaches a visitor as a wrong liturgical date.
-`partiData` now validates and parses in one place, and everything downstream imports it.
+`dateParts` now validates and parses in one place, and everything downstream imports it.
 *Cost if wrong:* a thrown error on a malformed filename instead of a silently wrong render —
 the better failure.
 
@@ -95,7 +95,7 @@ actually read them, and Task 13 replaced both files with the real rules.
 
 ## Task 3 — the week
 
-**13. `aziLaZurich` must not depend on `en-CA` resolving to ISO order.**
+**13. `todayInZurich` must not depend on `en-CA` resolving to ISO order.**
 Reviewer rated it minor because a shape test fails loudly — but that test runs in CI with full
 ICU, which is not where this bites. On a small-icu Node build `en-CA` falls back to en-US and
 yields `09/15/2026`, silently corrupting every comparison downstream. `date-ro.ts` already bans
@@ -112,11 +112,11 @@ tests are the ones that can observe the failure: 5 failed | 29 passed under muta
 ## Task 4 — the schema
 
 **15. `z.strictObject`, plus a Romanian message for unknown keys.**
-A misspelled `praznicmare:` silently drops the flag and ships a wrong-looking day on a green
+A misspelled `greatfeast:` silently drops the flag and ships a wrong-looking day on a green
 build — the likeliest YAML mistake a non-technical volunteer makes. Strict-and-wrong is a loud
 build failure; permissive-and-wrong is a parishioner at church at the wrong time.
 
-**16. Normalise `ora` to `HH:MM` in the schema, so nothing downstream must remember to pad.**
+**16. Normalise `time` to `HH:MM` in the schema, so nothing downstream must remember to pad.**
 
 **17. Omit `$schema` from the shape rather than permitting it.**
 Astro's `generateJSONSchema` calls `.extend({$schema})`, and Zod 4 refuses to overwrite an
@@ -127,7 +127,7 @@ a tidy-up, and the build then fails with an error pointing into Zod internals th
 *Cost if wrong:* a hand-added `$schema:` line is rejected with a Romanian message naming the key.
 
 **18. `generateId` must validate the entry id — which is the schedule's primary key.**
-Zod structurally cannot see it: it receives `data`, never `id`. So `2026-02-30.yml`, `2026-9-21.yml`,
+Zod structurally cannot see it: it receives `date`, never `id`. So `2026-02-30.yml`, `2026-9-21.yml`,
 a `.yaml` extension or a subfolder each yielded a silently missing or bogus day on a green build.
 The schema validated every field except the one identifying the day.
 
@@ -137,16 +137,16 @@ share a start time: 17:00 Spovedanie alongside 17:00 Vecernie is an ordinary par
 Identical UIDs make every subscriber's calendar silently merge them into one event.
 *Cost if wrong:* slightly longer UIDs.
 
-**20. `Altceva` without `detaliu` is rejected** — otherwise the escape-hatch word itself reaches a
+**20. `Altceva` without `detail` is rejected** — otherwise the escape-hatch word itself reaches a
 visitor.
 
 ---
 
 ## Task 5 — schedule logic
 
-**21. Validate `azi` in `urmatoareaSlujba`.**
+**21. Validate `today` in `nextService`.**
 The implementer argued against it because throwing changes a contract Tasks 8/9 were not told to
-expect — but I write those dispatches and neither task existed yet. Unguarded, a malformed `azi`
+expect — but I write those dispatches and neither task existed yet. Unguarded, a malformed `today`
 string-compares below everything and confidently returns the schedule's *first* service.
 
 **22. When two services share the earliest time, the homepage card renders all of them.**
@@ -163,12 +163,12 @@ VEVENT renders unpredictably — for a parish, a service that looks like it is n
 defect as the UID collision one layer down, missed the same way: I fixed the identifier and never
 asked what the duration did.
 
-**24. A cancelled day with an empty `slujbe` list emitted no VEVENT at all.** — *my defect*
+**24. A cancelled day with an empty `services` list emitted no VEVENT at all.** — *my defect*
 Subscribers kept the stale event and the cancellation was invisible to exactly the people the
 feed exists to inform — the opposite of what spec §8 promises. Fixed in the schema rather than in
 CMS guidance, because guidance is a document nobody reads at the moment they are deleting a row.
 The refinement now requires at least one service, with a message that teaches the workflow: keep
-the times, tick `anulat`.
+the times, tick `cancelled`.
 *Cost if wrong:* an editor cannot record a day with no services at all — a day they would simply
 not create a file for.
 
@@ -183,7 +183,7 @@ structurally cannot have, exactly where a reader decides whether a guard is stil
 **26. The `.slice(0, 40)` cap is load-bearing and nothing recorded it.** — *my defect*
 The longest service name gives a 40-character slug and a 68-octet UID line, which is what keeps
 UIDs under the 75-octet fold. A folded UID breaks clients *and* silently breaks the
-`/UID:(\S+)/` assertions. Now pinned by a test asserted against `NUME_SLUJBE` itself.
+`/UID:(\S+)/` assertions. Now pinned by a test asserted against `SERVICE_NAMES` itself.
 
 **27. VTIMEZONE content and `STATUS:CANCELLED` scoping must be pinned by tests.**
 Three VTIMEZONE mutants survived 29/29 — any of them puts *every service an hour off*. And
@@ -245,7 +245,7 @@ genuinely cancelled day, and `--gold-text` is unusable below opacity 0.981. Ever
 would have passed it. A line-through is also the better design — opacity says "less important",
 a strike says "not happening".
 
-**36. Render `locatie`, on the band and on the card.**
+**36. Render `location`, on the band and on the card.**
 It is in the schema, exposed by the CMS and written into the `.ics` `LOCATION`, but no task
 rendered it — so a day held in a different chapel yielded a calendar that says so and a website
 that does not. A card that says when but not where, on the one day the where has changed, is
@@ -281,7 +281,7 @@ from 17,699), every week returns to Ctrl+F and to the accessibility tree, and ~1
 logic that page never used goes with it. The bar's own audit is Task 13's fixture-driven pass.
 
 **42. The clock must be read once, not twice.** — *my defect*
-Reading date and time separately let the card go 15 hours stale. `acumLaZurich` now returns both
+Reading date and time separately let the card go 15 hours stale. `nowInZurich` now returns both
 from one `Date`. The implementer's guard is a Proxy `Date` asserting exactly one read — whose
 control revealed *three* reads, because `acum = new Date()` in a default parameter evaluates even
 when the body ignores it. Neither of us knew that; it was found by building a control rather than
@@ -298,7 +298,7 @@ The picker shipped its navigation bar — two dead arrows — to every no-JS vis
 correct to anyone testing with JavaScript on, which is the state nobody checks.
 
 **45. Normalise at presentation time; never mutate stored data.**
-Reversed the implementer's trailing-period strip in the schema. Canonicalising `ora` to `HH:MM`
+Reversed the implementer's trailing-period strip in the schema. Canonicalising `time` to `HH:MM`
 loses nothing; stripping punctuation turns "Capela Sf." into "Capela Sf" and changes what ships
 in the `.ics` `LOCATION`, which a client stores as data rather than prose.
 
@@ -352,11 +352,11 @@ The differential guard is the important half: run both over the same build and d
 passes, violations *and* incompletes. Replacing a checker is where coverage goes to die.
 
 **53. Add a 62rem pass — the Holy Week layout.**
-`BandaSaptamanii` has a `min-width: 62rem` branch the default viewport never sees: seven days on
+`WeekBand` has a `min-width: 62rem` branch the default viewport never sees: seven days on
 one row, the week with the most services and the most visitors of the year, audited by nothing.
 
 **54. Shift the fixture dates by a whole-week offset — and assert the bar is visible.**
-The assertion *is* the ruling. `saptamaniViitoare` renders only future weeks, so from late
+The assertion *is* the ruling. `upcomingWeeks` renders only future weeks, so from late
 December the fixture would yield one week and the pass would audit nothing, silently — this
 project's most-repeated defect in new clothes. Failing loudly in December sounds more honest
 until you picture someone meeting a red build in Advent and "fixing" it by deleting the pass.
@@ -379,7 +379,7 @@ both directions, and `public/_headers` must contain no `sha256-` token at all.
 is the notification we want.
 
 **57. The audit's breakpoints were transcribed from the CSS, not derived from it.**
-`a11y.mjs` hardcoded `34rem` and `62rem`. Move `RandZi.astro`'s breakpoint to `48rem` and all four
+`a11y.mjs` hardcoded `34rem` and `62rem`. Move `DayRow.astro`'s breakpoint to `48rem` and all four
 browser passes stay green while the default 756px pass silently audits the phone branch — the
 claim the extra passes exist to make is then false, with nothing saying so. This project's
 signature defect, found inside the audit built to catch it.
@@ -580,7 +580,7 @@ and the one that stung was the first: ruling #71 records how, and #28 shipped bo
 `STATUS:CANCELLED` precisely **because** Google's behaviour was reported rather than verified,
 and made a real subscription after launch the thing that settles it. Claiming that check was
 scheduled somewhere it was not is how it would simply never have happened. The steps are named
-by id now rather than asserted to exist, and `src/lib/referinte-doc.test.ts` fails if an id here
+by id now rather than asserted to exist, and `src/lib/doc-references.test.ts` fails if an id here
 stops resolving in `handover.md` — assert that a reference resolves, not that its text appears.
 
 1. **Google Calendar and `STATUS:CANCELLED`** (#28) — reported, not verified. `checklist:H9`

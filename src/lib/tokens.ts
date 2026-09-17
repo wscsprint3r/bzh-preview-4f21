@@ -1,4 +1,4 @@
-export const PALETA: Record<string, string> = {
+export const PALETTE: Record<string, string> = {
   parchment: '#FAF6EE',
   raised: '#FFFDF8',
   rule: '#E3D9C6',
@@ -19,7 +19,7 @@ export const PALETA: Record<string, string> = {
  * the feast-row top rule. The approved mockups used `gold` for service times;
  * tokens.test.ts is what stops that regressing.
  */
-export const ROLURI_TEXT = ['oxblood', 'oxblood-dk', 'gold-text', 'ink', 'muted', 'faint'] as const;
+export const TEXT_ROLES = ['oxblood', 'oxblood-dk', 'gold-text', 'ink', 'muted', 'faint'] as const;
 
 /**
  * Tokens legible on the --oxblood ground: Task 9's hero, and any dark panel.
@@ -41,9 +41,9 @@ export const ROLURI_TEXT = ['oxblood', 'oxblood-dk', 'gold-text', 'ink', 'muted'
  * `rule` belongs here because it measures 8.12:1 on oxblood: it is the token
  * form of the muted light tone a dark panel wants for secondary text.
  */
-export const ROLURI_TEXT_PE_OXBLOOD = ['parchment', 'raised', 'rule', 'gold-lt'] as const;
+export const TEXT_ROLES_ON_OXBLOOD = ['parchment', 'raised', 'rule', 'gold-lt'] as const;
 
 export function cssTokens(): string {
-  const linii = Object.entries(PALETA).map(([k, v]) => `  --${k}: ${v};`);
-  return `:root {\n${linii.join('\n')}\n}`;
+  const lines = Object.entries(PALETTE).map(([k, v]) => `  --${k}: ${v};`);
+  return `:root {\n${lines.join('\n')}\n}`;
 }

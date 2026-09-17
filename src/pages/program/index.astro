@@ -1,35 +1,35 @@
 ---
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
-import RandZi from '../../components/RandZi.astro';
-import { formatIntervalSaptamana } from '../../lib/date-ro';
-import { grupeazaPeSaptamani } from '../../lib/schedule';
-import { aziLaZurich, cheieSaptamana, inceputSaptamana } from '../../lib/week';
+import DayRow from '../../components/DayRow.astro';
+import { formatWeekRange } from '../../lib/date-ro';
+import { groupIntoWeeks } from '../../lib/schedule';
+import { todayInZurich, weekKey, weekStart } from '../../lib/week';
 
-const intrari = await getCollection('slujbe');
+const entries = await getCollection('services');
 /*
- * `data` is two different things on this line. `e.data` is Astro's parsed
- * frontmatter — everything `ziSchema` validated, which is every field of a day
+ * `data` and `date` are two different things on this line. `e.data` is Astro's
+ * own name for the parsed frontmatter — everything `daySchema` validated, which is every field of a day
  * EXCEPT its date, because Zod is handed a file's contents and never its name.
- * The date is the filename, i.e. `e.id`, validated by `idDinNumeFisier`.
+ * The date is the filename, i.e. `e.id`, validated by `idFromFilename`.
  *
- * DROPPING the override is the mistake that bites: `zi.data` is then undefined
- * and the build fails with `Dată invalidă: undefined` out of `partiData`.
+ * DROPPING the override is the mistake that bites: `day.date` is then undefined
+ * and the build fails with `Dată invalidă: undefined` out of `dateParts`.
  * Verified by doing it.
  *
  * REVERSING the order is not that mistake, and this comment used to say it was.
- * `ziSchema` is strict and declares no `data` key, so the spread has nothing to
- * overwrite and `{ data: e.id, ...e.data }` builds byte-identical output —
- * checked both ways round. Writing `data` last still says the right thing,
+ * `daySchema` is strict and declares no `date` key, so the spread has nothing to
+ * overwrite and `{ date: e.id, ...e.date }` builds byte-identical output —
+ * checked both ways round. Writing `date` last still says the right thing,
  * which is which source wins if the schema ever gains that field: the filename,
  * the one that was validated as a date, over a YAML field that could contradict
  * it. Keep the line; the reason is that, not a crash that does not happen.
  */
-const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
+const days = entries.map((e) => ({ ...e.data, date: e.id }));
 
 // One clock read; the Monday and the week key are both derived from it.
-const azi = aziLaZurich();
-const lunea = inceputSaptamana(azi);
+const today = todayInZurich();
+const monday = weekStart(today);
 
 /*
  * THIS PAGE SHOWS EVERY WEEK, AND MUST GO ON DOING SO.
@@ -44,26 +44,26 @@ const lunea = inceputSaptamana(azi);
  * So there is no picker here and no script at all. The current week is marked
  * instead, so a visitor lands oriented without anything being taken away.
  */
-const cheieAzi = cheieSaptamana(azi);
-const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
+const todayKey = weekKey(today);
+const weeks = groupIntoWeeks(days).filter((s) => s.sunday >= monday);
 ---
 
-<Base titlu="Program liturgic" descriere="Programul slujbelor la Parohia Ortodoxă Română Sfântul Nicolae din Zürich.">
+<Base title="Program liturgic" description="Programul slujbelor la Parohia Ortodoxă Română Sfântul Nicolae din Zürich.">
   <div class="container">
     <p class="eyebrow" style="margin-top:2rem">Informații parohiale</p>
     <h1>Program liturgic</h1>
 
-    {saptamani.length === 0 ? (
+    {weeks.length === 0 ? (
       <p class="gol">Programul următoarei perioade nu a fost încă publicat.</p>
     ) : (
-      saptamani.map((s) => (
+      weeks.map((s) => (
         <section
-          data-saptamana={s.cheie}
-          class:list={[s.cheie === cheieAzi && 'sapt-curenta']}
-          aria-label={`Săptămâna ${formatIntervalSaptamana(s.luni, s.duminica)}`}
+          data-saptamana={s.key}
+          class:list={[s.key === todayKey && 'sapt-curenta']}
+          aria-label={`Săptămâna ${formatWeekRange(s.monday, s.sunday)}`}
         >
-          <h2 class="sapt">{formatIntervalSaptamana(s.luni, s.duminica)}</h2>
-          {s.zile.map((z) => <RandZi zi={z} />)}
+          <h2 class="sapt">{formatWeekRange(s.monday, s.sunday)}</h2>
+          {s.days.map((z) => <DayRow day={z} />)}
         </section>
       ))
     )}
@@ -83,7 +83,7 @@ const saptamani = grupeazaPeSaptamani(zile).filter((s) => s.duminica >= lunea);
   /* The week the visitor is in, marked so this page opens oriented while still
      showing everything.
 
-     A RULE, NOT A GROUND. `RandZi` already marks a feast day with
+     A RULE, NOT A GROUND. `DayRow` already marks a feast day with
      `background: var(--raised)`; putting a ground on the section would erase
      that distinction inside the one week a visitor is most likely to be
      reading. A 3px bar on the leading edge is a positional signal rather than

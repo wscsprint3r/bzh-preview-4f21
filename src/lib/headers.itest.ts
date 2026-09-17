@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SEMN } from '../../scripts/csp-hash.mjs';
-import { anteteleRutei, parseazaHeaders } from '../../scripts/headers.mjs';
+import { PLACEHOLDER } from '../../scripts/csp-hash.mjs';
+import { headersForPath, parseHeaders } from '../../scripts/headers.mjs';
 
 /*
  * WHAT THIS PROVES: that the file this repository ships as `dist/_headers` says
@@ -28,62 +28,62 @@ import { anteteleRutei, parseazaHeaders } from '../../scripts/headers.mjs';
  * It reads `dist/`, so it runs only after a build: `npm run test:build`.
  */
 
-const RADACINA = fileURLToPath(new URL('../../', import.meta.url));
-const DIST = `${RADACINA}dist/`;
+const ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const DIST = `${ROOT}dist/`;
 
 /** The file's text, having proved there was a file and that it had text in it. */
-function citeste(cale: string): string {
-  expect(existsSync(DIST + cale), `${cale} lipsește din dist/`).toBe(true);
-  const text = readFileSync(DIST + cale, 'utf8');
-  expect(text.length, `${cale} există dar este gol`).toBeGreaterThan(0);
+function read(path: string): string {
+  expect(existsSync(DIST + path), `${path} lipsește din dist/`).toBe(true);
+  const text = readFileSync(DIST + path, 'utf8');
+  expect(text.length, `${path} există dar este gol`).toBeGreaterThan(0);
   return text;
 }
 
-const TEXT = citeste('_headers');
-const REGULI = parseazaHeaders(TEXT);
+const BUILT_TEXT = read('_headers');
+const RULES = parseHeaders(BUILT_TEXT);
 
 /** Every `.html` in `dist/`, as paths relative to it. */
-function pagini(relativ = ''): string[] {
-  const gasite: string[] = [];
-  for (const intrare of readdirSync(DIST + relativ, { withFileTypes: true })) {
-    const cale = relativ + intrare.name;
-    if (intrare.isDirectory()) gasite.push(...pagini(cale + '/'));
-    else if (intrare.name.endsWith('.html')) gasite.push(cale);
+function pages(relative = ''): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(DIST + relative, { withFileTypes: true })) {
+    const path = relative + entry.name;
+    if (entry.isDirectory()) found.push(...pages(path + '/'));
+    else if (entry.name.endsWith('.html')) found.push(path);
   }
-  return gasite.sort();
+  return found.sort();
 }
 
 /*
  * The inline executable scripts of one built page, found with this file's OWN
  * regex and hashed with this file's own call to `createHash`.
  *
- * DELIBERATELY NOT `scripts/scripturi.mjs` AND `scripts/csp-hash.mjs`, which is
+ * DELIBERATELY NOT `scripts/pageScripts.mjs` AND `scripts/csp-hash.mjs`, which is
  * what wrote the policy. A check that recomputes the expectation with the very
  * code under test agrees with that code however wrong it is; the point here is
  * a second opinion about which bytes the browser will hash. `<script>` inside
  * an HTML comment is skipped for the same reason the generator skips it — that
  * misreading is exactly what this is meant to be able to catch.
  */
-function hashuriInline(html: string): string[] {
-  const fara = html.replace(/<!--[\s\S]*?-->/g, '');
-  const gasite: string[] = [];
-  for (const m of fara.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
-    const atribute = m[1] as string;
-    const continut = m[2] as string;
-    if (/\bsrc\s*=/i.test(atribute)) continue;
-    const tip = (atribute.match(/\btype\s*=\s*["']([^"']*)["']/i)?.[1] ?? '').toLowerCase();
+function inlineHashes(html: string): string[] {
+  const without = html.replace(/<!--[\s\S]*?-->/g, '');
+  const found: string[] = [];
+  for (const m of without.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    const attributes = m[1] as string;
+    const content = m[2] as string;
+    if (/\bsrc\s*=/i.test(attributes)) continue;
+    const type = (attributes.match(/\btype\s*=\s*["']([^"']*)["']/i)?.[1] ?? '').toLowerCase();
     // Only what a browser executes. `application/json` is data; CSP ignores it.
-    if (!['', 'module', 'text/javascript', 'application/javascript'].includes(tip)) continue;
-    gasite.push(`'sha256-${createHash('sha256').update(continut, 'utf8').digest('base64')}'`);
+    if (!['', 'module', 'text/javascript', 'application/javascript'].includes(type)) continue;
+    found.push(`'sha256-${createHash('sha256').update(content, 'utf8').digest('base64')}'`);
   }
-  return gasite;
+  return found;
 }
 
-const CSP = anteteleRutei(REGULI, '/').get('Content-Security-Policy') ?? '';
+const CSP = headersForPath(RULES, '/').get('Content-Security-Policy') ?? '';
 
 /** Sorted, without repeats — so two sets can be compared as arrays and read. */
-function unic(valori: string[]): string[] {
-  return [...new Set(valori)].sort();
+function sortedUnique(values: string[]): string[] {
+  return [...new Set(values)].sort();
 }
 
 /*
@@ -92,16 +92,16 @@ function unic(valori: string[]): string[] {
  * in `style-src`, or in `script-src-elem`, is a different rule with different
  * consequences, and must not be mistaken for one of these.
  */
-function hashuriDinScriptSrc(politica: string): string[] {
-  const directiva = politica
+function scriptSrcHashes(policy: string): string[] {
+  const directive = policy
     .split(';')
     .map((d) => d.trim())
     .find((d) => d === 'script-src' || d.startsWith('script-src '));
-  return [...(directiva ?? '').matchAll(/'sha256-[A-Za-z0-9+/=]+'/g)].map((m) => m[0]);
+  return [...(directive ?? '').matchAll(/'sha256-[A-Za-z0-9+/=]+'/g)].map((m) => m[0]);
 }
 
 /** Every `sha256-` token anywhere in a text, quoted or not, valid or not. */
-function tokenuriSha(text: string): string[] {
+function shaTokens(text: string): string[] {
   return [...text.matchAll(/sha256-[A-Za-z0-9+/=]*/g)].map((m) => m[0]);
 }
 
@@ -116,18 +116,18 @@ function tokenuriSha(text: string): string[] {
  * token that quietly stopped being recognised is visible in a run rather than
  * inferred from a green.
  */
-export function caiMentionate(text: string): string[] {
-  const gasite: string[] = [];
+export function mentionedPaths(text: string): string[] {
+  const found: string[] = [];
   for (const m of text.matchAll(/`([^`]+)`/g)) {
     const token = m[1] as string;
     if (!/^[A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@-]+)*$/.test(token)) continue;
-    if (!token.includes('/') && !EXTENSII_SURSA.test(token)) continue;
-    gasite.push(token);
+    if (!token.includes('/') && !SOURCE_EXTENSIONS.test(token)) continue;
+    found.push(token);
   }
-  return unic(gasite);
+  return sortedUnique(found);
 }
 
-const EXTENSII_SURSA = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
+const SOURCE_EXTENSIONS = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
 
 /*
  * The other half of that scope, and the reason the first half is a CHOICE.
@@ -139,7 +139,7 @@ const EXTENSII_SURSA = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
  *
  * But a backtick-only resolver is complete only if the file really does put
  * every path in backticks, and for two rounds it did not: the refusal table read
- * `pornire.mjs already tells a volunteer what they need` with no backticks, so
+ * `startedAt.mjs already tells a volunteer what they need` with no backticks, so
  * the guard could not see it and the round-1 report claimed it had been fixed
  * when it had not. Nothing was broken, because the file existed - which is the
  * whole problem with that class: it rots silently.
@@ -149,24 +149,24 @@ const EXTENSII_SURSA = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
  * are not prose, and a line carrying a URL is exempt because the token belongs
  * to the URL - both structural, neither a list of names somebody has to maintain.
  */
-export function caiFaraApostrofuri(text: string): string[] {
-  const gasite: string[] = [];
-  const tipar = /[A-Za-z0-9_@.-]+\.(?:mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)\b/g;
-  for (const linie of text.split('\n')) {
-    if (!linie.startsWith('#')) continue; // a route line declares rules, not paths
-    if (linie.includes('://')) continue; // the token belongs to a URL on this line
-    const faraApostrofuri = linie.replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
-    for (const m of faraApostrofuri.matchAll(tipar)) gasite.push(m[0]);
+export function pathsOutsideBackticks(text: string): string[] {
+  const found: string[] = [];
+  const pattern = /[A-Za-z0-9_@.-]+\.(?:mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)\b/g;
+  for (const line of text.split('\n')) {
+    if (!line.startsWith('#')) continue; // a route line declares rules, not paths
+    if (line.includes('://')) continue; // the token belongs to a URL on this line
+    const withoutBackticks = line.replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
+    for (const m of withoutBackticks.matchAll(pattern)) found.push(m[0]);
   }
-  return unic(gasite);
+  return sortedUnique(found);
 }
 
 /** `public/_headers` as written, not as built. */
-const SURSA = readFileSync(`${RADACINA}public/_headers`, 'utf8');
+const SOURCE = readFileSync(`${ROOT}public/_headers`, 'utf8');
 
-describe('_headers ajunge în build', () => {
-  it('conține reguli', () => {
-    expect(REGULI.length).toBeGreaterThan(0);
+describe('_headers reaches the build', () => {
+  it('contains rules', () => {
+    expect(RULES.length).toBeGreaterThan(0);
   });
 
   /*
@@ -174,27 +174,27 @@ describe('_headers ajunge în build', () => {
    * rules, rather than letting the more specific one win. `Cache-Control` in
    * two rules would produce `public, max-age=3600, no-store` — neither policy.
    */
-  it('niciun nume de antet nu apare în două reguli', () => {
-    const unde = new Map<string, string[]>();
-    for (const regula of REGULI) {
-      for (const [nume] of regula.antete) {
-        unde.set(nume, [...(unde.get(nume) ?? []), regula.tipar]);
+  it('no header name appears in two rules', () => {
+    const where = new Map<string, string[]>();
+    for (const rule of RULES) {
+      for (const [name] of rule.headers) {
+        where.set(name, [...(where.get(name) ?? []), rule.pattern]);
       }
     }
-    const duble = [...unde].filter(([, tipare]) => tipare.length > 1);
-    expect(duble, 'Cloudflare ar lipi valorile cu virgulă').toEqual([]);
+    const duplicated = [...where].filter(([, patterns]) => patterns.length > 1);
+    expect(duplicated, 'Cloudflare ar lipi valorile cu virgulă').toEqual([]);
   });
 
   // Cloudflare's documented limits. A file over them is not rejected loudly.
-  it('respectă limitele Cloudflare', () => {
-    expect(REGULI.length).toBeLessThanOrEqual(100);
-    for (const linie of TEXT.split('\n')) expect(linie.length).toBeLessThanOrEqual(2000);
+  it("respects Cloudflare's limits", () => {
+    expect(RULES.length).toBeLessThanOrEqual(100);
+    for (const line of BUILT_TEXT.split('\n')) expect(line.length).toBeLessThanOrEqual(2000);
   });
 });
 
-describe('politica de securitate', () => {
-  it('acoperă întregul sit', () => {
-    expect(REGULI.some((r) => r.tipar === '/*')).toBe(true);
+describe('the security policy', () => {
+  it('covers the whole site', () => {
+    expect(RULES.some((r) => r.pattern === '/*')).toBe(true);
     expect(CSP).not.toBe('');
   });
 
@@ -202,14 +202,14 @@ describe('politica de securitate', () => {
     ['Strict-Transport-Security', 'max-age=31536000; includeSubDomains'],
     ['X-Content-Type-Options', 'nosniff'],
     ['Referrer-Policy', 'strict-origin-when-cross-origin'],
-  ])('trimite %s pe orice pagină', (nume, valoare) => {
-    expect(anteteleRutei(REGULI, '/program/').get(nume)).toBe(valoare);
+  ])('trimite %s pe orice pagină', (name, value) => {
+    expect(headersForPath(RULES, '/program/').get(name)).toBe(value);
   });
 
   it.each(["frame-ancestors 'none'", "object-src 'none'", "base-uri 'none'", "default-src 'self'"])(
     'politica include %s',
-    (directiva) => {
-      expect(CSP).toContain(directiva);
+    (directive) => {
+      expect(CSP).toContain(directive);
     },
   );
 
@@ -228,9 +228,9 @@ describe('politica de securitate', () => {
    * substituting there once rewrote the explanation into a sentence about a
    * hash. What must not survive is a `{{` in a value a browser reads.
    */
-  it('nu mai conține niciun substituent pe o linie de antet', () => {
-    const antete = TEXT.split('\n').filter((l) => !l.trimStart().startsWith('#'));
-    expect(antete.filter((l) => l.includes('{{'))).toEqual([]);
+  it('no longer contains any placeholder on a header line', () => {
+    const headers = BUILT_TEXT.split('\n').filter((l) => !l.trimStart().startsWith('#'));
+    expect(headers.filter((l) => l.includes('{{'))).toEqual([]);
   });
 
   /*
@@ -246,25 +246,25 @@ describe('politica de securitate', () => {
    * `toEqual` over both sets closes it, and also catches a hash left behind by
    * a merge or by a script that was deleted.
    */
-  it('script-src numește exact hash-urile scripturilor inline construite, niciunul în plus', () => {
-    const perPagina = pagini().flatMap((p) => hashuriInline(readFileSync(DIST + p, 'utf8')).map((h) => [p, h]));
+  it('script-src names exactly the hashes of the built inline scripts, not one more', () => {
+    const perPage = pages().flatMap((p) => inlineHashes(readFileSync(DIST + p, 'utf8')).map((h) => [p, h]));
     // A guard that reads files must prove it read something: with no inline
     // script anywhere, two empty sets would agree while proving nothing.
-    expect(perPagina.length, 'nicio pagină construită nu are script inline').toBeGreaterThan(0);
-    const construite = unic(perPagina.map(([, h]) => h as string));
-    const inPolitica = unic(hashuriDinScriptSrc(CSP));
+    expect(perPage.length, 'nicio pagină construită nu are script inline').toBeGreaterThan(0);
+    const built = sortedUnique(perPage.map(([, h]) => h as string));
+    const inPolicy = sortedUnique(scriptSrcHashes(CSP));
     // Print what was measured, not only the verdict. Straight to stdout:
     // vitest's default reporter swallows `console.log` from a passing test.
     process.stdout.write(
-      `\nScripturi inline construite:\n${perPagina.map(([p, h]) => `  ${p} -> ${h}`).join('\n')}\n` +
-        `script-src numește ${inPolitica.length}: ${inPolitica.join(' ')}\n`,
+      `\nScripturi inline construite:\n${perPage.map(([p, h]) => `  ${p} -> ${h}`).join('\n')}\n` +
+        `script-src numește ${inPolicy.length}: ${inPolicy.join(' ')}\n`,
     );
-    expect(inPolitica, 'hash-urile din script-src nu sunt exact cele ale scripturilor construite').toEqual(
-      construite,
+    expect(inPolicy, 'hash-urile din script-src nu sunt exact cele ale scripturilor construite').toEqual(
+      built,
     );
   });
 
-  it("script-src nu permite 'unsafe-inline'", () => {
+  it("script-src does not allow 'unsafe-inline'", () => {
     const scriptSrc = CSP.split(';').map((d) => d.trim()).find((d) => d.startsWith('script-src'));
     expect(scriptSrc).toBeDefined();
     expect(scriptSrc).not.toContain('unsafe-inline');
@@ -281,35 +281,35 @@ describe('politica de securitate', () => {
  *
  * The invented hash is the one measured slipping through the old subset check.
  */
-describe('detectoarele de hash chiar se declanșează', () => {
-  const INVENTAT = "'sha256-3MO6h9CZoU1BDqVrXhF8G7RbqZZTQmJfN3uAn9GJXEo='";
+describe('the hash detectors really do fire', () => {
+  const INVENTED = "'sha256-3MO6h9CZoU1BDqVrXhF8G7RbqZZTQmJfN3uAn9GJXEo='";
 
-  it('vede un hash strecurat în script-src', () => {
-    expect(hashuriDinScriptSrc(`default-src 'self'; script-src 'self' ${INVENTAT}; img-src 'self'`)).toEqual([
-      INVENTAT,
+  it('sees a hash slipped into script-src', () => {
+    expect(scriptSrcHashes(`default-src 'self'; script-src 'self' ${INVENTED}; img-src 'self'`)).toEqual([
+      INVENTED,
     ]);
   });
 
-  it('nu ia hash-uri din alte directive', () => {
-    expect(hashuriDinScriptSrc(`script-src 'self'; style-src ${INVENTAT}`)).toEqual([]);
+  it('does not take hashes from other directives', () => {
+    expect(scriptSrcHashes(`script-src 'self'; style-src ${INVENTED}`)).toEqual([]);
   });
 
   // `script-src-elem` starts with the same fourteen characters and is a
   // different directive; a prefix test would have counted its hashes as ours.
-  it('nu confundă script-src-elem cu script-src', () => {
-    expect(hashuriDinScriptSrc(`script-src-elem ${INVENTAT}`)).toEqual([]);
+  it('does not confuse script-src-elem with script-src', () => {
+    expect(scriptSrcHashes(`script-src-elem ${INVENTED}`)).toEqual([]);
   });
 
-  it('vede un hash scris de mână într-o linie de antet', () => {
-    expect(tokenuriSha(`  Content-Security-Policy: script-src 'self' ${INVENTAT} ${SEMN}`)).toHaveLength(1);
+  it('sees a hand-written hash in a header line', () => {
+    expect(shaTokens(`  Content-Security-Policy: script-src 'self' ${INVENTED} ${PLACEHOLDER}`)).toHaveLength(1);
   });
 
-  it('nu se declanșează pe un text fără hash', () => {
-    expect(tokenuriSha(`script-src 'self' ${SEMN}`)).toEqual([]);
+  it('does not fire on text with no hash', () => {
+    expect(shaTokens(`script-src 'self' ${PLACEHOLDER}`)).toEqual([]);
   });
 });
 
-describe('public/_headers, fișierul sursă', () => {
+describe('public/_headers, the source file', () => {
   /*
    * THE HASH IS FORBIDDEN AT THE SOURCE, not only checked at the destination.
    *
@@ -319,13 +319,13 @@ describe('public/_headers, fișierul sursă', () => {
    * the line — so catching it in `dist/` catches it once per build, while
    * catching it here catches it where someone typed it.
    */
-  it('nu conține niciun hash scris de mână', () => {
-    expect(tokenuriSha(SURSA), 'hash-urile se calculează la build, nu se scriu aici').toEqual([]);
+  it('contains no hand-written hash', () => {
+    expect(shaTokens(SOURCE), 'hash-urile se calculează la build, nu se scriu aici').toEqual([]);
   });
 
-  it(`poartă ${SEMN} pe o linie de antet`, () => {
-    const antete = SURSA.split('\n').filter((l) => !l.trimStart().startsWith('#'));
-    expect(antete.filter((l) => l.includes(SEMN)).length, `${SEMN} apare doar în comentarii`).toBeGreaterThan(0);
+  it(`carries ${PLACEHOLDER} on a header line`, () => {
+    const headers = SOURCE.split('\n').filter((l) => !l.trimStart().startsWith('#'));
+    expect(headers.filter((l) => l.includes(PLACEHOLDER)).length, `${PLACEHOLDER} apare doar în comentarii`).toBeGreaterThan(0);
   });
 });
 
@@ -338,24 +338,24 @@ describe('public/_headers, fișierul sursă', () => {
  * pointing at `scripts/csp-browser.mjs`, which has never existed — and a rule
  * for a path that does not exist looks exactly like a rule that works.
  */
-describe('referințele din public/_headers', () => {
-  const CAI = caiMentionate(SURSA);
+describe('the references inside public/_headers', () => {
+  const PATHS = mentionedPaths(SOURCE);
 
-  it('chiar găsește căi de verificat', () => {
-    process.stdout.write(`\npublic/_headers menționează ${CAI.length} cale(i):\n${CAI.map((c) => `  ${c}`).join('\n')}\n`);
-    expect(CAI.length, `detectorul de căi a găsit ${CAI.length} — nu ar verifica nimic mai jos`).toBeGreaterThan(3);
+  it('really does find paths to check', () => {
+    process.stdout.write(`\npublic/_headers menționează ${PATHS.length} cale(i):\n${PATHS.map((c) => `  ${c}`).join('\n')}\n`);
+    expect(PATHS.length, `detectorul de căi a găsit ${PATHS.length} — nu ar verifica nimic mai jos`).toBeGreaterThan(3);
     // Named explicitly so a regex that stopped recognising a shape fails here
     // rather than quietly shrinking the list the cases below iterate.
-    expect(CAI).toContain('scripts/csp-hash.mjs');
-    expect(CAI).toContain('src/pages/program.ics.ts');
-    expect(CAI).toContain('docs/handover.md');
+    expect(PATHS).toContain('scripts/csp-hash.mjs');
+    expect(PATHS).toContain('src/pages/program.ics.ts');
+    expect(PATHS).toContain('docs/handover.md');
   });
 
-  it('detectorul recunoaște o cale inexistentă, și nu confundă restul cu o cale', () => {
-    expect(caiMentionate('lista e în `scripts/csp-browser.mjs`, nu în `img-src` sau `/admin/`')).toEqual([
+  it('the detector recognises a path that does not exist, and does not mistake the rest for a path', () => {
+    expect(mentionedPaths('lista e în `scripts/csp-browser.mjs`, nu în `img-src` sau `/admin/`')).toEqual([
       'scripts/csp-browser.mjs',
     ]);
-    expect(existsSync(`${RADACINA}scripts/csp-browser.mjs`)).toBe(false);
+    expect(existsSync(`${ROOT}scripts/csp-browser.mjs`)).toBe(false);
   });
 
   /*
@@ -364,21 +364,21 @@ describe('referințele din public/_headers', () => {
    * convenția că toate căile de aici sunt scrise între apostrofuri inverse.
    * Convenția se verifică, nu se promite.
    */
-  it('nu numește nicio cale în afara apostrofurilor inverse', () => {
-    const bare = caiFaraApostrofuri(SURSA);
-    expect(bare, `scrie-le între apostrofuri inverse, altfel rezolvarea nu le vede: ${bare.join(', ')}`).toEqual([]);
+  it('names no path outside backticks', () => {
+    const bareTokens = pathsOutsideBackticks(SOURCE);
+    expect(bareTokens, `scrie-le între apostrofuri inverse, altfel rezolvarea nu le vede: ${bareTokens.join(', ')}`).toEqual([]);
   });
 
-  it('detectorul de căi fără apostrofuri chiar se declanșează, și lasă rutele și URL-urile în pace', () => {
-    expect(caiFaraApostrofuri('#   pornire.mjs deja îi spune voluntarului')).toEqual(['pornire.mjs']);
-    expect(caiFaraApostrofuri('#   `public/admin/pornire.mjs` deja îi spune')).toEqual([]);
+  it('the outside-backticks path detector really does fire, and leaves routes and URLs alone', () => {
+    expect(pathsOutsideBackticks('#   pornire.mjs deja îi spune voluntarului')).toEqual(['pornire.mjs']);
+    expect(pathsOutsideBackticks('#   `public/admin/pornire.mjs` deja îi spune')).toEqual([]);
     // O rută nu e un fișier, iar un token dintr-un URL îi aparține URL-ului.
-    expect(caiFaraApostrofuri('/program.ics')).toEqual([]);
-    expect(caiFaraApostrofuri('#   curl -sI https://x.pages.dev/program.ics')).toEqual([]);
+    expect(pathsOutsideBackticks('/program.ics')).toEqual([]);
+    expect(pathsOutsideBackticks('#   curl -sI https://x.pages.dev/program.ics')).toEqual([]);
   });
 
-  it.each(CAI)('`%s` există', (cale) => {
-    expect(existsSync(RADACINA + cale), `public/_headers trimite la ${cale}, care nu există`).toBe(true);
+  it.each(PATHS)('`%s` există', (path) => {
+    expect(existsSync(ROOT + path), `public/_headers trimite la ${path}, care nu există`).toBe(true);
   });
 
   /*
@@ -388,16 +388,16 @@ describe('referințele din public/_headers', () => {
    * clone at all. A pointer to an untracked file is the same failure one level
    * up, so the pointer's target is asserted to be in the index.
    */
-  it('docs/handover.md este urmărit de git, nu doar prezent pe disc', () => {
-    const urmarit = execFileSync('git', ['ls-files', '--', 'docs/handover.md'], {
-      cwd: RADACINA,
+  it('docs/handover.md is tracked by git, not merely present on disk', () => {
+    const tracked = execFileSync('git', ['ls-files', '--', 'docs/handover.md'], {
+      cwd: ROOT,
       encoding: 'utf8',
     }).trim();
-    expect(urmarit, 'docs/handover.md nu este urmărit — un clone nu l-ar primi').toBe('docs/handover.md');
+    expect(tracked, 'docs/handover.md nu este urmărit — un clone nu l-ar primi').toBe('docs/handover.md');
   });
 });
 
-describe('feedul de calendar', () => {
+describe('the calendar feed', () => {
   /*
    * LOAD-BEARING. A static build discards the `Content-Type` the endpoint sets,
    * so this rule is the only thing that decides what a subscriber's calendar
@@ -405,24 +405,24 @@ describe('feedul de calendar', () => {
    * the build — because a rule for a path that does not exist looks exactly
    * like a rule that works.
    */
-  it('dă /program.ics tipul text/calendar', () => {
+  it('gives /program.ics the type text/calendar', () => {
     expect(existsSync(DIST + 'program.ics'), 'regula are un subiect care nu există').toBe(true);
-    expect(anteteleRutei(REGULI, '/program.ics').get('Content-Type')).toBe('text/calendar; charset=utf-8');
+    expect(headersForPath(RULES, '/program.ics').get('Content-Type')).toBe('text/calendar; charset=utf-8');
   });
 
-  it('îl păstrează în cache o oră', () => {
-    expect(anteteleRutei(REGULI, '/program.ics').get('Cache-Control')).toBe('public, max-age=3600');
+  it('keeps it cached for an hour', () => {
+    expect(headersForPath(RULES, '/program.ics').get('Cache-Control')).toBe('public, max-age=3600');
   });
 
-  it('nu dă tipul text/calendar și paginilor', () => {
-    expect(anteteleRutei(REGULI, '/').get('Content-Type')).toBeUndefined();
+  it('does not give the pages the text/calendar type too', () => {
+    expect(headersForPath(RULES, '/').get('Content-Type')).toBeUndefined();
   });
 });
 
 describe('administrarea', () => {
-  it('nu este indexată', () => {
+  it('is not indexed', () => {
     expect(existsSync(DIST + 'admin/index.html'), 'regula are un subiect care nu există').toBe(true);
-    expect(anteteleRutei(REGULI, '/admin/').get('X-Robots-Tag')).toBe('noindex');
+    expect(headersForPath(RULES, '/admin/').get('X-Robots-Tag')).toBe('noindex');
   });
 
   /*
@@ -431,7 +431,7 @@ describe('administrarea', () => {
    * `X-Robots-Tag` while quietly losing the CSP would look identical in the
    * file and be the one page without a policy.
    */
-  it('primește aceeași politică de securitate ca restul sitului', () => {
-    expect(anteteleRutei(REGULI, '/admin/').get('Content-Security-Policy')).toBe(CSP);
+  it('gets the same security policy as the rest of the site', () => {
+    expect(headersForPath(RULES, '/admin/').get('Content-Security-Policy')).toBe(CSP);
   });
 });

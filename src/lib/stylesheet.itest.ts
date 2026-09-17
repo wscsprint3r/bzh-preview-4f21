@@ -27,36 +27,36 @@ import { describe, expect, it } from 'vitest';
 
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 
-function fisiereDist(extensie: string): string[] {
-  const gasite: string[] = [];
-  const mergi = (relativ: string): void => {
-    for (const intrare of readdirSync(DIST + relativ, { withFileTypes: true })) {
-      const cale = relativ + intrare.name;
-      if (intrare.isDirectory()) mergi(cale + '/');
-      else if (intrare.name.endsWith(extensie)) gasite.push(cale);
+function distFiles(extension: string): string[] {
+  const found: string[] = [];
+  const walk = (relative: string): void => {
+    for (const entry of readdirSync(DIST + relative, { withFileTypes: true })) {
+      const path = relative + entry.name;
+      if (entry.isDirectory()) walk(path + '/');
+      else if (entry.name.endsWith(extension)) found.push(path);
     }
   };
-  if (existsSync(DIST)) mergi('');
-  return gasite.sort();
+  if (existsSync(DIST)) walk('');
+  return found.sort();
 }
 
 /** The CSS one built page ships: linked stylesheets, inline blocks, style attributes. */
-function cssPagina(html: string): string {
-  const bucati: string[] = [];
+function pageCss(html: string): string {
+  const pieces: string[] = [];
   for (const m of html.matchAll(/<link\b[^>]*rel=["']?stylesheet["']?[^>]*>/g)) {
     const href = m[0].match(/href=["']([^"']+)["']/)?.[1];
     if (href !== undefined && href.startsWith('/')) {
-      const cale = DIST + href.slice(1);
-      if (existsSync(cale)) bucati.push(readFileSync(cale, 'utf8'));
+      const path = DIST + href.slice(1);
+      if (existsSync(path)) pieces.push(readFileSync(path, 'utf8'));
     }
   }
-  for (const m of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)) bucati.push(m[1] as string);
-  for (const m of html.matchAll(/\bstyle=["']([^"']*)["']/g)) bucati.push(`x{${m[1]}}`);
-  return bucati.join('\n');
+  for (const m of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)) pieces.push(m[1] as string);
+  for (const m of html.matchAll(/\bstyle=["']([^"']*)["']/g)) pieces.push(`x{${m[1]}}`);
+  return pieces.join('\n');
 }
 
 /** Hex literals in a declaration value, so `#fade` as a selector is not one. */
-export function hexuriInStil(css: string): string[] {
+export function hexesInDeclarations(css: string): string[] {
   return [...css.matchAll(/([-\w]+)\s*:\s*([^;{}]+)/g)].flatMap((m) =>
     [...(m[2] as string).matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((h) => `${m[1] as string}: ${h[0] as string}`),
   );
@@ -71,25 +71,25 @@ export function hexuriInStil(css: string): string[] {
  * specificity escape that ended the colour guard, and leaving it in the code
  * that replaced it would be a poor joke.
  */
-const REGULA = /([^{}]*)\{([^{}]*)\}/g;
+const RULE = /([^{}]*)\{([^{}]*)\}/g;
 
-function esteBlocDeTokenuri(selector: string): boolean {
+function isTokenBlock(selector: string): boolean {
   return selector.trim() === ':root';
 }
 
-export function faraBlocurileDeTokenuri(css: string): string {
-  return css.replace(REGULA, (intreg, selector: string) => (esteBlocDeTokenuri(selector) ? ' ' : intreg));
+export function withoutTokenBlocks(css: string): string {
+  return css.replace(RULE, (whole, selector: string) => (isTokenBlock(selector) ? ' ' : whole));
 }
 
-export function blocurileDeTokenuri(css: string): string {
-  return [...css.matchAll(REGULA)]
-    .filter((m) => esteBlocDeTokenuri(m[1] as string))
+export function tokenBlocks(css: string): string {
+  return [...css.matchAll(RULE)]
+    .filter((m) => isTokenBlock(m[1] as string))
     .map((m) => m[2] as string)
     .join(';');
 }
 
-const PAGINI = fisiereDist('.html');
-const FOI = fisiereDist('.css');
+const PAGES = distFiles('.html');
+const STYLESHEETS = distFiles('.css');
 
 /*
  * THE ONE PAGE ON THIS SITE THAT SHIPS NO CSS, and the only one allowed to.
@@ -103,39 +103,39 @@ const FOI = fisiereDist('.css');
  * EXEMPTED BY EXACT PATH, not by folder. `admin/` also holds `config.yml`, and
  * a rule reading "anything under admin/" would be an open invitation to put the
  * next unstyled page there too. One file, named, with a reason - and
- * `pagina exceptată există` below fails if that file ever stops existing, so the
+ * `page exemptedă există` below fails if that file ever stops existing, so the
  * exemption cannot outlive the thing it excuses.
  *
- * It is NOT exempt from `diacritice.itest.ts`: the Romanian in this page and in
+ * It is NOT exempt from `diacritics.itest.ts`: the Romanian in this page and in
  * `config.yml` is read by a volunteer, and that guard covers both on purpose.
  */
-const FARA_CSS = 'admin/index.html';
-const PAGINI_CU_CSS = PAGINI.filter((p) => p !== FARA_CSS);
+const NO_CSS = 'admin/index.html';
+const PAGES_WITH_CSS = PAGES.filter((p) => p !== NO_CSS);
 
-describe('ieșirea build-ului există', () => {
+describe('the build output exists', () => {
   // A guard that reads files must prove it read something. Without this, a
   // missing dist/ makes every case below pass vacuously.
-  it('dist/ conține pagini', () => {
+  it('dist/ contains pages', () => {
     expect(existsSync(DIST)).toBe(true);
-    expect(PAGINI.length).toBeGreaterThan(0);
+    expect(PAGES.length).toBeGreaterThan(0);
     // And the exemption must not have eaten the whole set.
-    expect(PAGINI_CU_CSS.length).toBeGreaterThan(0);
+    expect(PAGES_WITH_CSS.length).toBeGreaterThan(0);
   });
 
-  it('pagina exceptată există', () => {
+  it('the exempted page exists', () => {
     // O excepție pentru un fișier care nu mai există nu scutește nimic: rămâne
     // în cod arătând ca o regulă, gata să scuze altceva cu același nume.
-    expect(PAGINI, `${FARA_CSS} nu mai există, deci excepția nu mai are rost`).toContain(FARA_CSS);
+    expect(PAGES, `${NO_CSS} nu mai există, deci excepția nu mai are rost`).toContain(NO_CSS);
   });
 
-  it.each(PAGINI_CU_CSS)('%s are CSS', (pagina) => {
-    const html = readFileSync(DIST + pagina, 'utf8');
+  it.each(PAGES_WITH_CSS)('%s are CSS', (page) => {
+    const html = readFileSync(DIST + page, 'utf8');
     expect(html.length).toBeGreaterThan(0);
-    expect(cssPagina(html).length).toBeGreaterThan(0);
+    expect(pageCss(html).length).toBeGreaterThan(0);
   });
 });
 
-describe('hexuriInStil', () => {
+describe('hexesInDeclarations', () => {
   // Control pozitiv: a guard that cannot fire is a claim nobody is checking.
   it.each([
     ['.x { color: #E4D7C4; }', ['color: #E4D7C4']],
@@ -145,12 +145,12 @@ describe('hexuriInStil', () => {
     ['.x { color: var(--ink); }', []],
     ['#fade { color: var(--ink); }', []],
     ['@media (max-width: 34rem) { .x { color: var(--muted); } }', []],
-  ] as [string, string[]][])('%s', (css, asteptat) => {
-    expect(hexuriInStil(css)).toEqual(asteptat);
+  ] as [string, string[]][])('%s', (css, expected) => {
+    expect(hexesInDeclarations(css)).toEqual(expected);
   });
 });
 
-describe('blocul de tokenuri este recunoscut după selector', () => {
+describe('the token block is recognised by its selector', () => {
   it.each([
     [':root { --a: #FAF6EE; }', true],
     [':root{--a:#FAF6EE}', true],
@@ -159,30 +159,30 @@ describe('blocul de tokenuri este recunoscut după selector', () => {
     ['html:root { color: #DEADBE; }', false],
     ['.tema:root { color: #DEADBE; }', false],
     ['body { color: #DEADBE; }', false],
-  ] as [string, boolean][])('%s', (css, exceptat) => {
+  ] as [string, boolean][])('%s', (css, exempted) => {
     // exempted blocks vanish from the scan; everything else keeps its literal
-    expect(hexuriInStil(faraBlocurileDeTokenuri(css)).length === 0).toBe(exceptat);
+    expect(hexesInDeclarations(withoutTokenBlocks(css)).length === 0).toBe(exempted);
   });
 
-  it('html:root nu este tratat ca bloc de tokenuri', () => {
-    expect(hexuriInStil(faraBlocurileDeTokenuri('html:root{color:#DEADBE}'))).toEqual(['color: #DEADBE']);
+  it('html:root is not treated as a token block', () => {
+    expect(hexesInDeclarations(withoutTokenBlocks('html:root{color:#DEADBE}'))).toEqual(['color: #DEADBE']);
   });
 });
 
-describe('culorile vin din tokenuri, nu din literali hex', () => {
-  it.each(PAGINI_CU_CSS)('%s', (pagina) => {
-    const css = cssPagina(readFileSync(DIST + pagina, 'utf8'));
+describe('the colours come from tokens, not from hex literals', () => {
+  it.each(PAGES_WITH_CSS)('%s', (page) => {
+    const css = pageCss(readFileSync(DIST + page, 'utf8'));
     expect(css.length).toBeGreaterThan(0);
     // The token block must contain literals, or exempting it would be an
     // exemption for nothing rather than an exclusion of the one legal place.
-    expect(hexuriInStil(blocurileDeTokenuri(css)).length).toBeGreaterThan(0);
-    expect(hexuriInStil(faraBlocurileDeTokenuri(css))).toEqual([]);
+    expect(hexesInDeclarations(tokenBlocks(css)).length).toBeGreaterThan(0);
+    expect(hexesInDeclarations(withoutTokenBlocks(css))).toEqual([]);
   });
 
-  it.each(FOI.length > 0 ? FOI : ['(nicio foaie separată)'])('%s', (foaie) => {
-    if (foaie.startsWith('(')) return;
-    const css = readFileSync(DIST + foaie, 'utf8');
+  it.each(STYLESHEETS.length > 0 ? STYLESHEETS : ['(nicio foaie separată)'])('%s', (stylesheet) => {
+    if (stylesheet.startsWith('(')) return;
+    const css = readFileSync(DIST + stylesheet, 'utf8');
     expect(css.length).toBeGreaterThan(0);
-    expect(hexuriInStil(faraBlocurileDeTokenuri(css))).toEqual([]);
+    expect(hexesInDeclarations(withoutTokenBlocks(css))).toEqual([]);
   });
 });

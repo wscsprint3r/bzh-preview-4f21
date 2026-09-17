@@ -1,14 +1,14 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CEDILE, VIRGULA_DEDESUBT } from './cedile';
-import { INDEXABIL } from './site';
+import { CEDILLAS, COMMA_BELOW } from './cedilla';
+import { INDEXABLE } from './site';
 
 /*
  * WHAT THIS PROVES: that the content collection, the schema, the generator and
  * the pages are wired to each other in a real build. No unit test can — every
  * one of them runs against a fixture, and the joint they cannot see is the one
- * where `getCollection` hands `e.data` and `e.id` to a page or an endpoint.
+ * where `getCollection` hands `e.date` and `e.id` to a page or an endpoint.
  *
  * It reads `dist/`, so it runs only after a build: `npm run test:build`.
  *
@@ -21,46 +21,46 @@ import { INDEXABIL } from './site';
  *
  * A GUARD THAT READS A FILE MUST PROVE IT READ SOMETHING. `existsSync` answers
  * a different question from "did I get bytes", and `not.toMatch` against an
- * empty string passes triumphantly. So every read goes through `citeste`,
+ * empty string passes triumphantly. So every read goes through `read`,
  * which fails on a missing or empty file, and every "X is absent" claim is
  * paired with a positive control showing the detector can fire.
  */
 
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
-const CONTINUT = fileURLToPath(new URL('../content/slujbe/', import.meta.url));
+const CONTENT = fileURLToPath(new URL('../content/services/', import.meta.url));
 
 /** RFC 5545 §3.1: the line break in an iCalendar stream is CRLF, always. */
 const CRLF = '\r\n';
 
 /** The file's text, having proved there was a file and that it had text in it. */
-function citeste(cale: string): string {
-  expect(existsSync(DIST + cale), `${cale} lipsește din dist/`).toBe(true);
-  const text = readFileSync(DIST + cale, 'utf8');
-  expect(text.length, `${cale} există dar este gol`).toBeGreaterThan(0);
+function read(path: string): string {
+  expect(existsSync(DIST + path), `${path} lipsește din dist/`).toBe(true);
+  const text = readFileSync(DIST + path, 'utf8');
+  expect(text.length, `${path} există dar este gol`).toBeGreaterThan(0);
   return text;
 }
 
 /*
  * The forbidden characters are named by CODEPOINT and never written as glyphs,
- * the convention `diacritice.itest.ts` sets and explains: a file that spelled
+ * the convention `diacritics.itest.ts` sets and explains: a file that spelled
  * them out could not itself be swept for them, and a `backslash-u` escape is
  * decoded into the literal character on the way to disk in this repo (see
  * CLAUDE.md), so the escape form is not a way round it either.
  *
- * `diacritice.itest.ts` owns the project-wide sweep over `dist/`, and `.ics` is
+ * `diacritics.itest.ts` owns the project-wide sweep over `dist/`, and `.ics` is
  * in its extension list, so the feed is covered there too. The assertions below
  * exist because that coverage is silent: nothing in this file would notice if
  * the feed dropped out of that sweep, and the feed is the one artefact where a
- * volunteer's `praznic:` reaches a subscriber's phone unedited.
+ * volunteer's `feast:` reaches a subscriber's phone unedited.
  *
- * The four numbers themselves now come from `./cedile`, which is the only place
+ * The four numbers themselves now come from `./cedilla`, which is the only place
  * in this repository that writes them down. They were a third copy here.
  */
 
-function areVreunul(text: string, coduri: readonly number[]): boolean {
+function containsAnyOf(text: string, codepoints: readonly number[]): boolean {
   for (let i = 0; i < text.length; i += 1) {
     const cp = text.codePointAt(i);
-    if (cp !== undefined && coduri.includes(cp)) return true;
+    if (cp !== undefined && codepoints.includes(cp)) return true;
   }
   return false;
 }
@@ -71,43 +71,43 @@ function areVreunul(text: string, coduri: readonly number[]): boolean {
  * property long enough to fold would read as two lines and every per-property
  * assertion below would quietly stop seeing it.
  */
-function desfasoara(ics: string): string[] {
-  const linii: string[] = [];
-  for (const bruta of ics.split(CRLF)) {
-    if (bruta.startsWith(' ') && linii.length > 0) linii[linii.length - 1] += bruta.slice(1);
-    else if (bruta.length > 0) linii.push(bruta);
+function unfold(ics: string): string[] {
+  const lines: string[] = [];
+  for (const rawLine of ics.split(CRLF)) {
+    if (rawLine.startsWith(' ') && lines.length > 0) lines[lines.length - 1] += rawLine.slice(1);
+    else if (rawLine.length > 0) lines.push(rawLine);
   }
-  return linii;
+  return lines;
 }
 
 /** The properties of each VEVENT, unfolded, in order. */
-function evenimente(ics: string): string[][] {
-  const blocuri: string[][] = [];
-  let curent: string[] | null = null;
-  for (const linie of desfasoara(ics)) {
-    if (linie === 'BEGIN:VEVENT') curent = [];
-    else if (linie === 'END:VEVENT') {
-      expect(curent, 'END:VEVENT fără BEGIN:VEVENT').not.toBeNull();
-      if (curent) blocuri.push(curent);
-      curent = null;
-    } else if (curent) curent.push(linie);
+function events(ics: string): string[][] {
+  const blocks: string[][] = [];
+  let currentEvent: string[] | null = null;
+  for (const line of unfold(ics)) {
+    if (line === 'BEGIN:VEVENT') currentEvent = [];
+    else if (line === 'END:VEVENT') {
+      expect(currentEvent, 'END:VEVENT fără BEGIN:VEVENT').not.toBeNull();
+      if (currentEvent) blocks.push(currentEvent);
+      currentEvent = null;
+    } else if (currentEvent) currentEvent.push(line);
   }
-  expect(curent, 'BEGIN:VEVENT fără END:VEVENT').toBeNull();
-  return blocuri;
+  expect(currentEvent, 'BEGIN:VEVENT fără END:VEVENT').toBeNull();
+  return blocks;
 }
 
 /** Toate paginile HTML din `dist`, ca o cale relativă la `dist`. */
-function paginiConstruite(): string[] {
-  const gasite: string[] = [];
-  const mergi = (relativ: string): void => {
-    for (const intrare of readdirSync(DIST + relativ, { withFileTypes: true })) {
-      const cale = relativ + intrare.name;
-      if (intrare.isDirectory()) mergi(cale + '/');
-      else if (intrare.name.endsWith('.html')) gasite.push(cale);
+function builtPages(): string[] {
+  const found: string[] = [];
+  const walk = (relative: string): void => {
+    for (const entry of readdirSync(DIST + relative, { withFileTypes: true })) {
+      const path = relative + entry.name;
+      if (entry.isDirectory()) walk(path + '/');
+      else if (entry.name.endsWith('.html')) found.push(path);
     }
   };
-  if (existsSync(DIST)) mergi('');
-  return gasite.sort();
+  if (existsSync(DIST)) walk('');
+  return found.sort();
 }
 
 /**
@@ -121,11 +121,11 @@ function paginiConstruite(): string[] {
  *
  * Regula pe care o lasă în urmă: un tipar care alege ce să verifice trebuie să
  * prindă și formele greșite, altfel „nu s-a potrivit” devine sinonim cu „e în
- * regulă”. Perechea lui este `REFERINTE_ICS` de mai jos, care închide mulțimea
+ * regulă”. Perechea lui este `ICS_REFERENCES` de mai jos, care închide mulțimea
  * numărând — fără el, orice referință care încetează să se potrivească dispare
  * în tăcere, oricât de larg ar fi tiparul.
  */
-function referinteIcs(html: string): string[] {
+function icsReferences(html: string): string[] {
   return [...html.matchAll(/href="([^"]*\.ics[^"]*)"/g)].map((m) => m[1] as string);
 }
 
@@ -143,7 +143,7 @@ function referinteIcs(html: string): string[] {
  * shell-ul CMS-ului nu se construiește din `Base.astro`. Acela este un răspuns
  * care se dă o dată, nu o slăbire a regulii.
  */
-const REFERINTE_ICS: Record<string, number> = {
+const ICS_REFERENCES: Record<string, number> = {
   // `<link rel="alternate">` din `<head>` + „Abonare la program (.ics)” din subsol.
   'index.html': 2,
   // Aceleași două, plus butonul de abonare de la piciorul paginii.
@@ -159,8 +159,8 @@ const REFERINTE_ICS: Record<string, number> = {
 };
 
 /** Zilele pe care le are colecția, citite din numele fișierelor — cheia ei primară. */
-function zileleDinColectie(): string[] {
-  return readdirSync(CONTINUT)
+function collectionDays(): string[] {
+  return readdirSync(CONTENT)
     .filter((f) => f.endsWith('.yml'))
     .map((f) => f.slice(0, -'.yml'.length))
     .sort();
@@ -170,60 +170,60 @@ function zileleDinColectie(): string[] {
  * Câte slujbe cuprinde colecția, adunate din toate zilele ei.
  *
  * O numărătoare de linii peste YAML, nu o analiză a lui: fișierele de program
- * scriu fiecare slujbă pe propriul rând, ca `- ora: "07:30"`. Dacă cineva trece
+ * scriu fiecare slujbă pe propriul rând, ca `- time: "07:30"`. Dacă cineva trece
  * vreodată la stil flow, numărul de aici scade și testul pică — zgomotos, cerând
  * să fie renumărat, nu în tăcere lăsând feed-ul să piardă slujbe.
  */
-function slujbeInColectie(): number {
+function collectionServices(): number {
   let n = 0;
-  for (const f of readdirSync(CONTINUT).filter((x) => x.endsWith('.yml'))) {
-    n += [...readFileSync(CONTINUT + f, 'utf8').matchAll(/^[ \t]*-[ \t]*ora:/gm)].length;
+  for (const f of readdirSync(CONTENT).filter((x) => x.endsWith('.yml'))) {
+    n += [...readFileSync(CONTENT + f, 'utf8').matchAll(/^[ \t]*-[ \t]*time:/gm)].length;
   }
   return n;
 }
 
-const ZILE = zileleDinColectie();
+const DAYS = collectionDays();
 
-describe('detectoarele acestui fișier pot să se declanșeze', () => {
+describe("this file's detectors can actually fire", () => {
   // Un control care nu poate să eșueze nu verifică nimic. Șirurile se
   // construiesc din coduri, exact ca mulțimile căutate.
-  it.each(CEDILE)('prinde sedila %i', (cp) => {
-    expect(areVreunul(`Înăl${String.fromCodePoint(cp)}area`, CEDILE)).toBe(true);
+  it.each(CEDILLAS)('prinde sedila %i', (cp) => {
+    expect(containsAnyOf(`Înăl${String.fromCodePoint(cp)}area`, CEDILLAS)).toBe(true);
   });
 
-  it('nu confundă virgula dedesubt cu sedila', () => {
-    const bun = VIRGULA_DEDESUBT.map((cp) => String.fromCodePoint(cp)).join('');
-    expect(areVreunul(bun, CEDILE)).toBe(false);
-    expect(areVreunul(bun, VIRGULA_DEDESUBT)).toBe(true);
+  it('does not confuse comma below with cedilla', () => {
+    const good = COMMA_BELOW.map((cp) => String.fromCodePoint(cp)).join('');
+    expect(containsAnyOf(good, CEDILLAS)).toBe(false);
+    expect(containsAnyOf(good, COMMA_BELOW)).toBe(true);
   });
 
-  it('nu se declanșează pe a-breve, a-circumflex sau i-circumflex', () => {
-    const altele = [0x0103, 0x00e2, 0x00ee].map((cp) => String.fromCodePoint(cp)).join('');
-    expect(areVreunul(altele, CEDILE)).toBe(false);
-    expect(areVreunul(altele, VIRGULA_DEDESUBT)).toBe(false);
+  it('does not fire on a-breve, a-circumflex or i-circumflex', () => {
+    const others = [0x0103, 0x00e2, 0x00ee].map((cp) => String.fromCodePoint(cp)).join('');
+    expect(containsAnyOf(others, CEDILLAS)).toBe(false);
+    expect(containsAnyOf(others, COMMA_BELOW)).toBe(false);
   });
 
-  it('citirea unui fișier inexistent eșuează, nu trece în gol', () => {
-    expect(() => citeste('nu-exista-acest-fisier.ics')).toThrow();
+  it('reading a file that does not exist fails, rather than passing vacuously', () => {
+    expect(() => read('nu-exista-acest-fisier.ics')).toThrow();
   });
 
-  it('colecția chiar are zile și slujbe de comparat', () => {
-    expect(ZILE.length).toBeGreaterThan(0);
-    expect(slujbeInColectie()).toBeGreaterThanOrEqual(ZILE.length);
+  it('the collection really does have days and services to compare', () => {
+    expect(DAYS.length).toBeGreaterThan(0);
+    expect(collectionServices()).toBeGreaterThanOrEqual(DAYS.length);
   });
 });
 
-describe('ieșirea build-ului', () => {
-  it('a fost generată', () => {
-    expect(citeste('index.html')).toContain('</html>');
+describe('the build output', () => {
+  it('was generated', () => {
+    expect(read('index.html')).toContain('</html>');
   });
 
-  it('cuprinde pagina de program', () => {
-    expect(citeste('program/index.html')).toContain('</html>');
+  it('includes the schedule page', () => {
+    expect(read('program/index.html')).toContain('</html>');
   });
 
-  it('emite feed-ul de calendar', () => {
-    expect(citeste('program.ics')).toContain('BEGIN:VCALENDAR');
+  it('emits the calendar feed', () => {
+    expect(read('program.ics')).toContain('BEGIN:VCALENDAR');
   });
 });
 
@@ -231,18 +231,18 @@ describe('ieșirea build-ului', () => {
  * Aserțiunile de mai jos se pot fixa pe conținutul colecției tocmai pentru că
  * feed-ul poartă fiecare zi a ei, oricare ar fi data build-ului.
  */
-describe('feed-ul de calendar poartă colecția', () => {
-  it('se deschide și se închide ca un VCALENDAR', () => {
-    const ics = citeste('program.ics');
-    const linii = desfasoara(ics);
-    expect(linii[0]).toBe('BEGIN:VCALENDAR');
-    expect(linii[linii.length - 1]).toBe('END:VCALENDAR');
+describe('the calendar feed carries the collection', () => {
+  it('opens and closes as a VCALENDAR', () => {
+    const ics = read('program.ics');
+    const lines = unfold(ics);
+    expect(lines[0]).toBe('BEGIN:VCALENDAR');
+    expect(lines[lines.length - 1]).toBe('END:VCALENDAR');
     // Un prag legat de conținut, nu un număr ales cu mâna: fiecare VEVENT are
     // cel puțin șase proprietăți între BEGIN și END. Un prag fix ar fi trecut
     // peste un feed retezat dacă parohia publică o singură zi și ar fi picat
     // degeaba dacă publică puține — adică ar fi vorbit despre calendarul
     // parohiei, nu despre fișier.
-    expect(linii.length).toBeGreaterThan(evenimente(ics).length * 6);
+    expect(lines.length).toBeGreaterThan(events(ics).length * 6);
   });
 
   /*
@@ -252,42 +252,42 @@ describe('feed-ul de calendar poartă colecția', () => {
    * fișierul să pară stricat. Blocul este scris de `ics.ts` și nu depinde de
    * conținut, deci lipsa lui înseamnă întotdeauna o regresie.
    */
-  it('definește fusul orar pe care îl numesc toate evenimentele', () => {
-    const linii = desfasoara(citeste('program.ics'));
-    expect(linii).toContain('BEGIN:VTIMEZONE');
-    expect(linii).toContain('TZID:Europe/Zurich');
-    expect(linii).toContain('END:VTIMEZONE');
-    expect(linii).toContain('BEGIN:DAYLIGHT');
-    expect(linii).toContain('BEGIN:STANDARD');
+  it('defines the timezone every event names', () => {
+    const lines = unfold(read('program.ics'));
+    expect(lines).toContain('BEGIN:VTIMEZONE');
+    expect(lines).toContain('TZID:Europe/Zurich');
+    expect(lines).toContain('END:VTIMEZONE');
+    expect(lines).toContain('BEGIN:DAYLIGHT');
+    expect(lines).toContain('BEGIN:STANDARD');
   });
 
   // Egalitate de mulțimi, nu un exemplu: o zi pierdută pe drumul dintre
   // `getCollection` și feed cade aici, iar o zi adăugată în colecție nu cere
   // nicio modificare în acest test.
-  it('poartă exact zilele colecției, nici una în plus, nici una în minus', () => {
-    const ics = citeste('program.ics');
-    const dinFeed = [...ics.matchAll(/^DTSTART;TZID=Europe\/Zurich:(\d{4})(\d{2})(\d{2})T/gm)]
+  it("carries exactly the collection's days, not one more, not one fewer", () => {
+    const ics = read('program.ics');
+    const fromFeed = [...ics.matchAll(/^DTSTART;TZID=Europe\/Zurich:(\d{4})(\d{2})(\d{2})T/gm)]
       .map((m) => `${m[1]}-${m[2]}-${m[3]}`);
-    expect([...new Set(dinFeed)].sort()).toEqual(ZILE);
+    expect([...new Set(fromFeed)].sort()).toEqual(DAYS);
   });
 
-  it('poartă fiecare slujbă a colecției, nu doar fiecare zi', () => {
-    expect(evenimente(citeste('program.ics')).length).toBe(slujbeInColectie());
+  it("carries every service of the collection, not merely every day", () => {
+    expect(events(read('program.ics')).length).toBe(collectionServices());
   });
 
-  // Capătul celălalt al lanțului: `ora` normalizată de schema, numele compus de
-  // `etichetaSlujba` din `slujba` + `detaliu`, praznicul scris de un voluntar.
-  it('duce ora, numele compus și praznicul până în feed', () => {
-    const ics = citeste('program.ics');
+  // Capătul celălalt al lanțului: `time` normalizată de schema, numele compus de
+  // `serviceLabel` din `service` + `detail`, praznicul scris de un voluntar.
+  it('carries the time, the composed name and the feast all the way into the feed', () => {
+    const ics = read('program.ics');
     expect(ics).toContain('DTSTART;TZID=Europe/Zurich:20260914T073000');
     expect(ics).toContain('SUMMARY:Sfânta Liturghie și Parastas');
     expect(ics).toContain('Înălțarea Sfintei Cruci');
   });
 });
 
-describe('feed-ul respectă formatul iCalendar', () => {
-  it('desparte liniile cu CRLF, nu cu LF', () => {
-    const ics = citeste('program.ics');
+describe('the feed respects the iCalendar format', () => {
+  it('separates lines with CRLF, not with LF', () => {
+    const ics = read('program.ics');
     expect(ics.endsWith(CRLF)).toBe(true);
     expect(/[^\r]\n/.test(ics), 'LF fără CR înaintea lui').toBe(false);
     expect(/\r[^\n]/.test(ics), 'CR fără LF după el').toBe(false);
@@ -298,29 +298,29 @@ describe('feed-ul respectă formatul iCalendar', () => {
    * linie din feed-ul construit are 69 de octeți (`PRODID:`), iar liniile de
    * continuare sunt ZERO — conținutul parohiei nu se apropie de limită. Deci
    * aici scrie „nimic nu e prea lung”, nu „lucrurile lungi se împăturesc”, iar
-   * dacă `impatureste` s-ar strica, acest test ar rămâne verde.
+   * dacă `fold` s-ar strica, acest test ar rămâne verde.
    *
    * Împăturirea este acoperită unde poate fi provocată, în `ics.test.ts`:
-   * „continuă liniile împăturite cu un spațiu” (un `praznic` de 200 de
+   * „continuă liniile împăturite cu un spațiu” (un `feast` de 200 de
    * caractere, cere continuări), „nu rupe un caracter multi-octet în două
    * linii”, și cazul de trei și patru octeți (liniuță lungă, CJK, emoji).
-   * Rostul liniei de aici este celălalt: că un `praznic` scris de un voluntar
+   * Rostul liniei de aici este celălalt: că un `feast` scris de un voluntar
    * nu poate face feed-ul REAL să depășească limita fără să se observe.
    */
-  it('nu depășește 75 de octeți pe linie', () => {
-    const ics = citeste('program.ics');
-    const linii = ics.split(CRLF);
+  it('never exceeds 75 bytes per line', () => {
+    const ics = read('program.ics');
+    const lines = ics.split(CRLF);
     // Aceeași grijă ca mai sus: „am citit chiar liniile feed-ului” trebuie să
     // rămână adevărat și pentru o săptămână cu o singură slujbă.
-    expect(linii.length).toBeGreaterThan(evenimente(ics).length * 6);
-    for (const linie of linii) {
-      expect(new TextEncoder().encode(linie).length, linie).toBeLessThanOrEqual(75);
+    expect(lines.length).toBeGreaterThan(events(ics).length * 6);
+    for (const line of lines) {
+      expect(new TextEncoder().encode(line).length, line).toBeLessThanOrEqual(75);
     }
   });
 
   /*
    * DTSTAMP-ul este singurul câmp pe care acest capăt îl compune singur:
-   * `genereazaIcs` îl primește ca parametru și nu îl validează, tocmai ca
+   * `generateIcs` îl primește ca parametru și nu îl validează, tocmai ca
    * ieșirea să fie deterministă în teste. Deci corectitudinea lui se verifică
    * aici sau nicăieri.
    *
@@ -330,33 +330,33 @@ describe('feed-ul respectă formatul iCalendar', () => {
    * de aproape este de „acum” ar fi tocmai genul de test pe care îl strică
    * trecerea timpului, nu o schimbare de cod.
    */
-  it('ștampilează fiecare eveniment cu un DTSTAMP UTC valid', () => {
-    const blocuri = evenimente(citeste('program.ics'));
-    expect(blocuri.length).toBeGreaterThan(0);
-    for (const bloc of blocuri) {
-      const linie = bloc.find((l) => l.startsWith('DTSTAMP:'));
-      expect(linie, `VEVENT fără DTSTAMP: ${bloc.join(' | ')}`).toBeDefined();
-      const stampila = (linie as string).slice('DTSTAMP:'.length);
-      const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(stampila);
-      expect(m, `DTSTAMP prost format: ${stampila}`).not.toBeNull();
-      const [, an, luna, zi, ore, minute, secunde] = m as RegExpExecArray;
-      const d = new Date(Date.UTC(+an, +luna - 1, +zi, +ore, +minute, +secunde));
-      expect(`${d.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`, 'DTSTAMP inexistent').toBe(stampila);
+  it('stamps every event with a valid UTC DTSTAMP', () => {
+    const blocks = events(read('program.ics'));
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const block of blocks) {
+      const line = block.find((l) => l.startsWith('DTSTAMP:'));
+      expect(line, `VEVENT fără DTSTAMP: ${block.join(' | ')}`).toBeDefined();
+      const stamp = (line as string).slice('DTSTAMP:'.length);
+      const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(stamp);
+      expect(m, `DTSTAMP prost format: ${stamp}`).not.toBeNull();
+      const [, year, month, day, times, minutes, seconds] = m as RegExpExecArray;
+      const d = new Date(Date.UTC(+year, +month - 1, +day, +times, +minutes, +seconds));
+      expect(`${d.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`, 'DTSTAMP inexistent').toBe(stamp);
     }
   });
 
-  it('dă fiecărui eveniment câmpurile obligatorii și un UID propriu', () => {
-    const blocuri = evenimente(citeste('program.ics'));
-    expect(blocuri.length).toBeGreaterThan(0);
-    const uiduri: string[] = [];
-    for (const bloc of blocuri) {
-      for (const cheie of ['UID:', 'DTSTAMP:', 'DTSTART;', 'DTEND;', 'SUMMARY:', 'LOCATION:']) {
-        expect(bloc.some((l) => l.startsWith(cheie)), `lipsește ${cheie} din ${bloc.join(' | ')}`).toBe(true);
+  it('gives every event the required fields and a UID of its own', () => {
+    const blocks = events(read('program.ics'));
+    expect(blocks.length).toBeGreaterThan(0);
+    const uids: string[] = [];
+    for (const block of blocks) {
+      for (const key of ['UID:', 'DTSTAMP:', 'DTSTART;', 'DTEND;', 'SUMMARY:', 'LOCATION:']) {
+        expect(block.some((l) => l.startsWith(key)), `lipsește ${key} din ${block.join(' | ')}`).toBe(true);
       }
-      expect(bloc.find((l) => l.startsWith('DTSTART;'))).toMatch(
+      expect(block.find((l) => l.startsWith('DTSTART;'))).toMatch(
         /^DTSTART;TZID=Europe\/Zurich:\d{8}T\d{6}$/,
       );
-      expect(bloc.find((l) => l.startsWith('DTEND;'))).toMatch(
+      expect(block.find((l) => l.startsWith('DTEND;'))).toMatch(
         /^DTEND;TZID=Europe\/Zurich:\d{8}T\d{6}$/,
       );
       /*
@@ -371,32 +371,32 @@ describe('feed-ul respectă formatul iCalendar', () => {
        * perete. Aritmetica de peste miezul nopții și cea de peste schimbarea
        * orei stau în `ics.test.ts`, unde pot fi construite anume.
        */
-      const start = (bloc.find((l) => l.startsWith('DTSTART;')) as string).split(':')[1] as string;
-      const sfarsit = (bloc.find((l) => l.startsWith('DTEND;')) as string).split(':')[1] as string;
-      expect(sfarsit > start, `DTEND ${sfarsit} nu este după DTSTART ${start}`).toBe(true);
-      uiduri.push(bloc.find((l) => l.startsWith('UID:')) as string);
+      const start = (block.find((l) => l.startsWith('DTSTART;')) as string).split(':')[1] as string;
+      const end = (block.find((l) => l.startsWith('DTEND;')) as string).split(':')[1] as string;
+      expect(end > start, `DTEND ${end} nu este după DTSTART ${start}`).toBe(true);
+      uids.push(block.find((l) => l.startsWith('UID:')) as string);
     }
     // UID-uri identice fac ca două slujbe să se topească într-un singur eveniment
     // în calendarul fiecărui abonat, fără niciun semn.
-    expect(new Set(uiduri).size).toBe(uiduri.length);
+    expect(new Set(uids).size).toBe(uids.length);
   });
 });
 
-describe('feed-ul păstrează diacriticele cu virgulă dedesubt', () => {
-  it('nu conține nicio sedilă turcească', () => {
-    expect(areVreunul(citeste('program.ics'), CEDILE)).toBe(false);
+describe('the feed keeps the comma-below diacritics', () => {
+  it('contains no Turkish cedilla', () => {
+    expect(containsAnyOf(read('program.ics'), CEDILLAS)).toBe(false);
   });
 
   // Fără acest control, aserțiunea de mai sus ar fi la fel de adevărată despre
   // un feed care nu mai conține niciun cuvânt românesc.
-  it('conține totuși virgulă dedesubt', () => {
-    expect(areVreunul(citeste('program.ics'), VIRGULA_DEDESUBT)).toBe(true);
+  it('does contain comma below', () => {
+    expect(containsAnyOf(read('program.ics'), COMMA_BELOW)).toBe(true);
   });
 });
 
 describe('paginile construite', () => {
-  it('pagina de pornire are secțiunea de program', () => {
-    const html = citeste('index.html');
+  it('the homepage has the schedule section', () => {
+    const html = read('index.html');
     // „Programul slujbelor”, nu „Programul săptămânii”: titlul din `index.astro`
     // nu numără săptămâni tocmai pentru că numărul lor depinde de dată și de
     // JavaScript. Un titlu care numără ar fi fals în cel puțin una dintre stări.
@@ -404,13 +404,13 @@ describe('paginile construite', () => {
     expect(html).toContain('Bine ați venit');
   });
 
-  it('declară limba română și diacritice corecte', () => {
+  it('declares the Romanian language and correct diacritics', () => {
     for (const p of ['index.html', 'program/index.html']) {
-      const html = citeste(p);
+      const html = read(p);
       expect(html, p).toContain('<html lang="ro"');
       expect(html, p).toContain('Sfântul Nicolae');
-      expect(areVreunul(html, CEDILE), p).toBe(false);
-      expect(areVreunul(html, VIRGULA_DEDESUBT), p).toBe(true);
+      expect(containsAnyOf(html, CEDILLAS), p).toBe(false);
+      expect(containsAnyOf(html, COMMA_BELOW), p).toBe(true);
     }
   });
 
@@ -423,8 +423,8 @@ describe('paginile construite', () => {
    *    până la fișier. Mai bine, dar tiparul cerea `.ics` lipit de ghilimea:
    *    `href="/program.ics/"` nu se mai potrivea, deci IEȘEA din mulțimea
    *    verificată. Potrivirile scădeau de la 2 la 1 și nimic nu pica.
-   * 3. Acesta. Tiparul prinde și formele greșite (`referinteIcs`), iar numărul
-   *    de referințe al fiecărei pagini este fixat (`REFERINTE_ICS`), deci o
+   * 3. Acesta. Tiparul prinde și formele greșite (`icsReferences`), iar numărul
+   *    de referințe al fiecărei pagini este fixat (`ICS_REFERENCES`), deci o
    *    referință care încetează să se potrivească PICĂ în loc să dispară.
    *
    * De fiecare dată aserțiunea vorbea despre referințele găsite, nu despre
@@ -433,38 +433,38 @@ describe('paginile construite', () => {
    * Trebuie amândouă: fără număr, un tipar larg tot pierde în tăcere ce nu se
    * potrivește; fără urmărire, numărul e mulțumit de o cale care nu există.
    */
-  it('poartă exact referințele așteptate către feed, pe fiecare pagină', () => {
-    const pagini = paginiConstruite();
-    expect(pagini.length, 'dist/ nu conține nicio pagină').toBeGreaterThan(0);
-    expect(pagini, 'o pagină construită nedeclarată în REFERINTE_ICS').toEqual(
-      Object.keys(REFERINTE_ICS).sort(),
+  it('carries exactly the expected references to the feed, on every page', () => {
+    const pages = builtPages();
+    expect(pages.length, 'dist/ nu conține nicio pagină').toBeGreaterThan(0);
+    expect(pages, 'o pagină construită nedeclarată în REFERINTE_ICS').toEqual(
+      Object.keys(ICS_REFERENCES).sort(),
     );
-    for (const pagina of pagini) {
-      expect(referinteIcs(citeste(pagina)).length, pagina).toBe(REFERINTE_ICS[pagina]);
+    for (const page of pages) {
+      expect(icsReferences(read(page)).length, page).toBe(ICS_REFERENCES[page]);
     }
   });
 
-  it('fiecare referință .ics din ieșire duce la un fișier real', () => {
-    const perechi: [string, string][] = [];
-    for (const pagina of paginiConstruite()) {
-      for (const href of referinteIcs(citeste(pagina))) perechi.push([pagina, href]);
+  it('every .ics reference in the output leads to a real file', () => {
+    const pairs: [string, string][] = [];
+    for (const page of builtPages()) {
+      for (const href of icsReferences(read(page))) pairs.push([page, href]);
     }
-    expect(perechi.length, 'nicio referință .ics în tot situl').toBeGreaterThan(0);
-    for (const [pagina, href] of perechi) {
+    expect(pairs.length, 'nicio referință .ics în tot situl').toBeGreaterThan(0);
+    for (const [page, href] of pairs) {
       // Absolută de la rădăcină, altfel `dist` + href nu este calea servită și
       // aserțiunea de mai jos ar întreba altceva decât pare că întreabă.
-      expect(href.startsWith('/'), `${href} de pe ${pagina} nu este absolută`).toBe(true);
+      expect(href.startsWith('/'), `${href} de pe ${page} nu este absolută`).toBe(true);
       /*
        * Interogarea și fragmentul se taie, fiindcă nu fac parte din calea pe
        * care o servește gazda: `/program.ics?v=2` livrează chiar acest fișier.
-       * Tiparul de mai sus trebuie să fie LARG, ca o referință stricată să nu
+       * Tiparul de mai sus trebuie să fie WIDE, ca o referință stricată să nu
        * scape neverificată; aici trebuie să fie EXACT, ca o referință corectă
        * să nu pice degeaba. Lărgimea și severitatea nu se pun în același loc.
        * `/program.ics/` nu este atins de tăietura asta și pică în continuare —
        * o cale de director nu este un fișier.
        */
-      const cale = href.slice(1).split(/[?#]/)[0] as string;
-      expect(citeste(cale), `${href} de pe ${pagina}`).toContain('BEGIN:VCALENDAR');
+      const path = href.slice(1).split(/[?#]/)[0] as string;
+      expect(read(path), `${href} de pe ${page}`).toContain('BEGIN:VCALENDAR');
     }
   });
 
@@ -487,12 +487,12 @@ describe('paginile construite', () => {
    * răspunde încă cu instalarea WordPress compromisă. Deci nu există un canonic
    * care merită emis — cel pe care îl dădea `Astro.site` trimitea motoarele de
    * căutare chiar la instalarea aceea — și gazda temporară nu are ce căuta într-un
-   * index. `INDEXABIL` din `lib/site.ts` decide amândouă, iar testul acesta
+   * index. `INDEXABLE` din `lib/site.ts` decide amândouă, iar testul acesta
    * verifică amândouă direcțiile: cu steagul pe `false` fiecare pagină are meta
    * noindex și niciun canonic, cu el pe `true` exact invers. Așa nu se poate
    * întoarce una fără cealaltă la mutarea domeniului.
    */
-  it('fiecare pagină de vizitator se potrivește cu INDEXABIL, în ambele direcții', () => {
+  it('every visitor page matches INDEXABLE, in both directions', () => {
     /*
      * `admin/index.html` este în afara acestui test, pe cale, și rămâne așa. Nu
      * trece prin `Base.astro`, poartă propriul `noindex, nofollow` plus
@@ -501,18 +501,18 @@ describe('paginile construite', () => {
      * Fără excluderea asta, testul ar cere la mutare un canonic pe shell-ul
      * CMS-ului și niciun noindex pe el, adică exact pe dos.
      */
-    const pagini = paginiConstruite().filter((p) => p !== 'admin/index.html');
-    expect(pagini.length, 'dist/ nu conține nicio pagină de vizitator').toBeGreaterThan(0);
-    expect(paginiConstruite(), 'admin/index.html chiar trebuie să existe, ca excluderea să însemne ceva')
+    const pages = builtPages().filter((p) => p !== 'admin/index.html');
+    expect(pages.length, 'dist/ nu conține nicio pagină de vizitator').toBeGreaterThan(0);
+    expect(builtPages(), 'admin/index.html chiar trebuie să existe, ca excluderea să însemne ceva')
       .toContain('admin/index.html');
-    const canonice: string[] = [];
-    for (const pagina of pagini) {
-      const html = citeste(pagina);
-      const canonic = [...html.matchAll(/<link\b[^>]*rel="canonical"[^>]*href="([^"]*)"/g)].map((m) => m[1] as string);
+    const canonicals: string[] = [];
+    for (const page of pages) {
+      const html = read(page);
+      const canonical = [...html.matchAll(/<link\b[^>]*rel="canonical"[^>]*href="([^"]*)"/g)].map((m) => m[1] as string);
       const noindex = /<meta\b[^>]*name="robots"[^>]*content="[^"]*noindex/.test(html);
-      expect(canonic.length, `canonice pe ${pagina}`).toBe(INDEXABIL ? 1 : 0);
-      expect(noindex, `meta robots noindex pe ${pagina}`).toBe(!INDEXABIL);
-      canonice.push(...canonic);
+      expect(canonical.length, `canonice pe ${page}`).toBe(INDEXABLE ? 1 : 0);
+      expect(noindex, `meta robots noindex pe ${page}`).toBe(!INDEXABLE);
+      canonicals.push(...canonical);
     }
     /*
      * Nu se verifică aici ce GAZDĂ numește canonicul. După mutarea domeniului
@@ -522,16 +522,16 @@ describe('paginile construite', () => {
      * este cuplarea: cât timp nu suntem indexabili, nu se emite niciun canonic.
      */
     process.stdout.write(
-      `\nINDEXABIL=${INDEXABIL} peste ${pagini.length} pagină(i) de vizitator: ` +
-        `${canonice.length} canonic(e), ${INDEXABIL ? 0 : pagini.length} meta noindex.\n`,
+      `\nINDEXABIL=${INDEXABLE} peste ${pages.length} pagină(i) de vizitator: ` +
+        `${canonicals.length} canonic(e), ${INDEXABLE ? 0 : pages.length} meta noindex.\n`,
     );
   });
 
-  it('păstrează ancorele de abonare pe care le apasă cineva', () => {
-    const etichete = [
-      ...citeste('program/index.html').matchAll(/<a\b[^>]*href="\/program\.ics"[^>]*>([\s\S]*?)<\/a>/g),
+  it('keeps the subscribe anchors somebody actually clicks', () => {
+    const labels = [
+      ...read('program/index.html').matchAll(/<a\b[^>]*href="\/program\.ics"[^>]*>([\s\S]*?)<\/a>/g),
     ].map((m) => (m[1] as string).trim());
-    expect(etichete).toContain('† Adaugă programul în calendarul telefonului');
-    expect(etichete).toContain('Abonare la program (.ics)');
+    expect(labels).toContain('† Adaugă programul în calendarul telefonului');
+    expect(labels).toContain('Abonare la program (.ics)');
   });
 });

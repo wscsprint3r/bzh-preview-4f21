@@ -50,7 +50,7 @@
  * `<link>`, `<style>`, `<img>`, `<iframe>`, `<video>`, `<audio>`, `<source>` and
  * `<embed>` are matched with a plain regex, so a tag commented out in the HTML
  * is counted as though it were live. Every one of those counts feeds a
- * `valoare <= limita` comparison, so the only outcome over-counting can reach is
+ * `value <= limit` comparison, so the only outcome over-counting can reach is
  * a FAILED budget. A false red costs somebody a minute and a `git blame`; a
  * false green is the thing this whole file exists to prevent.
  *
@@ -59,7 +59,7 @@
  * comment mentioning `<script>`, and the naive pattern ate the comment and the
  * real tag as one match: a 758-byte inline script that does not exist, the real
  * tag's `src` gone with it, weight nothing measured and a CSP hash for nothing.
- * That is why `scripturi()` consumes comments first and why the scans below do
+ * That is why `pageScripts()` consumes comments first and why the scans below do
  * not need to.
  *
  * So before "fixing" one of them into comment-awareness, work out which
@@ -73,7 +73,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 /*
  * Script types the BROWSER EXECUTES, and script types it merely reads, live in
- * `scripts/scripturi.mjs`. Anything in neither list stops the build rather than
+ * `scripts/pageScripts.mjs`. Anything in neither list stops the build rather than
  * being skipped: a `<script>` shape this file has never seen is precisely what a
  * budget must not wave through, and it is the mistake the old file-walking check
  * made in a different costume.
@@ -85,7 +85,7 @@ import { dirname, join, posix } from 'node:path';
  * no visible symptom at all here, since running without JavaScript is the
  * designed fallback. One classification, one place.
  */
-import { ATRIBUT, scripturi } from './scripturi.mjs';
+import { ATTRIBUTE, pageScripts } from './page-scripts.mjs';
 
 const DIST = 'dist';
 
@@ -114,27 +114,27 @@ const DIST = 'dist';
  *     full list - browsing ahead is the point, Ctrl+F has to work - so its weight
  *     is the feature rather than a defect, and the limit is what says how much of
  *     a future somebody can publish before the page stops being a page. It is a
- *     GAP, stated rather than closed: `EXPLICATIA_PAGINII` below is what a
+ *     GAP, stated rather than closed: `PAGE_EXPLANATION` below is what a
  *     volunteer meets if it is ever reached.
  *
  * THE HOMEPAGE NO LONGER CARRIES AN ISLAND AT ALL. It was there to feed a
  * next-service card, and the card was removed at the parish's request - the week
  * bands below it say the same thing - so the page stopped tracking the published
  * horizon by losing the thing that tracked it, rather than by being bounded.
- * `ZILE_INSULA` and `programPentruInsula` remain in `src/lib/schedule.ts`, tested
+ * `ISLAND_DAYS` and `scheduleForIsland` remain in `src/lib/schedule.ts`, tested
  * and unused by any page; if a next-service surface ever returns, the bound is
  * already argued for there and this limit is what it answers to.
  *
  * WHICH ONE GOVERNS IF THEY DISAGREE: this limit does. It is a measurement of the
- * artifact, and `ZILE_INSULA` is an argument about what the artifact will weigh -
- * a day can always carry more services, a longer `locatie` or a longer `detaliu`
+ * artifact, and `ISLAND_DAYS` is an argument about what the artifact will weigh -
+ * a day can always carry more services, a longer `location` or a longer `detail`
  * than the arithmetic assumed. So a red build here is a real red build even with
  * the island inside its window: the bound is what keeps this limit out of reach
  * of CONTENT, and it is not a licence to disbelieve the limit. The direction that
  * must never be taken is the other one - raising 45 KB because a page grew.
  * ---------------------------------------------------------------------------
  */
-const BUGET_PAGINI = {
+const PAGE_BUDGET = {
   'index.html': 45 * 1024,
   'program/index.html': 135 * 1024,
 };
@@ -150,14 +150,14 @@ const BUGET_PAGINI = {
  * into the browser - which is the thing this budget exists to prevent. Kept in
  * step with the plan and the spec; do not lower it without changing those too.
  */
-const BUGET_JS = 3800;
-const BUGET_CERERI = 12;
+const JS_BUDGET = 3800;
+const REQUEST_BUDGET = 12;
 
 /*
  * THE SCRIPT IS INLINED, AND THAT IS A DECISION - so it is asserted, not
  * inferred.
  *
- * `BUGET_JS` sits at 3,800 precisely because Astro inlines below roughly 4,096
+ * `JS_BUDGET` sits at 3,800 precisely because Astro inlines below roughly 4,096
  * bytes, so the ceiling is what keeps the script inside the page. But that is
  * arithmetic about a Vite default, not a fact about this build. Raise
  * `vite.build.assetsInlineLimit`, take an upgrade that moves the threshold, or
@@ -169,10 +169,10 @@ const BUGET_CERERI = 12;
  * cap - while the page quietly gains a request and a cache entry, which is the
  * exact silent change this whole file exists to prevent.
  *
- * Set it to `true` when a file is what you want, and give BUGET_CERERI the room
+ * Set it to `true` when a file is what you want, and give REQUEST_BUDGET the room
  * it then needs.
  */
-const JS_EMIS_PERMIS = false;
+const EMITTED_JS_ALLOWED = false;
 
 /*
  * The Sveltia CMS bundle lives under dist/admin/. It is a few hundred KB of
@@ -181,15 +181,15 @@ const JS_EMIS_PERMIS = false;
  * every budget here. Excluded by DIRECTORY, and the `.mjs` it ships is why the
  * exclusion has to come before any extension test rather than after it.
  */
-const EXCLUSE = ['admin'];
+const EXCLUDED = ['admin'];
 
-let esec = false;
+let failed = false;
 
-function raporteaza(eticheta, valoare, limita, unitate = 'octeți', explicatie = '') {
-  const ok = valoare <= limita;
-  if (!ok) esec = true;
-  console.log(`${ok ? 'OK       ' : 'PREA MARE'} ${eticheta}: ${valoare} / ${limita} ${unitate}`);
-  if (!ok && explicatie !== '') console.log(explicatie);
+function report(label, value, limit, unit = 'bytes', explanation = '') {
+  const ok = value <= limit;
+  if (!ok) failed = true;
+  console.log(`${ok ? 'OK      ' : 'TOO BIG '} ${label}: ${value} / ${limit} ${unit}`);
+  if (!ok && explanation !== '') console.log(explanation);
 }
 
 /*
@@ -204,7 +204,7 @@ function raporteaza(eticheta, valoare, limita, unitate = 'octeți', explicatie =
  * conversation, so the message says which of the two things happened and who has
  * to decide.
  */
-const EXPLICATIA_PAGINII = [
+const PAGE_EXPLANATION = [
   '          Cel mai probabil NU este o greșeală într-un fișier de program.',
   '          Ori pagina a căpătat ceva nou (markup, un stil, un script), ori a crescut',
   '          cu ce s-a publicat: /program/ ține fiecare zi publicată, iar limita spune',
@@ -216,66 +216,66 @@ const EXPLICATIA_PAGINII = [
   '          din CMS.',
 ].join('\n');
 
-function opreste(mesaj) {
-  console.error(mesaj);
+function stop(message) {
+  console.error(message);
   process.exit(1);
 }
 
 /** Every visitor-facing page in the build, as paths relative to `dist/`. */
-function paginiVizitator(relativ = '') {
-  const gasite = [];
-  for (const intrare of readdirSync(join(DIST, relativ), { withFileTypes: true })) {
-    if (intrare.isDirectory()) {
-      if (relativ === '' && EXCLUSE.includes(intrare.name)) continue;
-      gasite.push(...paginiVizitator(posix.join(relativ, intrare.name)));
-    } else if (intrare.name.endsWith('.html')) {
-      gasite.push(posix.join(relativ, intrare.name));
+function visitorPages(relative = '') {
+  const found = [];
+  for (const entry of readdirSync(join(DIST, relative), { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (relative === '' && EXCLUDED.includes(entry.name)) continue;
+      found.push(...visitorPages(posix.join(relative, entry.name)));
+    } else if (entry.name.endsWith('.html')) {
+      found.push(posix.join(relative, entry.name));
     }
   }
-  return gasite.sort();
+  return found.sort();
 }
 
 // A guard that reads files must prove it read something: without these, a
 // missing or empty build would make every check below pass vacuously.
-if (!existsSync(DIST)) opreste(`${DIST}/ nu există — rulează mai întâi build-ul.`);
-const PAGINI = paginiVizitator();
-if (PAGINI.length === 0) opreste(`${DIST}/ nu conține nicio pagină de vizitator.`);
+if (!existsSync(DIST)) stop(`${DIST}/ does not exist — run the build first.`);
+const PAGES = visitorPages();
+if (PAGES.length === 0) stop(`${DIST}/ contains no visitor page at all.`);
 
 /*
  * Every visitor page must have a budget. A page with none would otherwise be
  * the one page nobody is measuring, which is how a new route ships at 200 KB on
  * a green build.
  */
-const faraBuget = PAGINI.filter((p) => !(p in BUGET_PAGINI));
-if (faraBuget.length > 0) {
-  opreste(
-    `Pagini fără buget în BUGET_PAGINI: ${faraBuget.join(', ')}.\n` +
-      'Adaugă-le o limită sau exclude-le explicit; o pagină nemăsurată nu e o pagină în regulă.',
+const withoutBudget = PAGES.filter((p) => !(p in PAGE_BUDGET));
+if (withoutBudget.length > 0) {
+  stop(
+    `Pages with no budget in PAGE_BUDGET: ${withoutBudget.join(', ')}.\n` +
+      'Give them a limit or exclude them explicitly; an unmeasured page is not a page in good order.',
   );
 }
 
 /** A `/`-rooted URL as a path inside `dist/`, or null when it points elsewhere. */
 function inDist(url) {
   if (url === null || !url.startsWith('/')) return null;
-  const cale = decodeURIComponent(url.split('?')[0].split('#')[0]).slice(1);
-  return existsSync(join(DIST, cale)) ? cale : null;
+  const path = decodeURIComponent(url.split('?')[0].split('#')[0]).slice(1);
+  return existsSync(join(DIST, path)) ? path : null;
 }
 
 /** Bytes of one emitted module plus every module it statically pulls in. */
-function octetiModul(cale, vazute) {
-  if (vazute.has(cale)) return 0;
-  vazute.add(cale);
-  const sursa = readFileSync(join(DIST, cale));
-  let total = sursa.length;
-  const text = sursa.toString('utf8');
-  const specificatoare = [
+function moduleBytes(path, seen) {
+  if (seen.has(path)) return 0;
+  seen.add(path);
+  const source = readFileSync(join(DIST, path));
+  let total = source.length;
+  const text = source.toString('utf8');
+  const specifiers = [
     ...text.matchAll(/\bfrom\s*["']([^"']+)["']/g),
     ...text.matchAll(/\bimport\s*\(\s*["']([^"']+)["']/g),
     ...text.matchAll(/\bimport\s*["']([^"']+)["']/g),
   ].map((m) => m[1]);
-  for (const s of specificatoare) {
-    const tinta = s.startsWith('/') ? s.slice(1) : posix.normalize(posix.join(dirname(cale), s));
-    if (/\.m?js$/.test(tinta) && existsSync(join(DIST, tinta))) total += octetiModul(tinta, vazute);
+  for (const s of specifiers) {
+    const target = s.startsWith('/') ? s.slice(1) : posix.normalize(posix.join(dirname(path), s));
+    if (/\.m?js$/.test(target) && existsSync(join(DIST, target))) total += moduleBytes(target, seen);
   }
   return total;
 }
@@ -287,15 +287,15 @@ function octetiModul(cale, vazute) {
  * below. See the note at the top of this file for why they are left that way
  * and what would have to change before one of them could be made to matter.
  */
-function cssPagina(html) {
-  const bucati = [];
+function pageCss(html) {
+  const pieces = [];
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
     if (!/rel\s*=\s*["']?stylesheet/i.test(m[0])) continue;
-    const cale = inDist(ATRIBUT(m[0], 'href'));
-    if (cale) bucati.push(readFileSync(join(DIST, cale), 'utf8'));
+    const path = inDist(ATTRIBUTE(m[0], 'href'));
+    if (path) pieces.push(readFileSync(join(DIST, path), 'utf8'));
   }
-  for (const m of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) bucati.push(m[1]);
-  return bucati.join('\n');
+  for (const m of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) pieces.push(m[1]);
+  return pieces.join('\n');
 }
 
 /**
@@ -313,74 +313,74 @@ function cssPagina(html) {
  * CONSTRUCTION, so the construction has to mean it: one background-image added
  * to global.css would otherwise be a request nothing counted.
  *
- * `data:` URIs and bare fragments (`url(#id)`, an SVG filter reference) fetch
+ * `date:` URIs and bare fragments (`url(#id)`, an SVG filter reference) fetch
  * nothing and are skipped.
  */
-function cereriCss(css) {
-  const BLOC_FATA = /@font-face\s*\{[^}]*\}/g;
-  const fete = (css.match(BLOC_FATA) ?? []).length;
+function cssRequests(css) {
+  const FACE_BLOCK = /@font-face\s*\{[^}]*\}/g;
+  const faces = (css.match(FACE_BLOCK) ?? []).length;
   // Faces first, then imports, so an `@import url(...)` is not counted twice.
-  const restul = css.replace(BLOC_FATA, ' ');
-  const importuri = (restul.match(/@import\b[^;]*;/g) ?? []).length;
-  const urluri = [...restul.replace(/@import\b[^;]*;/g, ' ').matchAll(/\burl\(\s*[\x27"]?([^\x27")]+)/g)]
+  const rest = css.replace(FACE_BLOCK, ' ');
+  const imports = (rest.match(/@import\b[^;]*;/g) ?? []).length;
+  const urls = [...rest.replace(/@import\b[^;]*;/g, ' ').matchAll(/\burl\(\s*[\x27"]?([^\x27")]+)/g)]
     .map((m) => m[1].trim())
     .filter((u) => !u.startsWith('data:') && !u.startsWith('#'));
-  return { fete, importuri, urluri };
+  return { faces, imports, urls };
 }
 
-console.log(`Buget pentru ${PAGINI.length} pagină(i) de vizitator:\n`);
+console.log(`Budget for ${PAGES.length} visitor page(s):\n`);
 
 let jsUnion = 0;
-const fisiereVazute = new Set();
+const filesSeen = new Set();
 
-for (const pagina of PAGINI) {
-  const html = readFileSync(join(DIST, pagina), 'utf8');
-  raporteaza(pagina, statSync(join(DIST, pagina)).size, BUGET_PAGINI[pagina], 'octeți', EXPLICATIA_PAGINII);
+for (const page of PAGES) {
+  const html = readFileSync(join(DIST, page), 'utf8');
+  report(page, statSync(join(DIST, page)).size, PAGE_BUDGET[page], 'bytes', PAGE_EXPLANATION);
 
   // ---- JavaScript, inlined or emitted ----
   let js = 0;
-  const detalii = [];
-  const vazuteAici = new Set();
+  const details = [];
+  const seenHere = new Set();
 
-  const scripturilePaginii = scripturi(html);
+  const scriptsOnPage = pageScripts(html);
 
-  for (const { atribute, continut, src, fel } of scripturilePaginii) {
-    if (fel === 'date') {
-      const tip = (ATRIBUT(atribute, 'type') ?? '').trim().toLowerCase();
-      detalii.push(`date ${tip} ${Buffer.byteLength(continut)} B (neexecutat)`);
+  for (const { attributes, content, src, kind } of scriptsOnPage) {
+    if (kind === 'data') {
+      const type = (ATTRIBUTE(attributes, 'type') ?? '').trim().toLowerCase();
+      details.push(`data ${type} ${Buffer.byteLength(content)} B (not executed)`);
       continue;
     }
-    if (fel === 'necunoscut') {
-      opreste(
-        `${pagina}: <script${atribute}> nu e nici cod, nici date cunoscute.\n` +
-          'Adaugă-l în TIPURI_EXECUTATE sau în TIPURI_DATE din scripts/scripturi.mjs. ' +
-          'Un buget care sare peste ce nu recunoaște nu e un buget.',
+    if (kind === 'unknown') {
+      stop(
+        `${page}: <script${attributes}> is neither known code nor known data.\n` +
+          'Add it to EXECUTED_TYPES or to DATA_TYPES in scripts/page-scripts.mjs. ' +
+          'A budget that skips what it does not recognise is not a budget.',
       );
     }
     if (src === null) {
-      js += Buffer.byteLength(continut);
-      detalii.push(`inline ${Buffer.byteLength(continut)} B`);
+      js += Buffer.byteLength(content);
+      details.push(`inline ${Buffer.byteLength(content)} B`);
       continue;
     }
-    const cale = inDist(src);
-    if (cale === null) {
-      opreste(
-        `${pagina}: <script src="${src}"> nu se rezolvă în ${DIST}/.\n` +
-          'Un script extern e tot JavaScript pe care vizitatorul îl descarcă.',
+    const path = inDist(src);
+    if (path === null) {
+      stop(
+        `${page}: <script src="${src}"> does not resolve inside ${DIST}/.\n` +
+          'An external script is still JavaScript the visitor downloads.',
       );
     }
-    const octeti = octetiModul(cale, vazuteAici);
-    js += octeti;
-    detalii.push(`${cale} ${octeti} B`);
+    const bytes = moduleBytes(path, seenHere);
+    js += bytes;
+    details.push(`${path} ${bytes} B`);
   }
 
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
     if (!/rel\s*=\s*["']?modulepreload/i.test(m[0])) continue;
-    const cale = inDist(ATRIBUT(m[0], 'href'));
-    if (cale === null) continue;
-    const octeti = octetiModul(cale, vazuteAici);
-    js += octeti;
-    detalii.push(`modulepreload ${cale} ${octeti} B`);
+    const path = inDist(ATTRIBUTE(m[0], 'href'));
+    if (path === null) continue;
+    const bytes = moduleBytes(path, seenHere);
+    js += bytes;
+    details.push(`modulepreload ${path} ${bytes} B`);
   }
 
   /*
@@ -400,63 +400,63 @@ for (const pagina of PAGINI) {
    * script", which is the best result a page can have. A rule that failed on
    * zero would fail a page for being efficient.
    */
-  raporteaza(`  JS pentru vizitator pe ${pagina}`, js, BUGET_JS);
-  console.log(`          ${detalii.length > 0 ? detalii.join(' + ') : 'niciun script'}`);
-  for (const f of vazuteAici) {
-    if (!fisiereVazute.has(f)) { fisiereVazute.add(f); jsUnion += statSync(join(DIST, f)).size; }
+  report(`  visitor JS on ${page}`, js, JS_BUDGET);
+  console.log(`          ${details.length > 0 ? details.join(' + ') : 'no script'}`);
+  for (const f of seenHere) {
+    if (!filesSeen.has(f)) { filesSeen.add(f); jsUnion += statSync(join(DIST, f)).size; }
   }
 
   // ---- requests, as an upper bound ----
-  const cereri = [`documentul ${pagina}`];
+  const requests = [`the document ${page}`];
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
-    const rel = (ATRIBUT(m[0], 'rel') ?? '').toLowerCase();
+    const rel = (ATTRIBUTE(m[0], 'rel') ?? '').toLowerCase();
     if (/\b(stylesheet|icon|modulepreload|preload|apple-touch-icon|manifest)\b/.test(rel)) {
-      cereri.push(`${rel} ${ATRIBUT(m[0], 'href')}`);
+      requests.push(`${rel} ${ATTRIBUTE(m[0], 'href')}`);
     }
   }
   // The same list the JS weighing used, so a `<script>` written inside an HTML
   // comment cannot be counted as a request here while being ignored there.
-  for (const { src } of scripturilePaginii) {
-    if (src !== null) cereri.push(`script ${src}`);
+  for (const { src } of scriptsOnPage) {
+    if (src !== null) requests.push(`script ${src}`);
   }
   for (const m of html.matchAll(/<(img|iframe|video|audio|source|embed)\b([^>]*)>/gi)) {
-    if (ATRIBUT(m[2], 'src') !== null || ATRIBUT(m[2], 'srcset') !== null) cereri.push(`${m[1]}`);
+    if (ATTRIBUTE(m[2], 'src') !== null || ATTRIBUTE(m[2], 'srcset') !== null) requests.push(`${m[1]}`);
   }
-  const inDocument = cereri.length;
-  const { fete, importuri, urluri } = cereriCss(cssPagina(html));
-  for (let i = 0; i < fete; i += 1) cereri.push('@font-face');
-  for (let i = 0; i < importuri; i += 1) cereri.push('@import');
-  for (const u of urluri) cereri.push(`url(${u})`);
+  const inDocument = requests.length;
+  const { faces, imports, urls } = cssRequests(pageCss(html));
+  for (let i = 0; i < faces; i += 1) requests.push('@font-face');
+  for (let i = 0; i < imports; i += 1) requests.push('@import');
+  for (const u of urls) requests.push(`url(${u})`);
 
-  raporteaza(`  cereri (limită superioară) pentru ${pagina}`, cereri.length, BUGET_CERERI, 'cereri');
+  report(`  requests (upper bound) for ${page}`, requests.length, REQUEST_BUDGET, 'requests');
   console.log(
-    `          ${inDocument} în document + ${fete} @font-face` +
-      `${importuri > 0 ? ` + ${importuri} @import` : ''}` +
-      `${urluri.length > 0 ? ` + ${urluri.length} url() în CSS` : ''}`,
+    `          ${inDocument} in the document + ${faces} @font-face` +
+      `${imports > 0 ? ` + ${imports} @import` : ''}` +
+      `${urls.length > 0 ? ` + ${urls.length} url() in CSS` : ''}`,
   );
   console.log('');
 }
 
-console.log(`JS emis în fișiere, peste tot: ${jsUnion} octeți în ${fisiereVazute.size} fișier(e).`);
+console.log(`JS emitted as files, everywhere: ${jsUnion} bytes in ${filesSeen.size} file(s).`);
 console.log(
-  fisiereVazute.size === 0
-    ? 'Niciun fișier .js emis — scriptul e inline în pagini, deci nu costă nicio cerere.\n' +
-        'Peste pragul de 4096 de octeți al Vite asta se inversează: un fișier, o cerere, o intrare de cache.'
-    : 'Scriptul e emis ca fișier, deci costă o cerere și se păstrează în cache între pagini.',
+  filesSeen.size === 0
+    ? 'No .js file emitted — the script is inline in the pages, so it costs no request.\n' +
+        "Past Vite's 4096-byte threshold that reverses: a file, a request, and a cache entry."
+    : 'The script is emitted as a file, so it costs one request and is cached between pages.',
 );
 
-if (!JS_EMIS_PERMIS && fisiereVazute.size > 0) {
-  esec = true;
+if (!EMITTED_JS_ALLOWED && filesSeen.size > 0) {
+  failed = true;
   console.error(
-    `\nScript emis ca fișier, deși JS_EMIS_PERMIS este false: ${[...fisiereVazute].join(', ')}.\n` +
-      'Scriptul acestui sit este inline, ceea ce îl ține la zero cereri și e motivul ' +
-      'pentru care plafonul de JS stă sub pragul de 4096 al Vite. Dacă schimbarea e ' +
-      'intenționată, pune JS_EMIS_PERMIS pe true și lasă loc în bugetul de cereri.',
+    `\nScript emitted as a file although EMITTED_JS_ALLOWED is false: ${[...filesSeen].join(', ')}.\n` +
+      "This site's script is inline, which keeps it at zero requests and is why the JS " +
+      "ceiling sits below Vite's 4096 threshold. If the change is intended, set " +
+      'EMITTED_JS_ALLOWED to true and leave room in the request budget.',
   );
 }
 
-if (esec) {
-  console.error('\nBugetul de performanță a fost depășit (specificație §13).');
+if (failed) {
+  console.error('\nThe performance budget was exceeded (spec §13).');
   process.exit(1);
 }
-console.log('\nBuget respectat.');
+console.log('\nBudget met.');

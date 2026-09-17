@@ -1,12 +1,12 @@
-import { etichetaSlujba, inainte, minute, slujbeInOrdine } from './schedule';
-import type { Slujba, ZiSlujba } from './schema';
-import { adaugaZile } from './week';
+import { serviceLabel, compareDates, minutes, servicesInOrder } from './schedule';
+import type { Service, ServiceDay } from './schema';
+import { addDays } from './week';
 
 const CRLF = '\r\n';
-const DURATA_IMPLICITA = 90; // minutes, for the last service of a day
+const DEFAULT_DURATION = 90; // minutes, for the last service of a day
 
 /** RFC 5545 §3.3.11 text escaping. Backslash first, or it doubles the others. */
-function escapeaza(text: string): string {
+function escapeText(text: string): string {
   return text
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
@@ -19,27 +19,27 @@ function escapeaza(text: string): string {
  * multi-byte character must not be split across the fold — so we walk the UTF-8
  * encoding and cut on character boundaries.
  */
-function impatureste(linie: string): string {
+function fold(line: string): string {
   const enc = new TextEncoder();
-  if (enc.encode(linie).length <= 75) return linie;
+  if (enc.encode(line).length <= 75) return line;
 
-  const bucati: string[] = [];
-  let curenta = '';
-  let octeti = 0;
+  const pieces: string[] = [];
+  let current = '';
+  let bytes = 0;
 
-  for (const ch of linie) {
+  for (const ch of line) {
     const n = enc.encode(ch).length;
-    if (octeti + n > 75) {
-      bucati.push(curenta);
-      curenta = ch;
-      octeti = n + 1; // the leading space on a continuation line counts
+    if (bytes + n > 75) {
+      pieces.push(current);
+      current = ch;
+      bytes = n + 1; // the leading space on a continuation line counts
     } else {
-      curenta += ch;
-      octeti += n;
+      current += ch;
+      bytes += n;
     }
   }
-  bucati.push(curenta);
-  return bucati.join(`${CRLF} `);
+  pieces.push(current);
+  return pieces.join(`${CRLF} `);
 }
 
 /**
@@ -52,24 +52,24 @@ function impatureste(linie: string): string {
  * should want — they are the same service, one of them misspelled.
  *
  * What actually prevents two different services colliding is Task 4's schema:
- * NUME_SLUJBE is a closed list, and no day may carry the same `slujba` twice at
- * the same `ora`.
+ * SERVICE_NAMES is a closed list, and no day may carry the same `service` twice at
+ * the same `time`.
  *
- * COUPLING: the residual gap is two `Altceva` entries whose `detaliu` values fold
+ * COUPLING: the residual gap is two `Altceva` entries whose `detail` values fold
  * to the same slug. The schema rejects those today because both carry
  * slujba: 'Altceva' — but that rejection has been flagged as a narrow
- * over-rejection, so if it is ever relaxed to key on `detaliu`, this slug must
+ * over-rejection, so if it is ever relaxed to key on `detail`, this slug must
  * join the same key.
  *
- * The 40-character cap is LOAD-BEARING. The longest name in NUME_SLUJBE,
+ * The 40-character cap is LOAD-BEARING. The longest name in SERVICE_NAMES,
  * "Liturghia Darurilor mai înainte sfințite", yields a 40-character slug and a
  * 68-octet UID line, which keeps UIDs under the 75-octet fold. A folded UID would
  * break clients and silently break the /UID:(\S+)/ assertions. A test asserts this
- * against NUME_SLUJBE itself, so adding a longer service name fails loudly.
+ * against SERVICE_NAMES itself, so adding a longer service name fails loudly.
  */
-function slugSlujba(s: Slujba): string {
-  const nume = s.slujba === 'Altceva' ? (s.detaliu ?? '') : s.slujba;
-  return nume
+function serviceSlug(s: Service): string {
+  const name = s.service === 'Altceva' ? (s.detail ?? '') : s.service;
+  return name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^A-Za-z0-9]+/g, '-')
@@ -78,26 +78,26 @@ function slugSlujba(s: Slujba): string {
     .slice(0, 40) || 'slujba';
 }
 
-function laOraIcs(ora: string): string {
-  const [h, m] = ora.split(':');
+function toIcsTime(time: string): string {
+  const [h, m] = time.split(':');
   return `${h.padStart(2, '0')}${m}00`;
 }
 
-function laDataIcs(data: string): string {
-  return data.replace(/-/g, '');
+function toIcsDate(date: string): string {
+  return date.replace(/-/g, '');
 }
 
-function adaugaMinute(data: string, ora: string, n: number): { data: string; ora: string } {
-  const total = minute(ora) + n;
-  const zileInPlus = Math.floor(total / 1440);
-  const ramas = ((total % 1440) + 1440) % 1440;
-  const h = String(Math.floor(ramas / 60)).padStart(2, '0');
-  const m = String(ramas % 60).padStart(2, '0');
-  if (zileInPlus === 0) return { data, ora: `${h}:${m}` };
-  // adaugaZile, not a third hand-rolled Date path. partiData is the one parser
-  // and adaugaZile the one arithmetic; both are tested far harder than anything
+function addMinutes(date: string, time: string, n: number): { date: string; time: string } {
+  const total = minutes(time) + n;
+  const extraDays = Math.floor(total / 1440);
+  const leftover = ((total % 1440) + 1440) % 1440;
+  const h = String(Math.floor(leftover / 60)).padStart(2, '0');
+  const m = String(leftover % 60).padStart(2, '0');
+  if (extraDays === 0) return { date, time: `${h}:${m}` };
+  // addDays, not a third hand-rolled Date path. dateParts is the one parser
+  // and addDays the one arithmetic; both are tested far harder than anything
   // inlined here, and an unvalidated third path is how 30 February got through.
-  return { data: adaugaZile(data, zileInPlus), ora: `${h}:${m}` };
+  return { date: addDays(date, extraDays), time: `${h}:${m}` };
 }
 
 /**
@@ -118,12 +118,12 @@ function adaugaMinute(data: string, ora: string, n: number): { data: string; ora
  * Short and leading, because a phone's month view shows perhaps twenty
  * characters. Invariable rather than agreeing with the service name: `slujbă` is
  * feminine but `Acatist` and `Botez` are masculine, so an agreeing adjective
- * would be wrong on most of NUME_SLUJBE.
+ * would be wrong on most of SERVICE_NAMES.
  *
  * A real subscription test against Google after launch is the only thing that
  * settles whether the hiding behaviour is real.
  */
-const MARCAJ_ANULAT = 'ANULAT: ';
+const CANCELLED_MARKER = 'ANULAT: ';
 
 const VTIMEZONE = [
   'BEGIN:VTIMEZONE',
@@ -145,11 +145,11 @@ const VTIMEZONE = [
   'END:VTIMEZONE',
 ];
 
-export function genereazaIcs(
-  zile: ZiSlujba[],
-  opts: { dtstamp: string; locatie: string },
+export function generateIcs(
+  days: ServiceDay[],
+  opts: { dtstamp: string; location: string },
 ): string {
-  const linii: string[] = [
+  const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//Parohia Ortodoxa Romana Sfantul Nicolae Zurich//Program//RO',
@@ -159,56 +159,56 @@ export function genereazaIcs(
     ...VTIMEZONE,
   ];
 
-  // `inainte`, not localeCompare: ICU collation varies between Node builds and
+  // `compareDates`, not localeCompare: ICU collation varies between Node builds and
   // treats hyphens as variable-weight. schedule.ts exports one comparison
   // semantics for these strings; this module uses it rather than a second.
-  const sortate = [...zile].sort((a, b) => inainte(a.data, b.data));
+  const sorted = [...days].sort((a, b) => compareDates(a.date, b.date));
 
-  for (const z of sortate) {
-    const slujbe = slujbeInOrdine(z.slujbe);
+  for (const z of sorted) {
+    const services = servicesInOrder(z.services);
 
-    slujbe.forEach((s, i) => {
+    services.forEach((s, i) => {
       // The next service that starts STRICTLY later — not simply the next by
       // index. Two services can share a start time (17:00 Spovedanie during
-      // 17:00 Vecernie), and `slujbe[i + 1]` would give the first of them a
+      // 17:00 Vecernie), and `services[i + 1]` would give the first of them a
       // DTEND equal to its DTSTART. RFC 5545 §3.6.1 requires DTEND to be later
       // than DTSTART, and a zero-length VEVENT renders unpredictably — for a
       // parish, as a service that looks like it is not happening.
-      const urmatoarea = slujbe.slice(i + 1).find((u) => minute(u.ora) > minute(s.ora));
-      const sfarsit = urmatoarea
-        ? { data: z.data, ora: urmatoarea.ora }
-        : adaugaMinute(z.data, s.ora, DURATA_IMPLICITA);
+      const nextLater = services.slice(i + 1).find((u) => minutes(u.time) > minutes(s.time));
+      const end = nextLater
+        ? { date: z.date, time: nextLater.time }
+        : addMinutes(z.date, s.time, DEFAULT_DURATION);
 
-      const descriere = [
-        z.praznic,
-        z.zi_de_post ? 'zi de post' : undefined,
-        z.note,
+      const description = [
+        z.feast,
+        z.fast_day ? 'zi de post' : undefined,
+        z.notes,
       ].filter(Boolean).join(' · ');
 
-      linii.push(
+      lines.push(
         'BEGIN:VEVENT',
-        // HHMM, not HHMMSS — laOraIcs returns HHMM00, so the first four suffice.
+        // HHMM, not HHMMSS — toIcsTime returns HHMM00, so the first four suffice.
         // The slug is what keeps two services that share a start time apart:
         // 17:00 Spovedanie and 17:00 Vecernie are one ordinary parish evening,
         // and identical UIDs would make subscribers' calendars merge them.
-        `UID:${laDataIcs(z.data)}T${laOraIcs(s.ora).slice(0, 4)}-${slugSlujba(s)}@bor-zh.ch`,
+        `UID:${toIcsDate(z.date)}T${toIcsTime(s.time).slice(0, 4)}-${serviceSlug(s)}@bor-zh.ch`,
         `DTSTAMP:${opts.dtstamp}`,
-        `DTSTART;TZID=Europe/Zurich:${laDataIcs(z.data)}T${laOraIcs(s.ora)}`,
-        `DTEND;TZID=Europe/Zurich:${laDataIcs(sfarsit.data)}T${laOraIcs(sfarsit.ora)}`,
-        `SUMMARY:${escapeaza(z.anulat ? MARCAJ_ANULAT + etichetaSlujba(s) : etichetaSlujba(s))}`,
-        `LOCATION:${escapeaza(z.locatie || opts.locatie)}`,
+        `DTSTART;TZID=Europe/Zurich:${toIcsDate(z.date)}T${toIcsTime(s.time)}`,
+        `DTEND;TZID=Europe/Zurich:${toIcsDate(end.date)}T${toIcsTime(end.time)}`,
+        `SUMMARY:${escapeText(z.cancelled ? CANCELLED_MARKER + serviceLabel(s) : serviceLabel(s))}`,
+        `LOCATION:${escapeText(z.location || opts.location)}`,
       );
-      if (descriere) linii.push(`DESCRIPTION:${escapeaza(descriere)}`);
-      if (z.anulat) linii.push('STATUS:CANCELLED');
-      linii.push('END:VEVENT');
+      if (description) lines.push(`DESCRIPTION:${escapeText(description)}`);
+      if (z.cancelled) lines.push('STATUS:CANCELLED');
+      lines.push('END:VEVENT');
     });
   }
 
-  linii.push('END:VCALENDAR');
+  lines.push('END:VCALENDAR');
 
   // Fold once, uniformly, at the end. Folding as lines are pushed would leave
   // the header lines unfolded and make the 75-octet guarantee depend on nobody
   // ever lengthening X-WR-CALNAME. No raw line contains CRLF at this point,
   // because escapeaza has already turned newlines into a literal \n.
-  return linii.map(impatureste).join(CRLF) + CRLF;
+  return lines.map(fold).join(CRLF) + CRLF;
 }

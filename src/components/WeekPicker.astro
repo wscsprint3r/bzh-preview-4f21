@@ -1,0 +1,149 @@
+---
+/**
+ * The script that makes a frozen build tell the truth about which week it is.
+ *
+ * A static site is correct at deploy time and drifts from then on: "this week"
+ * depends on the clock, and the build's clock stops. Spec §7 is that problem.
+ * The answer here is deliberately NOT a date stamped into the page at build time
+ * and compared later - it is that the server renders EVERY week it knows about,
+ * correct without a line of JavaScript, and this script narrows that to the one
+ * a visitor came for.
+ *
+ * THE HOMEPAGE ONLY. `/program/` renders every week and mounts nothing of this,
+ * deliberately: that page IS the full schedule, so browsing ahead is the point,
+ * Ctrl+F has to work and a screen reader has to meet all of it. The reasoning
+ * lives in that page, next to the mark it uses instead.
+ *
+ * So: no props. The component reads the week sections already in the DOM
+ * (`section[date-week]`), which is what stops it from ever disagreeing with
+ * what the page rendered.
+ *
+ * PROGRESSIVE ENHANCEMENT IS THE CONTRACT, AND HIDING IS THE ENHANCEMENT.
+ * Without JavaScript every week is visible, this bar is not, and the page is
+ * correct - wider than it needs to be, never wrong. Three consequences follow
+ * and none of them may be "tidied up":
+ *
+ * - The bar ships `hidden` and is revealed by script. Never the reverse.
+ * - When every rendered week is already past, this reveals nothing rather than
+ *   promising a current week that does not exist.
+ * - The weeks this hides stop being audited by `npm run a11y`, because axe skips
+ *   hidden elements and drives Chrome with JavaScript ON. Task 13's
+ *   JavaScript-off pass is what covers them. Neither pass alone is the guarantee.
+ *
+ * ONE JOB. This script used to have a second: recomputing a next-service card
+ * on the homepage, from a JSON island of the coming days embedded beside it.
+ * The card was removed at the parish's request - the full schedule below it
+ * says the same thing without a second surface to keep true - and the island,
+ * its bound (`ISLAND_DAYS`) and the client-side recomputation went with it.
+ * `nextService`, `servicesAtSameTime`, `romanianList` and
+ * `scheduleForIsland` remain in `lib/schedule.ts`, tested and unused by any
+ * page; they are what a future "next service" anywhere would be built from.
+ *
+ * Measured rather than assumed: this lands under Vite's 4 KB inline threshold,
+ * so Astro writes it into the homepage instead of emitting `dist/_astro/*.js`.
+ * It therefore costs NO request - the page stays at the 10 Task 9 measured,
+ * against spec §13's cap of 12 - and is paid for in HTML instead, uncached.
+ * Grow it past 4 KB and that reverses: a file, a request, and a cache entry.
+ * `npm run budget` reads both numbers out of the built page and fails on
+ * either, so neither the size nor the flip can happen quietly.
+ */
+---
+
+<div class="ss" hidden>
+  <button type="button" data-ss-prev aria-label="Săptămâna precedentă">‹</button>
+  <span data-ss-eticheta aria-live="polite"></span>
+  <button type="button" data-ss-next aria-label="Săptămâna următoare">›</button>
+</div>
+
+<script>
+  import { pickWeek } from '../lib/week-picker';
+  import { nowInZurich, weekKey } from '../lib/week';
+
+  // The only clock read on the client. `nowInZurich` returns the date and the
+  // time together from ONE `new Date()` and keeps doing so even though only the
+  // date is wanted here: two calls across midnight answer the 20th and `00:00`
+  // on the 21st, and any future reader of the time must get it from this pair
+  // rather than reading the clock a second time.
+  const { today } = nowInZurich();
+
+  // Reveal the week that contains today.
+  const bar = document.querySelector<HTMLElement>('.ss');
+  const sections = [...document.querySelectorAll<HTMLElement>('section[data-saptamana]')];
+
+  // `> 1`, not `> 0`. With a single rendered week there is nothing to select:
+  // both arrows would be disabled and the bar would restate the heading already
+  // under it. That is not a hypothetical - the parish's published schedule is
+  // one week for most of the year, so `> 0` would put a dead control on the
+  // homepage on an ordinary day.
+  if (bar && sections.length > 1) {
+    const keys = sections.map((s) => s.dataset.saptamana!);
+    const start = pickWeek(keys, weekKey(today));
+
+    // Every week stays visible when all of them are in the past, and when
+    // JavaScript never runs at all. Hiding is the enhancement, not the baseline.
+    if (start !== -1) {
+      let i = start;
+      const label = bar.querySelector<HTMLElement>('[data-ss-eticheta]')!;
+      const prev = bar.querySelector<HTMLButtonElement>('[data-ss-prev]')!;
+      const next = bar.querySelector<HTMLButtonElement>('[data-ss-next]')!;
+
+      const show = () => {
+        sections.forEach((s, j) => { s.hidden = j !== i; });
+        // The interval as the page wrote it, not that string minus a prefix.
+        label.textContent = sections[i].dataset.interval ?? '';
+        prev.disabled = i === 0;
+        next.disabled = i === sections.length - 1;
+      };
+
+      prev.addEventListener('click', () => { if (i > 0) { i -= 1; show(); } });
+      next.addEventListener('click', () => { if (i < sections.length - 1) { i += 1; show(); } });
+
+      // Populate, THEN reveal. The label is an `aria-live` region, and making it
+      // visible while empty and filling it a moment later is the ordering most
+      // likely to make a screen reader speak on load - the change then lands on a
+      // region already live and already in the tree. Filling it first cannot be
+      // worse and costs nothing; both still happen in ONE task and land before the
+      // first contentful paint, so nothing about the page changes. Measured 22 to
+      // 27 ms ahead of it across runs and machines - the ordering is the property,
+      // that margin is not, and a single run should not be quoted as one.
+      show();
+      bar.hidden = false;
+    }
+  }
+
+</script>
+
+<style>
+  /* `[hidden]` lives in the user-agent stylesheet, and an author `display`
+     declaration beats it whatever its specificity - author origin wins over UA
+     origin outright. So `.ss { display: flex }` would leave this bar visible for
+     every visitor without JavaScript, which is the one state this component
+     exists to keep clean. Measured in a real browser, both ways round; see the
+     report. The same trap is answered in `index.astro` for `.urm`.
+
+     The week `<section>`s need no such rule: nothing in this project gives them
+     a `display`, so the UA rule still applies to them. */
+  .ss[hidden] { display: none; }
+  .ss { display: flex; align-items: center; gap: 1rem; padding-block: 0.75rem; border-bottom: 1px solid var(--rule); }
+  .ss span { font-family: var(--display); font-size: 1.125rem; font-weight: 600; color: var(--oxblood); }
+  /* NO `outline` DECLARATION HERE, and none may be added. Astro scopes this
+     block with a `data-astro-cid-…` attribute, so this rule ships at (0,3,1),
+     while global.css's focus ring is `:where(a, button, [tabindex]):focus-visible`
+     - `:where()` contributes nothing, so it is (0,1,0). These are the first
+     non-link controls on the site, and an `outline: none` here would delete
+     their focus ring with no test, no axe violation and no build failure to
+     show for it. Measured on the built page: the focused button computes
+     `rgb(107, 31, 38) solid 2px` with a 2px offset. */
+  /* `font-family` is not decoration here. A button does not inherit the page
+     font: measured on the built page, these two chevrons were rendering in
+     Arial while every other character around them was Spectral. The fallback
+     chain is the page's own, so a face without U+2039/U+203A costs a Georgia
+     chevron rather than a missing glyph. */
+  .ss button { background: none; font-family: var(--body); border: 1px solid var(--rule); color: var(--oxblood); font-size: 1rem; line-height: 1; padding: 0.35rem 0.7rem; cursor: pointer; }
+  /* `--rule` is 1.30:1 on the page and would fail 4.5:1 as text. A disabled
+     control is exempt from WCAG 1.4.3 and axe skips it, which is the whole
+     reason the state is legible AS disabled: the arrow fades rather than
+     changing shape. It is never the only signal - the button is genuinely
+     `disabled`, so it is unreachable by keyboard and announced as such. */
+  .ss button:disabled { color: var(--rule); cursor: default; }
+</style>

@@ -1,52 +1,52 @@
 ---
 import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
-import BandaSaptamanii from '../components/BandaSaptamanii.astro';
-import SelectorSaptamana from '../components/SelectorSaptamana.astro';
-import { formatIntervalSaptamana } from '../lib/date-ro';
-import { saptamaniViitoare } from '../lib/schedule';
-import { acumLaZurich } from '../lib/week';
+import WeekBand from '../components/WeekBand.astro';
+import WeekPicker from '../components/WeekPicker.astro';
+import { formatWeekRange } from '../lib/date-ro';
+import { upcomingWeeks } from '../lib/schedule';
+import { nowInZurich } from '../lib/week';
 
-const intrari = await getCollection('slujbe');
+const entries = await getCollection('services');
 /*
- * `data` is two different things on this line, exactly as on `/program/`, where
- * the full reasoning lives. `e.data` is Astro's parsed frontmatter — every
- * field `ziSchema` validated, which is every field of a day EXCEPT its date;
- * the date is the filename, i.e. `e.id`.
+ * `data` and `date` are two different things on this line, exactly as on
+ * `/program/`, where the full reasoning lives. `e.data` is Astro's own name for
+ * the parsed frontmatter — every field `daySchema` validated, which is every
+ * field of a day EXCEPT its date; the date is the filename, i.e. `e.id`.
  *
  * DROPPING the override fails the build with `Dată invalidă: undefined` out of
- * `partiData`. REVERSING the order does nothing at all — `ziSchema` declares no
- * `data` key, so both orders build byte-identical output, checked both ways.
- * This comment used to claim the reverse crashed; it does not. `data` goes last
+ * `dateParts`. REVERSING the order does nothing at all — `daySchema` declares no
+ * `date` key, so both orders build byte-identical output, checked both ways.
+ * This comment used to claim the reverse crashed; it does not. `date` goes last
  * to keep the validated filename authoritative if the schema ever gains that
  * field, which is a reason that survives being tested.
  */
-const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
+const days = entries.map((e) => ({ ...e.data, date: e.id }));
 
 /*
- * Only the date is needed here. `acumLaZurich` still returns the pair from ONE
+ * Only the date is needed here. `nowInZurich` still returns the pair from ONE
  * reading of the clock and must keep doing so: the week picker's script reads
  * the same function in the browser, and taking the pair apart is how a build or
  * a browser straddling midnight comes to answer the 20th and `00:00` on the
  * 21st in the same breath.
  */
-const { azi } = acumLaZurich();
+const { today } = nowInZurich();
 /*
  * Three weeks, not the whole schedule: spec §13 budgets this page at 30 KB of
- * HTML and `/program/` carries the full list. `saptamaniViitoare` counts weeks
+ * HTML and `/program/` carries the full list. `upcomingWeeks` counts weeks
  * WITH ENTRIES, not calendar weeks, so these three can span six calendar weeks
  * — which is why no heading below states a date range for the set. Each week
  * prints its own interval, which is the only range that is true.
  */
-const saptamani = saptamaniViitoare(zile, azi, 3);
+const weeks = upcomingWeeks(days, today, 3);
 ---
 
-<Base titlu="Bine ați venit">
+<Base title="Bine ați venit">
   {/*
     The hero takes its ground from an ancestor, so the static hex guard cannot
     see it and only axe can. THE GOLD ROLES INVERT on this ground: `--gold-text`
     is 4.67:1 on the page and 2.26:1 here, `--gold-lt` is 2.18:1 on the page and
-    4.82:1 here. Every colour below is from ROLURI_TEXT_PE_OXBLOOD in
+    4.82:1 here. Every colour below is from TEXT_ROLES_ON_OXBLOOD in
     `lib/tokens.ts` — parchment 10.54:1, gold-lt 4.82:1, rule 8.12:1. Do not
     copy `a { color: var(--gold-text) }` from global.css into this section, and
     do not put a link in it without choosing a colour from that set.
@@ -61,7 +61,7 @@ const saptamani = saptamaniViitoare(zile, azi, 3);
   <div class="container">
     {/*
       Not "Programul săptămânii", and not any heading that counts weeks.
-      `saptamaniViitoare` counts weeks WITH ENTRIES, so this section renders
+      `upcomingWeeks` counts weeks WITH ENTRIES, so this section renders
       between zero and three of them and they can span more calendar weeks than
       that. From Task 10 the count also depends on whether JavaScript ran: one
       week revealed with it, all three without. A heading naming a number or a
@@ -72,12 +72,12 @@ const saptamani = saptamaniViitoare(zile, azi, 3);
     */}
     <h2 class="titlu-sect">Programul slujbelor</h2>
 
-    {saptamani.length === 0 ? (
+    {weeks.length === 0 ? (
       <p class="gol">Programul următoarei perioade nu a fost încă publicat. <a href="/program/">Vezi programul complet</a>.</p>
     ) : (
       <>
-        <SelectorSaptamana />
-        {saptamani.map((s) => {
+        <WeekPicker />
+        {weeks.map((s) => {
           /*
            * One call, three uses. `data-interval` is what the week picker puts
            * in its bar, so the control and the heading it selects are the same
@@ -86,11 +86,11 @@ const saptamani = saptamaniViitoare(zile, azi, 3);
            * wording or the space ever changed, and put a Romanian word in the
            * bundle to do it.
            */
-          const interval = formatIntervalSaptamana(s.luni, s.duminica);
+          const interval = formatWeekRange(s.monday, s.sunday);
           return (
-            <section data-saptamana={s.cheie} data-interval={interval} aria-label={`Săptămâna ${interval}`}>
+            <section data-saptamana={s.key} data-interval={interval} aria-label={`Săptămâna ${interval}`}>
               <p class="interval">{interval}</p>
-              <BandaSaptamanii saptamana={s} />
+              <WeekBand week={s} />
             </section>
           );
         })}

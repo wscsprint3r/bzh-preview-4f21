@@ -1,0 +1,640 @@
+import { existsSync, realpathSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, resolve, sep } from 'node:path';
+import sharp from 'sharp';
+
+/**
+ * The uploads tree, by absolute path, OUTSIDE this repository.
+ *
+ * Same reasoning as `db.mjs`'s `DUMP_PATH`, and the same directory: the parent
+ * holds several GB of forensic backups of the compromised server plus a file of
+ * database credentials, and nothing in this tree is ever the source of a
+ * migration. The file tree lives in the 08-22 backup and the database in the
+ * 08-27 one - they are two different captures, and this is not a typo for the
+ * date in `db.mjs`. Measured 2026-09-17: 7,421 files, 997 MB, of which 24 are
+ * SVG.
+ */
+export const UPLOADS_ROOT =
+  '/Users/stefan/Work/stuff/site-bzh/backup-2026-08-22/web01/htdocs/wp-content/uploads';
+
+/** The one place a migrated image may land, relative to the repository root. */
+const CONTENT_SUBDIR = 'src/assets/content';
+
+/**
+ * What `sharp` can decode AND re-encode, which is the same thing as what can
+ * be sanitised. Derived from the capability, not from a list of file types
+ * somebody remembered to worry about.
+ *
+ * SVG is absent deliberately: sharp can rasterise it, but an SVG that stays an
+ * SVG carries script, and this media comes off a server that was compromised
+ * twice. The 24 SVGs on disk are logos and icons; if one is ever wanted, it
+ * gets looked at by a person and added by hand.
+ */
+export const ALLOWED_EXTENSIONS = ['jpeg', 'jpg', 'png', 'webp'];
+
+/** The long edge everything is downscaled to. Spec 11. */
+const MAX_EDGE = 2400;
+
+/**
+ * WordPress writes `name-WIDTHxHEIGHT.ext` for every generated thumbnail.
+ *
+ * ANCHORED TO THE END and requiring digits on BOTH sides of the `x`, because a
+ * looser pattern silently eats originals: `matrix-2.jpg` and `pers-3x.jpg` are
+ * real files somebody uploaded. An over-eager filter here does not fail - the
+ * page just loses a picture, on a green build. The real corpus has a live
+ * example that only the END anchor saves: the featured image
+ * `PIXNIO-2027801-4896x3672-1.jpeg` carries a full resolution INSIDE its name.
+ */
+const THUMBNAIL = /-\d+x\d+\.[A-Za-z0-9]+$/;
+
+/** Just the extension question, asked without the thumbnail question. */
+function allowedExtension(path) {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  return ALLOWED_EXTENSIONS.includes(ext);
+}
+
+export function isOriginal(path) {
+  if (THUMBNAIL.test(path)) return false;
+  return allowedExtension(path);
+}
+
+/**
+ * The original a WordPress thumbnail was cut from: `photo-300x200.jpg` ->
+ * `photo.jpg`. Anything that is not a thumbnail comes back unchanged.
+ *
+ * WHY A REFERENCED THUMBNAIL IS NOT SIMPLY DROPPED. "Only referenced images" is
+ * about the referenced PICTURE, not the referenced byte-file. Measured over the
+ * real corpus: 33 of the 100 references are thumbnails, and for every one of
+ * them the thumbnail is the ONLY reference to that picture - so dropping them
+ * loses the icon of Saint Nicholas from `istoric`, a council member's
+ * photograph, five Doxologia cover scans and the liturgical programme, on a
+ * green build. All 33 originals are on disk and none of them is referenced
+ * directly by any `<img>`.
+ *
+ * Same regex as `THUMBNAIL`, with the extension captured so it survives. The
+ * two must keep matching the same shape, which is why the pattern is written
+ * once here and `THUMBNAIL` is the same expression anchored the same way.
+ */
+export function originalName(path) {
+  return path.replace(/-\d+x\d+(\.[A-Za-z0-9]+)$/, '$1');
+}
+
+/** The size a thumbnail's own name claims it is, or `null`. */
+function sizeFromName(path) {
+  const m = path.match(/-(\d+)x(\d+)\.[A-Za-z0-9]+$/);
+  return m === null ? null : { width: Number(m[1]), height: Number(m[2]) };
+}
+
+/**
+ * What one segment of an upload path may contain. AN ALLOWLIST, not a denylist
+ * of the traversal tricks somebody thought of.
+ *
+ * Every `src` this pipeline sees comes out of `post_content` on a server that
+ * attackers held twice, so it is attacker-controllable text that becomes both a
+ * path READ from the backups and a path WRITTEN into this repository. The
+ * denylist version of this check is the one that gets bypassed by the encoding
+ * nobody enumerated; this one can only be bypassed by a character that is
+ * genuinely in the set.
+ *
+ * Measured against all 100 real referenced srcs (97 in `post_content` plus the
+ * 3 featured images, 2026-09-17): 0 rejected, path depth never more than 3, and
+ * the only characters that occur at all are ASCII letters, digits, `.`, `-` and
+ * `_`. So this costs the real corpus nothing.
+ *
+ * LOAD-BEARING BEYOND ITS OWN PURPOSE, and this is the paragraph to read before
+ * widening it. The destination-collision guard keys on `toLowerCase()`, which
+ * matches what APFS and HFS+ actually do ONLY because this rule restricts paths
+ * to ASCII. HFS+ also normalises to NFD and APFS case-folds the whole of
+ * Unicode, so admitting one non-ASCII character here would silently decouple
+ * that key from the filesystem's own collation and two names the filesystem
+ * considers equal would sail past the guard. Widen this and you must revisit
+ * the key.
+ *
+ * Refusing rather than decoding is deliberate for percent-encoding in
+ * particular - 0 srcs contain a `%` - because `%2e%2e%2f` decodes to a
+ * traversal, and a reference nobody can read is worth naming rather than
+ * guessing at. Non-ASCII is refused for a second reason: a filename carrying a
+ * Turkish cedilla would land in a tracked path and fail the repository-wide
+ * sweep in `src/lib/diacritics-sources.test.ts`. Measured: 0 non-ASCII characters
+ * in the real set, so the rule is free here too.
+ */
+const ALLOWED_SEGMENT = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * The hosts a `src` may name and still be ours.
+ *
+ * Anchoring the path to `wp-content/uploads/` closed `myuploads` and left the
+ * bigger half open: `https://evil.example/wp-content/uploads/2024/05/photo.jpg`
+ * is the COMMON shape, because every WordPress in the world serves that path,
+ * and it resolved to the parish's own `2024/05/photo.jpg` - a foreign page
+ * choosing which of our files lands under which name.
+ *
+ * Measured over the 100 real srcs: 95 `https://www.bor-zh.ch`, 2
+ * protocol-relative `//www.bor-zh.ch`, 3 featured images on the same host, and
+ * 0 with no host at all. The apex without `www` does not occur; it is listed
+ * because it is the same parish's own domain rather than a different party, and
+ * a `src` naming any other host is reported as foreign rather than migrated.
+ */
+const OUR_HOSTS = ['www.bor-zh.ch', 'bor-zh.ch'];
+
+/**
+ * The host a `src` names, lower-cased, or `null` when it names none.
+ *
+ * Takes the text after the LAST `@`, because that is what a browser does:
+ * `https://www.bor-zh.ch@evil.example/...` has the host `evil.example`, and
+ * reading the first label instead is the classic way to be fooled by one.
+ */
+function hostOf(srcWp) {
+  const m = srcWp.match(/^(?:[a-z][a-z0-9+.-]*:)?\/\/([^/]*)/i);
+  if (m === null) return null;
+  let host = m[1].toLowerCase();
+  const at = host.lastIndexOf('@');
+  if (at >= 0) host = host.slice(at + 1);
+  return host.replace(/:\d+$/, '');
+}
+
+/**
+ * Whether `path` resolves inside `root`. The SECOND lock.
+ *
+ * `ALLOWED_SEGMENT` is the first and is meant to be sufficient; this one asks
+ * the question of the resolved path itself, so it cannot be fooled by anything
+ * about the spelling that was not anticipated. Two locks on one door is
+ * deliberate here: this is the boundary the whole task exists to be.
+ *
+ * `root + sep` rather than a bare `startsWith`, or `/a/bc` counts as inside
+ * `/a/b`.
+ */
+export function isInside(root, path) {
+  const r = partialRealpath(root);
+  const c = partialRealpath(path);
+  return c === r || c.startsWith(r + sep);
+}
+
+/**
+ * `realpath` of the deepest part of `path` that exists, with the rest appended.
+ *
+ * `resolve` alone collapses `..` textually and does NOT follow symlinks, so a
+ * link inside the uploads tree defeated both locks: the charset rule sees an
+ * ordinary name and `resolve` sees an ordinary path. The tree is
+ * attacker-derived and was unpacked from a tar, where symlinks survive.
+ * Measured: 0 symlinks in the 7,421 files today, so this is latent rather than
+ * live - which is exactly when it is cheap to close.
+ *
+ * The walk exists because a destination does not exist yet, so `realpath` on it
+ * throws; what must be followed is the part that IS there.
+ */
+function partialRealpath(path) {
+  let p = resolve(path);
+  const remaining = [];
+  for (;;) {
+    try {
+      return remaining.length === 0 ? realpathSync(p) : join(realpathSync(p), ...remaining);
+    } catch {
+      const parent = dirname(p);
+      if (parent === p) return resolve(path);
+      remaining.unshift(basename(p));
+      p = parent;
+    }
+  }
+}
+
+/**
+ * The part of a WordPress `src` below `uploads/`, or `null` when it is not an
+ * upload path at all.
+ *
+ * THE TWO OUTCOMES ARE NOT THE SAME KIND OF EVENT, which is why one is a
+ * return value and the other is an exception. A `src` with no `uploads/` in it
+ * is an ordinary foreign reference - an external image, a `date:` URL - and the
+ * caller skips it and says so. A `src` that IS an upload path but whose shape
+ * could escape is an attack in the content, and a pipeline that prints it and
+ * exits 0 has shipped it. So that one throws and stops the migration: somebody
+ * has to read the document it came from before anything else from that server
+ * is trusted. Measured: 0 of the 100 real srcs throw.
+ */
+function relativeUploadPath(srcWp) {
+  // ANCHORED. Unanchored, `https://evil.example/myuploads/2024/05/photo.jpg`
+  // matched, and the pipeline would then have migrated the parish's OWN
+  // `2024/05/photo.jpg` in its place - not an escape, but a foreign page
+  // choosing which of our files lands under which name. Measured: all 100 real
+  // srcs carry `/wp-content/uploads/`, including the two protocol-relative ones.
+  const m = srcWp.match(/(?:^|\/)wp-content\/uploads\/(.+)$/);
+  if (m === null) return null;
+  const relative = m[1];
+  const segments = relative.split('/');
+  const badSegments = segments.filter(
+    (s) => !ALLOWED_SEGMENT.test(s) || s === '.' || s === '..',
+  );
+  if (badSegments.length > 0) {
+    throw new Error(
+      `Cale de upload nesigura: ${srcWp}\n` +
+        `  segmente respinse: ${JSON.stringify(badSegments)}\n` +
+        '  Un `src` din continutul unui server compromis nu devine niciodata o cale ' +
+        'pe disc fara sa treaca de lista de caractere permise. Citeste documentul din ' +
+        'care vine inainte sa reiei migrarea.',
+    );
+  }
+  // THE HOST IS CHECKED LAST, AFTER THE SEGMENTS, and the order is the whole
+  // point. Checked first, a foreign host short-circuited to `null` - an
+  // ordinary skip, exit 0 - so
+  // `https://evil.example/wp-content/uploads/../../../../etc/secret.jpg` was
+  // waved through silently while the identical path on our own host threw. That
+  // contradicted this function's own contract three paragraphs up: a path that
+  // could escape is an attack in the content whoever is hosting it, and the
+  // alarm must not be silenced by the attacker choosing a different domain.
+  const host = hostOf(srcWp);
+  if (host !== null && !OUR_HOSTS.includes(host)) return null;
+  return relative;
+}
+
+/**
+ * The repo path an upload becomes, keeping WordPress's year/month folders.
+ *
+ * The folders are kept because filenames repeat: `Design-without-title.png` exists
+ * under both 2024/05 and 2024/07 in this very corpus, and flattening would have
+ * one silently overwrite the other.
+ */
+export function destinationName(srcWp) {
+  const relative = relativeUploadPath(srcWp);
+  if (relative === null) throw new Error(`Nu este o cale de upload: ${srcWp}`);
+  // A thumbnail lands on its original's name, so `photo.jpg` and
+  // `photo-300x200.jpg` name the same file and the picture is stored once.
+  return `${CONTENT_SUBDIR}/${originalName(relative)}`;
+}
+
+/**
+ * Fails by name when the uploads tree is absent.
+ *
+ * The same guard, for the same reason, as `db.mjs`'s `requireDump`: without
+ * it, a machine that has never held the backups runs the whole migration, finds
+ * nothing, writes nothing, prints `Imagini migrate: 0 din 97` and exits 0 - and
+ * the first symptom is a site with no pictures that nobody can explain.
+ */
+export function requireUploads(path = UPLOADS_ROOT) {
+  if (!existsSync(path)) {
+    throw new Error(
+      `Directorul uploads nu a fost gasit: ${path}\n` +
+        'Migrarea citeste imaginile din copiile de siguranta din directorul parinte, ' +
+        'care nu fac parte din depozit. Fara ele nu se poate migra nicio imagine.',
+    );
+  }
+  return path;
+}
+
+/**
+ * The encoder options, written out rather than left to sharp's defaults.
+ *
+ * Spec 11 asks that rerunning the migration produce identical output, and an
+ * encoder default that moves between sharp versions is exactly the kind of
+ * reproducibility bug that has no symptom - the pictures still look right, the
+ * bytes are simply different.
+ *
+ * JPEG AND WEBP ARE TODAY'S DEFAULTS, PINNED, NOT A RE-TUNING. Measured against
+ * sharp 0.35.4 / libvips 8.18.6: encoding with these options and encoding with
+ * `.toBuffer()` alone produced byte-identical output on every referenced JPEG.
+ * That measurement is what makes the pin faithful - without it this block would
+ * be a guess about what the defaults are, which is worse than not pinning.
+ *
+ * PNG DELIBERATELY DEPARTS FROM THE DEFAULT, and that is the one tuning
+ * decision in this file. sharp's default writes truecolour at compression 6
+ * with no adaptive filtering, and these are Canva exports and screenshots that
+ * WordPress held palettised - so the defaults made the 25 referenced PNGs GROW
+ * from 39.9 MB to 55.7 MB, in a repository that keeps them forever. Measured:
+ *
+ *     implicit (compressionLevel 6)              55.7 MB
+ *     compressionLevel 9                         54.6 MB
+ *     compressionLevel 9 + adaptiveFiltering     35.3 MB
+ *     palette true (imagequant)                  12.0 MB
+ *
+ * Adaptive filtering is chosen and `palette` is NOT, because the first is free
+ * and the second is not: palette quantises to 256 colours, which is a visible
+ * decision about somebody's photographs and belongs to a person, not to this
+ * file. "Free" is verified rather than assumed - both encodings were decoded
+ * back to raw pixels and the buffers compared: identical on 25 of 25, and the
+ * same bytes on a second encode 25 times out of 25, so determinism holds too.
+ */
+const ENCODE_OPTIONS = {
+  jpeg: (img) =>
+    img.jpeg({
+      quality: 80, progressive: false, chromaSubsampling: '4:2:0',
+      optimiseCoding: true, mozjpeg: false, trellisQuantisation: false,
+      overshootDeringing: false, optimiseScans: false, quantisationTable: 0,
+    }),
+  png: (img) =>
+    img.png({ compressionLevel: 9, adaptiveFiltering: true, palette: false, effort: 7 }),
+  webp: (img) =>
+    img.webp({
+      quality: 80, alphaQuality: 100, lossless: false, nearLossless: false,
+      smartSubsample: false, effort: 4,
+    }),
+};
+
+/**
+ * COLOUR, AND WHY NOTHING HERE MENTIONS AN ICC PROFILE.
+ *
+ * sharp imports the embedded ICC profile and converts the pixels to sRGB on
+ * INPUT, through lcms, whenever the file carries one and `ignoreIcc` is unset -
+ * which it is. So `sharp(...).rotate()` already hands us sRGB pixels, and
+ * writing them with no profile attached is correct for the web, where untagged
+ * means sRGB.
+ *
+ * MEASURED, because a previous round of this file got it backwards and shipped
+ * the opposite: `sharp(F).raw()` against `sharp(F, { ignoreIcc: true }).raw()`
+ * differs by max 60 / mean 2.653 on `2024/06/IMG_1640.jpg` (Display P3), and by
+ * 0.000 on a file that carries no profile - so the difference is the profile
+ * being applied, not noise. Against a ColorSync conversion of the same file the
+ * output agrees to max 1 / mean 0.016 on PNG sources, where both decoders agree
+ * exactly and no codec sits in the measurement.
+ *
+ * DO NOT ADD `keepIccProfile()`. It was added in one round and reverted in the
+ * next, and the REASON matters because two different wrong mechanisms have been
+ * written down for it already. What it actually does, measured on
+ * `2024/06/IMG_1640.jpg` (Display P3) with every arm labelled by the space it
+ * is in:
+ *
+ *   source: converted vs raw numbers                   max 60  mean 2.653
+ *   with keepIccProfile, read naively, vs raw numbers  max  0  <- conversion SKIPPED
+ *   with keepIccProfile, read colour-managed           max  0  <- correct colour
+ *   with keepIccProfile, read naively, vs converted    max 60  <- the harm
+ *   without it, read naively, vs converted             max  0  <- what we do now
+ *
+ * So it does NOT double-transform. It makes sharp skip the input conversion and
+ * ship the original numbers under the original profile - self-consistent, and
+ * exactly right for a colour-managed reader. The harm is real but narrower than
+ * "wrong colour everywhere": a reader that ignores the profile sees max 60.
+ *
+ * It stays out for two reasons that survive the correction. An ICC profile is
+ * attacker-controlled data off a twice-compromised server, and a payload planted
+ * inside a structurally valid one survived the copy verbatim -
+ * `migration/media.test.mjs` has that control. And converting once here means
+ * every reader sees the right colour, not only the colour-managed ones.
+ *
+ * An earlier version of this comment claimed a double transform and cited
+ * "max 42-54". That number came from reading the output while IGNORING its
+ * profile and comparing it against a converted source - two arms in different
+ * colour spaces, which is the same mistake the paragraph was written to correct.
+ */
+
+/**
+ * The extensions each decoded format is allowed to be called.
+ *
+ * Checked rather than trusted, because the two can disagree and each way of
+ * resolving the disagreement silently is wrong: encoding by the NAME turns a
+ * PNG into a JPEG and drops its alpha channel, and encoding by the CONTENT
+ * writes PNG bytes into a file a server will label `image/jpeg`. A file whose
+ * name lies about its type is also the plainest signature of the polyglot files
+ * this pipeline exists to stop, so it is named and skipped rather than guessed
+ * at. Measured: 0 disagreements among the 64 referenced originals.
+ */
+const EXTENSIONS_FOR_FORMAT = { jpeg: ['jpg', 'jpeg'], png: ['png'], webp: ['webp'] };
+
+/** Dimensions as a viewer sees them: EXIF orientation applied. */
+async function orientedSize(path) {
+  const m = await sharp(path).metadata();
+  const turned = (m.orientation ?? 1) >= 5;
+  return { width: turned ? m.height : m.width, height: turned ? m.width : m.height };
+}
+
+/**
+ * Proves a `-WxH` name really is a thumbnail OF the file we are about to put in
+ * its place. Throws, by name, when it is not.
+ *
+ * Stripping `-WxH` is a guess about which other file a name belongs to, and a
+ * wrong guess puts a DIFFERENT PICTURE on the page - which no test downstream
+ * can see, because a valid image is exactly what it finds. So the guess is
+ * checked three ways:
+ *
+ *   1. the original has to exist. Measured 33 of 33 present; if that stops
+ *      being true the run stops, rather than falling back to the thumbnail and
+ *      migrating a 370px crop as if it were the picture.
+ *   2. the file has to BE the size its name claims. This is what tells a
+ *      WordPress-generated thumbnail from a real upload whose name happens to
+ *      carry digits and an `x` - WordPress names the file after the size it
+ *      actually wrote, and measured, all 33 match exactly. Compared against the
+ *      STORED dimensions, because the claim is about the file's own bytes
+ *      against its own name.
+ *   3. the original has to be at least as big, in both directions. Compared
+ *      after orientation, because that one is about the pictures rather than
+ *      the files: `IMG_1640.jpg` is stored 4032x3024 with an EXIF quarter turn
+ *      and is a 3024x4032 portrait to a reader, which is the only reason its
+ *      768x1024 thumbnail makes sense. Measured: 0 of 33 originals are smaller.
+ *
+ * A thumbnail that is not itself on disk cannot be checked by (2) or (3); the
+ * original existing is then the whole of the evidence, and the caller prints
+ * the fact rather than letting it pass unsaid. Measured: 0 of 33.
+ */
+async function checkThumbnail(thumbnailPath, originalPath, thumbnailRelative, originalRelative) {
+  if (!existsSync(originalPath)) {
+    throw new Error(
+      `Miniatura ${thumbnailRelative} nu are original pe disc: ${originalRelative}\n` +
+        '  O miniatura referita este migrata ca originalul din care a fost taiata. ' +
+        'Fara original nu se poate: nu se pune miniatura in locul lui in tacere, ' +
+        'fiindca o taietura de cateva sute de pixeli nu este poza.',
+    );
+  }
+  if (!existsSync(thumbnailPath)) return false;
+  const claimed = sizeFromName(thumbnailRelative);
+  const raw = await sharp(thumbnailPath).metadata();
+  if (raw.width !== claimed.width || raw.height !== claimed.height) {
+    throw new Error(
+      `${thumbnailRelative} nu este o miniatura: numele spune ` +
+        `${claimed.width}x${claimed.height}, fisierul este ${raw.width}x${raw.height}.\n` +
+        '  Deci numele nu a fost scris de WordPress, iar dezbracarea sufixului ar fi ' +
+        `o presupunere despre carui fisier ii apartine (${originalRelative}).`,
+    );
+  }
+  const thumbSize = await orientedSize(thumbnailPath);
+  const originalSize = await orientedSize(originalPath);
+  if (originalSize.width < thumbSize.width || originalSize.height < thumbSize.height) {
+    throw new Error(
+      `${originalRelative} este mai mic decat miniatura lui presupusa ` +
+        `${thumbnailRelative}: ${originalSize.width}x${originalSize.height} fata de ` +
+        `${thumbSize.width}x${thumbSize.height}. Nu sunt aceeasi poza.`,
+    );
+  }
+  return true;
+}
+
+/**
+ * Copies the referenced images across, sanitising each one by re-encoding it.
+ *
+ * Returns a map from the original `src` to its new repo path. A source that is
+ * missing, or that sharp cannot decode, is reported by name and LEFT OUT of
+ * the map - the caller then knows the reference is dead and can say so, rather
+ * than emitting Markdown pointing at a file that was never written.
+ *
+ * WITH ONE EXCEPTION, STATED HERE BECAUSE IT BENDS THAT RULE. The
+ * destination-collision guard registers a claim BEFORE the file is read, so a
+ * reference that is merely dead, but whose name differs only by case from a
+ * live one, stops the run instead of being named and skipped. That is
+ * deliberate and it is the same direction Task 6 takes with an unmapped
+ * reference: two names this repository cannot hold apart are worth a person
+ * looking, whether or not either file turned out to be readable. Measured: 0 in
+ * this corpus, either way.
+ *
+ * `uploadsRoot` is injectable for the same reason `db.mjs`'s `start`
+ * takes a dump path: no real caller passes one, and it exists so the positive
+ * controls in `media.test.mjs` can show the sanitiser meeting a poisoned file
+ * and a file that is not an image at all, without either the backups or a
+ * checked-in binary fixture. A sanitiser that is never shown a malicious file
+ * is not known to sanitise.
+ */
+export async function migrateImages(
+  sources,
+  repoRoot = process.cwd(),
+  uploadsRoot = UPLOADS_ROOT,
+) {
+  requireUploads(uploadsRoot);
+  const mapping = new Map();
+  const skipped = [];
+  const contentDir = join(repoRoot, CONTENT_SUBDIR);
+  // Destination per SOURCE file, so a picture referenced both directly and
+  // through one or more of its thumbnails is decoded and written exactly once.
+  const written = new Map();
+  const undecodable = new Set();
+  // A COUNTER, not `written.size`: a Map de-duplicates by construction, so its
+  // size reports one whether the file was written once or three times - which
+  // is exactly the thing this number exists to report on.
+  let writes = 0;
+  // Destination (lower-cased) -> the source file that claimed it. Two DIFFERENT
+  // source files reaching one destination is only possible when their names
+  // differ merely by case, and that is a real platform-dependent bug: on Linux,
+  // which builds this site, they are two files and one overwrites the other in
+  // the repository; on macOS, which it is developed on, they are one file and
+  // nobody sees it. Measured 0 among the 100 real references - so today this
+  // holds by luck, and this map is what makes it hold by construction.
+  const claims = new Map();
+  // What resolution did, for the report below.
+  const fromThumbnails = new Set();
+  const direct = new Set();
+  const unverified = [];
+  let thumbnailsResolved = 0;
+
+  for (const src of [...new Set(sources)]) {
+    // The TYPE question comes before the thumbnail question: an SVG is not
+    // migrated at all, and that must not change because its name carries a size.
+    if (!allowedExtension(src)) { skipped.push([src, 'disallowed type']); continue; }
+    // Deliberately OUTSIDE the try below: an unsafe path must stop the run, not
+    // become one more skipped line in a report that exits 0. Validated on the
+    // UNTRUSTED text, before anything is derived from it.
+    const rawRelative = relativeUploadPath(src);
+    if (rawRelative === null) { skipped.push([src, 'foreign path']); continue; }
+    const isThumbnail = THUMBNAIL.test(rawRelative);
+    const relative = originalName(rawRelative);
+    // A name that is NOTHING BUT a size: `-300x200.jpg` strips to `.jpg`, a
+    // name with no stem at all. Unreachable in practice, because the missing
+    // original fires first, but it was named nowhere - a reader met it as a
+    // baffling complaint about a file called `.jpg`.
+    if (basename(relative).startsWith('.')) {
+      skipped.push([src, 'numele este numai o dimensiune, nu ramane nimic din el']);
+      continue;
+    }
+    const source = join(uploadsRoot, relative);
+    const thumbnailPath = join(uploadsRoot, rawRelative);
+    const destinationRelative = destinationName(src);
+    const destination = join(repoRoot, destinationRelative);
+    // THE SECOND LOCK, AND IT IS GENUINELY SECOND NOW. It used to sit after
+    // `checkThumbnail` and after the de-duplication, so it was made about
+    // paths this process had already `existsSync`-ed and handed to sharp to
+    // decode, and a de-duplicated `src` never reached it at all. The claim
+    // "two locks on one door" was therefore not true of the pipeline, only of
+    // the unit control. NOTHING TOUCHES THE FILESYSTEM ABOVE THIS LINE.
+    if (
+      !isInside(uploadsRoot, source) ||
+      (isThumbnail && !isInside(uploadsRoot, thumbnailPath)) ||
+      !isInside(contentDir, destination)
+    ) {
+      throw new Error(
+        `Cale de upload nesigura, prinsa de a doua incuietoare: ${src}\n` +
+          `  ar fi citit ${source}\n  ar fi scris ${destination}`,
+      );
+    }
+    // `toLowerCase()` stands in for what APFS and HFS+ do, and it is only
+    // faithful because `ALLOWED_SEGMENT` keeps every path ASCII - HFS+ also
+    // normalises to NFD and APFS folds all of Unicode. See that rule's comment.
+    const key = destinationRelative.toLowerCase();
+    const claimedBy = claims.get(key);
+    if (claimedBy !== undefined && claimedBy !== relative) {
+      throw new Error(
+        `Destinatia ${destinationRelative} este revendicata de doua fisiere sursa ` +
+          `diferite: ${claimedBy} si ${relative}.\n` +
+          '  Se deosebesc doar prin majuscule, deci pe Linux sunt doua poze si una ' +
+          'o suprascrie pe cealalta in depozit, iar pe macOS sunt una singura si ' +
+          'nimeni nu observa. Redenumeste una in sursa inainte sa reiei migrarea.',
+      );
+    }
+    claims.set(key, relative);
+    if (isThumbnail) {
+      // Throws, by name, when the resolution cannot be justified.
+      const verified = await checkThumbnail(thumbnailPath, source, rawRelative, relative);
+      if (!verified) unverified.push(rawRelative);
+      thumbnailsResolved += 1;
+      fromThumbnails.add(relative);
+    } else {
+      direct.add(relative);
+    }
+    if (written.has(relative)) { mapping.set(src, written.get(relative)); continue; }
+    if (undecodable.has(relative)) continue;
+    // Declared out here because the WRITE must not be inside the catch below:
+    // a file that cannot be decoded is a corpus problem, named and skipped, but
+    // a file that cannot be written is an environment problem - a full disk, a
+    // read-only checkout - and reporting the two the same way leaves a run that
+    // prints a tidy list and exits 0 having written nothing.
+    let output;
+    try {
+      const raw = await readFile(source);
+      // Decode -> resize -> re-encode. This is the sanitisation: whatever was
+      // appended to, or hidden in, the original does not survive being turned
+      // back into pixels and written out fresh. Nothing calls `withMetadata`,
+      // so EXIF goes too - which is where a payload hides when appending one
+      // after the end marker stops working.
+      const image = sharp(raw, { failOn: 'error' }).rotate();
+      const meta = await image.metadata();
+      const ext = relative.split('.').pop().toLowerCase();
+      const allowedForFormat = EXTENSIONS_FOR_FORMAT[meta.format];
+      if (allowedForFormat === undefined || !allowedForFormat.includes(ext)) {
+        skipped.push([src, `numele spune .${ext}, continutul este ${meta.format}`]);
+        undecodable.add(relative);
+        continue;
+      }
+      // `Math.max` of both edges, so an EXIF orientation that swaps them cannot
+      // change the decision.
+      const resized =
+        Math.max(meta.width ?? 0, meta.height ?? 0) > MAX_EDGE
+          ? image.resize({
+              width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', kernel: 'lanczos3',
+            })
+          : image;
+      output = await ENCODE_OPTIONS[meta.format](resized).toBuffer();
+    } catch (e) {
+      skipped.push([src, e instanceof Error ? e.message : String(e)]);
+      undecodable.add(relative);
+      continue;
+    }
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, output);
+    writes += 1;
+    written.set(relative, destinationRelative);
+    mapping.set(src, destinationRelative);
+  }
+  // Print what was measured, not only the verdict. `process.stdout.write` and
+  // not `console.log`, which vitest's default reporter swallows on exactly the
+  // green run a later reader would check these numbers against.
+  process.stdout.write(
+    `\nImages migrated: ${mapping.size} of ${new Set(sources).size} referenced.\n`,
+  );
+  // What resolution did is the number a later reader will want to audit: how
+  // much of the corpus reaches the site only because a thumbnail was pointed
+  // back at its original.
+  const newOnes = [...fromThumbnails].filter((r) => !direct.has(r));
+  process.stdout.write(
+    `  ${thumbnailsResolved} thumbnail(s) resolved to ${fromThumbnails.size} ` +
+      `distinct original(s), of which ${newOnes.length} original(s) that ` +
+      `no <img> references directly.\n`,
+  );
+  process.stdout.write(`  ${writes} source file(s) written.\n`);
+  for (const rel of unverified) {
+    process.stdout.write(`  unverified: ${rel} is not on disk, resolved by name alone\n`);
+  }
+  for (const [src, reason] of skipped) process.stdout.write(`  skipped: ${src} - ${reason}\n`);
+  return mapping;
+}

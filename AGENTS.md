@@ -17,7 +17,7 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   The forbidden four are named by number and never printed as glyphs in any file this
   repository **tracks**, including this one: a file that spelled them out could not be
   swept for them, and nothing in it could be copied without carrying one. The four numbers
-  and the detector live in one place, `src/lib/cedile.ts`, built with
+  and the detector live in one place, `src/lib/cedilla.ts`, built with
   `String.fromCodePoint` rather than as escapes.
   **That rule was false for the whole of Phase 1, in the two files best placed to make it
   false.** `date-ro.test.ts`'s guard was a character class of all four, on disk; the plan
@@ -28,13 +28,13 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   agrees with a corrupted source forever. And for as long as they were there, the
   repo-wide sweep this rule exists to enable **could not be run**: it returned hits a
   reader had to learn to ignore, which is the habit the rule is written to prevent.
-  So the rule is now a test rather than a sentence. `src/lib/diacritice-surse.test.ts`
+  So the rule is now a test rather than a sentence. `src/lib/diacritics-sources.test.ts`
   sweeps **every tracked file** — sources, tests, documents, `public/admin/`, `_headers`,
   this file — and fails naming path and offset. It takes its subject from `git ls-files`,
   so it cannot fall behind the repository; what is git-ignored is outside it and both
   halves are deliberate: `public/admin/sveltia-cms.mjs` is third-party and legitimately
   Turkish, and `.superpowers/` is scratch whose review diffs must be able to quote the
-  corrupted characters as evidence. Binary files are named one by one in `BINARE`, and any
+  corrupted characters as evidence. Binary files are named one by one in `BINARIES`, and any
   tracked file that is neither named there nor decodable as text fails, so that list
   cannot fall behind either. It asks only the cedilla question: the stronger
   "is every non-ASCII character expected" check does not transfer to sources, which carry
@@ -43,10 +43,10 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   alphabet in a source file is not caught. It has now happened twice, both times to the
   agent writing the very file that guards this, and both times found only by dumping the
   file's non-ASCII inventory: a Cyrillic U+0435 inside an identifier while
-  `diacritice-surse.test.ts` was being written, and a CJK U+9759 inside a Romanian comment
+  `diacritics-sources.test.ts` was being written, and a CJK U+9759 inside a Romanian comment
   in `scripts/a11y.mjs` one round later. Twice in two rounds is a rate, not an anecdote:
   dump the inventory of any file you have just written Romanian prose into.
-  `src/lib/diacritice.itest.ts` sweeps every text file in `dist/` **except the vendored
+  `src/lib/diacritics.itest.ts` sweeps every text file in `dist/` **except the vendored
   Sveltia bundle**, whose own i18n tables legitimately contain Turkish; the exclusion is
   by path, the paths come from the installed package, and the test asserts both halves —
   that the bundle really is excluded and that our own files under `admin/` really are not.
@@ -59,21 +59,31 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   stronger "is every non-ASCII character one this project expects?" against a list of
   twenty-two. The second exists because a stray U+5DEE once passed every scan the first
   could make. A new character in the output fails until somebody names it.
+- **Identifiers are English; Romanian is only for what a person reads.** Variables,
+  functions, types, constants, object and YAML field keys, file and directory names,
+  `it()`/`describe()` names and build-time diagnostics are English. Romanian stays where a
+  parishioner or a parish volunteer meets it: page copy, the `label:`/`hint:`/`description:`
+  text in `public/admin/config.yml`, the Zod validation messages in `src/lib/schema.ts` and
+  `src/lib/content-schema.ts`, and `PAGE_EXPLANATION` in `scripts/check-budget.mjs`, which a
+  volunteer receives as a CI failure email. The repository was written the other way round
+  for the whole of Phase 1 and renamed in one pass; a Romanian identifier added now is a
+  regression, not a variant style. CSS class names and `data-` attributes are a separate
+  question and are still Romanian.
 - **Dates are `YYYY-MM-DD` strings; times are `HH:MM` local strings.** Never a UTC instant
-  for a service — a Liturgy at 10:00 is at 10:00 across a DST change. `aziLaZurich()` and
-  `oraLaZurich()` in `src/lib/week.ts` are the only timezone-aware functions; everything
+  for a service — a Liturgy at 10:00 is at 10:00 across a DST change. `todayInZurich()` and
+  `timeInZurich()` in `src/lib/week.ts` are the only timezone-aware functions; everything
   downstream takes plain strings.
 - **`#B08B3E` and `#C8A45C` are ornament only — never text** at any size. On the page they
   are 2.95:1 and 2.18:1. Use `--gold-text` (#8A6A28, 4.67:1) — but only on the page: the
   roles INVERT on the oxblood hero, where `--gold-text` is 2.26:1 and `--gold-lt` is
-  4.82:1. `ROLURI_TEXT` and `ROLURI_TEXT_PE_OXBLOOD` in `src/lib/tokens.ts` are the two
+  4.82:1. `TEXT_ROLES` and `TEXT_ROLES_ON_OXBLOOD` in `src/lib/tokens.ts` are the two
   sets, and `tokens.test.ts` enforces both.
 - **The parent directory is not part of this repository.** It holds several GB of forensic
   backups of the compromised server and a file of database credentials. Never `git add`
   anything from outside this root, and never weaken `.gitignore`.
 - **Import Zod as `astro/zod`**, never a direct `zod` dependency — a second copy breaks
   `instanceof` checks.
-- The service names in `public/admin/config.yml` must stay identical to `NUME_SLUJBE` in
+- The service names in `public/admin/config.yml` must stay identical to `SERVICE_NAMES` in
   `src/lib/schema.ts`. A test fails if they drift.
 - **`script-src` in `public/_headers` carries a placeholder, not a hash.** Task 10's week
   picker is inlined into the homepage, and `script-src 'self'` forbids inline execution —
@@ -114,7 +124,7 @@ still functionally correct, but the "correct by construction" property it existe
 gone, and a corrupted expectation would then happily agree with a corrupted source. Build
 such characters from numbers — `String.fromCodePoint(0x0219)`, and the example is the
 comma-below s rather than one of the forbidden four on purpose: those four numbers appear
-in `src/lib/cedile.ts` and nowhere else, which `diacritice-surse.test.ts` now enforces — or
+in `src/lib/cedilla.ts` and nowhere else, which `diacritics-sources.test.ts` now enforces — or
 write a placeholder and post-process it with a script that never emits the backslash and
 the `u` adjacently.
 Re-measured: a quoted heredoc carrying `X`, the escape for U+00E9 and `Y` lands on disk as
@@ -130,7 +140,7 @@ number against, and appears only on the red one, which is the wrong way round.
 `process.stdout.write` passes through the reporter in both cases.
 The three prints this project relies on all use it — the inline-script hashes and the paths
 `public/_headers` names, both in `headers.itest.ts`, and the full non-ASCII inventory in
-`diacritice.itest.ts`. Measured both ways on that last one.
+`diacritics.itest.ts`. Measured both ways on that last one.
 
 **`grep` lies about content, which is worse than lying about a verdict.** The four above
 misreport an *answer*, and an answer is something you might think to check twice. `rtk`'s
@@ -194,7 +204,7 @@ Every one of these was paid for.
   detector can fire.
 - **A guard that derives its subject from the artifact it checks can only check what it
   recognised.** Take the expected set from somewhere the defect cannot edit — that is why
-  `CSP_ASTEPTAT` is written out by hand rather than read off a run. The exception is when
+  `CSP_EXPECTED` is written out by hand rather than read off a run. The exception is when
   following the artifact *is* the property: `a11y.mjs` derives the layout breakpoints from
   the built CSS precisely because a hand-written copy of them went stale without a symptom.
   Say which of the two a list is, and why, beside it.
@@ -234,39 +244,39 @@ week-picker passes. A green `npm test` is not this. **CI runs `npm run check` as
 (`ci.yml`), and `test:all` does not include it** — a type error passes here and fails there,
 so run both before you push.
 
-`npm run a11y` · `a11y:mobil` · `a11y:larg` · `a11y:selector` — the browser passes on
+`npm run a11y` · `a11y:mobile` · `a11y:wide` · `a11y:picker` — the browser passes on
 their own. Each serves the built site with the `_headers` of the build it is auditing and
 fails on any Content-Security-Policy violation the policy did not already expect. The first
-three audit `dist/`; `a11y:selector` builds a throwaway site from `src/lib/fixturi.ts` into
+three audit `dist/`; `a11y:picker` builds a throwaway site from `src/lib/fixtures.ts` into
 a scratch directory and audits that one's `_headers`, which is the same file's content from
 a different build, not `dist/_headers`.
 
 Every pass also derives the layout breakpoints from the CSS of the pages it loads and fails if
 a band of widths between them is audited by nobody — so a breakpoint that moves or one that is
 added is a red build, not a silently wrong claim. **Audited means a pass runs there, over those
-pages.** The widths come from `TRECERI` in `scripts/a11y.mjs`, one entry per pass, each naming
+pages.** The widths come from `PASSES` in `scripts/a11y.mjs`, one entry per pass, each naming
 the command `package.json` runs, the set of pages it loads and the conditions it loads them
-under; a `CONDITII` key no entry names, an entry `npm run test:all` never reaches, and a set of
-pages credited with another set's widths are each a failure naming the thing. `CONDITII` on its
+under; a `CONDITIONS` key no entry names, an entry `npm run test:all` never reaches, and a set of
+pages credited with another set's widths are each a failure naming the thing. `CONDITIONS` on its
 own is a declaration, and crediting it cost this project two invisible holes — an 850px viewport
 nothing ran at, and the week band's 62rem branch with the picker bar visible, which until this
 round nothing on the project had ever audited.
 
 **Width is not the only axis, and the other two were each a pass that could be deleted with
 nothing going red.** A condition must declare at least one media query: `medii: {}` made the
-"every declared breakpoint still exists" assertion a loop over nothing, and with every `medii`
+"every declared breakpoint still exists" assertion a loop over nothing, and with every `media`
 emptied you can move a breakpoint from 34rem to 30rem and stay green on all four passes. And
 every set of pages must be audited with **scripts off** by some pass, or be named in
-`FARA_JS_MOTIVAT` with the reason in words. Deleting the three JS-off conditions left four
+`NO_JS_REASONS` with the reason in words. Deleting the three JS-off conditions left four
 browser passes and the whole unit suite green while removing the only audit that renders the
 weeks the picker hides — axe skips hidden elements and drives Chrome with JavaScript on, so
-with the picker working the homepage band is audited on one week out of three. `proba` is the
+with the picker working the homepage band is audited on one week out of three. `fixture` is the
 one legitimate exemption: its bar exists only with scripts running.
 
 **This guard was green while blind six times, and the sixth was found by the round that closed
-the fifth.** Hardcoded breakpoints; widths declared in `CONDITII` that no pass ran; the
+the fifth.** Hardcoded breakpoints; widths declared in `CONDITIONS` that no pass ran; the
 JavaScript axis, which nothing indexed; `medii: {}`; assertion (a) being one-directional; and
-coverage counted on the page SET rather than on the band, so `telefonFaraJs` could be deleted
+coverage counted on the page SET rather than on the band, so `phoneNoJs` could be deleted
 with the unit guard at 28 passed and both `dist` passes at exit 0 while the phone band lost its
 only scripts-off audit — the run still printing `JS pornit · JS oprit`, true of the set and
 false of the band. Each earlier fix closed the arrangement it was shown, and one shape produced
@@ -274,11 +284,11 @@ all six: **the guard compared a declaration against a subject along some axes an
 and was silent about what it did not index.** So it is restated as one sentence with no axis
 implicit — *everything the built CSS demands, matched against everything the suite runs, in both
 directions, and anything the file cannot index is named in words or is a failure* — and the five
-assertions in `verificaPraguri` carry the direction in their labels: (a) declaration->CSS, (a')
+assertions in `checkBreakpoints` carry the direction in their labels: (a) declaration->CSS, (a')
 CSS->declaration, (b) CSS->execution on the **pair** (band, script state), (c) every media feature
-that is not a width comparison named in `TRASATURI_NEAUDITATE`, (c') no name there the CSS has
+that is not a width comparison named in `UNAUDITED_FEATURES`, (c') no name there the CSS has
 lost. `@container`, `@import` and a `<link media>` are each read rather than skipped, and
-`FARA_AXE_MOTIVAT` — the one lever that shrinks the subject — carries its reason beside the path.
+`NO_AXE_REASONS` — the one lever that shrinks the subject — carries its reason beside the path.
 (c) was not hypothetical: `prefers-reduced-motion` had been in the built CSS the whole time,
 indexed by nothing and printed nowhere, a seventh arrangement standing while the sixth was being
 found. Each pass prints the widths **per script state** and the non-width features it did not

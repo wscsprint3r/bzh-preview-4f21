@@ -39,17 +39,17 @@ const require = createRequire(import.meta.url);
  * hoisted install.
  *
  * Two levels up from `dist/sveltia-cms.mjs` is an assumption about the package's
- * layout, so it is asserted below rather than trusted: `PACHET.name` has to come
+ * layout, so it is asserted below rather than trusted: `PACKAGE.name` has to come
  * back as `@sveltia/cms`.
  */
-const RADACINA = dirname(dirname(require.resolve('@sveltia/cms')));
-const PACHET = JSON.parse(readFileSync(join(RADACINA, 'package.json'), 'utf8')) as {
+const ROOT = dirname(dirname(require.resolve('@sveltia/cms')));
+const PACKAGE = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
   name: string;
   version: string;
 };
 
-const SCHEMA_CMS = JSON.parse(
-  readFileSync(join(RADACINA, 'schema', 'sveltia-cms.json'), 'utf8'),
+const CMS_SCHEMA = JSON.parse(
+  readFileSync(join(ROOT, 'schema', 'sveltia-cms.json'), 'utf8'),
 ) as Record<string, unknown>;
 
 const CONFIG_TEXT = readFileSync(
@@ -58,7 +58,7 @@ const CONFIG_TEXT = readFileSync(
 );
 const CONFIG = parse(CONFIG_TEXT) as Record<string, unknown>;
 
-const PACHET_PROPRIU = JSON.parse(
+const OUR_PACKAGE = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
 ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
 
@@ -69,8 +69,8 @@ const PACHET_PROPRIU = JSON.parse(
  * it exactly is the thing being asserted, and moving the entry must not look
  * like breaking that.
  */
-const VERSIUNEA_CERUTA =
-  PACHET_PROPRIU.dependencies?.['@sveltia/cms'] ?? PACHET_PROPRIU.devDependencies?.['@sveltia/cms'];
+const REQUIRED_VERSION =
+  OUR_PACKAGE.dependencies?.['@sveltia/cms'] ?? OUR_PACKAGE.devDependencies?.['@sveltia/cms'];
 
 /*
  * `strict: false` turns off Ajv's own complaints about vocabulary it does not
@@ -79,52 +79,52 @@ const VERSIUNEA_CERUTA =
  * does not implement. Neither affects a single assertion below: both concern
  * the schema's own extras, not whether the config matches it.
  */
-const valideaza = new Ajv({ allErrors: true, strict: false, logger: false }).compile(SCHEMA_CMS);
+const validate = new Ajv({ allErrors: true, strict: false, logger: false }).compile(CMS_SCHEMA);
 
-function erori(config: unknown): string[] {
-  return valideaza(config)
+function errors(config: unknown): string[] {
+  return validate(config)
     ? []
-    : (valideaza.errors ?? []).map((e) => `${e.instancePath || '/'} ${e.message ?? ''}`.trim());
+    : (validate.errors ?? []).map((e) => `${e.instancePath || '/'} ${e.message ?? ''}`.trim());
 }
 
-describe('validatorul de configurație poate să se declanșeze', () => {
+describe('the config validator can actually fire', () => {
   /*
    * Controlul pozitiv, și nu unul inventat: EXACT greșelile pe care le avea
    * versiunea din plan a acestui fișier. `locale: ro` arată ca o opțiune
    * firească - Sveltia nu a avut-o niciodată, iar rădăcina configurației
    * interzice cheile necunoscute, deci CMS-ul ar fi respins tot fișierul.
    */
-  it('respinge `locale: ro`, opțiunea care nu există', () => {
-    expect(erori({ ...CONFIG, locale: 'ro' })).not.toEqual([]);
+  it('rejects `locale: ro`, the option that does not exist', () => {
+    expect(errors({ ...CONFIG, locale: 'ro' })).not.toEqual([]);
   });
 
-  it('respinge o configurație fără backend', () => {
-    const fara = { ...CONFIG };
-    delete fara.backend;
-    expect(erori(fara)).not.toEqual([]);
+  it('rejects a config with no backend', () => {
+    const without = { ...CONFIG };
+    delete without.backend;
+    expect(errors(without)).not.toEqual([]);
   });
 
-  it('respinge o cheie necunoscută într-o colecție', () => {
-    const stricat = JSON.parse(JSON.stringify(CONFIG)) as {
+  it('rejects an unknown key inside a collection', () => {
+    const broken = JSON.parse(JSON.stringify(CONFIG)) as {
       collections: Record<string, unknown>[];
     };
-    stricat.collections[0].chestie_inventata = true;
-    expect(erori(stricat)).not.toEqual([]);
+    broken.collections[0].invented_field = true;
+    expect(errors(broken)).not.toEqual([]);
   });
 });
 
-describe('configurația CMS, față de schema pe care o publică Sveltia', () => {
-  it('a fost citită, nu doar deschisă', () => {
+describe('the CMS config, against the schema Sveltia publishes', () => {
+  it('was really read, not merely opened', () => {
     // O gardă care citește un fișier trebuie să dovedească faptul că a citit
     // ceva: un fișier gol ar face ca fiecare aserțiune de mai jos să treacă în
     // gol, iar YAML-ul gol se parsează în `null`.
     expect(CONFIG_TEXT.length).toBeGreaterThan(0);
     expect(CONFIG).not.toBeNull();
-    expect(Object.keys(SCHEMA_CMS).length).toBeGreaterThan(0);
+    expect(Object.keys(CMS_SCHEMA).length).toBeGreaterThan(0);
   });
 
-  it('este validă', () => {
-    expect(erori(CONFIG)).toEqual([]);
+  it('is valid', () => {
+    expect(errors(CONFIG)).toEqual([]);
   });
 });
 
@@ -135,22 +135,22 @@ describe('versiunea CMS-ului', () => {
    * versiune nouă la următoarea instalare - inclusiv pe serverul de build, unde
    * nimeni nu se uită - iar prima dovadă ar fi un `/admin/` care nu mai pornește.
    */
-  it('este fixată exact, fără plajă', () => {
-    expect(VERSIUNEA_CERUTA, '@sveltia/cms nu este cerut în package.json').toBeDefined();
+  it('is pinned exactly, with no range', () => {
+    expect(REQUIRED_VERSION, '@sveltia/cms nu este cerut în package.json').toBeDefined();
     // Nicio plajă: fără `^`, fără `~`, fără `*`, fără `x`.
-    expect(VERSIUNEA_CERUTA).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(REQUIRED_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it('se citește chiar pachetul @sveltia/cms', () => {
+  it('reads the @sveltia/cms package itself', () => {
     // Fără asta, „două niveluri mai sus de fișierul de intrare" ar fi o
     // presupunere despre structura pachetului pe care nimeni nu o verifică, iar
     // schema după care s-a validat configurația ar putea veni de oriunde.
-    expect(PACHET.name).toBe('@sveltia/cms');
+    expect(PACKAGE.name).toBe('@sveltia/cms');
   });
 
-  it('este chiar versiunea instalată', () => {
+  it('is the installed version itself', () => {
     // Altfel `package.json` ar putea să fixeze o versiune, iar schema după care
     // s-a validat configurația de mai sus să vină din alta.
-    expect(PACHET.version).toBe(VERSIUNEA_CERUTA);
+    expect(PACKAGE.version).toBe(REQUIRED_VERSION);
   });
 });

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { numeleParohiei } from './smoke';
+import { parishName } from './smoke';
 
 describe('toolchain', () => {
   it('runs TypeScript from src/lib', () => {
-    expect(numeleParohiei()).toBe('Parohia Ortodoxă Română Sfântul Nicolae');
+    expect(parishName()).toBe('Parohia Ortodoxă Română Sfântul Nicolae');
   });
 });

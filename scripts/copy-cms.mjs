@@ -37,12 +37,12 @@
  *
  * THIS PATCHES SOMEONE ELSE'S CODE, AND MUST BE RE-VERIFIED ON EVERY UPGRADE.
  * That is the cost, stated plainly so nobody discovers it by surprise: bumping
- * `@sveltia/cms` means re-reading `FONTURI` and re-running the browser check, not
+ * `@sveltia/cms` means re-reading `FONTS` and re-running the browser check, not
  * just the changelog.
  *
  * THE ASSERTIONS BELOW ARE LOAD-BEARING, NOT FUSSY. Do not soften one to get a
  * build through. Each URL must be found EXACTLY ONCE, and afterwards the file
- * must contain no `cdn.jsdelivr.net` at all - the same shape as `REFERINTE_ICS`
+ * must contain no `cdn.jsdelivr.net` at all - the same shape as `ICS_REFERENCES`
  * in `build-output.itest.ts`, and for the same reason: a count is what closes the
  * set, so an upgrade that moves a URL or adds a fourth font FAILS THE BUILD
  * rather than silently restoring the CDN on the one page that holds an editor's
@@ -88,22 +88,22 @@ import { pathToFileURL } from 'node:url';
 const require = createRequire(import.meta.url);
 
 /** `node_modules/@sveltia/cms/dist/sveltia-cms.mjs`, per the package's `exports`. */
-const INTRARE = require.resolve('@sveltia/cms');
-const SURSA = dirname(INTRARE);
-const TINTA = join('public', 'admin');
+const ENTRY = require.resolve('@sveltia/cms');
+const SOURCE = dirname(ENTRY);
+const TARGET = join('public', 'admin');
 
 /** Source maps only. Everything else the package ships is program text. */
-const esteHarta = (nume) => nume.endsWith('.map');
+const isSourceMap = (name) => name.endsWith('.map');
 
-/** Every file under one subfolder of `SURSA`, relative to `SURSA`, `/`-separated. */
-function fisiereDin(relativ) {
-  const gasite = [];
-  for (const intrare of readdirSync(join(SURSA, relativ), { withFileTypes: true })) {
-    const cale = posix.join(relativ, intrare.name);
-    if (intrare.isDirectory()) gasite.push(...fisiereDin(cale));
-    else if (!esteHarta(intrare.name)) gasite.push(cale);
+/** Every file under one subfolder of `SOURCE`, relative to `SOURCE`, `/`-separated. */
+function filesUnder(relative) {
+  const found = [];
+  for (const entry of readdirSync(join(SOURCE, relative), { withFileTypes: true })) {
+    const path = posix.join(relative, entry.name);
+    if (entry.isDirectory()) found.push(...filesUnder(path));
+    else if (!isSourceMap(entry.name)) found.push(path);
   }
-  return gasite;
+  return found;
 }
 
 /** The folders the package ships beside its entry file; today just `chunks`. */
@@ -116,30 +116,30 @@ function fisiereDin(relativ) {
  * written; `admin.itest.ts` re-checks the served copy against the package on
  * every build.
  */
-export const FONTURI = [
+export const FONTS = [
   {
     url: 'https://cdn.jsdelivr.net/fontsource/fonts/source-sans-3:vf@5.3.0/latin-wght-normal.woff2',
-    modul: '@fontsource-variable/source-sans-3/files/source-sans-3-latin-wght-normal.woff2',
+    pkgFile: '@fontsource-variable/source-sans-3/files/source-sans-3-latin-wght-normal.woff2',
   },
   {
     url: 'https://cdn.jsdelivr.net/fontsource/fonts/noto-mono@5.3.0/latin-400-normal.woff2',
-    modul: '@fontsource/noto-mono/files/noto-mono-latin-400-normal.woff2',
+    pkgFile: '@fontsource/noto-mono/files/noto-mono-latin-400-normal.woff2',
   },
   {
     url: 'https://cdn.jsdelivr.net/fontsource/fonts/material-symbols-outlined:vf@5.3.1/latin-wght-normal.woff2',
-    modul: '@fontsource-variable/material-symbols-outlined/files/material-symbols-outlined-latin-wght-normal.woff2',
+    pkgFile: '@fontsource-variable/material-symbols-outlined/files/material-symbols-outlined-latin-wght-normal.woff2',
   },
 ];
 
-/** Where the local copies go, under `TINTA`, and where the rewritten URLs point. */
-const DOSAR_FONTURI = 'fonturi';
+/** Where the local copies go, under `TARGET`, and where the rewritten URLs point. */
+const FONTS_DIR = 'fonturi';
 
 /** How many times `cdn.jsdelivr.net` may appear in the copied bundle when we are done. */
 const CDN = 'cdn.jsdelivr.net';
 
-function numaraAparitii(text, bucata) {
+function countOccurrences(text, piece) {
   let n = 0;
-  for (let i = text.indexOf(bucata); i !== -1; i = text.indexOf(bucata, i + bucata.length)) n += 1;
+  for (let i = text.indexOf(piece); i !== -1; i = text.indexOf(piece, i + piece.length)) n += 1;
   return n;
 }
 
@@ -153,21 +153,21 @@ function numaraAparitii(text, bucata) {
  * @param {string} text The bundle, as the package ships it.
  * @returns {string} The same bundle, serving its fonts from this origin.
  */
-export function rescrieFonturi(text) {
-  let rezultat = text;
+export function rewriteFonts(text) {
+  let result = text;
 
-  for (const { url, modul } of FONTURI) {
-    const aparitii = numaraAparitii(rezultat, url);
-    if (aparitii !== 1) {
+  for (const { url, pkgFile } of FONTS) {
+    const occurrences = countOccurrences(result, url);
+    if (occurrences !== 1) {
       throw new Error(
-        `Fontul ${basename(modul)} este așteptat exact o dată în bundle-ul CMS, dar ` +
-          `apare de ${aparitii} ori: ${url}
+        `Fontul ${basename(pkgFile)} este așteptat exact o dată în bundle-ul CMS, dar ` +
+          `apare de ${occurrences} ori: ${url}
 ` +
           'O versiune nouă de @sveltia/cms i-a mutat adresa. Actualizează FONTURI din ' +
           'scripts/copy-cms.mjs, altfel fontul s-ar încărca iar de pe CDN.',
       );
     }
-    rezultat = rezultat.replace(url, `/${posix.join('admin', DOSAR_FONTURI, basename(modul))}`);
+    result = result.replace(url, `/${posix.join('admin', FONTS_DIR, basename(pkgFile))}`);
   }
 
   /*
@@ -178,91 +178,91 @@ export function rescrieFonturi(text) {
    * already connected and ignores it.
    */
   const preconnect = 'https://cdn.jsdelivr.net/';
-  const rest = numaraAparitii(rezultat, preconnect);
+  const rest = countOccurrences(result, preconnect);
   if (rest !== 1) {
     throw new Error(
       `După rescrierea fonturilor, ${preconnect} ar trebui să apară exact o dată ` +
         `(preconnect), dar apare de ${rest} ori.`,
     );
   }
-  rezultat = rezultat.replace(preconnect, '/');
+  result = result.replace(preconnect, '/');
 
-  const ramase = numaraAparitii(rezultat, CDN);
-  if (ramase !== 0) {
+  const remaining = countOccurrences(result, CDN);
+  if (remaining !== 0) {
     throw new Error(
-      `Bundle-ul CMS mai numește ${CDN} de ${ramase} ori după rescriere. ` +
+      `Bundle-ul CMS mai numește ${CDN} de ${remaining} ori după rescriere. ` +
         'Ceva nou se încarcă de pe CDN - vezi ce, înainte să ajungă în producție.',
     );
   }
-  return rezultat;
+  return result;
 }
 
-const SUBFOLDERE = readdirSync(SURSA, { withFileTypes: true })
-  .filter((intrare) => intrare.isDirectory())
-  .map((intrare) => intrare.name);
+const SUBFOLDERS = readdirSync(SOURCE, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name);
 
-const DE_COPIAT = [basename(INTRARE), ...SUBFOLDERE.flatMap(fisiereDin)].sort();
+const TO_COPY = [basename(ENTRY), ...SUBFOLDERS.flatMap(filesUnder)].sort();
 
 /**
  * Puts the bundle where `/admin/` can serve it. Returns the paths it wrote.
  *
- * @param {(mesaj: string) => void} [jurnal] Where to report what was copied.
+ * @param {(message: string) => void} [announce] Where to report what was copied.
  */
-export function copiazaCms(jurnal = console.log) {
+export function copyCms(announce = console.log) {
   /*
    * A step that copies files must prove it copied something. Without this, an
    * empty or moved package folder leaves `/admin/` serving a page whose only
    * script is a 404 - and this step reports success while doing so.
    */
-  if (DE_COPIAT.length === 0) {
-    throw new Error(`Nimic de copiat din ${SURSA} - pachetul @sveltia/cms pare gol.`);
+  if (TO_COPY.length === 0) {
+    throw new Error(`Nimic de copiat din ${SOURCE} - pachetul @sveltia/cms pare gol.`);
   }
 
   /*
    * Stale vendored files go first: the folders the package itself ships, plus
    * `fonturi/`, which this script writes and therefore also owns.
-   * `public/admin/index.html`, `config.yml` and `pornire.mjs` are this
+   * `public/admin/index.html`, `config.yml` and `startedAt.mjs` are this
    * repository's own files, tracked in git, and nothing here may touch them:
    * they are what a volunteer actually reads.
    */
-  for (const nume of [...SUBFOLDERE, DOSAR_FONTURI]) {
-    rmSync(join(TINTA, nume), { recursive: true, force: true });
+  for (const name of [...SUBFOLDERS, FONTS_DIR]) {
+    rmSync(join(TARGET, name), { recursive: true, force: true });
   }
 
-  const scrise = [];
-  for (const fisier of DE_COPIAT) {
-    const destinatie = join(TINTA, fisier);
-    mkdirSync(dirname(destinatie), { recursive: true });
-    copyFileSync(join(SURSA, fisier), destinatie);
-    scrise.push(fisier);
+  const written = [];
+  for (const file of TO_COPY) {
+    const destination = join(TARGET, file);
+    mkdirSync(dirname(destination), { recursive: true });
+    copyFileSync(join(SOURCE, file), destination);
+    written.push(file);
   }
 
   /*
    * The entry file is the only one edited, and it is edited AFTER being copied,
-   * so `node_modules` is never written to. `rescrieFonturi` throws rather than
+   * so `node_modules` is never written to. `rewriteFonts` throws rather than
    * returning something half-done, which fails the build before the bundle can
    * ship still pointing at a CDN.
    */
-  const intrare = join(TINTA, basename(INTRARE));
-  writeFileSync(intrare, rescrieFonturi(readFileSync(intrare, 'utf8')));
+  const entry = join(TARGET, basename(ENTRY));
+  writeFileSync(entry, rewriteFonts(readFileSync(entry, 'utf8')));
 
-  for (const { modul } of FONTURI) {
-    const nume = basename(modul);
-    const destinatie = join(TINTA, DOSAR_FONTURI, nume);
-    mkdirSync(dirname(destinatie), { recursive: true });
-    copyFileSync(require.resolve(modul), destinatie);
-    scrise.push(posix.join(DOSAR_FONTURI, nume));
+  for (const { pkgFile } of FONTS) {
+    const name = basename(pkgFile);
+    const destination = join(TARGET, FONTS_DIR, name);
+    mkdirSync(dirname(destination), { recursive: true });
+    copyFileSync(require.resolve(pkgFile), destination);
+    written.push(posix.join(FONTS_DIR, name));
   }
 
-  const octeti = scrise.reduce((n, f) => n + statSync(join(TINTA, f)).size, 0);
-  jurnal(
-    `CMS copiat din ${SURSA}: ${scrise.length} fișier(e), ${octeti} octeți, ` +
+  const bytes = written.reduce((n, f) => n + statSync(join(TARGET, f)).size, 0);
+  announce(
+    `CMS copiat din ${SOURCE}: ${written.length} fișier(e), ${bytes} octeți, ` +
       `fonturile servite de aici, nu de pe CDN.`,
   );
-  return scrise.map((fisier) => join(TINTA, fisier));
+  return written.map((file) => join(TARGET, file));
 }
 
 // Rulat direct, nu importat: `node scripts/copy-cms.mjs`.
 if (argv[1] && import.meta.url === pathToFileURL(argv[1]).href) {
-  for (const cale of copiazaCms()) console.log(`  ${cale}`);
+  for (const path of copyCms()) console.log(`  ${path}`);
 }

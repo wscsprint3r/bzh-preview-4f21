@@ -11,11 +11,11 @@
  * spelled out:
  *
  * - **The objects are strict.** A misspelled key is the likeliest mistake in
- *   hand-edited YAML and the quietest one: `praznicmare:` simply never becomes
+ *   hand-edited YAML and the quietest one: `greatfeast:` simply never becomes
  *   `praznic_mare`, the day loses its feast styling, and the build stays green.
  *   Strict turns that into a build failure. Strict-and-wrong costs a minute;
  *   permissive-and-wrong costs a parishioner a wasted trip.
- * - **`ora` is normalised here, not downstream.** The editor may type `7:30`;
+ * - **`time` is normalised here, not downstream.** The editor may type `7:30`;
  *   everything that reads this schema gets `07:30`.
  *
  * Kept in `lib/` rather than inline in `content.config.ts` so it can be
@@ -32,35 +32,35 @@ import { z } from 'astro/zod';
  * resolve it happily. It was written that way and nobody noticed, because
  * nothing in the suite loads this file outside a bundler.
  *
- * It matters now because `./schema-continut.ts` imports `cheiStricte` from here,
+ * It matters now because `./content-schema.ts` imports `strictKeys` from here,
  * and that module IS loaded by the migration scripts under plain node. The guard
- * is `schema-continut.test.ts`'s 'se poate importa din node simplu', which
+ * is `content-schema.test.ts`'s 'se poate importa din node simplu', which
  * spawns a real child process; vitest alone would never catch a regression here.
  */
-import { partiData } from './date-ro.ts';
+import { dateParts } from './date-ro.ts';
 
-const NUME_FISIER = /^(\d{4}-\d{2}-\d{2})\.yml$/;
+const FILENAME = /^(\d{4}-\d{2}-\d{2})\.yml$/;
 
 /** The same date, as it may also appear INSIDE a file that the CMS wrote. */
-const DATA = /^\d{4}-\d{2}-\d{2}$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Validates a schedule filename and returns the date it encodes.
  *
  * The filename *is* the primary key of the schedule: it is the entry id, and
  * every later task joins on it. Zod never sees it - a collection schema is
- * handed the file's `data`, never its `id` - so without this the one field that
+ * handed the file's `date`, never its `id` - so without this the one field that
  * identifies a day would be the only unvalidated thing in the system.
  * `2026-02-30.yml`, `2026-9-21.yml`, a stray `.yaml` or a file in a subfolder
  * would each produce a missing or bogus day on a green build.
  *
  * Called from `generateId` in `content.config.ts`, where a throw fails the
- * build. `partiData` does the date half: one parser for this format in the
+ * build. `dateParts` does the date half: one parser for this format in the
  * codebase, already tested against every date it accepts, now guarding the key
  * as well as the contents. A regex alone would wave `2026-02-30` through.
  */
-export function idDinNumeFisier(entry: string, continut?: Record<string, unknown>): string {
-  const m = NUME_FISIER.exec(entry);
+export function idFromFilename(entry: string, content?: Record<string, unknown>): string {
+  const m = FILENAME.exec(entry);
   if (!m) {
     throw new Error(
       `Fișier de program cu nume nepermis: "${entry}". Numele trebuie să fie exact o dată, ` +
@@ -68,13 +68,13 @@ export function idDinNumeFisier(entry: string, continut?: Record<string, unknown
     );
   }
   try {
-    partiData(m[1]); // aruncă pentru date inexistente, de exemplu 2026-02-30
-  } catch (cauza) {
-    // partiData names the date but not the file, and its stack points into
+    dateParts(m[1]); // aruncă pentru date inexistente, de exemplu 2026-02-30
+  } catch (cause) {
+    // dateParts names the date but not the file, and its stack points into
     // date-ro.ts, so on its own it leaves you hunting for which entry is wrong.
     throw new Error(
       `Fișier de program cu dată inexistentă: "${entry}". Ziua aceasta nu există în calendar.`,
-      { cause: cauza },
+      { cause: cause },
     );
   }
   /*
@@ -89,14 +89,14 @@ export function idDinNumeFisier(entry: string, continut?: Record<string, unknown
    * corrects a wrong date changes the contents and not the name.
    *
    * Nothing downstream would notice. All three consumers build their day as
-   * `{ ...e.data, data: e.id }`, filename last and winning, so the correction
+   * `{ ...e.data, date: e.id }`, filename last and winning, so the correction
    * would have NO effect on the site and produce no error anywhere - the
    * quietest possible outcome for the one edit a volunteer is most likely to
    * make in a hurry. Hence a build error, here, where the filename is already
    * the thing being judged.
    */
-  const scrisa = continut?.data;
-  if (scrisa instanceof Date) {
+  const writtenDate = content?.date;
+  if (writtenDate instanceof Date) {
     throw new Error(
       // The example is the file's OWN date, never a date written into the source:
       // a hardcoded `2026-09-14` reads as stale within the month, and a volunteer
@@ -106,7 +106,7 @@ export function idDinNumeFisier(entry: string, continut?: Record<string, unknown
         `cu ghilimele.`,
     );
   }
-  if (scrisa !== undefined && scrisa !== m[1]) {
+  if (writtenDate !== undefined && writtenDate !== m[1]) {
     /*
      * The message names BOTH dates and then gives a remedy for each direction,
      * because nothing here can know which of the two is the right one - only the
@@ -116,8 +116,8 @@ export function idDinNumeFisier(entry: string, continut?: Record<string, unknown
      */
     throw new Error(
       `Fișier de program cu două date diferite: numele spune ${m[1]}, iar înăuntru ` +
-        `scrie data: ${JSON.stringify(scrisa)}. Numele fișierului este cel care decide ` +
-        `ce apare pe site. Dacă ziua este ${JSON.stringify(scrisa)}, ștergeți-o din ` +
+        `scrie data: ${JSON.stringify(writtenDate)}. Numele fișierului este cel care decide ` +
+        `ce apare pe site. Dacă ziua este ${JSON.stringify(writtenDate)}, ștergeți-o din ` +
         `administrare și adăugați-o din nou cu data aceea, fiindcă redenumirea nu se ` +
         `face singură. Dacă ziua este ${JSON.stringify(m[1])}, puneți la loc ` +
         `data: ${JSON.stringify(m[1])}.`,
@@ -129,9 +129,9 @@ export function idDinNumeFisier(entry: string, continut?: Record<string, unknown
 /**
  * The list the CMS offers as a dropdown. Keeping it closed is what stops
  * "Sf. Liturghie", "Sfanta Liturghie" and "Sfânta Liturghie" from all appearing
- * on the same page. "Altceva" plus `detaliu` is the escape hatch.
+ * on the same page. "Altceva" plus `detail` is the escape hatch.
  */
-export const NUME_SLUJBE = [
+export const SERVICE_NAMES = [
   'Utrenia',
   'Sfânta Liturghie',
   'Vecernie',
@@ -149,48 +149,48 @@ export const NUME_SLUJBE = [
   'Altceva',
 ] as const;
 
-const ORA = /^([01]?\d|2[0-3]):[0-5]\d$/;
+const TIME = /^([01]?\d|2[0-3]):[0-5]\d$/;
 
 /**
  * Zod's own message for a rejected key is English, and a rejected key is the
  * error this schema is most likely to show the volunteer. Returning `undefined`
  * for every other issue code leaves Zod's own messages alone.
  */
-const mesajCheiNecunoscute = (chei: readonly string[]) =>
-  `Câmp necunoscut: ${chei.join(', ')}. Verificați scrierea.`;
+const unknownKeysMessage = (keys: readonly string[]) =>
+  `Câmp necunoscut: ${keys.join(', ')}. Verificați scrierea.`;
 
 /**
- * Shared with `./schema-continut.ts`, so that the schedule and the three content
+ * Shared with `./content-schema.ts`, so that the schedule and the three content
  * collections answer a misspelled key with one voice rather than two. It was
  * briefly copied into that file instead, to keep it loadable under plain node;
  * fixing the import above removed the reason for the copy.
  */
-export const cheiStricte = {
+export const strictKeys = {
   error: (issue: { code: string; keys?: string[] }) =>
-    issue.code === 'unrecognized_keys' ? mesajCheiNecunoscute(issue.keys ?? []) : undefined,
+    issue.code === 'unrecognized_keys' ? unknownKeysMessage(issue.keys ?? []) : undefined,
 };
 
-export const slujbaSchema = z.strictObject(
+export const serviceSchema = z.strictObject(
   {
-    ora: z
+    time: z
       .string()
-      .regex(ORA, 'Ora trebuie scrisă ca 08:30')
+      .regex(TIME, 'Ora trebuie scrisă ca 08:30')
       // Safe to destructure: `.transform` only runs once the regex above has
       // passed, and that regex guarantees exactly one colon.
       .transform((s) => {
         const [h, m] = s.split(':');
         return `${h.padStart(2, '0')}:${m}`;
       }),
-    slujba: z.enum(NUME_SLUJBE),
-    detaliu: z.string().optional(),
+    service: z.enum(SERVICE_NAMES),
+    detail: z.string().optional(),
   },
-  cheiStricte,
-).refine((s) => s.slujba !== 'Altceva' || Boolean(s.detaliu?.trim()), {
+  strictKeys,
+).refine((s) => s.service !== 'Altceva' || Boolean(s.detail?.trim()), {
   // "Altceva" is the escape hatch for a service not on the dropdown, and it is
   // only an escape hatch if the real name follows. Left empty, the word
   // "Altceva" is what a parishioner reads off the schedule.
   message: 'Pentru "Altceva" completați și câmpul detaliu cu numele slujbei.',
-  path: ['detaliu'],
+  path: ['detail'],
 });
 
 /**
@@ -207,34 +207,34 @@ export const slujbaSchema = z.strictObject(
  * still get autocomplete. The only cost is that a hand-written `$schema:` line
  * inside a YAML file is rejected - loudly, and by name.
  */
-export const ziSchema = z
+export const daySchema = z
   .strictObject(
     {
       /*
        * THE FILENAME IS STILL THE PRIMARY KEY. This field is only allowed here.
        *
-       * The CMS has to declare a `data` field - `slug: "{{fields.data}}"` and
-       * `identifier_field: data` in `public/admin/config.yml` both name it, and
+       * The CMS has to declare a `date` field - `slug: "{{fields.date}}"` and
+       * `identifier_field: date` in `public/admin/config.yml` both name it, and
        * that is what makes the filename the date. Sveltia then writes it into
        * the file like any other field, and this object is strict, so without
        * this line the FIRST day a volunteer publishes fails the build with
        * "Câmp necunoscut: data".
        *
-       * Optional, because the hand-written seed files in `src/content/slujbe/`
+       * Optional, because the hand-written seed files in `src/content/services/`
        * do not carry it and should not have to. When it is present,
-       * `idDinNumeFisier` requires it to equal the filename; the schema cannot
+       * `idFromFilename` requires it to equal the filename; the schema cannot
        * check that itself, because Zod is handed a file's contents and never
        * its name.
        */
-      data: z
+      date: z
         .string()
-        .regex(DATA, 'Data trebuie scrisă ca 2026-09-14, între ghilimele.')
+        .regex(DATE, 'Data trebuie scrisă ca 2026-09-14, între ghilimele.')
         .optional(),
-      praznic: z.string().optional(),
-      praznic_mare: z.boolean().default(false),
-      zi_de_post: z.boolean().default(false),
-      anulat: z.boolean().default(false),
-      note: z.string().optional(),
+      feast: z.string().optional(),
+      great_feast: z.boolean().default(false),
+      fast_day: z.boolean().default(false),
+      cancelled: z.boolean().default(false),
+      notes: z.string().optional(),
       /*
        * Trimmed, and ONLY trimmed.
        *
@@ -250,9 +250,9 @@ export const ziSchema = z
        * alongside the whitespace. It is the wrong place:
        *
        *   NORMALISE FOR PRESENTATION AT PRESENTATION TIME; DO NOT MUTATE STORED
-       *   DATA TO FIX HOW IT READS.
+       *   DATE TO FIX HOW IT READS.
        *
-       * Canonicalising `ora` to `HH:MM` above is the legitimate kind - one
+       * Canonicalising `time` to `HH:MM` above is the legitimate kind - one
        * value, one spelling, nothing lost. Stripping punctuation from a
        * free-text field is the other kind: it loses information ("Capela Sf."
        * becomes "Capela Sf"), and this field is not only prose. `ics.ts` writes
@@ -261,12 +261,12 @@ export const ziSchema = z
        * what the parish typed.
        *
        * The doubled stop is handled where the sentence is built, by
-       * `punctFinal` in `schedule.ts`.
+       * `fullStop` in `schedule.ts`.
        */
-      locatie: z.string().trim().optional(),
-      slujbe: z.array(slujbaSchema),
+      location: z.string().trim().optional(),
+      services: z.array(serviceSchema),
     },
-    cheiStricte,
+    strictKeys,
   )
   /**
    * At least one service, even on a cancelled day.
@@ -283,16 +283,16 @@ export const ziSchema = z
    * rather than only refusing, because deleting the rows is exactly what a
    * volunteer's instinct says to do when a service is called off.
    */
-  .refine((z_) => z_.slujbe.length > 0, {
+  .refine((z_) => z_.services.length > 0, {
     message:
       'Ziua trebuie să aibă cel puțin o slujbă. Dacă slujbele nu mai au loc, ' +
       'păstrați orele și bifați „anulat”: altfel, cei abonați la calendar rămân ' +
       'cu vechiul program și nu află de anulare.',
-    path: ['slujbe'],
+    path: ['services'],
   })
-  .refine((z_) => !z_.praznic_mare || Boolean(z_.praznic?.trim()), {
+  .refine((z_) => !z_.great_feast || Boolean(z_.feast?.trim()), {
     message: 'Un praznic mare trebuie să aibă și numele praznicului completat.',
-    path: ['praznic'],
+    path: ['feast'],
   })
   /**
    * Two *different* services at one time are legitimate - confession runs
@@ -305,19 +305,19 @@ export const ziSchema = z
    * event in every subscriber's calendar. Do not relax it without changing
    * that scheme first.
    *
-   * `ora` is normalised before this runs, so `7:30` and `07:30` count as the
+   * `time` is normalised before this runs, so `7:30` and `07:30` count as the
    * same time rather than slipping past as two spellings.
    */
   .refine(
     (z_) => {
-      const chei = z_.slujbe.map((s) => `${s.ora} ${s.slujba}`);
-      return new Set(chei).size === chei.length;
+      const keys = z_.services.map((s) => `${s.time} ${s.service}`);
+      return new Set(keys).size === keys.length;
     },
     {
       message: 'Aceeași slujbă nu poate apărea de două ori la aceeași oră.',
-      path: ['slujbe'],
+      path: ['services'],
     },
   );
 
-export type Slujba = z.infer<typeof slujbaSchema>;
-export type ZiSlujba = z.infer<typeof ziSchema> & { data: string };
+export type Service = z.infer<typeof serviceSchema>;
+export type ServiceDay = z.infer<typeof daySchema> & { date: string };

@@ -16,55 +16,55 @@
  */
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
-import { genereazaIcs } from '../lib/ics';
+import { generateIcs } from '../lib/ics';
 
 /**
  * Where the services are, unless a day says otherwise.
  *
- * `ics.ts` writes `z.locatie || opts.locatie` into LOCATION, so this is the
+ * `ics.ts` writes `z.location || opts.location` into LOCATION, so this is the
  * address a subscriber's phone shows on an ordinary day. Fuller than the
  * footer's two lines on purpose: a calendar entry is read away from the site,
  * often in a map application, so it carries the building's name as well as the
  * street. The commas are escaped by `ics.ts` per RFC 5545 §3.3.11 — do not
  * escape them here as well.
  */
-const LOCATIE = 'Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich';
+const LOCATION = 'Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich';
 
 export const GET: APIRoute = async () => {
-  const intrari = await getCollection('slujbe');
+  const entries = await getCollection('services');
   /*
-   * `data` is two different things on this line. `e.data` is Astro's parsed
-   * frontmatter — every field `ziSchema` validated, which is every field of a
-   * day EXCEPT its date, because Zod is handed a file's contents and never its
-   * name. The date is the filename, i.e. `e.id`, validated by
-   * `idDinNumeFisier`. So `data` (Romanian for date) comes from the id, and
+   * `data` and `date` are two different things on this line. `e.data` is
+   * Astro's own name for the parsed frontmatter — every field `daySchema`
+   * validated, which is every field of a day EXCEPT its date, because Zod is
+   * handed a file's contents and never its name. The date is the filename, i.e.
+   * `e.id`, validated by `idFromFilename`. So `date` comes from the id, and
    * that is the whole of why this line exists.
    *
    * DROPPING the override is the mistake that bites, and it bites loudly: the
    * build dies with `TypeError: Cannot read properties of undefined (reading
-   * 'replace')` inside `laDataIcs`, because there is no date to format. The two
+   * 'replace')` inside `toIcsDate`, because there is no date to format. The two
    * pages fail differently on the same slip — `Dată invalidă: undefined` out of
-   * `partiData` — but all three fail the build rather than shipping. Verified
+   * `dateParts` — but all three fail the build rather than shipping. Verified
    * by doing it in each.
    *
    * REVERSING the order is a different thing and is not load-bearing today, and
-   * a comment here used to claim it was — that reversing it left `zi.data`
+   * a comment here used to claim it was — that reversing it left `day.date`
    * undefined and filled the feed with the word `undefined`. It does not:
-   * `ziSchema` is strict and declares no `data` key, so the spread has nothing
+   * `daySchema` is strict and declares no `date` key, so the spread has nothing
    * to overwrite and both orders produce the same pairs. Checked by building
    * the site both ways; the feed is byte-identical apart from DTSTAMP.
    *
    * What the order does say is which source wins IF the schema ever gains a
-   * `data` field: writing it last keeps the filename authoritative over a YAML
+   * `date` field: writing it last keeps the filename authoritative over a YAML
    * field that could contradict it, and the filename is the one that was
    * validated as a date. That is a real reason and it is the one to keep. A
    * comment that threatens a failure nobody can reproduce teaches the next
    * reader to discount the comments that are accurate.
    */
-  const zile = intrari.map((e) => ({ ...e.data, data: e.id }));
+  const days = entries.map((e) => ({ ...e.data, date: e.id }));
 
   /*
-   * THIS CALL SITE OWNS THE CORRECTNESS OF THIS STRING. `genereazaIcs` takes
+   * THIS CALL SITE OWNS THE CORRECTNESS OF THIS STRING. `generateIcs` takes
    * `dtstamp` as a parameter and does not validate it — that is deliberate, so
    * its own tests get deterministic output — so nothing downstream will notice
    * if what arrives is not an RFC 5545 §3.3.5 UTC date-time. It must be exactly
@@ -91,7 +91,7 @@ export const GET: APIRoute = async () => {
    * the file, which is the one outcome that would leave a parishioner with a
    * schedule that never updates again.
    */
-  return new Response(genereazaIcs(zile, { dtstamp, locatie: LOCATIE }), {
+  return new Response(generateIcs(days, { dtstamp, location: LOCATION }), {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': 'inline; filename="program-liturgic.ics"',

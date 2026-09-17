@@ -54,26 +54,26 @@ const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
  * the kind of "harmless because of a coincidence" this project does not keep.
  *
  * @param {string} url the request URL, query and fragment included
- * @param {(cale: string) => boolean} [exista] whether that path is a file in `public/`
+ * @param {(path: string) => boolean} [exists] whether that path is a file in `public/`
  * @returns {string | null}
  */
-export function indexulPublic(url, exista = (cale) => existsSync(join(PUBLIC, cale))) {
-  const taietura = url.search(/[?#]/);
-  const cale = taietura === -1 ? url : url.slice(0, taietura);
-  const coada = taietura === -1 ? '' : url.slice(taietura);
-  if (cale === '/' || !cale.startsWith('/') || !cale.endsWith('/')) return null;
-  const candidat = `${cale}index.html`;
-  return exista(decodeURIComponent(candidat.slice(1))) ? `${candidat}${coada}` : null;
+export function publicIndex(url, exists = (path) => existsSync(join(PUBLIC, path))) {
+  const cut = url.search(/[?#]/);
+  const path = cut === -1 ? url : url.slice(0, cut);
+  const tail = cut === -1 ? '' : url.slice(cut);
+  if (path === '/' || !path.startsWith('/') || !path.endsWith('/')) return null;
+  const candidate = `${path}index.html`;
+  return exists(decodeURIComponent(candidate.slice(1))) ? `${candidate}${tail}` : null;
 }
 
 /** The integration `astro.config.mjs` registers. */
-export const indexeDirectoare = {
-  name: 'indexe-directoare',
+export const directoryIndexes = {
+  name: 'directory-indexes',
   hooks: {
     'astro:server:setup': ({ server }) => {
       server.middlewares.use((req, _res, next) => {
-        const rescris = indexulPublic(req.url ?? '');
-        if (rescris !== null) req.url = rescris;
+        const rewritten = publicIndex(req.url ?? '');
+        if (rewritten !== null) req.url = rewritten;
         next();
       });
     },

@@ -1,0 +1,8 @@
+feast: Înălțarea Sfintei Cruci
+great_feast: true
+fast_day: true
+services:
+  - time: "07:30"
+    service: Utrenia
+  - time: "08:30"
+    service: Sfânta Liturghie

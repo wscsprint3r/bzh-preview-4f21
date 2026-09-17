@@ -1,25 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { raportContrast } from './contrast';
+import { contrastRatio } from './contrast';
 
-describe('raportContrast', () => {
-  it('dă 21 pentru negru pe alb', () => {
-    expect(raportContrast('#000000', '#FFFFFF')).toBeCloseTo(21, 1);
+describe('contrastRatio', () => {
+  it('gives 21 for black on white', () => {
+    expect(contrastRatio('#000000', '#FFFFFF')).toBeCloseTo(21, 1);
   });
 
-  it('dă 1 pentru o culoare cu ea însăși', () => {
-    expect(raportContrast('#6B1F26', '#6B1F26')).toBeCloseTo(1, 5);
+  it('gives 1 for a colour against itself', () => {
+    expect(contrastRatio('#6B1F26', '#6B1F26')).toBeCloseTo(1, 5);
   });
 
-  it('este simetric', () => {
-    expect(raportContrast('#6B1F26', '#FAF6EE'))
-      .toBeCloseTo(raportContrast('#FAF6EE', '#6B1F26'), 5);
+  it('is symmetric', () => {
+    expect(contrastRatio('#6B1F26', '#FAF6EE'))
+      .toBeCloseTo(contrastRatio('#FAF6EE', '#6B1F26'), 5);
   });
 
-  it('acceptă hex scurt', () => {
-    expect(raportContrast('#000', '#fff')).toBeCloseTo(21, 1);
+  it('accepts short hex', () => {
+    expect(contrastRatio('#000', '#fff')).toBeCloseTo(21, 1);
   });
 
-  it('confirmă că aurul ornamental pică testul', () => {
-    expect(raportContrast('#B08B3E', '#FAF6EE')).toBeLessThan(3);
+  it('confirms that the ornamental gold fails the test', () => {
+    expect(contrastRatio('#B08B3E', '#FAF6EE')).toBeLessThan(3);
   });
 });

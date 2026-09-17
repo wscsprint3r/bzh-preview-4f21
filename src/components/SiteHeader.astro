@@ -1,6 +1,6 @@
 ---
-const cale = Astro.url.pathname;
-const linkuri = [
+const path = Astro.url.pathname;
+const links = [
   { href: '/', text: 'Acasă' },
   { href: '/program/', text: 'Program' },
 ];
@@ -17,9 +17,9 @@ const linkuri = [
     </a>
     <nav aria-label="Navigare principală">
       <ul class="sh-nav">
-        {linkuri.map((l) => (
+        {links.map((l) => (
           <li>
-            <a href={l.href} aria-current={cale === l.href ? 'page' : undefined}>{l.text}</a>
+            <a href={l.href} aria-current={path === l.href ? 'page' : undefined}>{l.text}</a>
           </li>
         ))}
       </ul>

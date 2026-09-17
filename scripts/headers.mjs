@@ -26,60 +26,60 @@
  *
  * Typed with JSDoc rather than left to inference, because `tsconfig.json`
  * type-checks `**\/*` and `src/lib/headers.itest.ts` imports this file. Without
- * the annotations `antete` infers as `never[]` from its empty initialiser and
+ * the annotations `headers` infers as `never[]` from its empty initialiser and
  * the test fails to compile - `astro check` and `tsc --noEmit` both say so.
  *
- * @typedef {{ tipar: string, antete: [string, string][] }} RegulaAntet
+ * @typedef {{ pattern: string, headers: [string, string][] }} HeaderRule
  */
 
 /**
  * Parses a `_headers` file into its rules.
  *
  * @param {string} text
- * @returns {RegulaAntet[]}
+ * @returns {HeaderRule[]}
  */
-export function parseazaHeaders(text) {
-  /** @type {RegulaAntet[]} */
-  const reguli = [];
-  /** @type {RegulaAntet | null} */
-  let curenta = null;
-  for (const [i, linie] of text.split('\n').entries()) {
-    const nr = i + 1;
-    if (linie.trim() === '' || linie.trimStart().startsWith('#')) continue;
-    if (/^\S/.test(linie)) {
-      const tipar = linie.trim();
-      if (!tipar.startsWith('/')) {
-        throw new Error(`_headers:${nr}: tipar neacceptat aici: ${tipar}`);
+export function parseHeaders(text) {
+  /** @type {HeaderRule[]} */
+  const rules = [];
+  /** @type {HeaderRule | null} */
+  let current = null;
+  for (const [i, line] of text.split('\n').entries()) {
+    const lineNumber = i + 1;
+    if (line.trim() === '' || line.trimStart().startsWith('#')) continue;
+    if (/^\S/.test(line)) {
+      const pattern = line.trim();
+      if (!pattern.startsWith('/')) {
+        throw new Error(`_headers:${lineNumber}: tipar neacceptat aici: ${pattern}`);
       }
-      if (tipar.includes(':')) {
+      if (pattern.includes(':')) {
         throw new Error(
-          `_headers:${nr}: tiparele cu :placeholder nu sunt acoperite de verificarea locală: ${tipar}`,
+          `_headers:${lineNumber}: tiparele cu :placeholder nu sunt acoperite de verificarea locală: ${pattern}`,
         );
       }
-      curenta = { tipar, antete: [] };
-      reguli.push(curenta);
+      current = { pattern, headers: [] };
+      rules.push(current);
       continue;
     }
-    const potrivire = linie.match(/^\s+([A-Za-z0-9-]+)\s*:\s*(.*)$/);
-    if (!potrivire) {
-      throw new Error(`_headers:${nr}: linie de antet neinteligibilă: ${JSON.stringify(linie)}`);
+    const match = line.match(/^\s+([A-Za-z0-9-]+)\s*:\s*(.*)$/);
+    if (!match) {
+      throw new Error(`_headers:${lineNumber}: linie de antet neinteligibilă: ${JSON.stringify(line)}`);
     }
-    if (curenta === null) throw new Error(`_headers:${nr}: antet fără nicio regulă deasupra lui`);
-    curenta.antete.push([potrivire[1], potrivire[2].trim()]);
+    if (current === null) throw new Error(`_headers:${lineNumber}: antet fără nicio regulă deasupra lui`);
+    current.headers.push([match[1], match[2].trim()]);
   }
-  if (reguli.length === 0) throw new Error('_headers nu conține nicio regulă.');
-  return reguli;
+  if (rules.length === 0) throw new Error('_headers nu conține nicio regulă.');
+  return rules;
 }
 
 /**
  * A Cloudflare path pattern as a regular expression over the request path.
  *
- * @param {string} tipar
+ * @param {string} pattern
  * @returns {RegExp}
  */
-function tiparRegex(tipar) {
-  const escapat = tipar.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-  return new RegExp(`^${escapat}$`);
+function patternRegex(pattern) {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  return new RegExp(`^${escaped}$`);
 }
 
 /**
@@ -92,18 +92,18 @@ function tiparRegex(tipar) {
  * header name appears twice; `headers.itest.ts` asserts it, and this reproduces
  * the join anyway so that a future duplicate shows up in the browser pass too.
  *
- * @param {RegulaAntet[]} reguli
- * @param {string} cale
+ * @param {HeaderRule[]} rules
+ * @param {string} path
  * @returns {Map<string, string>}
  */
-export function anteteleRutei(reguli, cale) {
+export function headersForPath(rules, path) {
   /** @type {Map<string, string>} */
-  const rezultat = new Map();
-  for (const regula of reguli) {
-    if (!tiparRegex(regula.tipar).test(cale)) continue;
-    for (const [nume, valoare] of regula.antete) {
-      rezultat.set(nume, rezultat.has(nume) ? `${rezultat.get(nume)}, ${valoare}` : valoare);
+  const result = new Map();
+  for (const rule of rules) {
+    if (!patternRegex(rule.pattern).test(path)) continue;
+    for (const [name, value] of rule.headers) {
+      result.set(name, result.has(name) ? `${result.get(name)}, ${value}` : value);
     }
   }
-  return rezultat;
+  return result;
 }

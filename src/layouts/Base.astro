@@ -2,14 +2,14 @@
 import '../styles/global.css';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
-import { INDEXABIL } from '../lib/site';
+import { INDEXABLE } from '../lib/site';
 
 interface Props {
-  titlu: string;
-  descriere?: string;
+  title: string;
+  description?: string;
 }
 
-const { titlu, descriere = 'Parohia Ortodoxă Română Sfântul Nicolae din Zürich — program liturgic, noutăți și informații parohiale.' } = Astro.props;
+const { title, description = 'Parohia Ortodoxă Română Sfântul Nicolae din Zürich — program liturgic, noutăți și informații parohiale.' } = Astro.props;
 ---
 
 <!doctype html>
@@ -17,19 +17,19 @@ const { titlu, descriere = 'Parohia Ortodoxă Română Sfântul Nicolae din Zür
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>{titlu} · Parohia Sfântul Nicolae Zürich</title>
-    <meta name="description" content={descriere} />
+    <title>{title} · Parohia Sfântul Nicolae Zürich</title>
+    <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     {/*
-      Both of these are `INDEXABIL` in `lib/site.ts`, which explains why it is
+      Both of these are `INDEXABLE` in `lib/site.ts`, which explains why it is
       false during Phase 1 and says flipping it is a cutover step. In short: this
       build is served from `<project>.pages.dev` while `www.bor-zh.ch` still
       answers with the compromised WordPress, so there is no canonical URL worth
       emitting — the one `Astro.site` gives points search engines at that install
       — and the temporary host should not be indexed at all.
     */}
-    {INDEXABIL ? (
+    {INDEXABLE ? (
       <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
     ) : (
       <meta name="robots" content="noindex" />

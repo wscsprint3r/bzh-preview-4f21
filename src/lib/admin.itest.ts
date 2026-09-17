@@ -25,31 +25,31 @@ import { createRequire } from 'node:module';
 import { basename, dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { FONTURI, rescrieFonturi } from '../../scripts/copy-cms.mjs';
+import { FONTS, rewriteFonts } from '../../scripts/copy-cms.mjs';
 
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const PUBLIC = fileURLToPath(new URL('../../public/', import.meta.url));
 
-const INTRARE_CMS = createRequire(import.meta.url).resolve('@sveltia/cms');
-const SURSA_CMS = dirname(INTRARE_CMS);
+const CMS_ENTRY = createRequire(import.meta.url).resolve('@sveltia/cms');
+const CMS_SOURCE = dirname(CMS_ENTRY);
 
 /** The file's bytes, having proved there was a file and that it had some. */
-function citeste(cale: string): Buffer {
-  expect(existsSync(cale), `${cale} lipsește`).toBe(true);
-  const octeti = readFileSync(cale);
-  expect(octeti.length, `${cale} există dar este gol`).toBeGreaterThan(0);
-  return octeti;
+function read(path: string): Buffer {
+  expect(existsSync(path), `${path} lipsește`).toBe(true);
+  const bytes = readFileSync(path);
+  expect(bytes.length, `${path} există dar este gol`).toBeGreaterThan(0);
+  return bytes;
 }
 
 /** Every file under one folder, as `/`-separated paths relative to it. */
-function fisiere(radacina: string, relativ = ''): string[] {
-  const gasite: string[] = [];
-  for (const intrare of readdirSync(join(radacina, relativ), { withFileTypes: true })) {
-    const cale = posix.join(relativ, intrare.name);
-    if (intrare.isDirectory()) gasite.push(...fisiere(radacina, cale));
-    else gasite.push(cale);
+function files(root: string, relative = ''): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(join(root, relative), { withFileTypes: true })) {
+    const path = posix.join(relative, entry.name);
+    if (entry.isDirectory()) found.push(...files(root, path));
+    else found.push(path);
   }
-  return gasite.sort();
+  return found.sort();
 }
 
 /*
@@ -57,11 +57,11 @@ function fisiere(radacina: string, relativ = ''): string[] {
  * it: the entry file npm resolved, plus every file in every subfolder beside it
  * (that is where the lazily-imported chunks live), minus the source maps.
  */
-const ASTEPTATE_PACHET = [
-  basename(INTRARE_CMS),
-  ...readdirSync(SURSA_CMS, { withFileTypes: true })
-    .filter((intrare) => intrare.isDirectory())
-    .flatMap((intrare) => fisiere(SURSA_CMS, intrare.name)),
+const EXPECTED_FROM_PACKAGE = [
+  basename(CMS_ENTRY),
+  ...readdirSync(CMS_SOURCE, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => files(CMS_SOURCE, entry.name)),
 ]
   .filter((f) => !f.endsWith('.map'))
   .sort();
@@ -75,24 +75,24 @@ const ASTEPTATE_PACHET = [
  * package's own copy still does, every font URL it does name must resolve to a
  * real file, and each of those files must match the npm package byte for byte.
  */
-const ASTEPTATE_FONTURI = FONTURI.map(({ modul }) => `fonturi/${basename(modul)}`);
+const EXPECTED_FONTS = FONTS.map(({ pkgFile }) => `fonturi/${basename(pkgFile)}`);
 
-const ASTEPTATE = [...ASTEPTATE_PACHET, ...ASTEPTATE_FONTURI].sort();
+const EXPECTED = [...EXPECTED_FROM_PACKAGE, ...EXPECTED_FONTS].sort();
 
 /** Our own files under `admin/`, which are not vendored and are tracked in git. */
-const ALE_NOASTRE = ['index.html', 'config.yml', 'pornire.mjs'];
+const OURS = ['index.html', 'config.yml', 'pornire.mjs'];
 
-const INTRARE_SERVITA = join(DIST, 'admin', basename(INTRARE_CMS));
+const SERVED_ENTRY = join(DIST, 'admin', basename(CMS_ENTRY));
 
-function numaraAparitii(text: string, bucata: string): number {
+function countOccurrences(text: string, piece: string): number {
   let n = 0;
-  for (let i = text.indexOf(bucata); i !== -1; i = text.indexOf(bucata, i + bucata.length)) n += 1;
+  for (let i = text.indexOf(piece); i !== -1; i = text.indexOf(piece, i + piece.length)) n += 1;
   return n;
 }
 
-describe('pagina de administrare există', () => {
-  it('dist/admin/index.html a fost construită', () => {
-    const html = citeste(join(DIST, 'admin', 'index.html')).toString('utf8');
+describe('the admin page exists', () => {
+  it('dist/admin/index.html was built', () => {
+    const html = read(join(DIST, 'admin', 'index.html')).toString('utf8');
     expect(html).toContain('<html lang="ro"');
     expect(html).toContain('</html>');
     // Nu este o măsură de securitate - CMS-ul este apărat de autentificarea
@@ -106,54 +106,54 @@ describe('pagina de administrare există', () => {
    * `src="/admin/sveltia-cms.mjs"` este adevărat și atunci când fișierul nu a
    * fost copiat niciodată, iar pagina arată atunci exact ca o pagină goală.
    */
-  it('fiecare <script src> al ei duce la un fișier real din dist/', () => {
-    const html = citeste(join(DIST, 'admin', 'index.html')).toString('utf8');
-    const surse = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]*)"/g)].map((m) => m[1] as string);
-    expect(surse.length, 'pagina de administrare nu încarcă niciun script').toBe(1);
-    for (const src of surse) {
+  it('each of its <script src> leads to a real file in dist/', () => {
+    const html = read(join(DIST, 'admin', 'index.html')).toString('utf8');
+    const sources = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]*)"/g)].map((m) => m[1] as string);
+    expect(sources.length, 'pagina de administrare nu încarcă niciun script').toBe(1);
+    for (const src of sources) {
       expect(src.startsWith('/'), `${src} nu este absolută`).toBe(true);
-      citeste(join(DIST, src.slice(1).split(/[?#]/)[0] as string));
+      read(join(DIST, src.slice(1).split(/[?#]/)[0] as string));
     }
   });
 
   /*
-   * Al doilea capăt al aceluiași lanț. `pornire.mjs` este fișierul care chiar
+   * Al doilea capăt al aceluiași lanț. `startedAt.mjs` este fișierul care chiar
    * pornește CMS-ul, iar el importă bundle-ul pe cale relativă. Dacă acel import
    * nu duce nicăieri, pagina rămâne albă și tăcută - exact starea în care a fost
    * găsită înainte să existe fișierul acesta.
    */
-  it('fiecare import al lui pornire.mjs duce la un fișier real', () => {
-    const sursa = citeste(join(DIST, 'admin', 'pornire.mjs')).toString('utf8');
-    const importuri = [
-      ...sursa.matchAll(/\bfrom\s*'([^']+)'/g),
-      ...sursa.matchAll(/\bimport\(\s*'([^']+)'/g),
+  it("each of pornire.mjs's imports leads to a real file", () => {
+    const source = read(join(DIST, 'admin', 'pornire.mjs')).toString('utf8');
+    const imports = [
+      ...source.matchAll(/\bfrom\s*'([^']+)'/g),
+      ...source.matchAll(/\bimport\(\s*'([^']+)'/g),
     ].map((m) => m[1] as string);
-    expect(importuri.length, 'pornire.mjs nu importă nimic').toBeGreaterThan(0);
-    for (const specificator of importuri) {
-      expect(specificator.startsWith('./'), `${specificator} nu este relativ`).toBe(true);
-      citeste(join(DIST, 'admin', specificator.slice(2)));
+    expect(imports.length, 'pornire.mjs nu importă nimic').toBeGreaterThan(0);
+    for (const specifier of imports) {
+      expect(specifier.startsWith('./'), `${specifier} nu este relativ`).toBe(true);
+      read(join(DIST, 'admin', specifier.slice(2)));
     }
     // Și chiar cheamă init: un import fără apel ar trece testul de mai sus și ar
     // lăsa pagina tot albă.
-    expect(sursa).toMatch(/\binit\s*\(/);
+    expect(source).toMatch(/\binit\s*\(/);
   });
 
-  it('servește chiar configurația pe care o verifică testele', () => {
+  it('serves the very configuration the tests check', () => {
     // `cms.test.ts` validează `public/admin/config.yml`. Dacă ce ajunge în
     // `dist/` ar fi altceva, acea validare ar fi despre un fișier pe care nu îl
     // citește nimeni.
-    expect(citeste(join(DIST, 'admin', 'config.yml')).equals(citeste(join(PUBLIC, 'admin', 'config.yml')))).toBe(true);
+    expect(read(join(DIST, 'admin', 'config.yml')).equals(read(join(PUBLIC, 'admin', 'config.yml')))).toBe(true);
   });
 });
 
-describe('bundle-ul CMS este servit din acest sit, nu de pe un CDN', () => {
-  it('pachetul chiar are ce să dea', () => {
+describe('the CMS bundle is served from this site, not from a CDN', () => {
+  it('the package really does have something to give', () => {
     // Fără asta, o mulțime așteptată goală ar face ca egalitatea de mai jos să
     // fie adevărată despre un `dist/admin/` fără niciun fișier vendorizat.
-    expect(ASTEPTATE.length).toBeGreaterThan(1);
-    expect(ASTEPTATE).toContain(basename(INTRARE_CMS));
-    expect(ASTEPTATE.some((f) => f.startsWith('chunks/'))).toBe(true);
-    expect(ASTEPTATE.some((f) => f.startsWith('fonturi/'))).toBe(true);
+    expect(EXPECTED.length).toBeGreaterThan(1);
+    expect(EXPECTED).toContain(basename(CMS_ENTRY));
+    expect(EXPECTED.some((f) => f.startsWith('chunks/'))).toBe(true);
+    expect(EXPECTED.some((f) => f.startsWith('fonturi/'))).toBe(true);
   });
 
   /*
@@ -161,41 +161,41 @@ describe('bundle-ul CMS este servit din acest sit, nu de pe un CDN', () => {
    * CMS-ul o cere de la unpkg, unde CSP-ul o oprește. Prea mult: harta de surse
    * de 7 MB sau a doua copie a programului, publicate lumii degeaba.
    */
-  it('poartă exact fișierele pachetului, nici unul în plus, nici unul în minus', () => {
-    const vendorizate = fisiere(join(DIST, 'admin')).filter((f) => !ALE_NOASTRE.includes(f));
-    expect(vendorizate).toEqual(ASTEPTATE);
+  it("carries exactly the package's files, not one more, not one fewer", () => {
+    const vendored = files(join(DIST, 'admin')).filter((f) => !OURS.includes(f));
+    expect(vendored).toEqual(EXPECTED);
   });
 
-  it('poartă octeții pachetului, nu o copie veche', () => {
-    for (const cale of ASTEPTATE_PACHET) {
+  it("carries the package's bytes, not a stale copy", () => {
+    for (const path of EXPECTED_FROM_PACKAGE) {
       // Fișierul de intrare este singurul rescris; are testul lui mai jos.
-      if (cale === basename(INTRARE_CMS)) continue;
-      const copiat = citeste(join(DIST, 'admin', cale));
-      expect(copiat.equals(readFileSync(join(SURSA_CMS, cale))), cale).toBe(true);
+      if (path === basename(CMS_ENTRY)) continue;
+      const copied = read(join(DIST, 'admin', path));
+      expect(copied.equals(readFileSync(join(CMS_SOURCE, path))), path).toBe(true);
     }
   });
 
   /*
-   * FIȘIERUL DE INTRARE ESTE SINGURUL COD STRĂIN PE CARE ÎL MODIFICĂM, deci
+   * FIȘIERUL DE ENTRY ESTE SINGURUL COD STRĂIN PE CARE ÎL MODIFICĂM, deci
    * egalitatea este exactă: ce se servește trebuie să fie chiar pachetul trecut
-   * prin `rescrieFonturi`, nici un octet mai mult. O modificare în plus -
+   * prin `rewriteFonts`, nici un octet mai mult. O modificare în plus -
    * strecurată, sau făcută de o unealtă pe drum - pică aici.
    */
-  it('fișierul de intrare este pachetul cu fonturile rescrise și nimic altceva', () => {
-    const servit = citeste(INTRARE_SERVITA).toString('utf8');
-    expect(servit).toBe(rescrieFonturi(readFileSync(INTRARE_CMS, 'utf8')));
+  it('the entry file is the package with the fonts rewritten and nothing else', () => {
+    const served = read(SERVED_ENTRY).toString('utf8');
+    expect(served).toBe(rewriteFonts(readFileSync(CMS_ENTRY, 'utf8')));
   });
 
   /*
    * Și dovada că rescrierea are ce să rescrie. Fără controlul pozitiv, „nu
    * numește niciun CDN" ar fi la fel de adevărat despre un pachet care nu l-a
-   * numit niciodată - iar atunci nimeni nu ar afla că tabelul `FONTURI` a rămas
+   * numit niciodată - iar atunci nimeni nu ar afla că tabelul `FONTS` a rămas
    * în urmă.
    */
-  it('nu mai numește CDN-ul de fonturi, deși pachetul îl numește', () => {
+  it('no longer names the font CDN, although the package does', () => {
     const CDN = 'cdn.jsdelivr.net';
-    expect(numaraAparitii(readFileSync(INTRARE_CMS, 'utf8'), CDN)).toBeGreaterThan(0);
-    expect(numaraAparitii(citeste(INTRARE_SERVITA).toString('utf8'), CDN)).toBe(0);
+    expect(countOccurrences(readFileSync(CMS_ENTRY, 'utf8'), CDN)).toBeGreaterThan(0);
+    expect(countOccurrences(read(SERVED_ENTRY).toString('utf8'), CDN)).toBe(0);
   });
 
   /*
@@ -203,36 +203,36 @@ describe('bundle-ul CMS este servit din acest sit, nu de pe un CDN', () => {
    * adresă rescrisă greșit ar ieși din mulțimea verificată în loc să o facă să
    * pice, dacă nimeni nu ar număra și nu ar deschide fișierele.
    */
-  it('fiecare font pe care îl cere duce la un fișier real din dist/', () => {
-    const servit = citeste(INTRARE_SERVITA).toString('utf8');
-    const urluri = [...servit.matchAll(/url\((\/admin\/[^)]+)\)/g)].map((m) => m[1] as string);
-    expect(urluri.length, 'bundle-ul nu cere niciun font local').toBe(FONTURI.length);
-    for (const url of urluri) citeste(join(DIST, url.slice(1)));
+  it('every font it asks for leads to a real file in dist/', () => {
+    const served = read(SERVED_ENTRY).toString('utf8');
+    const urls = [...served.matchAll(/url\((\/admin\/[^)]+)\)/g)].map((m) => m[1] as string);
+    expect(urls.length, 'bundle-ul nu cere niciun font local').toBe(FONTS.length);
+    for (const url of urls) read(join(DIST, url.slice(1)));
   });
 
-  it('fonturile servite sunt chiar fonturile din pachetele npm', () => {
+  it('the served fonts really are the fonts from the npm packages', () => {
     const require = createRequire(import.meta.url);
-    for (const { modul } of FONTURI) {
-      const nume = basename(modul);
-      const servit = citeste(join(DIST, 'admin', 'fonturi', nume));
-      expect(servit.equals(readFileSync(require.resolve(modul))), nume).toBe(true);
+    for (const { pkgFile } of FONTS) {
+      const name = basename(pkgFile);
+      const served = read(join(DIST, 'admin', 'fonturi', name));
+      expect(served.equals(readFileSync(require.resolve(pkgFile))), name).toBe(true);
     }
   });
 
-  it('nu publică hărțile de surse', () => {
+  it('does not publish the source maps', () => {
     // Controlul pozitiv: pachetul chiar ARE hărți, deci absența lor din `dist/`
     // este o alegere, nu o constatare despre un pachet care nu le are.
-    const harti = fisiere(SURSA_CMS).filter((f) => f.endsWith('.map'));
-    expect(harti.length).toBeGreaterThan(0);
-    for (const harta of harti) {
-      expect(existsSync(join(DIST, 'admin', harta)), harta).toBe(false);
+    const sourceMaps = files(CMS_SOURCE).filter((f) => f.endsWith('.map'));
+    expect(sourceMaps.length).toBeGreaterThan(0);
+    for (const mapping of sourceMaps) {
+      expect(existsSync(join(DIST, 'admin', mapping)), mapping).toBe(false);
     }
   });
 
-  it('nu costă nimic vizitatorului, fiindcă nimeni nu ajunge acolo din greșeală', () => {
+  it('costs the visitor nothing, because nobody lands there by accident', () => {
     // Nu un buget, ci ordinul de mărime: dacă bundle-ul ar ajunge vreodată sub
     // 100 KB, cel mai probabil s-a copiat altceva decât programul.
-    const octeti = ASTEPTATE.reduce((n, f) => n + statSync(join(DIST, 'admin', f)).size, 0);
-    expect(octeti).toBeGreaterThan(100 * 1024);
+    const bytes = EXPECTED.reduce((n, f) => n + statSync(join(DIST, 'admin', f)).size, 0);
+    expect(bytes).toBeGreaterThan(100 * 1024);
   });
 });

@@ -1,0 +1,7 @@
+feast: Duminica după Înălțarea Sfintei Cruci
+services:
+  - time: "08:45"
+    service: Utrenia
+  - time: "10:00"
+    service: Sfânta Liturghie
+    detail: și Parastas

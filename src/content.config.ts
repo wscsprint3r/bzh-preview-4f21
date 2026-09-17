@@ -1,58 +1,58 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { idDinNumeFisier, ziSchema } from './lib/schema';
-import { articolSchema, paginaSchema, setariSchema } from './lib/schema-continut';
+import { idFromFilename, daySchema } from './lib/schema';
+import { articleSchema, pageSchema, settingsSchema } from './lib/content-schema';
 
-const slujbe = defineCollection({
+const services = defineCollection({
   loader: glob({
     // `.yaml` is matched on purpose even though only `.yml` is allowed. With a
     // pattern of `**/*.yml` alone, a file named `2026-09-21.yaml` is never read
     // at all: no error, no entry, just a day missing from the schedule on a
-    // green build. Matching it here is what lets `idDinNumeFisier` reject it by
+    // green build. Matching it here is what lets `idFromFilename` reject it by
     // name instead.
     pattern: ['**/*.yml', '**/*.yaml'],
-    base: './src/content/slujbe',
+    base: './src/content/services',
     // The filename is the date, and the date is this collection's primary key,
     // so it is validated rather than handed to github-slugger. A throw here
     // fails the build - which is the point, because Zod only ever sees a file's
     // contents, never its name.
-    // `data` is the file's PARSED, UNVALIDATED contents - Zod has not run yet.
-    // It is passed in so that a `data:` field written by the CMS can be checked
-    // against the filename, which is the only place the two are visible at once:
-    // the loader knows the name, the schema knows the contents, and neither
-    // knows both.
-    generateId: ({ entry, data }) => idDinNumeFisier(entry, data),
+    // `data` is Astro's name for the file's PARSED, UNVALIDATED contents - Zod
+    // has not run yet. It is passed in so that a `date:` field written by the
+    // CMS can be checked against the filename, which is the only place the two
+    // are visible at once: the loader knows the name, the schema knows the
+    // contents, and neither knows both.
+    generateId: ({ entry, data }) => idFromFilename(entry, data),
   }),
-  schema: ziSchema,
+  schema: daySchema,
 });
 
 /*
  * The three content collections of Phase 2. Their rules live in
- * `./lib/schema-continut.ts` rather than inline here, for the same reason
- * `ziSchema` does: that file is unit-tested without booting Astro, and it is
+ * `./lib/content-schema.ts` rather than inline here, for the same reason
+ * `daySchema` does: that file is unit-tested without booting Astro, and it is
  * imported directly by the migration scripts, which run under plain node.
  *
- * Unlike `slujbe`, none of these three has a meaningful primary key of its own,
+ * Unlike `services`, none of these three has a meaningful primary key of its own,
  * so none overrides `generateId`. The article slug and the page id come from
  * the filename by Astro's own slugger, which is what the migration writes and
  * what the CMS expects.
  */
-const articole = defineCollection({
+const articles = defineCollection({
   loader: glob({ pattern: ['**/*.md'], base: './src/content/articole' }),
-  schema: articolSchema,
+  schema: articleSchema,
 });
 
-const pagini = defineCollection({
+const pages = defineCollection({
   loader: glob({ pattern: ['**/*.md'], base: './src/content/pagini' }),
-  schema: paginaSchema,
+  schema: pageSchema,
 });
 
-const setari = defineCollection({
-  // Both extensions, for the reason spelled out on `slujbe` above: a file saved
-  // as `setari.yaml` would otherwise not be read at all, and the site would
+const settings = defineCollection({
+  // Both extensions, for the reason spelled out on `services` above: a file saved
+  // as `settings.yaml` would otherwise not be read at all, and the site would
   // silently fall back to having no settings rather than say so.
-  loader: glob({ pattern: ['**/*.yml', '**/*.yaml'], base: './src/content/setari' }),
-  schema: setariSchema,
+  loader: glob({ pattern: ['**/*.yml', '**/*.yaml'], base: './src/content/settings' }),
+  schema: settingsSchema,
 });
 
-export const collections = { slujbe, articole, pagini, setari };
+export const collections = { services, articles, pages, settings };

@@ -39,20 +39,20 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scripturi } from './scripturi.mjs';
+import { pageScripts } from './page-scripts.mjs';
 
 /** The token in `public/_headers` that this file replaces. */
-export const SEMN = '{{hash-scripturi}}';
+export const PLACEHOLDER = '{{hash-scripturi}}';
 
 /** Every `.html` in a directory tree, as paths relative to it. */
-function paginile(radacina, relativ = '') {
-  const gasite = [];
-  for (const intrare of readdirSync(join(radacina, relativ), { withFileTypes: true })) {
-    const cale = relativ === '' ? intrare.name : `${relativ}/${intrare.name}`;
-    if (intrare.isDirectory()) gasite.push(...paginile(radacina, cale));
-    else if (intrare.name.endsWith('.html')) gasite.push(cale);
+function htmlPages(root, relative = '') {
+  const found = [];
+  for (const entry of readdirSync(join(root, relative), { withFileTypes: true })) {
+    const path = relative === '' ? entry.name : `${relative}/${entry.name}`;
+    if (entry.isDirectory()) found.push(...htmlPages(root, path));
+    else if (entry.name.endsWith('.html')) found.push(path);
   }
-  return gasite.sort();
+  return found.sort();
 }
 
 /**
@@ -63,8 +63,8 @@ function paginile(radacina, relativ = '') {
  * the hash below is byte-identical to the one Chrome named in its own refusal
  * message for this very script.
  */
-export function hashScript(continut) {
-  return `'sha256-${createHash('sha256').update(continut, 'utf8').digest('base64')}'`;
+export function hashScript(content) {
+  return `'sha256-${createHash('sha256').update(content, 'utf8').digest('base64')}'`;
 }
 
 /**
@@ -72,34 +72,34 @@ export function hashScript(continut) {
  * executable script in `<dir>`. Returns what it measured, so the caller can
  * print it rather than print a verdict.
  */
-export function scrieHeaders(dir, spune = console.log) {
-  const fisier = join(dir, '_headers');
-  if (!existsSync(fisier)) {
+export function writeHeaders(dir, log = console.log) {
+  const file = join(dir, '_headers');
+  if (!existsSync(file)) {
     throw new Error(
-      `${fisier} lipsește. Astro copiază public/_headers în dist/ — dacă fișierul sursă a ` +
-        'dispărut, situl se publică fără niciun antet de securitate.',
+      `${file} is missing. Astro copies public/_headers into dist/ — if the source file has ` +
+        'disappeared, the site publishes with no security header at all.',
     );
   }
 
-  const gasite = [];
-  for (const pagina of paginile(dir)) {
-    for (const s of scripturi(readFileSync(join(dir, pagina), 'utf8'))) {
-      if (s.fel === 'necunoscut') {
+  const found = [];
+  for (const page of htmlPages(dir)) {
+    for (const s of pageScripts(readFileSync(join(dir, page), 'utf8'))) {
+      if (s.kind === 'unknown') {
         throw new Error(
-          `${pagina}: <script${s.atribute}> nu e nici cod, nici date cunoscute.\n` +
-            'Adaugă-l în TIPURI_EXECUTATE sau în TIPURI_DATE din scripts/scripturi.mjs. ' +
-            'Un script pe care politica nu îl recunoaște este un script pe care situl publicat îl refuză.',
+          `${page}: <script${s.attributes}> is neither known code nor known data.\n` +
+            'Add it to EXECUTED_TYPES or to DATA_TYPES in scripts/page-scripts.mjs. ' +
+            'A script the policy does not recognise is a script the published site refuses.',
         );
       }
-      if (s.fel !== 'executat' || s.src !== null) continue;
-      gasite.push({ pagina, octeti: Buffer.byteLength(s.continut), hash: hashScript(s.continut) });
+      if (s.kind !== 'executed' || s.src !== null) continue;
+      found.push({ page, bytes: Buffer.byteLength(s.content), hash: hashScript(s.content) });
     }
   }
 
   // Sorted and deduplicated, so two builds of the same output produce the same
   // file: an ordering that followed the walk would make the diff of `_headers`
   // depend on the filesystem.
-  const unice = [...new Set(gasite.map((g) => g.hash))].sort();
+  const unique = [...new Set(found.map((g) => g.hash))].sort();
 
   /*
    * SUBSTITUTED ONLY ON HEADER LINES, NEVER IN COMMENTS. `public/_headers`
@@ -109,42 +109,42 @@ export function scrieHeaders(dir, spune = console.log) {
    * only in prose fails below instead of shipping `script-src 'self'`, which is
    * the defect this whole file exists to prevent.
    */
-  const esteComentariu = (linie) => linie.trimStart().startsWith('#');
-  const linii = readFileSync(fisier, 'utf8').split('\n');
-  if (!linii.some((l) => !esteComentariu(l) && l.includes(SEMN))) {
+  const isComment = (line) => line.trimStart().startsWith('#');
+  const lines = readFileSync(file, 'utf8').split('\n');
+  if (!lines.some((l) => !isComment(l) && l.includes(PLACEHOLDER))) {
     throw new Error(
-      `${fisier} nu conține ${SEMN} pe nicio linie de antet.\n` +
-        'Fără el, script-src rămâne doar cu \x27self\x27 și browserul refuză scriptul inline al ' +
-        'paginii principale — fără nicio urmă vizibilă, fiindcă pagina fără JavaScript arată corect. ' +
-        'Vezi comentariul despre script-src din public/_headers.',
+      `${file} contains ${PLACEHOLDER} on no header line.\n` +
+        "Without it, script-src is left with 'self' alone and the browser refuses the homepage's " +
+        'inline script — with no visible trace, because the page without JavaScript looks correct. ' +
+        'See the note about script-src in public/_headers.',
     );
   }
   writeFileSync(
-    fisier,
-    linii.map((l) => (esteComentariu(l) ? l : l.replaceAll(SEMN, unice.join(' ')))).join('\n'),
+    file,
+    lines.map((l) => (isComment(l) ? l : l.replaceAll(PLACEHOLDER, unique.join(' ')))).join('\n'),
   );
 
   // Print what was measured, not only that something was.
-  if (gasite.length === 0) {
-    spune(
-      'CSP: niciun script inline în build — script-src rămâne doar \x27self\x27, ceea ce e corect ' +
-        'DOAR dacă scriptul e emis ca fișier. check-budget.mjs decide dacă asta e în regulă.',
+  if (found.length === 0) {
+    log(
+      "CSP: no inline script in the build — script-src is left with 'self' alone, which is right " +
+        'ONLY if the script is emitted as a file. check-budget.mjs decides whether that is in order.',
     );
   } else {
-    for (const g of gasite) spune(`CSP: ${g.pagina} script inline de ${g.octeti} octeți -> ${g.hash}`);
+    for (const g of found) log(`CSP: ${g.page} inline script of ${g.bytes} bytes -> ${g.hash}`);
   }
-  return { gasite, unice };
+  return { found, unique };
 }
 
 /** The Astro integration that runs it. Wired in `astro.config.mjs`. */
-export const hashuriCsp = {
-  name: 'hashuri-csp',
+export const cspHashes = {
+  name: 'csp-hashes',
   hooks: {
     'astro:build:done': ({ dir, logger }) => {
       // `fileURLToPath`, not `dir.pathname`: a project path containing a space
       // arrives percent-encoded in `pathname` and every `readdirSync` below
       // would then miss the build entirely.
-      scrieHeaders(fileURLToPath(dir), (mesaj) => logger.info(mesaj));
+      writeHeaders(fileURLToPath(dir), (message) => logger.info(message));
     },
   },
 };
