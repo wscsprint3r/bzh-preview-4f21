@@ -130,3 +130,77 @@ counts above after loading and throws if they do not match, so a load that
 somehow still succeeds while short of the real content does not go unnoticed
 either. See `db.test.mjs` for the fast, container-free test of that
 comparison, and `task-1-report.md` for the full negative-control run.
+
+## `media.mjs` — the image pipeline
+
+`migreazaImagini(surse, radacinaRepo?, radacinaUploads?)` takes the `src`
+attributes `imaginiDin()` found, writes sanitised images under
+`src/assets/continut/`, and returns a `Map` from each original `src` to its new
+repo-relative path. A `src` with no entry in that map is a reference the
+migration could not honour, and **the caller must treat that as a failure rather
+than emitting a blank** — nothing downstream validates image paths, because
+`imagine` is deliberately an unvalidated string in `schema-continut.ts`.
+
+**Re-encoding is the sanitisation.** Nothing is copied. Every file is decoded to
+pixels by sharp and written out fresh, so an archive appended after the end
+marker, a payload in EXIF, or anything else that is not pixels does not survive.
+A file that fails to decode is not an image and is dropped by name. **SVG is not
+migrated at all** — sharp can rasterise it, but an SVG that stays an SVG carries
+script. Neither are `.doc`, `.js`, `.html`, `.htaccess`, `.json`, `.css`, `.txt`.
+
+**`RADACINA_UPLOADS` points at the 2026-08-22 backup, not the 2026-08-27 one
+`SURSA_DUMP` uses.** That is not a typo: the 08-27 capture holds only
+`database.sql.gz` and `htdocs.tar.gz`, and the unpacked file tree lives in
+08-22. The two dates are two different captures and both are correct.
+
+### Measured (2026-09-17, 71 published posts and pages)
+
+```
+116 <img> tags -> 97 unique srcs, plus 3 featured images = 100 references
+100 migrated, 0 skipped, 50.0 MB written, 100 source files
+ 33 of the 100 were -WxH thumbnails, resolved to 33 distinct originals,
+    all 33 of which no <img> references directly
+100/100 byte-identical across two runs into two different roots
+```
+
+### A referenced thumbnail is migrated as its original
+
+WordPress writes `name-WIDTHxHEIGHT.ext` for every generated size, and 33 of the
+references point at one. They are not dropped: the suffix is stripped and the
+original is migrated in its place, with both srcs mapping to the same
+destination. Dropping them would lose the icon of Saint Nicholas from `istoric`,
+a council member's photograph, five Doxologia cover scans and the liturgical
+programme — on a green build, because a missing picture fails nothing.
+
+Stripping `-WxH` is a guess about which file a name belongs to, and a wrong
+guess puts a *different picture* on the page, which nothing downstream can
+detect because a valid image is exactly what it finds. So it is checked three
+ways, each stopping the run by name: the original must exist; the file must be
+the size its name claims (this is what tells a generated thumbnail from a real
+upload whose name happens to carry digits and an `x`); and the original must be
+at least as large in both directions, compared **after** EXIF orientation.
+
+**Eight of the 33 are hard crops**, so those pages will show a differently framed
+picture than they do today: `testi-1/2/3`, `event1`, `event6`, `service1` (all
+Astra theme demo content) and the two `PHOTO-2026-02-20-*` on
+`cursuri-de-pictura`, which are real. That is a Phase 3 decision about those
+pages, not a migration defect — and per-file "is this demo content?" judgement
+was deliberately not made here, because it is the kind of call that goes wrong
+quietly.
+
+### Why the images are committed by Task 6 and not by Task 5
+
+Task 5 produces the pipeline and commits only `media.mjs` and `media.test.mjs`.
+It does **not** commit `src/assets/continut/**`, and that is deliberate:
+`src/lib/diacritice-surse.test.ts` fails any tracked file that is not valid UTF-8
+and is not listed in `BINARE`, which holds one path and is named one by one by
+design. A hundred images cannot be.
+
+Task 6 owns that change: `BINARE` becomes a predicate — `public/favicon.ico`, or
+a path under `src/assets/continut/` with an extension on a fixed allow-list. A
+prefix rule is a pure weakening on its own, so it does not ship alone: the
+property it removes is replaced by a stronger one, a check that **every file
+under that prefix actually decodes as an image through sharp**. Renaming a
+payload to `.jpg` defeats a name list; it does not defeat a decoder. That check
+needs sharp and about a hundred files, so it belongs in an `.itest.ts` run by
+`npm run test:build`, not in the unit sweep.
