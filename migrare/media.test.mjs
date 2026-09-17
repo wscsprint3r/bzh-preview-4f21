@@ -491,6 +491,42 @@ describe('rezolvarea miniaturii la originalul din care a fost taiata', () => {
     await expect(migreazaImagini([A, B], radacina, uploads)).rejects.toThrow(/revendicat/i);
   });
 
+  it('CONDITIA 2c, cu fisiere vii: ciocnirea opreste rularea si numeste ambele surse', async () => {
+    /*
+     * The case above deliberately has nothing on disk, and proves the guard
+     * needs nothing on disk. THIS one covers what the guard actually exists
+     * for: two real pictures whose names this repository cannot hold apart.
+     * With the fixtures removed from the other case, the live arrangement was
+     * exercised by nothing at all.
+     *
+     * It needs no special handling, which is itself the ordering claim holding:
+     * the guard runs before any filesystem access, so live and dead files take
+     * the identical path and give the identical verdict. If this case had
+     * needed something the dead one did not, that would have meant the claim
+     * was weaker than stated.
+     *
+     * On Linux these are two files; on macOS they are one, and both spellings
+     * resolve to it. Both are asserted readable below rather than assumed, so
+     * the test says which arrangement it actually got.
+     */
+    const poza = await sharp({
+      create: { width: 50, height: 40, channels: 3, background: '#2b6f3a' },
+    }).jpeg().toBuffer();
+    await pune('2026/02/Vie.jpg', poza);
+    await pune('2026/02/vie.jpg', poza);
+    expect(existsSync(join(uploads, '2026/02/Vie.jpg'))).toBe(true);
+    expect(existsSync(join(uploads, '2026/02/vie.jpg'))).toBe(true);
+
+    const A = '/wp-content/uploads/2026/02/Vie.jpg';
+    const B = '/wp-content/uploads/2026/02/vie.jpg';
+    const cazut = migreazaImagini([A, B], radacina, uploads);
+    await expect(cazut).rejects.toThrow(/revendicat/i);
+    // Both sources named, or the message cannot be acted on: the whole point is
+    // that a person has to rename one of them in the source.
+    await expect(cazut).rejects.toThrow(/2026\/02\/Vie\.jpg/);
+    await expect(cazut).rejects.toThrow(/2026\/02\/vie\.jpg/);
+  });
+
   it('o miniatura de tip nepermis ramane respinsa, nu se rezolva', async () => {
     // SVG is not migrated at all, and that must not change because the name
     // happens to carry a size.
