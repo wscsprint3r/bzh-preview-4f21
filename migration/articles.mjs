@@ -218,29 +218,43 @@ export function assertImageReferences(slug, sources, mapping) {
  * Replaces every reference in `markdown` with its markdown-relative path.
  *
  * SINGLE PASS, LONGEST ALTERNATIVE FIRST, AND BOTH HALVES ARE LOAD-BEARING.
- * A raw `replaceAll` per source corrupts a longer URL when a shorter one is a
- * literal substring of it - `…/1.jpg` sits inside `…/11.jpg`, and the shape
- * `a.jpg` inside `a.jpg-300x200.jpg` is one `migrateImages` reasons about -
- * because the shorter replacement rewrites the prefix of the longer URL and
- * the written Markdown then points at a file nobody wrote. Sorting by
- * descending length fixes the case where the shorter is a PREFIX of the
- * longer; the single pass is what makes it safe in general, because the
- * replacement text is never rescanned - a destination that happened to contain
- * another source string would otherwise be rewritten by that source's own
- * pass. A regex alternation tries its alternatives left to right at each
- * position, which is why the order is by descending length.
+ * One full URL can be a literal prefix of another - `…/a.jpg` inside
+ * `…/a.jpg-300x200.jpg` - and a raw `replaceAll` per source then rewrites the
+ * longer URL's prefix when the shorter is processed first, leaving the written
+ * Markdown pointing at a file nobody wrote. Sorting the alternatives by
+ * descending length is what makes the longer win at that position. The single
+ * pass is what makes it safe in general: the replacement text is never
+ * rescanned, so a destination that happened to contain another source string
+ * cannot be rewritten by that source's own pass. A regex alternation tries its
+ * alternatives left to right at each position, which is why the order is by
+ * descending length.
+ *
+ * The WordPress `-WxH` thumbnail shape is NOT an example of this pair:
+ * `a-300x200.jpg` does not contain `a.jpg`, because the original's dot is not
+ * in the thumbnail's stem. The pair above is constructed, so this is
+ * correctness by construction rather than a fix for a corpus that needed it.
+ * Measured over the 45 posts' 4 body references, 2026-09-17: 0 containment
+ * pairs today. The pages corpus reuses this function.
  *
  * The sources are regex-escaped: they are URLs off a compromised server, so
  * `.` and `?` are literal characters here, not syntax.
  *
- * The mapping is expected to be COMPLETE for `sources`; `assertImageReferences`
- * is what guarantees that in the extraction path. Measured over the 45 posts'
- * 4 body references: 0 substring collisions today, so this is correctness by
- * construction for a corpus that is currently lucky - and the pages corpus
- * reuses this function.
+ * The mapping must cover every source. `assertImageReferences` guarantees that
+ * in the extraction path, and this function checks it again with a named error
+ * - a missing destination must not become the string "undefined" in a page,
+ * and the pages corpus is a second caller.
  */
-export function rewriteImageSources(markdown, sources, mapping) {
+export function rewriteImageSources(slug, markdown, sources, mapping) {
   const ordered = [...new Set(sources)].sort((a, b) => b.length - a.length);
+  for (const src of ordered) {
+    if (!mapping.has(src)) {
+      throw new Error(
+        `${slug} asked to rewrite ${src}, which has no destination in the image map. ` +
+          'The extraction path asserts every reference first; this is the rewriter refusing ' +
+          'to turn a missing destination into a broken path in a page.',
+      );
+    }
+  }
   if (ordered.length === 0) return markdown;
   const pattern = new RegExp(
     ordered.map((src) => src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
@@ -380,7 +394,7 @@ export async function extractArticles() {
       ...(doc.featured === undefined ? [] : [doc.featured]),
     ];
     assertImageReferences(doc.slug, allSources, mapping);
-    const body = rewriteImageSources(doc.markdown, doc.bodySources, mapping);
+    const body = rewriteImageSources(doc.slug, doc.markdown, doc.bodySources, mapping);
 
     const isPublished = isDated(doc.date);
     const frontmatter = {

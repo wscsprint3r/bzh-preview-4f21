@@ -109,24 +109,37 @@ describe('rewriting image sources', () => {
   it('rewrites a reference to its markdown-relative path', () => {
     const src = 'https://www.bor-zh.ch/wp-content/uploads/2024/05/hram.jpg';
     const mapping = new Map([[src, 'src/assets/content/2024/05/hram.jpg']]);
-    expect(rewriteImageSources(`![hram](${src})`, [src], mapping))
+    expect(rewriteImageSources('un-post', `![hram](${src})`, [src], mapping))
       .toBe('![hram](../../assets/content/2024/05/hram.jpg)');
   });
 
-  it('does not corrupt a source that is a literal substring of another', () => {
-    // The hazard a raw per-source `replaceAll` has: `…/1.jpg` is a substring
-    // of `…/11.jpg`, so replacing the shorter first rewrites the longer URL's
-    // prefix and the written Markdown points at a file nobody wrote. The
-    // single pass, longest alternative first, is what this pins.
-    const short = 'https://www.bor-zh.ch/wp-content/uploads/2024/05/1.jpg';
-    const long = 'https://www.bor-zh.ch/wp-content/uploads/2024/05/11.jpg';
+  it('does not corrupt a source whose full URL is a prefix of another', () => {
+    // The hazard a raw per-source `replaceAll` has: one full URL is a literal
+    // PREFIX of another, so replacing the shorter first rewrites the longer
+    // URL's prefix and the written Markdown points at a file nobody wrote.
+    // The assertion after the fixture is what proves this case carries that
+    // relation: an earlier version used `…/1.jpg` and `…/11.jpg`, whose FULL
+    // URLs do not contain one another, so it passed with the ordering fix
+    // reverted and proved nothing.
+    const short = 'https://www.bor-zh.ch/wp-content/uploads/2024/05/a.jpg';
+    const long = 'https://www.bor-zh.ch/wp-content/uploads/2024/05/a.jpg-300x200.jpg';
+    expect(long.includes(short)).toBe(true);
+    // BOTH map to `a.jpg`, which is what `migrateImages` does with a
+    // `-WxH`-suffixed reference: it strips the suffix and migrates the
+    // original, so the two references share one destination. The shared
+    // destination is also what makes the corruption visible - a shorter-first
+    // replacement leaves `…/a.jpg-300x200.jpg` behind, a path nobody wrote,
+    // and the longer pass then finds nothing left to fix.
     const mapping = new Map([
-      [short, 'src/assets/content/2024/05/1.jpg'],
-      [long, 'src/assets/content/2024/05/11.jpg'],
+      [short, 'src/assets/content/2024/05/a.jpg'],
+      [long, 'src/assets/content/2024/05/a.jpg'],
     ]);
-    const body = `![eleven](${long}) and ![one](${short})`;
-    expect(rewriteImageSources(body, [short, long], mapping)).toBe(
-      '![eleven](../../assets/content/2024/05/11.jpg) and ![one](../../assets/content/2024/05/1.jpg)',
+    // Passed shortest-first on purpose: the function's own ordering is what
+    // has to make the longer win at that position.
+    const body = `![short](${short}) and ![long](${long})`;
+    expect(rewriteImageSources('un-post', body, [short, long], mapping)).toBe(
+      '![short](../../assets/content/2024/05/a.jpg) and ' +
+        '![long](../../assets/content/2024/05/a.jpg)',
     );
   });
 
@@ -140,7 +153,24 @@ describe('rewriting image sources', () => {
       [url, 'src/assets/content/2024/05/one.jpg'],
       [insideDestination, 'src/assets/content/2024/05/two.jpg'],
     ]);
-    expect(rewriteImageSources(`![one](${url})`, [url, insideDestination], mapping))
+    expect(rewriteImageSources('un-post', `![one](${url})`, [url, insideDestination], mapping))
       .toBe('![one](../../assets/content/2024/05/one.jpg)');
+  });
+
+  it('POSITIVE CONTROL: an unmapped source is a named error, not a TypeError', () => {
+    // The sole call site asserts references first, so this is unreachable in
+    // the extraction path today - it is defence for the pages-corpus reuse,
+    // where a missing destination must not become the string "undefined" in a
+    // page or a bare `Cannot read properties of undefined`.
+    const src = 'https://www.bor-zh.ch/wp-content/uploads/2024/05/dead.jpg';
+    let caught;
+    try {
+      rewriteImageSources('un-post', `![dead](${src})`, [src], new Map());
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBeInstanceOf(TypeError);
+    expect(caught?.message).toMatch(/un-post.*dead\.jpg/s);
   });
 });
