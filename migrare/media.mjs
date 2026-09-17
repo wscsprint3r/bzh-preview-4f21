@@ -101,6 +101,15 @@ function dimensiuniDinNume(cale) {
  * the only characters that occur at all are ASCII letters, digits, `.`, `-` and
  * `_`. So this costs the real corpus nothing.
  *
+ * LOAD-BEARING BEYOND ITS OWN PURPOSE, and this is the paragraph to read before
+ * widening it. The destination-collision guard keys on `toLowerCase()`, which
+ * matches what APFS and HFS+ actually do ONLY because this rule restricts paths
+ * to ASCII. HFS+ also normalises to NFD and APFS case-folds the whole of
+ * Unicode, so admitting one non-ASCII character here would silently decouple
+ * that key from the filesystem's own collation and two names the filesystem
+ * considers equal would sail past the guard. Widen this and you must revisit
+ * the key.
+ *
  * Refusing rather than decoding is deliberate for percent-encoding in
  * particular - 0 srcs contain a `%` - because `%2e%2e%2f` decodes to a
  * traversal, and a reference nobody can read is worth naming rather than
@@ -364,6 +373,15 @@ async function verificaMiniatura(caleMiniatura, caleOriginal, relativMiniatura, 
  * the map - the caller then knows the reference is dead and can say so, rather
  * than emitting Markdown pointing at a file that was never written.
  *
+ * WITH ONE EXCEPTION, STATED HERE BECAUSE IT BENDS THAT RULE. The
+ * destination-collision guard registers a claim BEFORE the file is read, so a
+ * reference that is merely dead, but whose name differs only by case from a
+ * live one, stops the run instead of being named and skipped. That is
+ * deliberate and it is the same direction Task 6 takes with an unmapped
+ * reference: two names this repository cannot hold apart are worth a person
+ * looking, whether or not either file turned out to be readable. Measured: 0 in
+ * this corpus, either way.
+ *
  * `radacinaUploads` is injectable for the same reason `db.mjs`'s `porneste`
  * takes a dump path: no real caller passes one, and it exists so the positive
  * controls in `media.test.mjs` can show the sanitiser meeting a poisoned file
@@ -441,6 +459,9 @@ export async function migreazaImagini(
           `  ar fi citit ${sursa}\n  ar fi scris ${destinatie}`,
       );
     }
+    // `toLowerCase()` stands in for what APFS and HFS+ do, and it is only
+    // faithful because `SEGMENT_PERMIS` keeps every path ASCII - HFS+ also
+    // normalises to NFD and APFS folds all of Unicode. See that rule's comment.
     const cheie = destinatieRel.toLowerCase();
     const revendicatDe = revendicate.get(cheie);
     if (revendicatDe !== undefined && revendicatDe !== relativ) {

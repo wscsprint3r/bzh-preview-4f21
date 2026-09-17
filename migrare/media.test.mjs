@@ -53,6 +53,7 @@ describe('numele destinatiei', () => {
 // ---------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -457,26 +458,37 @@ describe('rezolvarea miniaturii la originalul din care a fost taiata', () => {
   });
 
   it('CONDITIA 2c: doua fisiere sursa nu pot revendica aceeasi destinatie', async () => {
-    // The destination is derived from the source path, so two DIFFERENT source
-    // files can only land on one name when the names differ merely by case -
-    // and that is a real, platform-dependent bug rather than a curiosity: on
-    // Linux, which is what builds this site, they are two files and one
-    // overwrites the other in the repository; on macOS, which is what it is
-    // developed on, they are one file and nobody ever sees it. Measured: 0
-    // collisions among the 100 real references, exact or case-insensitive - so
-    // this holds today by luck, and the guard is what makes it hold by
-    // construction.
-    const poza = await sharp({
-      create: { width: 60, height: 40, channels: 3, background: '#2b6f3a' },
-    }).jpeg().toBuffer();
-    await pune('2025/07/Unica.jpg', poza);
-    await pune('2025/07/unica.jpg', poza);
-    await expect(
-      migreazaImagini(
-        ['/wp-content/uploads/2025/07/Unica.jpg', '/wp-content/uploads/2025/07/unica.jpg'],
-        radacina, uploads,
-      ),
-    ).rejects.toThrow(/revendicat/i);
+    /*
+     * NO FIXTURE ON DISK, DELIBERATELY, AND ASSERTED SO BELOW.
+     *
+     * An earlier version of this case wrote `Unica.jpg` and `unica.jpg` into the
+     * uploads tree. Both were decorative: the guard compares destination STRINGS
+     * before anything touches the filesystem, so nothing on disk is ever
+     * consulted, and deleting both writes left this test green - measured.
+     * They were worse than useless: on macOS those two calls create ONE file, so
+     * the fixture did not represent the two-file case the comment describes, and
+     * the day somebody "improves" the guard to consult the filesystem this test
+     * would pass on one platform and fail on the other with nothing saying which
+     * property it was ever for.
+     *
+     * WHAT THE GUARD IS FOR is a filesystem property: the destination derives
+     * from the source path, so two different source files can only collide when
+     * their names differ merely by case, and then on Linux - which builds this
+     * site - they are two files and one overwrites the other in the repository,
+     * while on macOS - which it is developed on - they are one file and nobody
+     * ever sees it. Measured: 0 collisions among the 100 real references, so the
+     * property held by luck before this guard existed.
+     *
+     * HOW THE GUARD WORKS is deliberately not that: a string comparison made
+     * before any filesystem access, so it gives the same verdict on every
+     * platform and a run is reproducible. Asserting the absence of the files is
+     * how that design choice is written down where a later reader will meet it.
+     */
+    const A = '/wp-content/uploads/2025/07/Unica.jpg';
+    const B = '/wp-content/uploads/2025/07/unica.jpg';
+    expect(existsSync(join(uploads, '2025/07/Unica.jpg'))).toBe(false);
+    expect(existsSync(join(uploads, '2025/07/unica.jpg'))).toBe(false);
+    await expect(migreazaImagini([A, B], radacina, uploads)).rejects.toThrow(/revendicat/i);
   });
 
   it('o miniatura de tip nepermis ramane respinsa, nu se rezolva', async () => {
