@@ -1,6 +1,6 @@
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import sharp from 'sharp';
 
 /**
@@ -123,9 +123,37 @@ const SEGMENT_PERMIS = /^[A-Za-z0-9._-]+$/;
  * `/a/b`.
  */
 export function esteInauntrul(radacina, cale) {
-  const r = resolve(radacina);
-  const c = resolve(cale);
+  const r = realCatSePoate(radacina);
+  const c = realCatSePoate(cale);
   return c === r || c.startsWith(r + sep);
+}
+
+/**
+ * `realpath` of the deepest part of `cale` that exists, with the rest appended.
+ *
+ * `resolve` alone collapses `..` textually and does NOT follow symlinks, so a
+ * link inside the uploads tree defeated both locks: the charset rule sees an
+ * ordinary name and `resolve` sees an ordinary path. The tree is
+ * attacker-derived and was unpacked from a tar, where symlinks survive.
+ * Measured: 0 symlinks in the 7,421 files today, so this is latent rather than
+ * live - which is exactly when it is cheap to close.
+ *
+ * The walk exists because a destination does not exist yet, so `realpath` on it
+ * throws; what must be followed is the part that IS there.
+ */
+function realCatSePoate(cale) {
+  let p = resolve(cale);
+  const ramase = [];
+  for (;;) {
+    try {
+      return ramase.length === 0 ? realpathSync(p) : join(realpathSync(p), ...ramase);
+    } catch {
+      const parinte = dirname(p);
+      if (parinte === p) return resolve(cale);
+      ramase.unshift(basename(p));
+      p = parinte;
+    }
+  }
 }
 
 /**
@@ -142,7 +170,12 @@ export function esteInauntrul(radacina, cale) {
  * is trusted. Measured: 0 of the 100 real srcs throw.
  */
 function caleaRelativa(srcWp) {
-  const m = srcWp.match(/uploads\/(.+)$/);
+  // ANCHORED. Unanchored, `https://evil.example/myuploads/2024/05/poza.jpg`
+  // matched, and the pipeline would then have migrated the parish's OWN
+  // `2024/05/poza.jpg` in its place - not an escape, but a foreign page
+  // choosing which of our files lands under which name. Measured: all 100 real
+  // srcs carry `/wp-content/uploads/`, including the two protocol-relative ones.
+  const m = srcWp.match(/(?:^|\/)wp-content\/uploads\/(.+)$/);
   if (m === null) return null;
   const relativ = m[1];
   const segmente = relativ.split('/');
@@ -291,8 +324,7 @@ async function dimensiuniOrientate(cale) {
  * original existing is then the whole of the evidence, and the caller prints
  * the fact rather than letting it pass unsaid. Measured: 0 of 33.
  */
-async function verificaMiniatura(radacinaUploads, relativMiniatura, relativOriginal) {
-  const caleOriginal = join(radacinaUploads, relativOriginal);
+async function verificaMiniatura(caleMiniatura, caleOriginal, relativMiniatura, relativOriginal) {
   if (!existsSync(caleOriginal)) {
     throw new Error(
       `Miniatura ${relativMiniatura} nu are original pe disc: ${relativOriginal}\n` +
@@ -301,7 +333,6 @@ async function verificaMiniatura(radacinaUploads, relativMiniatura, relativOrigi
         'fiindca o taietura de cateva sute de pixeli nu este poza.',
     );
   }
-  const caleMiniatura = join(radacinaUploads, relativMiniatura);
   if (!existsSync(caleMiniatura)) return false;
   const cerut = dimensiuniDinNume(relativMiniatura);
   const brut = await sharp(caleMiniatura).metadata();
@@ -382,17 +413,34 @@ export async function migreazaImagini(
     if (relativBrut === null) { esuate.push([src, 'cale straina']); continue; }
     const esteMin = MINIATURA.test(relativBrut);
     const relativ = numeOriginalului(relativBrut);
-    if (esteMin) {
-      // Throws, by name, when the resolution cannot be justified.
-      const verificata = await verificaMiniatura(radacinaUploads, relativBrut, relativ);
-      if (!verificata) neverificate.push(relativBrut);
-      miniaturiRezolvate += 1;
-      dinMiniaturi.add(relativ);
-    } else {
-      directe.add(relativ);
+    // A name that is NOTHING BUT a size: `-300x200.jpg` strips to `.jpg`, a
+    // name with no stem at all. Unreachable in practice, because the missing
+    // original fires first, but it was named nowhere - a reader met it as a
+    // baffling complaint about a file called `.jpg`.
+    if (basename(relativ).startsWith('.')) {
+      esuate.push([src, 'numele este numai o dimensiune, nu ramane nimic din el']);
+      continue;
     }
     const sursa = join(radacinaUploads, relativ);
+    const caleMiniatura = join(radacinaUploads, relativBrut);
     const destinatieRel = numeDestinatie(src);
+    const destinatie = join(radacinaRepo, destinatieRel);
+    // THE SECOND LOCK, AND IT IS GENUINELY SECOND NOW. It used to sit after
+    // `verificaMiniatura` and after the de-duplication, so it was made about
+    // paths this process had already `existsSync`-ed and handed to sharp to
+    // decode, and a de-duplicated `src` never reached it at all. The claim
+    // "two locks on one door" was therefore not true of the pipeline, only of
+    // the unit control. NOTHING TOUCHES THE FILESYSTEM ABOVE THIS LINE.
+    if (
+      !esteInauntrul(radacinaUploads, sursa) ||
+      (esteMin && !esteInauntrul(radacinaUploads, caleMiniatura)) ||
+      !esteInauntrul(subContinut, destinatie)
+    ) {
+      throw new Error(
+        `Cale de upload nesigura, prinsa de a doua incuietoare: ${src}\n` +
+          `  ar fi citit ${sursa}\n  ar fi scris ${destinatie}`,
+      );
+    }
     const cheie = destinatieRel.toLowerCase();
     const revendicatDe = revendicate.get(cheie);
     if (revendicatDe !== undefined && revendicatDe !== relativ) {
@@ -405,15 +453,17 @@ export async function migreazaImagini(
       );
     }
     revendicate.set(cheie, relativ);
+    if (esteMin) {
+      // Throws, by name, when the resolution cannot be justified.
+      const verificata = await verificaMiniatura(caleMiniatura, sursa, relativBrut, relativ);
+      if (!verificata) neverificate.push(relativBrut);
+      miniaturiRezolvate += 1;
+      dinMiniaturi.add(relativ);
+    } else {
+      directe.add(relativ);
+    }
     if (scrise.has(relativ)) { harta.set(src, scrise.get(relativ)); continue; }
     if (cazute.has(relativ)) continue;
-    const destinatie = join(radacinaRepo, destinatieRel);
-    if (!esteInauntrul(radacinaUploads, sursa) || !esteInauntrul(subContinut, destinatie)) {
-      throw new Error(
-        `Cale de upload nesigura, prinsa de a doua incuietoare: ${src}\n` +
-          `  ar fi citit ${sursa}\n  ar fi scris ${destinatie}`,
-      );
-    }
     // Declared out here because the WRITE must not be inside the catch below:
     // a file that cannot be decoded is a corpus problem, named and skipped, but
     // a file that cannot be written is an environment problem - a full disk, a
@@ -427,7 +477,7 @@ export async function migreazaImagini(
       // back into pixels and written out fresh. Nothing calls `withMetadata`,
       // so EXIF goes too - which is where a payload hides when appending one
       // after the end marker stops working.
-      const imagine = sharp(brut, { failOn: 'error' }).rotate();
+      const imagine = sharp(brut, { failOn: 'error' }).rotate().keepIccProfile();
       const meta = await imagine.metadata();
       const ext = relativ.split('.').pop().toLowerCase();
       const permise = EXTENSII_PENTRU_FORMAT[meta.format];

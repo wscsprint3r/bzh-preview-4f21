@@ -53,7 +53,7 @@ describe('numele destinatiei', () => {
 // ---------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, vi } from 'vitest';
@@ -557,5 +557,201 @@ describe('PNG-urile nu se umfla', () => {
     expect(sha(b.data)).toBe(sha(a.data));
     // And smaller, which is the reason for the change.
     expect(iesire.length).toBeLessThan(sursa.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Colour. The suite had no assertion about it at all until this round, and 30
+// of the 100 migrated files carry a profile whose numbers do not mean sRGB.
+// ---------------------------------------------------------------------------
+
+describe('culoarea nu se schimba pe tacute', () => {
+  /*
+   * MEASURED, over the 100 files this migration actually writes: 36 carry an
+   * ICC profile, and for 30 of them the raw numbers do NOT mean sRGB - checked
+   * against what ColorSync says those numbers mean, not against the profile's
+   * name, because the name is unreliable (a "GIMP built-in sRGB" profile really
+   * is sRGB and a "Display" one is Display P3). Worst offenders, max per
+   * channel against a colour-managed conversion:
+   *
+   *     60/255  2024/06/doxologia_19_2020.jpg      (mean 0.764)
+   *     56/255  2024/06/doxologia_13_2017.jpg      (mean 0.724)
+   *     40/255  2024/05/IMG_9432-scaled-...jpg     (mean 0.705)
+   *     29/255  2024/06/IMG_1640.jpg               (mean 0.208, Display P3)
+   *
+   * Most of them are the parish's own Doxologia magazine cover scans.
+   *
+   * THE FIX IS TO CARRY THE PROFILE, NOT TO CONVERT, and that is forced rather
+   * than preferred: sharp 0.35.4 / libvips 8.18.6 here does NOT transform pixels
+   * through an ICC profile. Measured - `withIccProfile('srgb')` on a Display P3
+   * file leaves every channel value untouched and merely staples an sRGB label
+   * to it, which turns a silent mislabelling into an explicit one; and
+   * sRGB -> p3 on an untagged patch moves pixels by at most 1/255, which is
+   * rounding, not a gamut transform. So the only honest option is to keep the
+   * profile with the pixels it describes, which is what the web expects anyway.
+   */
+  it('pastreaza profilul ICC exact, octet cu octet', async () => {
+    const cuP3 = await sharp({
+      create: { width: 50, height: 40, channels: 3, background: '#d0203c' },
+    }).withIccProfile('p3').jpeg().toBuffer();
+    const profilAsteptat = (await sharp(cuP3).metadata()).icc;
+    // The fixture must really carry one, or the assertion below is vacuous.
+    expect(profilAsteptat).toBeInstanceOf(Buffer);
+    expect(profilAsteptat.length).toBeGreaterThan(100);
+    await pune('2025/08/cu-profil.jpg', cuP3);
+
+    const src = '/wp-content/uploads/2025/08/cu-profil.jpg';
+    const harta = await migreazaImagini([src], radacina, uploads);
+    const iesire = await readFile(join(radacina, harta.get(src)));
+    const profilIesit = (await sharp(iesire).metadata()).icc;
+    expect(profilIesit).toBeInstanceOf(Buffer);
+    expect(sha(profilIesit)).toBe(sha(profilAsteptat));
+  });
+
+  it('nu inventeaza un profil pentru un fisier care nu are niciunul', async () => {
+    // The other direction: attaching sRGB to everything would be a lie about
+    // the 64 files that carry no profile, and would add bytes to every one.
+    const fara = await sharp({
+      create: { width: 30, height: 30, channels: 3, background: '#204080' },
+    }).jpeg().toBuffer();
+    expect((await sharp(fara).metadata()).icc).toBeUndefined();
+    await pune('2025/08/fara-profil.jpg', fara);
+
+    const src = '/wp-content/uploads/2025/08/fara-profil.jpg';
+    const harta = await migreazaImagini([src], radacina, uploads);
+    const iesire = await readFile(join(radacina, harta.get(src)));
+    expect((await sharp(iesire).metadata()).icc).toBeUndefined();
+  });
+
+  it('profilul supravietuieste si pe PNG, nu doar pe JPEG', async () => {
+    const png = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#20a060' },
+    }).withIccProfile('p3').png().toBuffer();
+    const asteptat = (await sharp(png).metadata()).icc;
+    expect(asteptat).toBeInstanceOf(Buffer);
+    await pune('2025/08/cu-profil.png', png);
+    const src = '/wp-content/uploads/2025/08/cu-profil.png';
+    const harta = await migreazaImagini([src], radacina, uploads);
+    const iesire = await readFile(join(radacina, harta.get(src)));
+    expect(sha((await sharp(iesire).metadata()).icc)).toBe(sha(asteptat));
+  });
+
+  it('EXIF tot nu supravietuieste, desi ICC supravietuieste acum', async () => {
+    // Keeping the colour profile must not quietly re-open the metadata door
+    // that the sanitisation closed.
+    const cu = await sharp({
+      create: { width: 30, height: 20, channels: 3, background: '#405060' },
+    }).withIccProfile('p3').withExifMerge({ IFD0: { ImageDescription: PAYLOAD } })
+      .jpeg().toBuffer();
+    expect(cu.includes(PAYLOAD)).toBe(true);
+    await pune('2025/08/icc-si-exif.jpg', cu);
+    const src = '/wp-content/uploads/2025/08/icc-si-exif.jpg';
+    const harta = await migreazaImagini([src], radacina, uploads);
+    const iesire = await readFile(join(radacina, harta.get(src)));
+    expect(iesire.includes(PAYLOAD)).toBe(false);
+    expect((await sharp(iesire).metadata()).icc).toBeInstanceOf(Buffer);
+  });
+});
+
+describe('controale pozitive pentru toate cele trei formate', () => {
+  // The claim the whole task rests on was demonstrated for JPEG only. PNG and
+  // WebP are two of the three formats written.
+  it.each([
+    ['png', async () => sharp({ create: { width: 30, height: 20, channels: 3, background: '#7a1f1f' } }).png().toBuffer()],
+    ['webp', async () => sharp({ create: { width: 30, height: 20, channels: 3, background: '#1f7a1f' } }).webp().toBuffer()],
+    ['jpg', async () => sharp({ create: { width: 30, height: 20, channels: 3, background: '#1f1f7a' } }).jpeg().toBuffer()],
+  ])('CONTROL POZITIV: incarcatura lipita dispare din %s', async (ext, fa) => {
+    const curat = await fa();
+    const otravit = Buffer.concat([curat, Buffer.from(PAYLOAD)]);
+    expect(otravit.includes(PAYLOAD)).toBe(true);
+    await pune(`2025/09/lipit.${ext}`, otravit);
+    const src = `/wp-content/uploads/2025/09/lipit.${ext}`;
+    const harta = await migreazaImagini([src], radacina, uploads);
+    const iesire = await readFile(join(radacina, harta.get(src)));
+    expect(iesire.includes(PAYLOAD)).toBe(false);
+    expect(iesire.includes('<?php')).toBe(false);
+  });
+
+  it('CONTROL POZITIV: o bucata tEXt dintr-un PNG nu supravietuieste', async () => {
+    // PNG hides payloads in ancillary chunks rather than after the end marker.
+    // Built by hand so the fixture is known to contain one.
+    const baza = await sharp({
+      create: { width: 24, height: 24, channels: 3, background: '#334455' },
+    }).png().toBuffer();
+    const continut = Buffer.concat([Buffer.from('Comment\0'), Buffer.from(PAYLOAD)]);
+    const bucata = Buffer.alloc(8 + continut.length + 4);
+    bucata.writeUInt32BE(continut.length, 0);
+    bucata.write('tEXt', 4);
+    continut.copy(bucata, 8);
+    // CRC over type+data, computed rather than faked, or libpng rejects it.
+    const tabel = [];
+    for (let n = 0; n < 256; n += 1) {
+      let c = n;
+      for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      tabel[n] = c >>> 0;
+    }
+    let crc = 0xffffffff;
+    for (const o of bucata.subarray(4, 8 + continut.length)) crc = tabel[(crc ^ o) & 0xff] ^ (crc >>> 8);
+    bucata.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 8 + continut.length);
+    // Insert before IEND.
+    const iend = baza.length - 12;
+    const otravit = Buffer.concat([baza.subarray(0, iend), bucata, baza.subarray(iend)]);
+    expect(otravit.includes(PAYLOAD)).toBe(true);
+    // And the fixture must still be a readable PNG, or this proves nothing.
+    expect((await sharp(otravit).metadata()).format).toBe('png');
+    await pune('2025/09/bucata.png', otravit);
+
+    const src = '/wp-content/uploads/2025/09/bucata.png';
+    const harta = await migreazaImagini([src], radacina, uploads);
+    const iesire = await readFile(join(radacina, harta.get(src)));
+    expect(iesire.includes(PAYLOAD)).toBe(false);
+  });
+});
+
+describe('tiparul uploads este ancorat si legaturile simbolice nu trec', () => {
+  it('un alt sit cu un director numit "myuploads" nu este al nostru', async () => {
+    // Unanchored, `.../myuploads/2024/05/poza.jpg` matched and would have
+    // migrated the parish's OWN 2024/05/poza.jpg in its place.
+    expect(() => numeDestinatie('https://evil.example/myuploads/2024/05/poza.jpg'))
+      .toThrow(/upload/i);
+    expect(() => numeDestinatie('https://evil.example/wpuploads/2024/05/poza.jpg'))
+      .toThrow(/upload/i);
+    // Ours still work, including the protocol-relative form the corpus carries.
+    expect(numeDestinatie('//www.bor-zh.ch/wp-content/uploads/2024/05/hram.jpg'))
+      .toBe('src/assets/continut/2024/05/hram.jpg');
+  });
+
+  it('o legatura simbolica din arborele uploads nu scoate cititul afara', async () => {
+    // The uploads tree came out of a tar, where symlinks survive, and it is
+    // attacker-derived. `resolve` does not follow them; `realpath` does.
+    const afara = join(radacina, 'afara-secret.jpg');
+    await writeFile(afara, await sharp({
+      create: { width: 10, height: 10, channels: 3, background: '#ffffff' },
+    }).jpeg().toBuffer());
+    const legatura = join(uploads, '2025/10');
+    await mkdir(legatura, { recursive: true });
+    await symlink(afara, join(legatura, 'legat.jpg'));
+    await expect(
+      migreazaImagini(['/wp-content/uploads/2025/10/legat.jpg'], radacina, uploads),
+    ).rejects.toThrow(/inauntr|afara|nesigur/i);
+  });
+});
+
+describe('un nume care este numai o dimensiune', () => {
+  it('este numit, nu dezbracat pana la nimic', async () => {
+    // `-300x200.jpg` strips to `.jpg`, a name with no stem at all. Unreachable
+    // in practice because the missing original fires first, but it was named
+    // nowhere.
+    const scris = [];
+    const spion = vi.spyOn(process.stdout, 'write').mockImplementation((t) => {
+      scris.push(String(t));
+      return true;
+    });
+    let aruncat = null;
+    try {
+      await migreazaImagini(['/wp-content/uploads/2025/11/-300x200.jpg'], radacina, uploads);
+    } catch (e) { aruncat = e.message; }
+    spion.mockRestore();
+    expect(`${aruncat ?? ''}${scris.join('')}`).toMatch(/numai o dimensiune|doar o dimensiune/i);
   });
 });
