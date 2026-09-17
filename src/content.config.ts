@@ -38,12 +38,12 @@ const services = defineCollection({
  * what the CMS expects.
  */
 const articles = defineCollection({
-  loader: glob({ pattern: ['**/*.md'], base: './src/content/articole' }),
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/articles' }),
   schema: articleSchema,
 });
 
 const pages = defineCollection({
-  loader: glob({ pattern: ['**/*.md'], base: './src/content/pagini' }),
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/pages' }),
   schema: pageSchema,
 });
 

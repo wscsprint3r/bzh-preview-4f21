@@ -37,7 +37,7 @@ describe('sursa migrarii', () => {
     // on a missing source is the failure this whole file exists to prevent.
     const { requireDump } = await import('./db.mjs');
     expect(() => requireDump('/nu/exista/database.sql.gz')).toThrow(
-      /Dumpul nu a fost gasit/,
+      /The dump was not found/,
     );
     // And the other direction, so the check is not vacuously true.
     if (existsSync(DUMP_PATH)) {
@@ -104,7 +104,7 @@ describe('query - real rows through a container', () => {
         break;
       } catch {
         if (Date.now() - startedAt > 90_000) {
-          throw new Error('MariaDB nu a pornit in 90 de secunde (container de test).');
+          throw new Error('MariaDB did not start within 90 seconds (test container).');
         }
         await new Promise((r) => setTimeout(r, 500));
       }

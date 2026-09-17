@@ -200,9 +200,9 @@ const NO_EXTENSION = ['_headers'];
  * and never built excuses nothing, while a vendored path missing from here stays
  * in the sweep and fails loudly.
  *
- * `admin/index.html`, `admin/config.yml` and `admin/startedAt.mjs` are NOT in the
+ * `admin/index.html`, `admin/config.yml` and `admin/pornire.mjs` are NOT in the
  * package, so they cannot end up here however this list grows - they are ours.
- * `config.yml` holds the field labels a volunteer reads and `startedAt.mjs` holds
+ * `config.yml` holds the field labels a volunteer reads and `pornire.mjs` holds
  * the sentence they get when the CMS fails to start, which makes both of them
  * exactly the kind of file a cedilla would reach unseen. The tests under `ce
  * intră și ce nu intră în măturare` check both halves of that sentence rather

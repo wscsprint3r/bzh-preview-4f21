@@ -73,7 +73,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 /*
  * Script types the BROWSER EXECUTES, and script types it merely reads, live in
- * `scripts/pageScripts.mjs`. Anything in neither list stops the build rather than
+ * `scripts/page-scripts.mjs`. Anything in neither list stops the build rather than
  * being skipped: a `<script>` shape this file has never seen is precisely what a
  * budget must not wave through, and it is the mistake the old file-walking check
  * made in a different costume.
@@ -203,6 +203,13 @@ function report(label, value, limit, unit = 'bytes', explanation = '') {
  * is nothing wrong with any of them. Spec §16 exists to prevent exactly that
  * conversation, so the message says which of the two things happened and who has
  * to decide.
+ *
+ * THIS TEXT STAYS ROMANIAN, AND IT IS THE ONLY STRING IN THIS FILE THAT DOES.
+ * Everything else here is a build-time diagnostic read by whoever ran the build,
+ * and the 2026-09-17 rename put all of it into English. This one is not that: it
+ * is addressed to the parish volunteer who pressed Save, in an email they did not
+ * ask for, about a failure that is not their fault. It is user-facing copy that
+ * happens to live in a script. Do not "finish the job" on it.
  */
 const PAGE_EXPLANATION = [
   '          Cel mai probabil NU este o greșeală într-un fișier de program.',

@@ -57,7 +57,7 @@ function pages(relative = ''): string[] {
  * The inline executable scripts of one built page, found with this file's OWN
  * regex and hashed with this file's own call to `createHash`.
  *
- * DELIBERATELY NOT `scripts/pageScripts.mjs` AND `scripts/csp-hash.mjs`, which is
+ * DELIBERATELY NOT `scripts/page-scripts.mjs` AND `scripts/csp-hash.mjs`, which is
  * what wrote the policy. A check that recomputes the expectation with the very
  * code under test agrees with that code however wrong it is; the point here is
  * a second opinion about which bytes the browser will hash. `<script>` inside
@@ -139,7 +139,7 @@ const SOURCE_EXTENSIONS = /\.(mjs|js|ts|md|ya?ml|json|astro|css|html|ics|txt)$/;
  *
  * But a backtick-only resolver is complete only if the file really does put
  * every path in backticks, and for two rounds it did not: the refusal table read
- * `startedAt.mjs already tells a volunteer what they need` with no backticks, so
+ * `pornire.mjs already tells a volunteer what they need` with no backticks, so
  * the guard could not see it and the round-1 report claimed it had been fixed
  * when it had not. Nothing was broken, because the file existed - which is the
  * whole problem with that class: it rots silently.

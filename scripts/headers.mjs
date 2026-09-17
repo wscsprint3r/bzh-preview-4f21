@@ -49,11 +49,11 @@ export function parseHeaders(text) {
     if (/^\S/.test(line)) {
       const pattern = line.trim();
       if (!pattern.startsWith('/')) {
-        throw new Error(`_headers:${lineNumber}: tipar neacceptat aici: ${pattern}`);
+        throw new Error(`_headers:${lineNumber}: pattern not accepted here: ${pattern}`);
       }
       if (pattern.includes(':')) {
         throw new Error(
-          `_headers:${lineNumber}: tiparele cu :placeholder nu sunt acoperite de verificarea locală: ${pattern}`,
+          `_headers:${lineNumber}: patterns with a :placeholder are not covered by the local check: ${pattern}`,
         );
       }
       current = { pattern, headers: [] };
@@ -62,12 +62,12 @@ export function parseHeaders(text) {
     }
     const match = line.match(/^\s+([A-Za-z0-9-]+)\s*:\s*(.*)$/);
     if (!match) {
-      throw new Error(`_headers:${lineNumber}: linie de antet neinteligibilă: ${JSON.stringify(line)}`);
+      throw new Error(`_headers:${lineNumber}: unintelligible header line: ${JSON.stringify(line)}`);
     }
-    if (current === null) throw new Error(`_headers:${lineNumber}: antet fără nicio regulă deasupra lui`);
+    if (current === null) throw new Error(`_headers:${lineNumber}: a header with no rule above it`);
     current.headers.push([match[1], match[2].trim()]);
   }
-  if (rules.length === 0) throw new Error('_headers nu conține nicio regulă.');
+  if (rules.length === 0) throw new Error('_headers contains no rule at all.');
   return rules;
 }
 

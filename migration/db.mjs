@@ -45,10 +45,10 @@ export const EXPECTED_PAGES = 26;
 export function checkCounts(posts, pages) {
   if (posts !== EXPECTED_POSTS || pages !== EXPECTED_PAGES) {
     throw new Error(
-      `Incarcarea nu se potriveste cu ce astepta planul: ${EXPECTED_POSTS} postari ` +
-        `publicate si ${EXPECTED_PAGES} pagini publicate, dar baza incarcata are ` +
-        `${posts} postari si ${pages} pagini. Fie incarcarea a esuat partial, fie ` +
-        'dumpul insusi s-a schimbat - in ambele cazuri, nu migra pe baza acestor date.',
+      `The load does not match what the plan expected: ${EXPECTED_POSTS} published ` +
+        `posts and ${EXPECTED_PAGES} published pages, but the loaded database has ` +
+        `${posts} posts and ${pages} pages. Either the load failed part way, or the ` +
+        'dump itself has changed - in both cases, do not migrate from this data.',
     );
   }
 }
@@ -64,9 +64,9 @@ export function checkCounts(posts, pages) {
 export function requireDump(path = DUMP_PATH) {
   if (!existsSync(path)) {
     throw new Error(
-      `Dumpul nu a fost gasit: ${path}\n` +
-        'Migrarea citeste din copiile de siguranta din directorul parinte, care ' +
-        'nu fac parte din depozit. Fara ele nu se poate migra nimic.',
+      `The dump was not found: ${path}\n` +
+        'The migration reads from the backups in the parent directory, which are ' +
+        'not part of the repository. Without them nothing can be migrated.',
     );
   }
   return path;
@@ -117,7 +117,7 @@ export async function start(path = DUMP_PATH) {
     } catch {
       if (Date.now() - startedAt > 90_000) {
         throw new Error(
-          `MariaDB nu a pornit in 90 de secunde. Vezi 'docker logs ${CONTAINER_NAME}'.`,
+          `MariaDB did not start within 90 seconds. See 'docker logs ${CONTAINER_NAME}'.`,
         );
       }
       await new Promise((r) => setTimeout(r, 500));
@@ -146,9 +146,9 @@ export async function start(path = DUMP_PATH) {
   // sized from, rather than trusting a clean exit status alone. A clean exit
   // is necessary but was never sufficient - see the pipefail comment above for
   // the shape of a load that "succeeds" while short of the real content.
-  const passTable = await query("SHOW TABLES LIKE 'wpoi_posts'");
-  if (passTable.length === 0) {
-    throw new Error('Incarcarea a esuat: tabelul wpoi_posts nu exista dupa incarcare.');
+  const tables = await query("SHOW TABLES LIKE 'wpoi_posts'");
+  if (tables.length === 0) {
+    throw new Error('The load failed: the table wpoi_posts does not exist afterwards.');
   }
   const [[posts]] = await query(
     "SELECT COUNT(*) FROM wpoi_posts WHERE post_type='post' AND post_status='publish'",

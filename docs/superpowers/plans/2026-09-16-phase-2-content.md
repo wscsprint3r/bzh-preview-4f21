@@ -72,8 +72,8 @@ Taken 2026-09-16 from `backup-2026-08-27/database.sql.gz` loaded into `mariadb:1
 | `migration/media.mjs` | Referenced images only: decode, re-encode, downscale, emit |
 | `migration/articles.mjs` | The 45 posts to `src/content/articles/*.md` |
 | `migration/pages.mjs` | The nine prose pages to `src/content/pages/*.md` |
-| `migration/mapping-url.mjs` | `docs/mapping-url.csv` — old path to new path |
-| `migration/runNode.mjs` | Orchestrator: the whole migration, in order, idempotent |
+| `migration/url-map.mjs` | `docs/url-map.csv` — old path to new path |
+| `migration/run.mjs` | Orchestrator: the whole migration, in order, idempotent |
 
 **Site code:**
 
@@ -94,7 +94,7 @@ Taken 2026-09-16 from `backup-2026-08-27/database.sql.gz` loaded into `mariadb:1
 | `src/content/settings/settings.yml` | The singleton |
 | `src/assets/content/**` | Migrated images |
 | `public/admin/config.yml` | Three new CMS collections |
-| `docs/mapping-url.csv` | Generated URL map, consumed by Phase 4 |
+| `docs/url-map.csv` | Generated URL map, consumed by Phase 4 |
 
 **Modified:** `src/components/SiteHeader.astro` (navigation), `src/components/SiteFooter.astro` (reads `settings`), `scripts/check-budget.mjs` (the new pages), `scripts/a11y.mjs` (the new pages), `CLAUDE.md`, `README.md`.
 
@@ -960,12 +960,12 @@ export type Settings = z.infer<typeof settingsSchema>;
 import { articleSchema, pageSchema, settingsSchema } from './lib/content-schema';
 
 const articles = defineCollection({
-  loader: glob({ pattern: ['**/*.md'], base: './src/content/articole' }),
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/articles' }),
   schema: articleSchema,
 });
 
 const pages = defineCollection({
-  loader: glob({ pattern: ['**/*.md'], base: './src/content/pagini' }),
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/pages' }),
   schema: pageSchema,
 });
 
@@ -1044,12 +1044,12 @@ describe('alegerea fisierelor', () => {
 describe('numele destinatiei', () => {
   it('pastreaza anul si luna, ca sa nu se ciocneasca doua poze la fel numite', () => {
     expect(destinationName('/wp-content/uploads/2024/05/hram.jpg'))
-      .toBe('src/assets/continut/2024/05/hram.jpg');
+      .toBe('src/assets/content/2024/05/hram.jpg');
   });
 
   it('accepta o adresa absoluta a sitului vechi', () => {
     expect(destinationName('https://www.bor-zh.ch/wp-content/uploads/2024/05/hram.jpg'))
-      .toBe('src/assets/continut/2024/05/hram.jpg');
+      .toBe('src/assets/content/2024/05/hram.jpg');
   });
 
   it('este determinista - aceeasi intrare, acelasi rezultat', () => {
@@ -1117,7 +1117,7 @@ export function isOriginal(path) {
 export function destinationName(srcWp) {
   const m = srcWp.match(/uploads\/(.+)$/);
   if (m === null) throw new Error(`Nu este o cale de upload: ${srcWp}`);
-  return `src/assets/continut/${m[1]}`;
+  return `src/assets/content/${m[1]}`;
 }
 
 /**
@@ -1241,9 +1241,9 @@ the allow-list.
 - [ ] **Step 1: Write the failing test**
 
 ```js
-// migration/articole.test.mjs
+// migration/articles.test.mjs
 import { describe, expect, it } from 'vitest';
-import { esteDatat, numeFisier, STAMPILE_IMPORT } from './articole.mjs';
+import { esteDatat, numeFisier, STAMPILE_IMPORT } from './articles.mjs';
 
 describe('datele de import', () => {
   it('numeste exact cele doua stampile masurate', () => {
@@ -1276,7 +1276,7 @@ describe('numele fisierului', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `rtk proxy npx vitest run migration/articole.test.mjs`
+Run: `rtk proxy npx vitest run migration/articles.test.mjs`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write the extractor**
@@ -1305,7 +1305,7 @@ Key points the implementer must honour, with the code shape following `migration
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `rtk proxy npx vitest run migration/articole.test.mjs`
+Run: `rtk proxy npx vitest run migration/articles.test.mjs`
 Expected: PASS, 5 tests.
 
 - [ ] **Step 5: Run the extraction and check the numbers**
@@ -1317,8 +1317,8 @@ Expected: **45 files written, 13 published.** If either differs, stop and report
 Run the extraction twice and diff the tree:
 
 ```bash
-node migration/articole.mjs && cp -r src/content/articole /tmp/rulare-1
-node migration/articole.mjs && rtk proxy diff -r /tmp/rulare-1 src/content/articole; echo "exit=$?"
+node migration/articles.mjs && cp -r src/content/articles /tmp/rulare-1
+node migration/articles.mjs && rtk proxy diff -r /tmp/rulare-1 src/content/articles; echo "exit=$?"
 ```
 
 Expected: `exit=0` and no output. **Read the exit code, not the absence of output** — `rtk`'s `diff` exits 0 even when it prints a difference, which is why this uses `rtk proxy`.
@@ -1331,7 +1331,7 @@ Expected: both exit 0. **A build failure here is a migration bug** (spec §11) �
 - [ ] **Step 8: Commit**
 
 ```bash
-git add migration/articole.mjs migration/articole.test.mjs src/content/articole src/assets/continut
+git add migration/articles.mjs migration/articles.test.mjs src/content/articles src/assets/content
 git commit -m "feat(migrare): the 45 posts, 13 published and 32 held for the parish to date"
 ```
 
@@ -1340,12 +1340,12 @@ git commit -m "feat(migrare): the 45 posts, 13 published and 32 held for the par
 ### Task 7: The nine prose pages, and the URL map
 
 **Files:**
-- Create: `migration/pages.mjs`, `migration/pages.test.mjs`, `migration/mapping-url.mjs`, `migration/runNode.mjs`
-- Creates at run time: `src/content/pages/*.md`, `docs/mapping-url.csv`
+- Create: `migration/pages.mjs`, `migration/pages.test.mjs`, `migration/url-map.mjs`, `migration/run.mjs`
+- Creates at run time: `src/content/pages/*.md`, `docs/url-map.csv`
 
 **Interfaces:**
 - Consumes: everything from Tasks 1, 3, 5.
-- Produces: `PAGES` (the nine, each `{ slug, cale, titlu, ordine }`), `extragePagini()`, `scrieHartaUrl()`, and `migration/runNode.mjs` as the one entry point.
+- Produces: `PAGES` (the nine, each `{ slug, cale, titlu, ordine }`), `extragePagini()`, `scrieHartaUrl()`, and `migration/run.mjs` as the one entry point.
 
 **The nine, with their old slug and their new route** — this table is the task's contract and the URL map's source of truth:
 
@@ -1368,9 +1368,9 @@ git commit -m "feat(migrare): the 45 posts, 13 published and 32 held for the par
 - [ ] **Step 1: Write the failing test**
 
 ```js
-// migration/pagini.test.mjs
+// migration/pages.test.mjs
 import { describe, expect, it } from 'vitest';
-import { PAGES } from './pagini.mjs';
+import { PAGES } from './pages.mjs';
 import { pageSchema } from '../src/lib/content-schema.ts';
 
 describe('cele noua pagini', () => {
@@ -1403,16 +1403,16 @@ describe('cele noua pagini', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `rtk proxy npx vitest run migration/pagini.test.mjs`
+Run: `rtk proxy npx vitest run migration/pages.test.mjs`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Write `migration/pages.mjs`**
 
 `PAGES` as the table above. For each: query the page by slug, `toMarkdown` the `post_content` — **`toMarkdown` already calls `stripPreamble` itself, so do NOT call it first.** Calling both strips twice, and a second strip is not guaranteed to be a no-op: it removes whatever now sits at the top if that happens to be preamble-shaped. Measured 2026-09-17 across all 71 published posts and pages: 16 carry a `<p>Layouts:` marker and 17 are changed by one strip — the difference is `pastorale`, which has only the breadcrumb — while 0 are non-idempotent under a double strip and 0 leave residue after one — so this is a latent trap rather than a present bug, which is exactly when it is cheap to close. Then migrate its images, validate with `pageSchema`, write `src/content/pages/<slug>.md`. **If a slug returns no row, that is an error that stops the run** — a page silently missing is the failure this project has paid for most.
 
-- [ ] **Step 4: Write `migration/mapping-url.mjs`**
+- [ ] **Step 4: Write `migration/url-map.mjs`**
 
-Emits `docs/mapping-url.csv` with a header row `vechi,nou` and one row per redirect, sorted by old path so the file is stable across runs:
+Emits `docs/url-map.csv` with a header row `vechi,nou` and one row per redirect, sorted by old path so the file is stable across runs:
 
 - the nine pages: `/<slug>/` to `/<path>/`
 - all 45 posts: `/<slug>/` to `/noutati/<slug>/` — **including the 32 unpublished ones**, because the old URLs exist and will be linked from elsewhere for years. A redirect to a page that does not exist yet is better than a 404 *and* it is why the unpublished posts keep their slugs.
@@ -1421,13 +1421,13 @@ Emits `docs/mapping-url.csv` with a header row `vechi,nou` and one row per redir
 
 Phase 4 turns this into `_redirects`; this phase only emits it. Say that in the file's header comment, because a CSV nobody consumes looks exactly like a CSV somebody forgot to wire up.
 
-- [ ] **Step 5: Write `migration/runNode.mjs`**
+- [ ] **Step 5: Write `migration/run.mjs`**
 
 One entry point, in order: `start()`, extract posts, extract pages, write the URL map, `stop()`. It prints one summary block at the end — posts written, posts published, pages written, images migrated, images skipped, redirects emitted — and **exits non-zero if any count is zero**, because a migration that produced nothing must not report success.
 
 - [ ] **Step 6: Run it and check every number**
 
-Run: `node migration/ruleaza.mjs`
+Run: `node migration/run.mjs`
 Expected: 45 posts, 13 published, 9 pages, a non-zero image count, 56 redirects (9 + 45 + 2).
 
 - [ ] **Step 7: Verify the build, then prove the diacritics guard actually saw this content**
@@ -1441,14 +1441,14 @@ Then the positive control that matters most in this whole phase:
 ```bash
 node -e "
 const fs=require('fs');
-const f='src/content/pagini/istoric.md';
+const f='src/content/pages/istoric.md';
 // \`node -e\` is CommonJS, so this is a .then() rather than a top-level await.
 import('./src/lib/cedilla.ts').then(({ CEDILE }) => {
   const t=fs.readFileSync(f,'utf8');
   fs.writeFileSync(f, t.replace('a', String.fromCodePoint(CEDILE[1])));
 });
 " && TZ=Europe/Zurich npm run test:build; echo "trebuie sa fie 1: $?"
-git checkout src/content/pagini/istoric.md
+git checkout src/content/pages/istoric.md
 TZ=Europe/Zurich npm run test:build; echo "trebuie sa fie 0: $?"
 ```
 
@@ -1457,7 +1457,7 @@ Expected: exit 1 then exit 0. Phase 1 built that sweep and this is the first tim
 - [ ] **Step 8: Commit**
 
 ```bash
-git add migration/pagini.mjs migration/pagini.test.mjs migration/harta-url.mjs migration/ruleaza.mjs src/content/pagini docs/harta-url.csv src/assets/continut
+git add migration/pages.mjs migration/pages.test.mjs migration/url-map.mjs migration/run.mjs src/content/pages docs/url-map.csv src/assets/content
 git commit -m "feat(migrare): the nine prose pages, and the URL map Phase 4 will consume"
 ```
 

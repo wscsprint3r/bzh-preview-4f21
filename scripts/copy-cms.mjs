@@ -160,11 +160,10 @@ export function rewriteFonts(text) {
     const occurrences = countOccurrences(result, url);
     if (occurrences !== 1) {
       throw new Error(
-        `Fontul ${basename(pkgFile)} este așteptat exact o dată în bundle-ul CMS, dar ` +
-          `apare de ${occurrences} ori: ${url}
-` +
-          'O versiune nouă de @sveltia/cms i-a mutat adresa. Actualizează FONTURI din ' +
-          'scripts/copy-cms.mjs, altfel fontul s-ar încărca iar de pe CDN.',
+        `The font ${basename(pkgFile)} is expected exactly once in the CMS bundle, but ` +
+          `appears ${occurrences} times: ${url}\n` +
+          'A newer @sveltia/cms has moved its address. Update FONTS in ' +
+          'scripts/copy-cms.mjs, or the font would load from the CDN again.',
       );
     }
     result = result.replace(url, `/${posix.join('admin', FONTS_DIR, basename(pkgFile))}`);
@@ -181,8 +180,8 @@ export function rewriteFonts(text) {
   const rest = countOccurrences(result, preconnect);
   if (rest !== 1) {
     throw new Error(
-      `După rescrierea fonturilor, ${preconnect} ar trebui să apară exact o dată ` +
-        `(preconnect), dar apare de ${rest} ori.`,
+      `After the fonts were rewritten, ${preconnect} should appear exactly once ` +
+        `(the preconnect), but appears ${rest} times.`,
     );
   }
   result = result.replace(preconnect, '/');
@@ -190,8 +189,8 @@ export function rewriteFonts(text) {
   const remaining = countOccurrences(result, CDN);
   if (remaining !== 0) {
     throw new Error(
-      `Bundle-ul CMS mai numește ${CDN} de ${remaining} ori după rescriere. ` +
-        'Ceva nou se încarcă de pe CDN - vezi ce, înainte să ajungă în producție.',
+      `The CMS bundle still names ${CDN} ${remaining} times after the rewrite. ` +
+        'Something new loads from the CDN - find out what, before it reaches production.',
     );
   }
   return result;
@@ -215,13 +214,13 @@ export function copyCms(announce = console.log) {
    * script is a 404 - and this step reports success while doing so.
    */
   if (TO_COPY.length === 0) {
-    throw new Error(`Nimic de copiat din ${SOURCE} - pachetul @sveltia/cms pare gol.`);
+    throw new Error(`Nothing to copy from ${SOURCE} - the @sveltia/cms package looks empty.`);
   }
 
   /*
    * Stale vendored files go first: the folders the package itself ships, plus
    * `fonturi/`, which this script writes and therefore also owns.
-   * `public/admin/index.html`, `config.yml` and `startedAt.mjs` are this
+   * `public/admin/index.html`, `config.yml` and `pornire.mjs` are this
    * repository's own files, tracked in git, and nothing here may touch them:
    * they are what a volunteer actually reads.
    */
@@ -256,8 +255,8 @@ export function copyCms(announce = console.log) {
 
   const bytes = written.reduce((n, f) => n + statSync(join(TARGET, f)).size, 0);
   announce(
-    `CMS copiat din ${SOURCE}: ${written.length} fișier(e), ${bytes} octeți, ` +
-      `fonturile servite de aici, nu de pe CDN.`,
+    `CMS copied from ${SOURCE}: ${written.length} file(s), ${bytes} bytes, ` +
+      `fonts served from here, not from the CDN.`,
   );
   return written.map((file) => join(TARGET, file));
 }

@@ -126,8 +126,8 @@ describe('the paths cannot escape their places', () => {
     ['bara inversa', '/wp-content/uploads/..\\..\\etc\\passwd.jpg'],
     ['spatiu', '/wp-content/uploads/2024/05/po za.jpg'],
     ['punct singur', '/wp-content/uploads/./2024/05/poza.jpg'],
-  ])('numeDestinatie refuza: %s', (_eticheta, src) => {
-    expect(() => destinationName(src)).toThrow(/nesigura/i);
+  ])('destinationName refuses: %s', (_label, src) => {
+    expect(() => destinationName(src)).toThrow(/unsafe upload path/i);
   });
 
   it('destinationName also refuses a src that is not an upload at all', () => {
@@ -151,7 +151,7 @@ describe('the paths cannot escape their places', () => {
     // srcs in this corpus, so this can only ever fire on something new.
     await expect(
       migrateImages(['/wp-content/uploads/../../../../etc/passwd.jpg'], root, uploads),
-    ).rejects.toThrow(/nesigura/i);
+    ).rejects.toThrow(/unsafe upload path/i);
   });
 });
 
@@ -425,7 +425,7 @@ describe('resolving a thumbnail to the original it was cut from', () => {
     // the mutation that removes the guard survived until this line said so.
     await expect(
       migrateImages(['/wp-content/uploads/2025/02/orfana-400x300.jpg'], root, uploads),
-    ).rejects.toThrow(/nu are original pe disc/);
+    ).rejects.toThrow(/has no original on disk/);
   });
 
   it('CONDITION 2a: a name claiming dimensions the file does not have', async () => {
@@ -454,7 +454,7 @@ describe('resolving a thumbnail to the original it was cut from', () => {
     }).jpeg().toBuffer());
     await expect(
       migrateImages(['/wp-content/uploads/2025/04/rasturnata-400x300.jpg'], root, uploads),
-    ).rejects.toThrow(/mai mic/i);
+    ).rejects.toThrow(/is smaller than/i);
   });
 
   it('CONDITION 2c: two source files cannot claim the same destination', async () => {
@@ -488,7 +488,7 @@ describe('resolving a thumbnail to the original it was cut from', () => {
     const B = '/wp-content/uploads/2025/07/unica.jpg';
     expect(existsSync(join(uploads, '2025/07/Unica.jpg'))).toBe(false);
     expect(existsSync(join(uploads, '2025/07/unica.jpg'))).toBe(false);
-    await expect(migrateImages([A, B], root, uploads)).rejects.toThrow(/revendicat/i);
+    await expect(migrateImages([A, B], root, uploads)).rejects.toThrow(/claimed by two different source files/i);
   });
 
   it('CONDITION 2c, with live files: the collision stops the run and names both sources', async () => {
@@ -535,14 +535,14 @@ describe('resolving a thumbnail to the original it was cut from', () => {
     const A = '/wp-content/uploads/2026/02/Vie.jpg';
     const B = '/wp-content/uploads/2026/02/vie.jpg';
     const rejected = migrateImages([A, B], root, uploads);
-    await expect(rejected).rejects.toThrow(/revendicat/i);
+    await expect(rejected).rejects.toThrow(/claimed by two different source files/i);
     // BOTH NAMES, AS A PAIR. Asserting them separately was half vacuous:
     // `destinationRelative` already carries the lower-cased name, so dropping
     // `${relative}` from the message left the old assertions green. The pair
     // phrase can only match when both halves are really there, and the message
     // has to name both - it is only actionable if it says which two files a
     // person must go and rename.
-    await expect(rejected).rejects.toThrow(/2026\/02\/Vie\.jpg si 2026\/02\/vie\.jpg/);
+    await expect(rejected).rejects.toThrow(/2026\/02\/Vie\.jpg and 2026\/02\/vie\.jpg/);
   });
 
   it('a thumbnail of a disallowed type stays rejected, it is not resolved', async () => {
@@ -880,12 +880,12 @@ describe('the uploads pattern is anchored and symlinks do not get through', () =
      * the content whoever hosts it. Segments are validated first now.
      */
     const bad = 'https://evil.example/wp-content/uploads/../../../../../../etc/secret.jpg';
-    await expect(migrateImages([bad], root, uploads)).rejects.toThrow(/nesigura/i);
+    await expect(migrateImages([bad], root, uploads)).rejects.toThrow(/unsafe upload path/i);
     // And the same path on our own host, which always threw, still does.
     await expect(
       migrateImages(['https://www.bor-zh.ch/wp-content/uploads/../../../../etc/secret.jpg'],
         root, uploads),
-    ).rejects.toThrow(/nesigura/i);
+    ).rejects.toThrow(/unsafe upload path/i);
   });
 
   it('the second lock really is second: it catches before the thumbnail check', async () => {
@@ -915,7 +915,7 @@ describe('the uploads pattern is anchored and symlinks do not get through', () =
 
     await expect(
       migrateImages(['/wp-content/uploads/2026/01/poza-100x80.jpg'], root, uploads),
-    ).rejects.toThrow(/a doua incuietoare/);
+    ).rejects.toThrow(/second lock/);
   });
 
   it('a symlink inside the uploads tree does not take the read outside', async () => {
@@ -930,7 +930,7 @@ describe('the uploads pattern is anchored and symlinks do not get through', () =
     await symlink(outside, join(linkDir, 'legat.jpg'));
     await expect(
       migrateImages(['/wp-content/uploads/2025/10/legat.jpg'], root, uploads),
-    ).rejects.toThrow(/inauntr|afara|nesigur/i);
+    ).rejects.toThrow(/inside|outside|unsafe/i);
   });
 });
 
@@ -949,6 +949,6 @@ describe('a name that is nothing but a size', () => {
       await migrateImages(['/wp-content/uploads/2025/11/-300x200.jpg'], root, uploads);
     } catch (e) { thrown = e.message; }
     spy.mockRestore();
-    expect(`${thrown ?? ''}${printed.join('')}`).toMatch(/numai o dimensiune|doar o dimensiune/i);
+    expect(`${thrown ?? ''}${printed.join('')}`).toMatch(/nothing but a size/i);
   });
 });

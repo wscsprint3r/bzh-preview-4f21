@@ -117,7 +117,7 @@ describe('the admin page exists', () => {
   });
 
   /*
-   * Al doilea capăt al aceluiași lanț. `startedAt.mjs` este fișierul care chiar
+   * Al doilea capăt al aceluiași lanț. `pornire.mjs` este fișierul care chiar
    * pornește CMS-ul, iar el importă bundle-ul pe cale relativă. Dacă acel import
    * nu duce nicăieri, pagina rămâne albă și tăcută - exact starea în care a fost
    * găsită înainte să existe fișierul acesta.

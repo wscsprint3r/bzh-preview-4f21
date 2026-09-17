@@ -226,11 +226,11 @@ function relativeUploadPath(srcWp) {
   );
   if (badSegments.length > 0) {
     throw new Error(
-      `Cale de upload nesigura: ${srcWp}\n` +
-        `  segmente respinse: ${JSON.stringify(badSegments)}\n` +
-        '  Un `src` din continutul unui server compromis nu devine niciodata o cale ' +
-        'pe disc fara sa treaca de lista de caractere permise. Citeste documentul din ' +
-        'care vine inainte sa reiei migrarea.',
+      `Unsafe upload path: ${srcWp}\n` +
+        `  rejected segments: ${JSON.stringify(badSegments)}\n` +
+        '  A `src` from the content of a compromised server never becomes a path on ' +
+        'disk without passing the allowed-character list. Read the document it comes ' +
+        'from before resuming the migration.',
     );
   }
   // THE HOST IS CHECKED LAST, AFTER THE SEGMENTS, and the order is the whole
@@ -255,7 +255,7 @@ function relativeUploadPath(srcWp) {
  */
 export function destinationName(srcWp) {
   const relative = relativeUploadPath(srcWp);
-  if (relative === null) throw new Error(`Nu este o cale de upload: ${srcWp}`);
+  if (relative === null) throw new Error(`Not an upload path: ${srcWp}`);
   // A thumbnail lands on its original's name, so `photo.jpg` and
   // `photo-300x200.jpg` name the same file and the picture is stored once.
   return `${CONTENT_SUBDIR}/${originalName(relative)}`;
@@ -272,9 +272,9 @@ export function destinationName(srcWp) {
 export function requireUploads(path = UPLOADS_ROOT) {
   if (!existsSync(path)) {
     throw new Error(
-      `Directorul uploads nu a fost gasit: ${path}\n` +
-        'Migrarea citeste imaginile din copiile de siguranta din directorul parinte, ' +
-        'care nu fac parte din depozit. Fara ele nu se poate migra nicio imagine.',
+      `The uploads directory was not found: ${path}\n` +
+        'The migration reads the images from the backups in the parent directory, ' +
+        'which are not part of the repository. Without them no image can be migrated.',
     );
   }
   return path;
@@ -425,10 +425,10 @@ async function orientedSize(path) {
 async function checkThumbnail(thumbnailPath, originalPath, thumbnailRelative, originalRelative) {
   if (!existsSync(originalPath)) {
     throw new Error(
-      `Miniatura ${thumbnailRelative} nu are original pe disc: ${originalRelative}\n` +
-        '  O miniatura referita este migrata ca originalul din care a fost taiata. ' +
-        'Fara original nu se poate: nu se pune miniatura in locul lui in tacere, ' +
-        'fiindca o taietura de cateva sute de pixeli nu este poza.',
+      `The thumbnail ${thumbnailRelative} has no original on disk: ${originalRelative}\n` +
+        '  A referenced thumbnail is migrated as the original it was cut from. ' +
+        'Without the original it cannot be: the thumbnail is not put in its place in ' +
+        'silence, because a few hundred pixels of crop is not the photograph.',
     );
   }
   if (!existsSync(thumbnailPath)) return false;
@@ -436,19 +436,19 @@ async function checkThumbnail(thumbnailPath, originalPath, thumbnailRelative, or
   const raw = await sharp(thumbnailPath).metadata();
   if (raw.width !== claimed.width || raw.height !== claimed.height) {
     throw new Error(
-      `${thumbnailRelative} nu este o miniatura: numele spune ` +
-        `${claimed.width}x${claimed.height}, fisierul este ${raw.width}x${raw.height}.\n` +
-        '  Deci numele nu a fost scris de WordPress, iar dezbracarea sufixului ar fi ' +
-        `o presupunere despre carui fisier ii apartine (${originalRelative}).`,
+      `${thumbnailRelative} is not a thumbnail: the name says ` +
+        `${claimed.width}x${claimed.height}, the file is ${raw.width}x${raw.height}.\n` +
+        '  So the name was not written by WordPress, and stripping the suffix would be ' +
+        `a guess about which file it belongs to (${originalRelative}).`,
     );
   }
   const thumbSize = await orientedSize(thumbnailPath);
   const originalSize = await orientedSize(originalPath);
   if (originalSize.width < thumbSize.width || originalSize.height < thumbSize.height) {
     throw new Error(
-      `${originalRelative} este mai mic decat miniatura lui presupusa ` +
-        `${thumbnailRelative}: ${originalSize.width}x${originalSize.height} fata de ` +
-        `${thumbSize.width}x${thumbSize.height}. Nu sunt aceeasi poza.`,
+      `${originalRelative} is smaller than its supposed thumbnail ` +
+        `${thumbnailRelative}: ${originalSize.width}x${originalSize.height} against ` +
+        `${thumbSize.width}x${thumbSize.height}. They are not the same photograph.`,
     );
   }
   return true;
@@ -525,7 +525,7 @@ export async function migrateImages(
     // original fires first, but it was named nowhere - a reader met it as a
     // baffling complaint about a file called `.jpg`.
     if (basename(relative).startsWith('.')) {
-      skipped.push([src, 'numele este numai o dimensiune, nu ramane nimic din el']);
+      skipped.push([src, 'the name is nothing but a size, nothing is left of it']);
       continue;
     }
     const source = join(uploadsRoot, relative);
@@ -544,8 +544,8 @@ export async function migrateImages(
       !isInside(contentDir, destination)
     ) {
       throw new Error(
-        `Cale de upload nesigura, prinsa de a doua incuietoare: ${src}\n` +
-          `  ar fi citit ${source}\n  ar fi scris ${destination}`,
+        `Unsafe upload path, caught by the second lock: ${src}\n` +
+          `  would have read ${source}\n  would have written ${destination}`,
       );
     }
     // `toLowerCase()` stands in for what APFS and HFS+ do, and it is only
@@ -555,11 +555,11 @@ export async function migrateImages(
     const claimedBy = claims.get(key);
     if (claimedBy !== undefined && claimedBy !== relative) {
       throw new Error(
-        `Destinatia ${destinationRelative} este revendicata de doua fisiere sursa ` +
-          `diferite: ${claimedBy} si ${relative}.\n` +
-          '  Se deosebesc doar prin majuscule, deci pe Linux sunt doua poze si una ' +
-          'o suprascrie pe cealalta in depozit, iar pe macOS sunt una singura si ' +
-          'nimeni nu observa. Redenumeste una in sursa inainte sa reiei migrarea.',
+        `The destination ${destinationRelative} is claimed by two different source ` +
+          `files: ${claimedBy} and ${relative}.\n` +
+          '  They differ only in case, so on Linux they are two photographs and one ' +
+          'overwrites the other in the repository, while on macOS they are a single ' +
+          'file and nobody notices. Rename one at the source before resuming the migration.',
       );
     }
     claims.set(key, relative);
@@ -592,7 +592,7 @@ export async function migrateImages(
       const ext = relative.split('.').pop().toLowerCase();
       const allowedForFormat = EXTENSIONS_FOR_FORMAT[meta.format];
       if (allowedForFormat === undefined || !allowedForFormat.includes(ext)) {
-        skipped.push([src, `numele spune .${ext}, continutul este ${meta.format}`]);
+        skipped.push([src, `the name says .${ext}, the content is ${meta.format}`]);
         undecodable.add(relative);
         continue;
       }
