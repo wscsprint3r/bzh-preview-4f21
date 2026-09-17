@@ -62,7 +62,7 @@ export function cedillasIn(text: string): string[] {
     const cp = text.codePointAt(i);
     if (cp !== undefined && (CEDILLAS as readonly number[]).includes(cp)) {
       const context = text.slice(Math.max(0, i - 40), i + 40).replace(/\s+/g, ' ');
-      found.push(`${uPlus(cp)} la ${i}: …${context}…`);
+      found.push(`${uPlus(cp)} at ${i}: …${context}…`);
     }
   }
   return found;

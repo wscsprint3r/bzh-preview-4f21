@@ -50,7 +50,7 @@ export type WithTime = { time: string };
  * embedded in the page. That projection carries these four fields and no others
  * - a `feast` or a `note` would be bytes on every homepage for a card that
  * never renders them. Naming the subset here is what keeps the projection honest
- * rather than cast into shape: drop `anulat` from it and this stops compiling,
+ * rather than cast into shape: drop `cancelled` from it and this stops compiling,
  * instead of quietly putting a cancelled Liturgy under "next service".
  *
  * `ServiceDay` is assignable to it, so every server-side caller is unchanged.
@@ -278,7 +278,7 @@ export function groupIntoWeeks(days: ServiceDay[]): Week[] {
  * wins - arbitrary, but deterministic between builds.
  *
  * A cancelled day is skipped whole, not service by service: `daySchema` requires
- * an `anulat` day to keep its `services` list, so the flag rather than the list is
+ * a `cancelled` day to keep its `services` list, so the flag rather than the list is
  * what carries the cancellation. Keeping the times is not a convention a tidy
  * editor may undo - `ics.ts` writes one VEVENT per service, so a cancelled day
  * stripped of its times would emit nothing to mark CANCELLED, and a subscriber
@@ -453,7 +453,7 @@ export const ISLAND_DAYS = 40;
  * the card could actually answer with. The block above says what that cost when
  * it was the other way round.
  *
- * `anulat` STAYS IN THE PROJECTION EVEN THOUGH IT IS NOW ALWAYS false, and that is
+ * `cancelled` STAYS IN THE PROJECTION EVEN THOUGH IT IS NOW ALWAYS false, and that is
  * a decision rather than a leftover. It is the second belt: the browser runs the
  * same `nextService` this module exports, which skips a cancelled day whole,
  * so if this filter is ever loosened again the client still refuses to announce a

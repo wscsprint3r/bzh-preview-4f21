@@ -212,7 +212,7 @@ export function hexNumbersIn(text: string): string[] {
   const found: string[] = [];
   for (const cp of CEDILLAS) {
     const pattern = new RegExp(`0x0*${cp.toString(16)}\\b`, 'gi');
-    for (const m of text.matchAll(pattern)) found.push(`${uPlus(cp)} ca ${m[0]} la ${m.index}`);
+    for (const m of text.matchAll(pattern)) found.push(`${uPlus(cp)} as ${m[0]} at ${m.index}`);
   }
   return found.sort();
 }

@@ -134,7 +134,7 @@ export function unexpectedIn(text: string): string[] {
     const cp = character.codePointAt(0) as number;
     if (cp > 0x7f && !ALLOWED_CP.has(cp)) {
       const context = text.slice(Math.max(0, i - 40), i + 40).replace(/\s+/g, ' ');
-      found.push(`${uPlus(cp)} la ${i}: …${context}…`);
+      found.push(`${uPlus(cp)} at ${i}: …${context}…`);
     }
     i += character.length;
   }

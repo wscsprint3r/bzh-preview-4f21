@@ -21,7 +21,7 @@
  * - **A month boundary** (2026-W40 runs 28 September to 4 October) and a **year
  *   boundary** (2026-W53 runs into 2027-01-03, and 2027-W01 follows), because
  *   week keys are compared lexically and an ISO year is not a calendar year.
- * - **A moved day** (`location`) and a **cancelled day** (`anulat`), the two
+ * - **A moved day** (`location`) and a **cancelled day** (`cancelled`), the two
  *   exceptions the homepage band renders differently from an ordinary day.
  * - **A past week**, 2026-W37, so that "excludes weeks already over" is tested
  *   against data rather than against an empty list.

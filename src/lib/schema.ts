@@ -271,7 +271,7 @@ export const daySchema = z
   /**
    * At least one service, even on a cancelled day.
    *
-   * The `anulat` exemption used to live here, and it quietly broke the promise
+   * The cancelled-day exemption used to live here, and it quietly broke the promise
    * in spec 8 that a cancelled day emits STATUS:CANCELLED rather than
    * disappearing. `ics.ts` writes one VEVENT per service, so a cancelled day
    * left with no times emits nothing at all: a subscriber who already has
