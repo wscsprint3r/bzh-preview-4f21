@@ -23,7 +23,21 @@
  */
 
 import { z } from 'astro/zod';
-import { partiData } from './date-ro';
+/*
+ * THE `.ts` EXTENSION IS LOAD-BEARING, do not tidy it away.
+ *
+ * Node's type-stripping resolves relative specifiers literally - it does not do
+ * bundler-style extension guessing - so `'./date-ro'` makes this module fail
+ * with ERR_MODULE_NOT_FOUND under plain `node`, while Vite, Astro and vitest all
+ * resolve it happily. It was written that way and nobody noticed, because
+ * nothing in the suite loads this file outside a bundler.
+ *
+ * It matters now because `./schema-continut.ts` imports `cheiStricte` from here,
+ * and that module IS loaded by the migration scripts under plain node. The guard
+ * is `schema-continut.test.ts`'s 'se poate importa din node simplu', which
+ * spawns a real child process; vitest alone would never catch a regression here.
+ */
+import { partiData } from './date-ro.ts';
 
 const NUME_FISIER = /^(\d{4}-\d{2}-\d{2})\.yml$/;
 
@@ -145,7 +159,13 @@ const ORA = /^([01]?\d|2[0-3]):[0-5]\d$/;
 const mesajCheiNecunoscute = (chei: readonly string[]) =>
   `Câmp necunoscut: ${chei.join(', ')}. Verificați scrierea.`;
 
-const cheiStricte = {
+/**
+ * Shared with `./schema-continut.ts`, so that the schedule and the three content
+ * collections answer a misspelled key with one voice rather than two. It was
+ * briefly copied into that file instead, to keep it loadable under plain node;
+ * fixing the import above removed the reason for the copy.
+ */
+export const cheiStricte = {
   error: (issue: { code: string; keys?: string[] }) =>
     issue.code === 'unrecognized_keys' ? mesajCheiNecunoscute(issue.keys ?? []) : undefined,
 };

@@ -9,8 +9,8 @@
  * money somewhere else. So every rule here fails loudly at build time rather
  * than being forgiving at runtime.
  *
- * TWO CONSTRAINTS SHAPE THIS FILE THAT DO NOT APPLY TO `./schema.ts`, and both
- * are easy to undo by accident:
+ * TWO CONSTRAINTS SHAPE THIS FILE THAT DO NOT APPLY TO MOST OF `src/lib/`, and
+ * both are easy to undo by accident:
  *
  * - **It must run under plain `node`, outside Astro and outside vitest.** The
  *   migration scripts validate a post's frontmatter BEFORE writing the file,
@@ -20,23 +20,32 @@
  *   - Import nothing that exists only inside Astro's build - above all never
  *     `astro:content`, which is a virtual module that plain node cannot
  *     resolve. `astro/zod` is a real file and resolves fine.
- *   - **Relative imports carry their `.ts` extension.** Node's type-stripping
- *     does not do bundler-style extension guessing: importing `./date-ro` the
- *     way `./schema.ts` does fails with ERR_MODULE_NOT_FOUND, which is why
- *     `./schema.ts` itself cannot be imported from a script. Measured on node
- *     22.18.0. `allowImportingTsExtensions` is already on in Astro's base
- *     tsconfig, so the explicit extension type-checks and builds unchanged.
+ *   - **Every relative import carries its `.ts` extension**, here and in
+ *     anything it pulls in. Node's type-stripping resolves relative specifiers
+ *     literally, so a bare `'./date-ro'` throws ERR_MODULE_NOT_FOUND - which is
+ *     what `./schema.ts` used to do, and why this file briefly kept its own
+ *     copy of `cheiStricte` rather than importing one. The import there is fixed
+ *     now and the copy is gone.
+ *   Vite, Astro and vitest all resolve extensionless imports happily, so NONE of
+ *   this is visible to the ordinary suite. The guard is the child-process test
+ *   in `schema-continut.test.ts`, which spawns a real `node`.
  * - **Only erasable TypeScript.** No `enum`, no `namespace`, no parameter
  *   properties - anything node's type-stripper cannot simply delete is a
- *   runtime error outside the Astro build, and one that appears nowhere in this
- *   project's own test suite.
+ *   runtime error outside the Astro build.
  *
- * Kept in `lib/` rather than inline in `content.config.ts` so it can be
- * unit-tested, and imported, without booting Astro.
+ * EVERY MESSAGE NAMES ITS OWN FIELD AND ITS OWN REMEDY. Zod's defaults are
+ * English and talk about types ("expected string, received undefined"), which
+ * tells a volunteer nothing they can act on. The mistakes worth spelling out
+ * are the ones a person actually makes in YAML: deleting a line, dropping the
+ * quotation marks, typing `"true"` for a flag. A shared helper that produced one
+ * message for several fields was worse than the English, because it named the
+ * wrong field: blanking the telephone number used to answer "Titlul nu poate fi
+ * gol."
  */
 
 import { z } from 'astro/zod';
 import { partiData } from './date-ro.ts';
+import { cheiStricte } from './schema.ts';
 
 /**
  * The categories the migrated corpus actually uses.
@@ -55,30 +64,23 @@ import { partiData } from './date-ro.ts';
 export const CATEGORII = ['Noutati', 'Cateheza'] as const;
 
 /**
- * Zod's own message for a rejected key is English and names no remedy, and a
- * rejected key is the error these schemas are most likely to show a volunteer:
- * a field misspelled in the CMS or in a hand-edited file. Returning `undefined`
- * for every other issue code leaves Zod's own messages alone.
+ * A required, non-empty text field, with both of its messages given by the
+ * caller.
  *
- * COPIED FROM `./schema.ts` RATHER THAN IMPORTED, deliberately. Importing it
- * would drag this module's whole import graph along - and `./schema.ts` is not
- * loadable from plain node, for the extension reason in the header, so that one
- * import would break the migration scripts while every test here stayed green.
- * The wording must stay identical in both: a volunteer who learns what "Câmp
- * necunoscut" means on the schedule should not meet a second phrasing on an
- * article. `schema-continut.test.ts` asserts the two messages match, because
- * nothing else would notice them drifting apart.
+ * Two messages and not one, because the two mistakes are different and want
+ * different words: `lipsa` is what a volunteer reads when the line is gone
+ * altogether (Zod reports that as a type error, since the value is `undefined`),
+ * and `gol` is what they read when the line is there but holds only spaces.
+ *
+ * Both are passed in rather than built from a field name, because Romanian
+ * agreement makes a template wrong: the address is "goală" where the title is
+ * "gol". A helper that guessed would produce confident, misspelled Romanian.
  */
-const mesajCheiNecunoscute = (chei: readonly string[]) =>
-  `Câmp necunoscut: ${chei.join(', ')}. Verificați scrierea.`;
-
-const cheiStricte = {
-  error: (issue: { code: string; keys?: string[] }) =>
-    issue.code === 'unrecognized_keys' ? mesajCheiNecunoscute(issue.keys ?? []) : undefined,
-};
-
-/** A title that is actually there. `.trim()` runs first, so "   " is empty. */
-const titluNevid = z.string().trim().min(1, { message: 'Titlul nu poate fi gol.' });
+const textNevid = (lipsa: string, gol: string) =>
+  z
+    .string({ error: (issue) => (issue.code === 'invalid_type' ? lipsa : undefined) })
+    .trim()
+    .min(1, { message: gol });
 
 /**
  * `YYYY-MM-DD` that is a real calendar date, validated by Phase 1's parser.
@@ -87,20 +89,28 @@ const titluNevid = z.string().trim().min(1, { message: 'Titlul nu poate fi gol.'
  * waves `2025-02-30` through, and `Date.UTC` then rolls it silently to 2 March.
  * One parser for this format in the codebase.
  *
- * The `invalid_type` message is the other half, and it is the mistake that will
- * actually happen. Unquoted, YAML reads `data: 2025-11-05` as a calendar date
- * rather than as text, so the schema is handed a `Date` and Zod says "expected
- * string, received Date" - true, in English, and about types rather than about
- * what to do. The schedule paid for this once already; the message here names
- * the remedy instead.
+ * THE TYPE ERROR IS SPLIT THREE WAYS, because one message for all of them was
+ * actively misleading. `data` missing, `data: null` and `data: 20251105` are all
+ * `invalid_type` exactly as a YAML-parsed `Date` is, so a single handler told
+ * someone who had DELETED the line to add quotation marks to it. `issue.input`
+ * is what tells them apart - the same discrimination `./schema.ts` makes with
+ * `instanceof Date`, at the only point where the offending value is in hand.
  */
 const dataReala = z
   .string({
-    error: (issue) =>
-      issue.code === 'invalid_type'
-        ? 'Data trebuie scrisă între ghilimele, de exemplu data: "2025-11-05". ' +
+    error: (issue) => {
+      if (issue.code !== 'invalid_type') return undefined;
+      if (issue.input instanceof Date) {
+        return (
+          'Data trebuie scrisă între ghilimele, de exemplu data: "2025-11-05". ' +
           'Fără ghilimele, fișierul o citește ca dată calendaristică, nu ca text.'
-        : undefined,
+        );
+      }
+      if (issue.input === undefined) {
+        return 'Articolul trebuie să aibă o dată, scrisă ca data: "2025-11-05".';
+      }
+      return 'Data se scrie ca text, între ghilimele, de exemplu data: "2025-11-05".';
+    },
   })
   .refine(
     (v) => {
@@ -114,55 +124,106 @@ const dataReala = z
     { message: 'Data trebuie să fie o zi reală, scrisă ca 2025-11-05.' },
   );
 
-export const articolSchema = z.strictObject(
-  {
-    titlu: titluNevid,
-    data: dataReala,
-    /*
-     * NO DEFAULT, DELIBERATELY. 32 of the 45 migrated posts arrive
-     * `publicat: false` because a bulk import destroyed their dates, and the
-     * parish dates them later in the CMS. A default of `true` would publish all
-     * 32 the first time anyone touched a file; a default of `false` would
-     * silently unpublish a post whose flag was lost. Requiring it means the
-     * file always says which it is, and a lost flag is a failed build.
-     *
-     * An unpublished post is absent from `/noutati`, from the homepage and from
-     * the feed, AND has no page of its own - otherwise "unpublished" would mean
-     * "reachable by anyone with the link".
-     */
-    publicat: z.boolean(),
-    categorie: z.enum(CATEGORII),
-    autor: z.string().trim().min(1, { message: 'Numele autorului nu poate fi gol.' }).default('Parohia'),
-    rezumat: z.string().trim().optional(),
-    imagine: z.string().trim().optional(),
-  },
-  cheiStricte,
-);
+export const articolSchema = z
+  .strictObject(
+    {
+      titlu: textNevid('Articolul trebuie să aibă un titlu.', 'Titlul nu poate fi gol.'),
+      data: dataReala,
+      /*
+       * NO DEFAULT, DELIBERATELY. 32 of the 45 migrated posts arrive
+       * `publicat: false` because a bulk import destroyed their dates, and the
+       * parish dates them later in the CMS. A default of `true` would publish
+       * all 32 the first time anyone touched a file; a default of `false` would
+       * silently unpublish a post whose flag was lost. Requiring it means the
+       * file always says which it is, and a lost flag is a failed build.
+       *
+       * An unpublished post is absent from `/noutati`, from the homepage and
+       * from the feed, AND has no page of its own - otherwise "unpublished"
+       * would mean "reachable by anyone with the link".
+       *
+       * The second message exists because `publicat: "true"` is a string, and a
+       * non-empty string is truthy anywhere downstream that forgets to care.
+       */
+      publicat: z.boolean({
+        error: (issue) => {
+          if (issue.code !== 'invalid_type') return undefined;
+          return issue.input === undefined
+            ? 'Articolul trebuie să spună dacă este publicat: scrieți publicat: true sau publicat: false.'
+            : 'Câmpul publicat primește doar true sau false, scrise fără ghilimele.';
+        },
+      }),
+      /*
+       * A missing enum and a wrong enum are the same issue code in Zod 4
+       * (`invalid_value`, measured), so the two are told apart by `issue.input`
+       * rather than by the code. The list comes from `CATEGORII` so the message
+       * cannot fall behind the set it describes.
+       */
+      categorie: z.enum(CATEGORII, {
+        error: (issue) =>
+          issue.input === undefined
+            ? `Articolul trebuie să aibă o categorie: ${CATEGORII.join(' sau ')}.`
+            : `Categoria poate fi doar ${CATEGORII.join(' sau ')}.`,
+      }),
+      autor: z
+        .string({
+          error: (issue) =>
+            issue.code === 'invalid_type' ? 'Numele autorului se scrie ca text.' : undefined,
+        })
+        .trim()
+        .min(1, { message: 'Numele autorului nu poate fi gol.' })
+        .default('Parohia'),
+      rezumat: z.string().trim().optional(),
+      imagine: z.string().trim().optional(),
+    },
+    cheiStricte,
+  )
+  .describe('Un articol de pe /noutati.');
 
-export const paginaSchema = z.strictObject(
-  {
-    titlu: titluNevid,
-    /*
-     * The route, WITHOUT a leading or trailing slash: `parohia/istoric`.
-     * `[...pagina].astro` builds `/${cale}/` from it, so a stored slash yields
-     * `//parohia/istoric//` - a 404 produced by a file that reads correctly.
-     *
-     * Lower-case ASCII, digits and single hyphens between segments. Diacritics
-     * are rejected rather than transliterated here: the page titles carry them
-     * ("Pictură", "Școala"), the URLs must not, and silently mapping one to the
-     * other in the schema would hide which of the two a mismatch came from.
-     */
-    cale: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/, {
-      message:
-        'Calea se scrie cu litere mici, cifre și liniuțe, fără diacritice și fără slash ' +
-        'la început sau la sfârșit, de exemplu parohia/istoric.',
-    }),
-    ordine: z.number().int({ message: 'Ordinea este un număr întreg, de exemplu 10.' }),
-    descriere: z.string().trim().optional(),
-    imagine: z.string().trim().optional(),
-  },
-  cheiStricte,
-);
+export const paginaSchema = z
+  .strictObject(
+    {
+      titlu: textNevid('Pagina trebuie să aibă un titlu.', 'Titlul paginii nu poate fi gol.'),
+      /*
+       * The route, WITHOUT a leading or trailing slash: `parohia/istoric`.
+       * `[...pagina].astro` builds `/${cale}/` from it, so a stored slash yields
+       * `//parohia/istoric//` - a 404 produced by a file that reads correctly.
+       *
+       * Lower-case ASCII, digits and single hyphens between segments. Diacritics
+       * are rejected rather than transliterated here: the page titles carry them
+       * ("Pictură", "Școala"), the URLs must not, and silently mapping one to
+       * the other in the schema would hide which of the two a mismatch came
+       * from.
+       */
+      cale: z
+        .string({
+          error: (issue) => {
+            if (issue.code !== 'invalid_type') return undefined;
+            return issue.input === undefined
+              ? 'Pagina trebuie să aibă o cale, de exemplu cale: "parohia/istoric".'
+              : 'Calea se scrie ca text, între ghilimele.';
+          },
+        })
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/, {
+          message:
+            'Calea se scrie cu litere mici, cifre și liniuțe, fără diacritice și fără slash ' +
+            'la început sau la sfârșit, de exemplu parohia/istoric.',
+        }),
+      ordine: z
+        .number({
+          error: (issue) => {
+            if (issue.code !== 'invalid_type') return undefined;
+            return issue.input === undefined
+              ? 'Pagina trebuie să aibă o ordine, un număr întreg, de exemplu 10.'
+              : 'Ordinea se scrie ca număr, fără ghilimele, de exemplu 10.';
+          },
+        })
+        .int({ message: 'Ordinea trebuie să fie un număr întreg, de exemplu 10.' }),
+      descriere: z.string().trim().optional(),
+      imagine: z.string().trim().optional(),
+    },
+    cheiStricte,
+  )
+  .describe('O pagină de text editabilă.');
 
 /**
  * The two values the live WordPress footer shows today, both Athos theme demo
@@ -175,9 +236,18 @@ const DEMO = ['info@website.com', '+33 877 554 332'];
 export const setariSchema = z
   .strictObject(
     {
-      nume: titluNevid,
-      adresa: titluNevid,
-      telefon: titluNevid,
+      nume: textNevid(
+        'Setările trebuie să cuprindă numele parohiei.',
+        'Numele parohiei nu poate fi gol.',
+      ),
+      adresa: textNevid(
+        'Setările trebuie să cuprindă adresa parohiei.',
+        'Adresa parohiei nu poate fi goală.',
+      ),
+      telefon: textNevid(
+        'Setările trebuie să cuprindă numărul de telefon.',
+        'Numărul de telefon nu poate fi gol.',
+      ),
       /*
        * `.pipe(z.email())` rather than the shorter `.email()`, which Zod 4
        * deprecates: the short form still works but makes `astro check` report a
@@ -185,7 +255,17 @@ export const setariSchema = z
        * in front, so a value pasted into the CMS with a stray space is cleaned
        * before it is judged rather than rejected for the space.
        */
-      email: z.string().trim().pipe(z.email({ message: 'Adresa de e-mail nu este validă.' })),
+      email: z
+        .string({
+          error: (issue) => {
+            if (issue.code !== 'invalid_type') return undefined;
+            return issue.input === undefined
+              ? 'Setările trebuie să cuprindă o adresă de e-mail.'
+              : 'Adresa de e-mail se scrie ca text.';
+          },
+        })
+        .trim()
+        .pipe(z.email({ message: 'Adresa de e-mail nu este validă.' })),
       telefon2: z.string().trim().optional(),
       email2: z
         .string()
@@ -196,11 +276,11 @@ export const setariSchema = z
       iban2: z.string().trim().optional(),
       program_vizite: z.string().trim().optional(),
       /*
-       * HTTPS CERUT ANUME, nu doar "o adresă". Un `z.url()` simplu primește
-       * și `http://`, și `ftp://`, și - măsurat - `javascript:alert(1)`, care
-       * pus într-un `href` ar fi exact felul de gaură din care a pornit tot
-       * proiectul. Restrângerea face și mesajul adevărat: fără ea el promitea
-       * un https pe care regula nu îl cerea.
+       * HTTPS CERUT ANUME, nu doar "o adresă". Un `z.url()` simplu primește și
+       * `http://`, și `ftp://`, și - măsurat - `javascript:alert(1)`, care pus
+       * într-un `href` ar fi exact felul de gaură din care a pornit tot
+       * proiectul. Restrângerea face și mesajul adevărat: fără ea el promitea un
+       * https pe care regula nu îl cerea.
        */
       harta: z
         .string()
@@ -233,7 +313,8 @@ export const setariSchema = z
         });
       }
     }
-  });
+  })
+  .describe('Datele parohiei, editabile din CMS.');
 
 export type Articol = z.infer<typeof articolSchema>;
 export type Pagina = z.infer<typeof paginaSchema>;
