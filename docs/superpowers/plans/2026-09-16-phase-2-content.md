@@ -748,7 +748,10 @@ describe('articolSchema', () => {
     // The likeliest CMS mistake, and the one that would otherwise drop a field
     // on a green build.
     expect(() => articolSchema.parse({ ...ARTICOL_MINIM, publicatt: true }))
-      .toThrow(/Camp necunoscut: publicatt/);
+      // Phase 1`s error map, which Step 3 mandates, emits this WITH diacritics.
+      // An earlier draft of this line spelled it `Camp`, which contradicted the
+      // step below it and is a misspelling besides.
+      .toThrow(/Câmp necunoscut: publicatt/);
   });
 
   it('cere o data reala, nu doar ceva in forma de data', () => {
