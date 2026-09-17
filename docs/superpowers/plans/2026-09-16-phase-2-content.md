@@ -661,7 +661,13 @@ function curataSpatii(md) {
 
 /** HTML in, Markdown out, with the text normalised on the way through. */
 export function laMarkdown(html) {
-  return curataSpatii(turndown.turndown(normalizeaza(dezbracaPreambul(html))));
+  // ORDER IS LOAD-BEARING: Turndown converts FIRST, normalizeaza runs on its
+  // output. An entity like `&nbsp;` or `&#160;` is plain ASCII to normalizeaza
+  // and to the dist sweep; it becomes U+00A0 only when Turndown decodes it. The
+  // dump holds 14,961 of the first and 6 of the second - normalising first would
+  // reintroduce 14,967 non-breaking spaces immediately after removing 459 literal
+  // ones, invisibly, because U+00A0 renders as a space. Measured 2026-09-16.
+  return curataSpatii(normalizeaza(turndown.turndown(dezbracaPreambul(html))));
 }
 
 /** Every `src` an `<img>` carries, in document order, duplicates included. */
