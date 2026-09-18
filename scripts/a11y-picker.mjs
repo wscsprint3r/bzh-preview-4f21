@@ -103,8 +103,10 @@ const MS_PER_DAY = 86_400_000;
  * in YAML frontmatter and whose body is markdown. Writing an event without the
  * delimiters produces a file Astro parses as an empty entry with a long body,
  * which fails the schema - measured, on this task's first run.
- * `DATE_KEYS` are shifted by the whole-week offset below; everything else is
- * written verbatim.
+ * `DATE_KEYS` are shifted by the whole-week offset below, INCLUDING when the
+ * key is one of them: a service day's file name is its date and moves with the
+ * others, or the fixture ages out while today advances. Everything not in
+ * `DATE_KEYS` is written verbatim.
  * ===========================================================================
  */
 export const FIXTURE_SWAPS = [
@@ -132,6 +134,46 @@ function quotedDate(value) {
   const scalar = new Scalar(value);
   scalar.type = 'QUOTE_DOUBLE';
   return scalar;
+}
+
+/**
+ * Writes one swap's fixtures under `root/src/content/<collection>/` and returns
+ * the file names it wrote.
+ *
+ * THE KEY FIELD IS A FIELD LIKE ANY OTHER. `swap.key` is the value the file
+ * name is made of - `date` for a service day, `slug` for an event - and when
+ * that key is itself a date the file name IS the date, so it has to move with
+ * the offset exactly as the frontmatter dates do. Reading the key out of the
+ * entry before the shift, as this code once did, wrote the services under their
+ * `FIXTURE_TODAY` names forever: the pass stayed green only while today's ISO
+ * week happened to match the fixture's, and the red, months later, would have
+ * pointed at the picker rather than at the fixture. The unit guard is
+ * `a11y-passes.test.ts`'s "a swap shifts what its collection keys on".
+ */
+export function writeFixtureFiles(root, swap, items, addDays, offset) {
+  const dir = join(root, 'src/content', swap.collection);
+  mkdirSync(dir, { recursive: true });
+  const names = [];
+  for (const item of items) {
+    const { [swap.key]: keyValue, ...rest } = item;
+    const name =
+      DATE_KEYS.has(swap.key) && typeof keyValue === 'string'
+        ? addDays(keyValue, offset)
+        : String(keyValue);
+    const shifted = Object.fromEntries(
+      Object.entries(rest).map(([key, value]) => [
+        key,
+        DATE_KEYS.has(key) && typeof value === 'string' ? quotedDate(addDays(value, offset)) : value,
+      ]),
+    );
+    const body = stringify(shifted, { lineWidth: 0 });
+    names.push(name);
+    writeFileSync(
+      join(dir, `${name}.${swap.extension}`),
+      swap.frontmatter ? `---\n${body}---\n` : body,
+    );
+  }
+  return names;
 }
 
 /*
@@ -198,25 +240,7 @@ async function main() {
       if (!Array.isArray(items) || items.length === 0) {
         throw new Error(`fixtures.ts exports no non-empty array named ${swap.fixtures}.`);
       }
-      const dir = join(project, 'src/content', swap.collection);
-      const names = [];
-      for (const item of items) {
-        const { [swap.key]: name, ...rest } = item;
-        const shifted = Object.fromEntries(
-          Object.entries(rest).map(([key, value]) => [
-            key,
-            DATE_KEYS.has(key) && typeof value === 'string'
-              ? quotedDate(week.addDays(value, offset))
-              : value,
-          ]),
-        );
-        names.push(String(name));
-        const body = stringify(shifted, { lineWidth: 0 });
-        writeFileSync(
-          join(dir, `${name}.${swap.extension}`),
-          swap.frontmatter ? `---\n${body}---\n` : body,
-        );
-      }
+      const names = writeFixtureFiles(project, swap, items, week.addDays, offset);
       console.log(`  ${swap.collection}: ${items.length} file(s): ${names.join(', ')}`);
     }
 

@@ -1,4 +1,8 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 import {
   CONDITIONS,
   NO_AXE_REASONS,
@@ -17,8 +21,9 @@ import {
   checkBreakpoints,
   checkPasses,
 } from '../../scripts/a11y.mjs';
-import { CLEARED_COLLECTIONS, FIXTURE_SWAPS } from '../../scripts/a11y-picker.mjs';
+import { CLEARED_COLLECTIONS, FIXTURE_SWAPS, writeFixtureFiles } from '../../scripts/a11y-picker.mjs';
 import * as fixtures from './fixtures';
+import { addDays } from './week';
 
 /*
  * WHAT THIS PROVES: no viewport can be counted as audited unless some command
@@ -692,5 +697,85 @@ describe('the fixtures the picker swaps into the scratch build', () => {
       events.filter((e) => e.start_date >= fixtures.FIXTURE_TODAY).length,
       'no fixture event is upcoming - the index would lose its list',
     ).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * ===========================================================================
+ * THE OFFSET REACHES THE FILE NAME.
+ *
+ * The picker rewrites the fixtures into a scratch build, shifting every date
+ * field by the whole number of weeks between `FIXTURE_TODAY` and today - the
+ * mechanism that keeps the pass alive as the calendar moves away from 2026.
+ * For an event the shifted dates live in the frontmatter, but for a SERVICE
+ * DAY THE FILE NAME IS THE DATE, and the first version of the swap read the
+ * key field out of the item before the shift ran: the services were written
+ * under their FIXTURE_TODAY names forever. Nothing failed while today's ISO
+ * week happened to equal the fixture's, which is why the defect could only be
+ * seen by reading the names the writer produces at a non-zero offset.
+ *
+ * `writeFixtureFiles` is the function `main` writes the scratch content with,
+ * so these cases exercise the real writer rather than a re-implementation of
+ * its rules. The offset is chosen non-zero and not a multiple of 7 from the
+ * fixture above; the zero-offset case is the control that the fix does not
+ * distort the verbatim path.
+ * ===========================================================================
+ */
+describe('a swap shifts what its collection keys on', () => {
+  const SHIFT = 14;
+
+  /** The swap table entry for a collection, or a failure naming the table. */
+  function swapFor(collection: string) {
+    const swap = FIXTURE_SWAPS.find((s) => s.collection === collection);
+    if (!swap) throw new Error(`FIXTURE_SWAPS no longer contains the ${collection} swap`);
+    return swap;
+  }
+
+  /** A scratch root, removed even when an assertion throws. */
+  function inScratch(run: (root: string) => void) {
+    const root = mkdtempSync(join(tmpdir(), 'fixture-swap-'));
+    try {
+      run(root);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  it('moves a date-keyed file name by the same offset as the date fields', () => {
+    inScratch((root) => {
+      const names = writeFixtureFiles(root, swapFor('services'), fixtures.FIXTURE_DAYS, addDays, SHIFT);
+      expect(names, 'the names returned are the ones written').toEqual(
+        fixtures.FIXTURE_DAYS.map((day) => addDays(day.date, SHIFT)),
+      );
+      for (const name of names) {
+        expect(existsSync(join(root, 'src/content/services', `${name}.yml`)), name).toBe(true);
+      }
+      // The unshifted name must be ABSENT, not merely joined by the shifted
+      // one: a writer that emitted both would satisfy the loop above.
+      expect(existsSync(join(root, 'src/content/services', `${fixtures.FIXTURE_DAYS[0].date}.yml`))).toBe(
+        false,
+      );
+    });
+  });
+
+  it('control: offset zero writes the fixture dates unchanged', () => {
+    inScratch((root) => {
+      const names = writeFixtureFiles(root, swapFor('services'), fixtures.FIXTURE_DAYS, addDays, 0);
+      expect(names).toEqual(fixtures.FIXTURE_DAYS.map((day) => day.date));
+    });
+  });
+
+  it('leaves a slug file name alone and still shifts the dates beside it', () => {
+    inScratch((root) => {
+      const swap = swapFor('events');
+      const names = writeFixtureFiles(root, swap, fixtures.FIXTURE_EVENTS, addDays, SHIFT);
+      expect(names).toEqual(fixtures.FIXTURE_EVENTS.map((event) => event.slug));
+      const first = fixtures.FIXTURE_EVENTS[0];
+      const text = readFileSync(join(root, 'src/content/events', `${first.slug}.md`), 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, `${first.slug}.md has no frontmatter block`).not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, string>;
+      expect(frontmatter.start_date).toBe(addDays(first.start_date, SHIFT));
+    });
   });
 });
