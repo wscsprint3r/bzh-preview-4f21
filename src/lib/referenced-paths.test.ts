@@ -55,11 +55,6 @@ const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
   'Phase 2 names it in its plan and has not written it yet': [
     'ArticleCard.astro',
     'ArticleList.astro',
-    'docs/url-map.csv',
-    'migration/pages.mjs',
-    'migration/pages.test.mjs',
-    'migration/run.mjs',
-    'migration/url-map.mjs',
     'noutati/index.astro',
     'rss.xml.ts',
     'src/components/ArticleCard.astro',

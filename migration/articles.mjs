@@ -379,12 +379,11 @@ export async function extractArticles() {
     });
   }
 
-  const mapping = await migrateImages(
-    documents.flatMap((doc) => [
-      ...doc.bodySources,
-      ...(doc.featured === undefined ? [] : [doc.featured]),
-    ]),
-  );
+  const allSources = documents.flatMap((doc) => [
+    ...doc.bodySources,
+    ...(doc.featured === undefined ? [] : [doc.featured]),
+  ]);
+  const mapping = await migrateImages(allSources);
 
   let written = 0;
   let published = 0;
@@ -443,7 +442,18 @@ export async function extractArticles() {
       `genuinely dated: ${dated}.\n` +
       `  Categories: ${[...categoryCounts].map(([c, n]) => `${c} x${n}`).join(', ')}.\n`,
   );
-  return { written, published };
+  return {
+    written,
+    published,
+    // What `run.mjs`'s summary reports. `imagesSkipped` is structurally zero
+    // whenever this return is reached: `assertImageReferences` above throws on
+    // any reference `migrateImages` left out, so a skip stops the run before
+    // these counts exist. The field is returned anyway because the summary
+    // promises the number, and a caller summing the two extractors must be able
+    // to tell "no skips" from "this extractor did not report".
+    imagesMigrated: mapping.size,
+    imagesSkipped: new Set(allSources).size - mapping.size,
+  };
 }
 
 /**
