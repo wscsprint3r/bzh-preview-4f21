@@ -10,6 +10,11 @@ not part of the site build.
 
 - **Docker** must be running. `start()` shells out to the `docker` CLI
   directly; there is no fallback.
+- **poppler** (`pdfinfo`) must be installed for the PDF gate. `gatePdf` shells
+  `pdfinfo` and `pdfinfo -js`; there is no fallback, and without the binary
+  every PDF reports "pdfinfo could not read it" and the run exits non-zero
+  rather than migrating anything. On Debian and Ubuntu it is
+  `sudo apt-get install poppler-utils`; `ci.yml` installs it before `npm test`.
 - **The dump is not in this repository, and a fresh clone cannot run this.**
   `DUMP_PATH` points at
   `/Users/stefan/Work/stuff/site-bzh/backup-2026-08-27/database.sql.gz`, a
@@ -204,3 +209,46 @@ under that prefix actually decodes as an image through sharp**. Renaming a
 payload to `.jpg` defeats a name list; it does not defeat a decoder. That check
 needs sharp and about a hundred files, so it belongs in an `.itest.ts` run by
 `npm run test:build`, not in the unit sweep.
+
+## The PDF gate
+
+The 87 PDFs are **copied byte-for-byte, never re-encoded**, and that is a
+recorded ruling rather than an unfinished pipeline. Re-encoding is how every
+raster is sanitised, but a PDF cannot be re-encoded without either destroying
+its text or rasterising it, so the archive ships as bytes behind a gate. The
+gate is weaker than re-encoding and is stated as such: it does not rewrite the
+file, and it cannot see a payload that hides in a compressed stream. What it
+does catch is what the corpus was measured for.
+
+- **Readability** is `pdfinfo`'s. A file it cannot open is dropped by name —
+  the same shape as sharp's decode-or-drop.
+- **JavaScript** is `pdfinfo -js`'s. A non-empty report fails the file.
+- **Payload names** are a raw-byte scan for `/EmbeddedFile` and `/Launch`.
+  `/JS` is deliberately NOT in the byte scan: measured 2026-09-18, six of the
+  87 clean files contain those bytes inside compressed streams, so scanning
+  for it would drop six documents the JavaScript question had already cleared.
+
+A failing file is **dropped by name and counted**, not skipped silently: the run
+prints `PDFs skipped: N` with each name and reason and exits non-zero, because
+the corpus measured 87 clean files. The corpus itself is pinned in
+`MEASURED` in `documents.mjs` (10 uploads, 26 `revista/`, 43 `pastorala/`,
+8 `files/`, 206,424,931 bytes); a tree that changed size stops the run before
+anything is written.
+
+**Measured 2026-09-18.** All 87 open with `pdfinfo`, none reports JavaScript,
+and the byte scan finds zero `/EmbeddedFile` and zero `/Launch`. Two full runs
+produced byte-identical output: a `sha256` manifest over `src/content`,
+`public/documente`, `src/assets/content` and `docs/url-map.csv` was identical
+across both, 320 files. The migration writes `public/documente/<slug>.pdf`, one
+`src/content/documente/<slug>.md` per file, and one `docs/url-map.csv` row per
+old path (55 → 142 rows).
+
+Titles come from a **closed table of measured filename shapes** in
+`documents.mjs`, one rule per shape, each with an example asserted in
+`documents.test.mjs` and the whole 87-name corpus listed there too. A filename
+matching none stops the migration by name: a wrong title on a pastoral letter is
+content nobody can verify mechanically, so the table refuses to guess.
+
+`src/lib/documents.itest.ts` re-runs the gate over every committed PDF in
+`npm run test:build`, so a PDF added by hand after the migration cannot bypass
+it. It needs `pdfinfo` from poppler.

@@ -1,5 +1,6 @@
 import { start, stop } from './db.mjs';
 import { extractArticles } from './articles.mjs';
+import { extractDocuments } from './documents.mjs';
 import { extractGalleries } from './galleries.mjs';
 import { extractPages } from './pages.mjs';
 import { writeUrlMap } from './url-map.mjs';
@@ -20,6 +21,11 @@ import { writeUrlMap } from './url-map.mjs';
  * not write stops the run before a summary exists, so reaching the summary
  * with any skips is impossible today, and printing the number is what shows
  * the reader the impossibility held.
+ *
+ * `PDFs skipped` IS the other shape: the PDF gate drops a failing file by name
+ * instead of stopping, so the run reaches the summary with skips, and a
+ * non-empty list sets the exit code. The corpus measured 87 clean files, so
+ * any skip is a corpus that changed or a file that should not ship.
  */
 
 await start();
@@ -28,7 +34,8 @@ try {
   const posts = await extractArticles();
   const pages = await extractPages();
   const galleries = await extractGalleries();
-  const redirects = await writeUrlMap();
+  const documents = await extractDocuments();
+  const redirects = await writeUrlMap(documents.redirects);
   summary = {
     postsWritten: posts.written,
     postsPublished: posts.published,
@@ -37,6 +44,10 @@ try {
     imagesSkipped: posts.imagesSkipped + pages.imagesSkipped,
     albums: galleries.albums,
     galleryImages: galleries.images,
+    documentsWritten: documents.documents,
+    pdfsSkipped: documents.skipped.length,
+    skippedDocuments: documents.skipped,
+    bytesCopied: documents.bytes,
     redirects,
   };
 } finally {
@@ -45,15 +56,31 @@ try {
 
 process.stdout.write(
   '\nMigration summary\n' +
-    `  posts written:   ${summary.postsWritten}\n` +
-    `  posts published: ${summary.postsPublished}\n` +
-    `  pages written:   ${summary.pagesWritten}\n` +
-    `  images migrated: ${summary.imagesMigrated}\n` +
-    `  images skipped:  ${summary.imagesSkipped}\n` +
-    `  albums:          ${summary.albums}\n` +
-    `  gallery images:  ${summary.galleryImages}\n` +
-    `  redirects:       ${summary.redirects}\n`,
+    `  posts written:     ${summary.postsWritten}\n` +
+    `  posts published:   ${summary.postsPublished}\n` +
+    `  pages written:     ${summary.pagesWritten}\n` +
+    `  images migrated:   ${summary.imagesMigrated}\n` +
+    `  images skipped:    ${summary.imagesSkipped}\n` +
+    `  albums:            ${summary.albums}\n` +
+    `  gallery images:    ${summary.galleryImages}\n` +
+    `  documents written: ${summary.documentsWritten}\n` +
+    `  PDFs skipped:      ${summary.pdfsSkipped}\n` +
+    `  bytes copied:      ${summary.bytesCopied}\n` +
+    `  redirects:         ${summary.redirects}\n`,
 );
+
+if (summary.pdfsSkipped > 0) {
+  // Named, not counted: the person reading the failure has to look at the file
+  // that was dropped, and the reason says which mechanism refused it.
+  process.stdout.write(
+    '\nPDFs the gate dropped:\n' +
+      summary.skippedDocuments.map((s) => `  ${s.path}: ${s.reason}\n`).join(''),
+  );
+  process.stdout.write(
+    '\nThe corpus measured 87 clean files; a dropped file is not a success.\n',
+  );
+  process.exitCode = 1;
+}
 
 const mustBePositive = [
   ['posts written', summary.postsWritten],
@@ -62,6 +89,7 @@ const mustBePositive = [
   ['images migrated', summary.imagesMigrated],
   ['albums', summary.albums],
   ['gallery images', summary.galleryImages],
+  ['documents written', summary.documentsWritten],
   ['redirects', summary.redirects],
 ];
 const zeros = mustBePositive.filter(([, count]) => count === 0).map(([name]) => name);

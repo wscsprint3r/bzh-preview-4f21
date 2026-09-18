@@ -41,6 +41,13 @@ jobs:
         env:
           DETECT_CHROMEDRIVER_VERSION: 'true'
 
+      # The PDF gate shells `pdfinfo` from poppler. `documents.test.mjs` runs it
+      # over two committed PDFs and `documents.itest.ts` over all 87, so the
+      # binary is needed by `npm test` and `npm run test:build` both - and
+      # without it every file would report "pdfinfo could not read it" and the
+      # suite would fail loudly rather than silently skip the gate.
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
       - run: npm run check
       - run: npm test
 

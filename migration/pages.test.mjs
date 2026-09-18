@@ -111,4 +111,21 @@ describe('the URL map', () => {
     expect(rows).toHaveLength(55);
     expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(55);
   });
+
+  it('keeps a document row, and totals pages + fixed + posts + documents', () => {
+    // The 87 migrated PDFs add one row each and collide with nothing: an old
+    // `.pdf` path is not a page slug and not a post slug. The count here is
+    // the same arithmetic the real corpus gets, with one document standing in
+    // for the 87.
+    const documents = [
+      { from: '/revista/doxologia_18_2019.pdf', to: '/documente/doxologia-18-2019.pdf' },
+    ];
+    const rows = redirectRows(PAGES, POST_SLUGS, documents);
+    expect(rows).toHaveLength(56);
+    expect(rows).toContainEqual([
+      '/revista/doxologia_18_2019.pdf',
+      '/documente/doxologia-18-2019.pdf',
+    ]);
+    expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(56);
+  });
 });
