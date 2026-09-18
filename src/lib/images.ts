@@ -29,3 +29,12 @@ export function resolveImage(value: string): ImageMetadata | null {
   if (key === null) return null;
   return MODULES[`/${key}`] ?? null;
 }
+
+/**
+ * The srcset widths for an image of this width: half and full, deduplicated.
+ * A fixed list would upscale the small end — the migrated legacy album is
+ * 160px wide — and downscale nothing usefully on the large end.
+ */
+export function responsiveWidths(width: number): number[] {
+  return [...new Set([Math.round(width / 2), width])].filter((w) => w > 0);
+}

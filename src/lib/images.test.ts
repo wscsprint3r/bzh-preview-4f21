@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { imageKey, publicUpload, resolveImage } from './images';
+import { imageKey, publicUpload, resolveImage, responsiveWidths } from './images';
 
 describe('imageKey', () => {
   it('normalises the migration shape to a repository path', () => {
@@ -41,5 +41,19 @@ describe('resolveImage', () => {
 
   it('gives null for a migration path that resolves to nothing', () => {
     expect(resolveImage('../../assets/content/2024/05/missing.png')).toBeNull();
+  });
+});
+
+describe('responsiveWidths', () => {
+  it('offers half and full width for a large image', () => {
+    expect(responsiveWidths(1200)).toEqual([600, 1200]);
+  });
+
+  it('still gives positive widths for a tiny image', () => {
+    expect(responsiveWidths(3)).toEqual([2, 3]);
+  });
+
+  it('deduplicates when half rounds back to the full width', () => {
+    expect(responsiveWidths(1)).toEqual([1]);
   });
 });

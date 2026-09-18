@@ -1,15 +1,15 @@
 ---
 import { Image } from 'astro:assets';
-import { publicUpload, resolveImage } from '../lib/images';
+import { publicUpload, resolveImage, responsiveWidths } from '../lib/images';
 
 interface Props {
   image: string;
   alt: string;
-  widths?: string;
+  sizes?: string;
   loading?: 'lazy' | 'eager';
 }
 
-const { image, alt, widths = '100vw', loading = 'lazy' } = Astro.props;
+const { image, alt, sizes = '100vw', loading = 'lazy' } = Astro.props;
 /*
  * TWO SHAPES, TWO RENDERINGS, AND A MISSING PATH FAILS THE BUILD.
  * The migration's `../../assets/content/…` is an Astro asset: imported, hashed
@@ -28,15 +28,14 @@ if (asset === null && upload === null) {
       '../../assets/content/… sau /uploads/…, nu /src/….',
   );
 }
-const widthsList = widths.split(',').map((w) => Number(w.trim())).filter((w) => w > 0);
 ---
 
 {asset !== null ? (
   <Image
     src={asset}
     alt={alt}
-    widths={widthsList.length > 0 ? widthsList : undefined}
-    sizes={widths}
+    widths={responsiveWidths(asset.width)}
+    sizes={sizes}
     loading={loading}
     decoding="async"
   />
