@@ -14,7 +14,9 @@ import { PAGES } from './pages.mjs';
  * THE 32 UNPUBLISHED POSTS ARE IN THE MAP ON PURPOSE. Their old URLs exist and
  * will be linked from elsewhere for years; a redirect to a page that does not
  * exist yet is better than a 404, and it is why the unpublished posts keep
- * their slugs. 56 rows = 9 pages + 45 posts + the two fixed rows below.
+ * their slugs. The real arithmetic is 9 pages + 45 posts + the two fixed rows
+ * below, minus the one post row superseded under the page-wins collision rule
+ * documented on `redirectRows` = 55 rows.
  *
  * SORTED BY OLD PATH, LF endings, no BOM: the file is byte-identical across
  * runs, which the repeatability check reads as a `diff` exit code rather than
