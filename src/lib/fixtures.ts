@@ -116,11 +116,19 @@ export const FIXTURE_DAYS: ServiceDay[] = [
 /** A fixture event plus the slug its file name carries, which the schema does not know about. */
 export interface FixtureEvent extends Event {
   slug: string;
+  /*
+   * The CMS's „Detalii” markdown, which Sveltia extracts BELOW the
+   * frontmatter and `eventSchema` therefore never sees. The picker writes it
+   * after the closing `---`; the rich event carries one so the audited
+   * `/evenimente/<slug>/` page renders a real body, and the other two carry
+   * none, which is the control that an event without details still builds.
+   */
+  body?: string;
 }
 
-/** Validates the frontmatter through the real schema, then attaches the slug. */
-function event(slug: string, raw: unknown): FixtureEvent {
-  return { ...eventSchema.parse(raw), slug };
+/** Validates the frontmatter through the real schema, then attaches the slug and the body. */
+function event(slug: string, raw: unknown, body?: string): FixtureEvent {
+  return { ...eventSchema.parse(raw), slug, body };
 }
 
 /*
@@ -133,21 +141,34 @@ function event(slug: string, raw: unknown): FixtureEvent {
  * The multi-day event carries every optional field on purpose: `image` through
  * `ContentImage`, the `poster` link into `/documente/`, a `time` and a
  * `description`, so the detail layout is audited in its full shape rather than
- * only in its minimal one. The poster names a real committed PDF and the image a
- * real committed asset, because a fixture path that does not resolve is a failed
- * build, not a covered branch.
+ * only in its minimal one. It also carries a markdown BODY, the CMS's
+ * „Detalii” field: it is written below the frontmatter, and it is the only
+ * event body any build renders, so the picker's post-build check asserts the
+ * sentence reaches the page. The other two events have no body, and that is
+ * deliberate - they are the empty-body control. The poster names a real
+ * committed PDF and the image a real committed asset, because a fixture path
+ * that does not resolve is a failed build, not a covered branch.
  */
 export const FIXTURE_EVENTS: FixtureEvent[] = [
-  event('hramul-parohiei', {
-    title: 'Hramul parohiei (probă)',
-    start_date: '2026-10-02',
-    end_date: '2026-10-04',
-    time: '10:00',
-    location: 'Capela Sf. Gallus, Winterthur',
-    image: '../../assets/content/galleries/legacy/8.jpg',
-    poster: '/documente/9-001-2025-pastorala-invierea-domnului-ro-2025.pdf',
-    description: 'Două zile de slujbe, agapă și un concert de probă.',
-  }),
+  event(
+    'hramul-parohiei',
+    {
+      title: 'Hramul parohiei (probă)',
+      start_date: '2026-10-02',
+      end_date: '2026-10-04',
+      time: '10:00',
+      location: 'Capela Sf. Gallus, Winterthur',
+      image: '../../assets/content/galleries/legacy/8.jpg',
+      poster: '/documente/9-001-2025-pastorala-invierea-domnului-ro-2025.pdf',
+      description: 'Două zile de slujbe, agapă și un concert de probă.',
+    },
+    /*
+     * ONE PLAIN SENTENCE, with no markdown syntax: the picker looks for this
+     * string in the built HTML, so it must survive rendering verbatim. If a
+     * future body needs emphasis or a heading, the check moves with it.
+     */
+    'Parohia Sfântul Nicolae vă invită la agapă după Sfânta Liturghie.',
+  ),
 
   event('cateheza-de-toamna', {
     title: 'Cateheză de toamnă (probă)',

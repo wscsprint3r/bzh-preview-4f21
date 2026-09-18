@@ -1,9 +1,10 @@
 ---
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import ContentImage from '../../components/ContentImage.astro';
 import { eventDates, eventSlug } from '../../lib/events';
+import { normalizeHeadingLevels } from '../../lib/markdown-headings';
 
 /*
  * ONE PAGE PER EVENT, from the raw collection. There is no `published` flag on
@@ -33,6 +34,27 @@ const { title, start_date, end_date, time, location, description, image, poster 
  */
 const endDate = end_date !== undefined && end_date !== start_date ? end_date : null;
 const dates = eventDates(start_date, endDate);
+
+/*
+ * THE CMS'S „Detalii” BODY IS RENDERED HERE, the way `noutati/[slug].astro`
+ * renders an article's. `public/admin/config.yml` gives the events collection a
+ * `body` markdown widget, and Sveltia extracts it BELOW the frontmatter - so
+ * `eventSchema` never sees it, and until this page rendered it the volunteer's
+ * text saved and appeared nowhere. The picker's scratch build is the only one
+ * with events in it, and its post-build check asserts the rich fixture's body
+ * sentence reaches `dist/`; the two empty-bodied fixture events are the control
+ * that an event a volunteer left without details still renders.
+ *
+ * The heading levels are shifted so the body's shallowest heading is an `<h2>`
+ * under the page's `<h1>` - the rule and its measured `heading-order` failure
+ * are in `lib/markdown-headings.ts`. A COPY, not a mutation: `render` reads
+ * `entry.rendered` (the loader renders collection entries eagerly), so the
+ * transformed body is passed in its place and the original is left alone.
+ */
+const rendered = entry.rendered
+  ? { ...entry.rendered, html: normalizeHeadingLevels(entry.rendered.html) }
+  : entry.rendered;
+const { Content } = await render({ ...entry, rendered });
 ---
 
 <Base title={title} description={description}>
@@ -55,6 +77,7 @@ const dates = eventDates(start_date, endDate);
         <ContentImage image={image} alt={title} sizes="(max-width: 34rem) 90vw, 40rem" loading="eager" />
       </div>
     )}
+    <div class="prose"><Content /></div>
     {poster && (
       <p class="event-poster"><a href={poster}>Afișul evenimentului (PDF)</a></p>
     )}
@@ -77,6 +100,42 @@ const dates = eventDates(start_date, endDate);
   .event-location { margin: 0 0 1.75rem; color: var(--muted); }
   .event-description { max-width: var(--masura); margin: 0 0 1.75rem; }
   .event-image { margin: 0 0 1.75rem; max-width: var(--masura); border: 1px solid var(--rule); }
+  /*
+   * The prose treatment mirrors `noutati/[slug].astro`, which carries the
+   * measurements behind each rule: the measure is `--masura`, headings step
+   * down the display face, the blockquote is a rule rather than a colour, and
+   * `pre-wrap` is what keeps a long code line from scrolling a phone sideways.
+   * NO `color` FOR `a`, deliberately: global.css's `a`/`a:hover` pair already
+   * colours body links, and a scoped colour here would ship at (0,3,1) and
+   * silently defeat the hover - the trap `SiteHeader.astro` documents. Nothing
+   * here declares `outline`, so the global `:focus-visible` ring reaches these
+   * links too.
+   */
+  .prose { max-width: var(--masura); }
+  .prose :global(p) { margin: 0 0 1.25rem; }
+  .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
+  .prose :global(h3) { font-size: 1.25rem; margin-block: 1.75rem 0.5rem; }
+  .prose :global(h4) { font-size: 1.0625rem; margin-block: 1.5rem 0.5rem; }
+  .prose :global(ul),
+  .prose :global(ol) { margin: 0 0 1.25rem; padding-left: 1.5rem; }
+  .prose :global(li) { margin-bottom: 0.35rem; }
+  .prose :global(blockquote) {
+    margin: 1.5rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--rule);
+    color: var(--muted);
+  }
+  .prose :global(img) { margin: 1.5rem 0; }
+  .prose :global(pre) {
+    margin: 1.5rem 0;
+    padding: 0.875rem 1rem;
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
   /* No `color` on the poster link: global.css's `a`/`a:hover` pair already
      colours body links, and a scoped colour here would ship at (0,3,1) and
      silently defeat the hover - the trap `noutati/[slug].astro` documents.

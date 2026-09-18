@@ -64,7 +64,7 @@
  * ---------------------------------------------------------------------------
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -149,13 +149,24 @@ function quotedDate(value) {
  * week happened to match the fixture's, and the red, months later, would have
  * pointed at the picker rather than at the fixture. The unit guard is
  * `a11y-passes.test.ts`'s "a swap shifts what its collection keys on".
+ *
+ * A `body` property on an item is written BELOW the closing `---`, where the
+ * CMS puts the markdown it extracts; it must not become a frontmatter field,
+ * and a swap whose files have no frontmatter refuses one rather than dropping
+ * it silently.
  */
 export function writeFixtureFiles(root, swap, items, addDays, offset) {
   const dir = join(root, 'src/content', swap.collection);
   mkdirSync(dir, { recursive: true });
   const names = [];
   for (const item of items) {
-    const { [swap.key]: keyValue, ...rest } = item;
+    const { [swap.key]: keyValue, body, ...rest } = item;
+    if (body !== undefined && !swap.frontmatter) {
+      throw new Error(
+        `${swap.collection} is a file with no frontmatter, so it has nowhere to put a body; ` +
+          `the fixture entry ${JSON.stringify(keyValue)} carries one.`,
+      );
+    }
     const name =
       DATE_KEYS.has(swap.key) && typeof keyValue === 'string'
         ? addDays(keyValue, offset)
@@ -166,11 +177,13 @@ export function writeFixtureFiles(root, swap, items, addDays, offset) {
         DATE_KEYS.has(key) && typeof value === 'string' ? quotedDate(addDays(value, offset)) : value,
       ]),
     );
-    const body = stringify(shifted, { lineWidth: 0 });
+    const frontmatter = stringify(shifted, { lineWidth: 0 });
     names.push(name);
     writeFileSync(
       join(dir, `${name}.${swap.extension}`),
-      swap.frontmatter ? `---\n${body}---\n` : body,
+      swap.frontmatter
+        ? `---\n${frontmatter}---\n${typeof body === 'string' ? `\n${body}\n` : ''}`
+        : frontmatter,
     );
   }
   return names;
@@ -272,6 +285,33 @@ async function main() {
       return false;
     }
     console.log(`  event detail page(s) in this audit: ${eventPages.join(', ')}`);
+
+    /*
+     * THE BODY REACHES THE PAGE. `public/admin/config.yml` offers events a
+     * „Detalii” markdown widget, which Sveltia extracts BELOW the frontmatter,
+     * so `eventSchema` never sees it - and for a while no route rendered it
+     * either: the volunteer's text saved, and appeared nowhere. The rich
+     * fixture event carries a plain-sentence body and the built page must
+     * contain that sentence. This is the only build in the whole suite where
+     * an event body is rendered at all, so without this check the text could
+     * be dropped again with every audit still green.
+     */
+    for (const event of fixtures.FIXTURE_EVENTS) {
+      if (typeof event.body !== 'string' || event.body.trim() === '') continue;
+      const page = join(project, 'dist', 'evenimente', event.slug, 'index.html');
+      const html = readFileSync(page, 'utf8');
+      if (!html.includes(event.body.trim())) {
+        console.error(
+          `The detail page for ${event.slug} does not render its fixture body.\n` +
+            '    The CMS offers events a „Detalii” markdown field, so text that no page shows\n' +
+            '    is silently discarded for the volunteer who typed it.\n' +
+            '    DO NOT DELETE THE BODY AND DO NOT WEAKEN THIS CHECK. Render the markdown in\n' +
+            '    src/pages/evenimente/[slug].astro the way noutati/[slug].astro does.',
+        );
+        return false;
+      }
+      console.log(`  body rendered below the frontmatter of evenimente/${event.slug}/index.html`);
+    }
 
     /*
      * RETURNED, NOT `process.exit`ed. `process.exit` inside a `try` terminates

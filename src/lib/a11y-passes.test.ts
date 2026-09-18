@@ -778,4 +778,70 @@ describe('a swap shifts what its collection keys on', () => {
       expect(frontmatter.start_date).toBe(addDays(first.start_date, SHIFT));
     });
   });
+
+  /*
+   * THE BODY GOES BELOW THE CLOSING DELIMITER. A `body` written into the
+   * frontmatter would be rejected by `eventSchema`'s `strictKeys` at build
+   * time - loud, but a build failure instead of a rendered page. The fixture's
+   * body is what the audited `/evenimente/<slug>/` page renders, so the
+   * writer's half of that path is pinned here.
+   */
+  it('writes a fixture body after the frontmatter, not into it', () => {
+    inScratch((root) => {
+      const item = {
+        slug: 'cu-detalii',
+        title: 'Titlu de probă',
+        start_date: '2026-10-02',
+        location: 'Sala parohială, Zürich',
+        body: 'Un paragraf de probă.',
+      };
+      writeFixtureFiles(root, swapFor('events'), [item], addDays, SHIFT);
+      const text = readFileSync(join(root, 'src/content/events/cu-detalii.md'), 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, 'cu-detalii.md has no frontmatter block').not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
+      expect(frontmatter, 'the body must not be a frontmatter field').not.toHaveProperty('body');
+      const afterFrontmatter = text.slice((block as RegExpExecArray)[0].length);
+      expect(afterFrontmatter).toContain('Un paragraf de probă.');
+    });
+  });
+
+  /*
+   * A service day is YAML top to bottom; it has nowhere to put a body. The
+   * writer strips the `body` key from the frontmatter before writing, so
+   * without this failure a body on a day fixture would simply disappear - the
+   * silent loss the body support exists to prevent, one collection over.
+   */
+  it('refuses a body on a swap whose files carry no frontmatter', () => {
+    inScratch((root) => {
+      const item = { date: '2026-09-09', services: [], body: 'Text care nu are unde să ajungă.' };
+      expect(() => writeFixtureFiles(root, swapFor('services'), [item], addDays, 0)).toThrow(
+        /frontmatter/,
+      );
+    });
+  });
+});
+
+/*
+ * The body's other half: the fixture must actually carry one, and it must
+ * still carry empty-bodied events. The picker's post-build check proves the
+ * page rendered the first; the second is the control that an event a
+ * volunteer left without details still builds and audits, which is what the
+ * `<Content />` of an empty markdown body amounts to.
+ */
+describe('the event fixtures the rendered body comes from', () => {
+  it('has both a body to render and events with no body', () => {
+    const withBody = fixtures.FIXTURE_EVENTS.filter(
+      (event) => typeof event.body === 'string' && event.body.trim().length > 0,
+    );
+    const withoutBody = fixtures.FIXTURE_EVENTS.filter((event) => !event.body);
+    expect(
+      withBody.length,
+      'no fixture event carries a body - the picker would audit a detail page with no rendered markdown',
+    ).toBeGreaterThan(0);
+    expect(
+      withoutBody.length,
+      'no fixture event is body-less - the empty-body control would be gone',
+    ).toBeGreaterThan(0);
+  });
 });
