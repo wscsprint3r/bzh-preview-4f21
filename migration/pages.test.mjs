@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PAGES, assertImageTagCount, assertPageTitles, assertPagesFound } from './pages.mjs';
+import { redirectRows } from './url-map.mjs';
 import { pageSchema } from '../src/lib/content-schema.ts';
 import { imagesIn } from './html-md.mjs';
 
@@ -79,5 +80,35 @@ describe('the image tag guard', () => {
     // stopped run instead of a silently missing picture.
     const html = '<img src="a.jpg"><img data-src="lazy.jpg">';
     expect(() => assertImageTagCount('un-post', html, imagesIn(html))).toThrow(/un-post.*2.*1/s);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The URL map's one collision, ruled 2026-09-18: `/scoala-parohiala/` is both
+// a page and a held-back post in the dump, and the PAGE wins. The post row
+// would land on `/noutati/scoala-parohiala/`, which has no page while the post
+// stays `published: false` - a redirect to a 404 is the failure the URL map
+// exists to avoid - and the old site's own menu pointed at the school page.
+// ---------------------------------------------------------------------------
+
+describe('the URL map', () => {
+  /** 45 post slugs of which one collides with a page, as the real dump does. */
+  const POST_SLUGS = [
+    ...Array.from({ length: 44 }, (_, i) => `un-post-${String(i).padStart(2, '0')}`),
+    'scoala-parohiala',
+  ];
+
+  it('resolves the page/post collision to the page, and drops the post row', () => {
+    const rows = redirectRows(PAGES, ['scoala-parohiala']);
+    expect(rows.filter(([oldPath]) => oldPath === '/scoala-parohiala/'))
+      .toEqual([['/scoala-parohiala/', '/comunitate/scoala/']]);
+  });
+
+  it('has no duplicate old path, and totals 55 for the real corpus shape', () => {
+    // 9 pages + 45 posts + `/program-liturgic/` + `/feed/`, minus the one post
+    // row the page collision absorbs. The plan's 56 predates the collision.
+    const rows = redirectRows(PAGES, POST_SLUGS);
+    expect(rows).toHaveLength(55);
+    expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(55);
   });
 });

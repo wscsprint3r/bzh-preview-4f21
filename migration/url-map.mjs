@@ -41,13 +41,28 @@ const FIXED_REDIRECTS = [
  *
  * Takes the page table and the dump's post slugs rather than querying, so the
  * shape can be exercised without Docker; `writeUrlMap` is the thin I/O edge.
+ *
+ * PAGE ROWS WIN OVER POST ROWS ON THE ONE OLD PATH THEY SHARE, and the rule is
+ * first-writer-wins over a build order of pages, then the two fixed rows, then
+ * posts. Measured 2026-09-18: the dump has page 23997 and stamped post 26901
+ * both named `scoala-parohiala`, so both would emit `/scoala-parohiala/`. The
+ * post is one of the 32 held back (`published: false`), so its destination
+ * `/noutati/scoala-parohiala/` has no page to land on - a redirect to a 404,
+ * the exact failure this map exists to avoid - while `/comunitate/scoala/` is
+ * live and is what the old site's own menu linked. One old URL gets one row.
  */
 export function redirectRows(pages, postSlugs) {
-  return [
+  const rows = [
     ...pages.map((page) => [`/${page.slug}/`, `/${page.path}/`]),
-    ...postSlugs.map((slug) => [`/${slug}/`, `/noutati/${slug}/`]),
     ...FIXED_REDIRECTS,
+    ...postSlugs.map((slug) => [`/${slug}/`, `/noutati/${slug}/`]),
   ];
+  const seen = new Set();
+  return rows.filter(([oldPath]) => {
+    if (seen.has(oldPath)) return false;
+    seen.add(oldPath);
+    return true;
+  });
 }
 
 /**
@@ -61,13 +76,19 @@ export async function writeUrlMap() {
     "SELECT post_name FROM wpoi_posts WHERE post_type='post' AND post_status='publish'",
   );
   // Plain code-unit comparison, never `localeCompare`: the sort must not depend
-  // on the machine's locale, or two machines would write two orders.
-  const rows = redirectRows(PAGES, posts.map(([slug]) => slug)).sort((a, b) =>
-    a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0,
-  );
+  // on the machine's locale, or two machines would write two orders. The new
+  // path is the tiebreak so the order is total even if a duplicate ever
+  // survives the precedence rule above - the file must not depend on the
+  // engine's sort stability for its bytes.
+  const rows = redirectRows(PAGES, posts.map(([slug]) => slug)).sort((a, b) => {
+    if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;
+    return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0;
+  });
   const csv =
     [
       '# Phase 4 consumes this file: each row becomes one _redirects rule.',
+      '# One row per old path: a page row wins over a post row, because a held-back',
+      '# post has no page to land on and a redirect to a 404 is the failure to avoid.',
       'vechi,nou',
       ...rows.map(([oldPath, newPath]) => `${oldPath},${newPath}`),
     ].join('\n') + '\n';

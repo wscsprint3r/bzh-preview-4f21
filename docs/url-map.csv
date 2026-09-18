@@ -1,4 +1,6 @@
 # Phase 4 consumes this file: each row becomes one _redirects rule.
+# One row per old path: a page row wins over a post row, because a held-back
+# post has no page to land on and a redirect to a 404 is the failure to avoid.
 vechi,nou
 /05-noiembrie-2025-hramul-parohiei/,/noutati/05-noiembrie-2025-hramul-parohiei/
 /adunarea-parohiala-anuala/,/noutati/adunarea-parohiala-anuala/
@@ -44,7 +46,6 @@ vechi,nou
 /sarbatorirea-sfantului-ierarh-nicolae-2/,/noutati/sarbatorirea-sfantului-ierarh-nicolae-2/
 /sarbatorirea-sfantului-ierarh-nicolae/,/noutati/sarbatorirea-sfantului-ierarh-nicolae/
 /scoala-parohiala/,/comunitate/scoala/
-/scoala-parohiala/,/noutati/scoala-parohiala/
 /scrisoarea-pastorala-a-mitropolitului-iosif-la-nasterea-domnului-2024/,/noutati/scrisoarea-pastorala-a-mitropolitului-iosif-la-nasterea-domnului-2024/
 /serbarea-scolii-parohiale-de-hram/,/noutati/serbarea-scolii-parohiale-de-hram/
 /seri-de-film-dedicate-noilor-sfinti-romani-copy/,/noutati/seri-de-film-dedicate-noilor-sfinti-romani-copy/
