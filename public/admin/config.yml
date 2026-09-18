@@ -421,6 +421,7 @@ collections:
       - name: time
         label: Ora
         widget: string
+        pattern: ['^([01]?\d|2[0-3]):[0-5]\d$', 'Scrieți ora ca 18:00.']
         required: false
         hint: Ora de început, scrisă ca 18:00.
       - { name: location, label: Locul, widget: string }

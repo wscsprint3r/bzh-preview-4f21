@@ -426,6 +426,28 @@ describe('the events schema', () => {
   it('rejects a misspelled key', () => {
     expect(() => eventSchema.parse({ ...event, locatie: 'x' })).toThrow(/Câmp necunoscut/);
   });
+
+  const REQUIRED_FIELDS: [string, RegExp][] = [
+    ['title', /Evenimentul trebuie să aibă un titlu\./],
+    ['start_date', /trebuie să aibă o dată/],
+    ['location', /Evenimentul trebuie să aibă un loc\./],
+  ];
+  it('has required fields to check', () => {
+    expect(REQUIRED_FIELDS.length).toBeGreaterThan(0);
+  });
+  for (const [field, message] of REQUIRED_FIELDS) {
+    it(`requires the field ${field}`, () => {
+      expect(() => eventSchema.parse(without(event, field))).toThrow(message);
+    });
+  }
+
+  it('accepts an end_date equal to the start', () => {
+    expect(eventSchema.parse({ ...event, end_date: '2026-12-19' }).end_date).toBe('2026-12-19');
+  });
+
+  it('accepts an event with no time', () => {
+    expect(eventSchema.parse(without(event, 'time')).time).toBeUndefined();
+  });
 });
 
 describe('the galleries schema', () => {
@@ -447,6 +469,21 @@ describe('the galleries schema', () => {
   it('rejects a misspelled key', () => {
     expect(() => gallerySchema.parse({ ...gallery, titlu: 'x' })).toThrow(/Câmp necunoscut/);
   });
+
+  const REQUIRED_FIELDS: [string, RegExp][] = [
+    ['title', /Galeria trebuie să aibă un titlu\./],
+    ['date', /trebuie să aibă o dată/],
+    ['cover', /Galeria trebuie să aibă o copertă\./],
+    ['images', /expected array/],
+  ];
+  it('has required fields to check', () => {
+    expect(REQUIRED_FIELDS.length).toBeGreaterThan(0);
+  });
+  for (const [field, message] of REQUIRED_FIELDS) {
+    it(`requires the field ${field}`, () => {
+      expect(() => gallerySchema.parse(without(gallery, field))).toThrow(message);
+    });
+  }
 });
 
 describe('the documents schema', () => {
@@ -467,6 +504,20 @@ describe('the documents schema', () => {
   it('rejects a misspelled key', () => {
     expect(() => documentSchema.parse({ ...document, autor: 'x' })).toThrow(/Câmp necunoscut/);
   });
+
+  const REQUIRED_FIELDS: [string, RegExp][] = [
+    ['title', /Documentul trebuie să aibă un titlu\./],
+    ['date', /trebuie să aibă o dată/],
+    ['file', /expected string/],
+  ];
+  it('has required fields to check', () => {
+    expect(REQUIRED_FIELDS.length).toBeGreaterThan(0);
+  });
+  for (const [field, message] of REQUIRED_FIELDS) {
+    it(`requires the field ${field}`, () => {
+      expect(() => documentSchema.parse(without(document, field))).toThrow(message);
+    });
+  }
 });
 
 describe('settings.yml', () => {
