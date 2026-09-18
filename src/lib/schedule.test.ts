@@ -3,6 +3,7 @@ import { SERVICE_NAMES, type Service, type ServiceDay } from './schema';
 import { formatWeekRange } from './date-ro';
 import { addDays } from './week';
 import { FIXTURE_TODAY, FIXTURE_DAYS } from './fixtures';
+import { cedillasIn } from './cedilla';
 import {
   ISLAND_DAYS,
   serviceLabel,
@@ -79,10 +80,10 @@ describe('the label diacritics', () => {
       ...SERVICE_NAMES.map((service) => serviceLabel({ time: '10:00', service })),
       serviceLabel({ time: '10:00', service: 'Sfânta Liturghie', detail: 'și Parastas' }),
     ].join('');
-    // The Turkish cedillas, written as escapes so the guard cannot be
-    // defeated by pasting in the very characters it rejects:
-    // U+015F, U+0163 and their uppercase forms U+015E, U+0162.
-    expect(allText).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    // The shared detector in `./cedilla` holds the four forbidden numbers;
+    // this file names none of them, in any spelling. The escape form is a copy
+    // of the number too, and the repository sweep now sees it.
+    expect(cedillasIn(allText)).toEqual([]);
     // And the proof that the guard has something to catch, not that it passes because the scanned
     // strings turned out to be ASCII. The first comes from SERVICE_NAMES, through serviceLabel.
     expect(allText).toMatch(/\u021B/); // ț, from „Liturghia Darurilor … sfințite"
@@ -553,10 +554,11 @@ describe('romanianList', () => {
   });
 
   it('puts no cedilla in the conjunction', () => {
-    // The conjunction is "și": s with comma below, U+0219. The guard is written on the
-    // codepoint, not the glyph, so the file stays scannable for cedillas.
+    // The conjunction is "și": s with comma below, U+0219. The guard asks the
+    // shared detector, which holds the four forbidden numbers in `./cedilla`;
+    // this file names none of them, in any spelling.
     const joined = romanianList(['A', 'B']);
-    expect(joined).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    expect(cedillasIn(joined)).toEqual([]);
     expect(joined).toMatch(/\u0219/);
   });
 });

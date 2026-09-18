@@ -4,6 +4,7 @@ import { SERVICE_NAMES } from './schema';
 import { FIXTURE_DAYS } from './fixtures';
 import { servicesInOrder } from './schedule';
 import { generateIcs } from './ics';
+import { cedillasIn } from './cedilla';
 
 function day(date: string, services: Array<[string, string]>, extra: Partial<ServiceDay> = {}): ServiceDay {
   return {
@@ -430,10 +431,12 @@ describe('the feed diacritics', () => {
         { feast: 'Înălțarea Sfintei Cruci', notes: 'Se citește Acatistul' },
       ),
     ]);
-    // The Turkish cedillas, written as escapes so the guard cannot be
-    // defeated by pasting in the very characters it rejects:
-    // U+015F, U+0163 and their uppercase forms U+015E, U+0162.
-    expect(allText).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    // The shared detector in `./cedilla` holds the four forbidden numbers;
+    // this file names none of them, in any spelling. The escape form is also a
+    // copy of the number, and until Task 12's fix round the repository sweep
+    // could not see it - which is how this guard spent its life guarding the
+    // feed with a copy of the very thing it rejects.
+    expect(cedillasIn(allText)).toEqual([]);
     // And the proof that the guard has something to catch, not that it passes
     // because the scanned feed turned out to be ASCII.
     expect(allText).toMatch(/\u021B/); // ț, from „Liturghia Darurilor … sfințite"

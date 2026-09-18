@@ -23,7 +23,7 @@ backend:
   name: github
   # TODO(out-of-repo): replace with the real values once the GitHub repository
   # and the OAuth worker exist. Until then `/admin/` can render but cannot sign
-  # in. The steps are in `.superpowers/sdd/.../task-12-report.md`.
+  # in. The steps are in `docs/handover.md`.
   repo: <OWNER>/<REPO>
   branch: main
   base_url: https://sveltia-cms-auth.<SUBDOMAIN>.workers.dev

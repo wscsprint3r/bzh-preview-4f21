@@ -245,7 +245,6 @@ describe('the detector can fire', () => {
       'unpkg.com/@sveltia/cms/package.json',
       'src/**/*.test.ts',
       'src/content/services/${day}.yml',
-      '.superpowers/sdd/.../task-12-report.md',
     ]) {
       expect(isPathLike(token), token).toBe(false);
     }

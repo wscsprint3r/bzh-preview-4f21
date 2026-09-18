@@ -146,15 +146,18 @@ const PAGE_BUDGET = {
    * footer) and 6,248 is the 13 card elements - 480.6 bytes per card on
    * average, 546 for the largest and 432 for the smallest. Derived from the
    * measured bytes rather than built, because no build has that many posts:
-   * the 30 KiB limit is crossed at 46 posts at the measured average, or at 41
-   * if every future card were as large as the largest today. Both are
-   * arithmetic on a measurement, not measurements.
+   * the 30 KiB limit is crossed at 46 posts at the measured average, at 41 if
+   * every future card were as large as the largest today, and at 29 if every
+   * card also carried a 300-byte summary. That last figure is the conservative
+   * one: `summary` is optional and 0 of the 13 migrated posts has one, so the
+   * measured 546-byte maximum does not bound a card that uses the field. All
+   * three are arithmetic on a measurement, not measurements.
    *
    * THE PAGINATION DECISION, MADE HERE: no pagination. At 13 posts the index
    * is less than half its limit, and the crossing point is 33 posts past the
    * corpus today. Pagination would add a route, a page concept in the CMS and
    * a crawl surface to solve a problem that does not exist yet; the red build
-   * at 41-46 posts is the signal that it has arrived, and this comment is so
+   * at 29-46 posts is the signal that it has arrived, and this comment is so
    * that red build says how far away it was. Raising this limit instead is
    * not the answer - the same rule as `index.html` and `/program/` above.
    */
@@ -185,17 +188,15 @@ const PAGE_BUDGET = {
    * the honest shape: the pages inside a group are the same kind of document,
    * and a tenth would be a decision somebody made.
    *
-   * MEASURED ON THE TASK 9 BUILD, all nine (the first measurement was taken
-   * before the phone navigation gap was tuned, which is why the numbers here
-   * are the final build's):
-   *   parohia/istoric        13,419    parohia/consiliul      10,465
-   *   servicii-liturgice     21,458
-   *   comunitate/scoala      15,774    comunitate/pictura     10,188
-   *   resurse/catehism       10,918    resurse/studii         15,828
-   *   resurse/doxologia      18,147    resurse/linkuri        12,168
+   * MEASURED ON THE FINAL PHASE 2 BUILD (Task 12), all nine:
+   *   parohia/istoric        13,338    parohia/consiliul      10,384
+   *   servicii-liturgice     21,377
+   *   comunitate/scoala      15,693    comunitate/pictura     10,107
+   *   resurse/catehism       10,837    resurse/studii         15,747
+   *   resurse/doxologia      18,066    resurse/linkuri        12,087
    *
    * The limits are 1.4-1.9x the largest in each group (the top of that range
-   * is `parohia/istoric`, 24 KiB against a measured 13,419 = 1.83x). What makes
+   * is `parohia/istoric`, 24 KiB against a measured 13,338 = 1.84x). What makes
    * a prose page grow is an image or a paragraph, so the headroom is what a
    * normal content edit costs - and `servicii-liturgice` is already the largest
    * of the nine at 21 KB because its text is a long list of the services and
@@ -361,8 +362,9 @@ const PAGE_EXPLANATION = [
   '            · /program/ ține fiecare zi publicată, iar limita se atinge în jurul a 58',
   '              de săptămâni publicate înainte (măsurat pe o săptămână parohială obișnuită);',
   '            · /noutati/ ține fiecare articol publicat, iar limita se atinge în jurul a 46',
-  '              de articole, pentru că fiecare articol adaugă circa 480 de octeți',
-  '              (măsurat la 13 articole, apoi socotit).',
+  '              de articole, pentru că fiecare articol adaugă circa 480 de octeți; dacă fiecare',
+  '              articol ar avea și un rezumat, limita s-ar atinge în jurul a 29 (măsurat la 13',
+  '              articole, apoi socotit).',
   '          Dacă tocmai ați salvat o zi sau un articol în /admin/: s-a publicat și situl',
   '          este în regulă. Anunțați persoana care se ocupă de site; nu este ceva de',
   '          reparat din CMS.',

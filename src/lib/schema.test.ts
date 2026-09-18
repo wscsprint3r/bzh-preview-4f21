@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { SERVICE_NAMES, idFromFilename, serviceSchema, daySchema } from './schema';
+import { cedillasIn } from './cedilla';
 
 const valid = {
   feast: 'Înălțarea Sfintei Cruci',
@@ -295,10 +296,10 @@ describe('diacritice', () => {
       thrownMessage(() => idFromFilename('program.yml')),
       thrownMessage(() => idFromFilename('2026-02-30.yml')),
     ].join('');
-    // The Turkish cedilla look-alikes, written as escapes so that this guard
-    // cannot be defeated by pasting the very characters it is meant to reject:
-    // U+015F, U+0163 and their capitals U+015E, U+0162.
-    expect(allText).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    // The shared detector in `./cedilla` holds the four forbidden numbers;
+    // this file names none of them, in any spelling. The escape form is a copy
+    // of the number too, and the repository sweep now sees it.
+    expect(cedillasIn(allText)).toEqual([]);
     // And prove the guard has something to catch, rather than passing because
     // the strings it scans turned out to be empty.
     expect(allText).toMatch(/\u0219/); // ș, in "și numele praznicului"

@@ -226,32 +226,64 @@ describe('no Turkish cedilla in the tracked files', () => {
  * has to judge each, and learns to wave hits through - which is the habit both
  * rules exist to prevent.
  *
- * SCOPE, SAID RATHER THAN IMPLIED. This looks for the HEXADECIMAL spellings,
- * which is how every codepoint in this repository is written, and it is built
- * from `CEDILLAS` so this file names none of them. A decimal spelling would not be
- * caught: measured, the four decimal values appear zero times in tracked files
- * today, and a scan for them would collide with ordinary byte counts in reports -
- * a check that cries wolf is a check somebody relaxes. `U+015F` IN PROSE IS NOT A
- * COPY and is deliberately not swept: naming the characters by number in words is
- * exactly what the rule asks for.
+ * SCOPE, SAID RATHER THAN IMPLIED, AND THE SECOND SPELLING IS WHY THIS BLOCK
+ * EXISTS AGAIN. The `0x…` form is how a codepoint is written in code; the escape
+ * form is how it is written in a JavaScript string or regex, and it is ALSO A
+ * COPY OF THE NUMBER. Four tracked test files carried sixteen of them - guards
+ * over other text, written in the very spelling the guard that exists to notice
+ * copies could not see. Both forms are matched now. The escape pattern is BUILT
+ * FROM A CHARCODE, because a literal backslash next to `u` and four hex digits
+ * does not survive this repository's file-writing tools (see CLAUDE.md): a
+ * detector written with one would be silently decoded into the characters it
+ * hunts, which is the failure the glyph rule was written about.
+ *
+ * A decimal spelling is still not caught: measured, the four decimal values
+ * appear zero times in tracked files today, and a scan for them would collide
+ * with ordinary byte counts in reports - a check that cries wolf is a check
+ * somebody relaxes. `U+015F` IN PROSE IS NOT A COPY and is deliberately not
+ * swept: naming the characters by number in words is exactly what the rule asks
+ * for.
  * ===========================================================================
  */
 
 /** Where the four numbers are allowed to be written. */
 const CODEPOINTS_FILE = 'src/lib/cedilla.ts';
 
+/*
+ * THE BACKSLASH, BUILT FROM ITS CODE.
+ *
+ * A literal one written next to `u` and four hex digits does not survive this
+ * repository's file-writing tools: the tools decode the sequence into the
+ * character on the way to disk, silently (CLAUDE.md). The escape pattern below
+ * needs TWO of these characters followed by `u` to match one literal backslash,
+ * so it is assembled from this single character and never written out.
+ */
+const BACKSLASH = String.fromCharCode(92);
+
 /**
- * Every hexadecimal spelling of the four codepoints in `text`, with its offset.
+ * Every spelling of the four codepoints in `text`, with its offset.
+ *
+ * TWO FORMS: `0x` then any number of leading zeros then the hex digits, and a
+ * literal backslash then `u` then any number of leading zeros then the hex
+ * digits. Both are copies of the number and both are found.
  *
  * Built from `CEDILLAS`, like everything else here, so this file can be swept by
- * its own rule. `0x` then any number of leading zeros then the hex digits, so
- * the spelling with a leading zero and the one without are both found.
+ * its own rule.
  */
 export function hexNumbersIn(text: string): string[] {
   const found: string[] = [];
   for (const cp of CEDILLAS) {
-    const pattern = new RegExp(`0x0*${cp.toString(16)}\\b`, 'gi');
-    for (const m of text.matchAll(pattern)) found.push(`${uPlus(cp)} as ${m[0]} at ${m.index}`);
+    const hex = cp.toString(16);
+    const patterns = [
+      new RegExp(`0x0*${hex}\\b`, 'gi'),
+      // `BACKSLASH + BACKSLASH` is what a regex source needs to match one
+      // literal backslash; the `u` and the digits are what the escape form
+      // carries.
+      new RegExp(`${BACKSLASH}${BACKSLASH}u0*${hex}\\b`, 'gi'),
+    ];
+    for (const pattern of patterns) {
+      for (const m of text.matchAll(pattern)) found.push(`${uPlus(cp)} as ${m[0]} at ${m.index}`);
+    }
   }
   return found.sort();
 }
@@ -263,8 +295,15 @@ describe('the four numbers are written in one file only', () => {
       const bad = `const X = [0x${cp.toString(16)}];`;
       expect(hexNumbersIn(bad), uPlus(cp)).toHaveLength(1);
     }
-    // And the other direction: comma below is not one of them.
+    // The escape spelling too, and assembled at run time: writing one literally
+    // here would put a copy of the number into the one file that sweeps for it.
+    for (const cp of CEDILLAS) {
+      const escape = `${BACKSLASH}u${cp.toString(16)}`;
+      expect(hexNumbersIn(escape), uPlus(cp)).toHaveLength(1);
+    }
+    // And the other direction: comma below is not one of them, in either form.
     expect(hexNumbersIn('String.fromCodePoint(0x0219)')).toEqual([]);
+    expect(hexNumbersIn(`${BACKSLASH}u0219`)).toEqual([]);
     // `U+015F` in prose is not a copy of the number and is not swept.
     expect(hexNumbersIn(`${uPlus(CEDILLAS[0])} in prose`)).toEqual([]);
   });
@@ -280,7 +319,7 @@ describe('the four numbers are written in one file only', () => {
       hexNumbersIn(readFileSync(ROOT + path, 'utf8')).map((where) => `${path}: ${where}`),
     );
     process.stdout.write(
-      `\nThe four numbers, written in hexadecimal: ${CODEPOINTS_FILE} has all ${CEDILLAS.length}; ` +
+      `\nThe four numbers, written in hexadecimal or as escapes: ${CODEPOINTS_FILE} has all ${CEDILLAS.length}; ` +
         `the other ${TO_SWEEP.length - 1} tracked files — ${found.length} occurrence(s).\n`,
     );
     expect(

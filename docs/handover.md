@@ -420,9 +420,11 @@ and nobody has edited them; they are for the parish to fix in the CMS:
 **Old-site links in the migrated prose, for Phase 4.** The markdown carries 53 absolute
 `https://www.bor-zh.ch/` links, none rewritten: 2 in articles and 51 in pages. 28 point
 at PDFs in legacy static directories outside `uploads/` — 26 under `/revista/` (the
-Doxologia issues) and 2 under `/files/` (the study texts). The rest are page and
-full-size-image links under `wp-content/uploads/`. Phase 4 has to decide what all 53
-redirect to before the old host goes away.
+Doxologia issues) and 2 under `/files/` (the study texts). The other 25 point into
+`wp-content/uploads/`: 11 full-size images on `cursuri-de-pictura`, 8 `.doc` study files
+on `studii`, 5 PDFs (the 2024 pastoral letter and four Doxologia issues) and one
+old-site page link (the pastoral letter). Phase 4 has to decide what all 53 redirect to
+before the old host goes away.
 
 **Check it from the repository.**
 
