@@ -195,7 +195,7 @@ describe('timeInZurich', () => {
   });
 });
 
-describe('validarea datelor', () => {
+describe('date validation', () => {
   // toUtc parses through dateParts from ./date-ro; there is no second parser in
   // this module.
   //
@@ -207,15 +207,15 @@ describe('validarea datelor', () => {
   // ever reached; they document the validation on those paths, and would keep
   // passing against a bare-regex toUtc. Do not read them as a second guard.
   it('rejects a day that does not exist', () => {
-    expect(() => addDays('2026-02-30', 1)).toThrow(/inexistentă/);
+    expect(() => addDays('2026-02-30', 1)).toThrow(/Nonexistent date/);
   });
 
-  it('respinge luna 13', () => {
-    expect(() => weekStart('2026-13-01')).toThrow(/inexistentă/);
+  it('rejects month 13', () => {
+    expect(() => weekStart('2026-13-01')).toThrow(/Nonexistent date/);
   });
 
   it('rejects a wrong format', () => {
-    expect(() => weekKey('2026-9-14')).toThrow(/invalidă/);
+    expect(() => weekKey('2026-9-14')).toThrow(/Invalid date/);
   });
 });
 

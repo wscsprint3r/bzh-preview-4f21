@@ -404,9 +404,10 @@ describe('the news pages', () => {
        * with its closing tag intact.
        *
        * The floor is the property the guard exists for - prose reached the
-       * page - not a corpus count. The shortest body measured is 205
-       * characters of text, so 100 is 2x headroom and no ordinary content edit
-       * comes near it. A file with no body is not asserted about at all.
+       * page - not a corpus count. The shortest body measured is 180
+       * characters of text (the 24 December 2024 pastoral letter), so 100 is
+       * well under the shortest real post and no ordinary content edit comes
+       * near it. A file with no body is not asserted about at all.
        */
       const source = readFileSync(ARTICLES + f.file, 'utf8');
       const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim();
@@ -863,6 +864,18 @@ describe('the built pages', () => {
     const links = [...html.matchAll(/href="\/noutati\/([^"/]+)\/"/g)].map((m) => m[1] as string);
     expect(links, 'the homepage news list is not exactly the three newest published posts')
       .toEqual(newest);
+
+    /*
+     * THE SECTION HEADING AND ITS LINK TO THE INDEX, asserted against the
+     * news section rather than against the page. A bare `toContain('Noutăți')`
+     * would pass on a card's category label, and a bare
+     * `toContain('/noutati/')` on the header navigation's own link - both
+     * present whether or not the section kept its heading or its way out.
+     */
+    expect(html, 'the homepage news section has lost its heading')
+      .toMatch(/<h2[^>]*>Noutăți<\/h2>/);
+    expect(html, 'the homepage news section has lost its link to /noutati/')
+      .toMatch(/<a href="\/noutati\/"[^>]*>Toate noutățile →<\/a>/);
 
     const unpublished = articleFiles()
       .filter((f) => f.frontmatter.published === false)

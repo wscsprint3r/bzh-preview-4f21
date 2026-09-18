@@ -44,7 +44,7 @@ export const GET: APIRoute = async () => {
    * DROPPING the override is the mistake that bites, and it bites loudly: the
    * build dies with `TypeError: Cannot read properties of undefined (reading
    * 'replace')` inside `toIcsDate`, because there is no date to format. The two
-   * pages fail differently on the same slip — `Dată invalidă: undefined` out of
+   * pages fail differently on the same slip — `Invalid date: undefined` out of
    * `dateParts` — but all three fail the build rather than shipping. Verified
    * by doing it in each.
    *

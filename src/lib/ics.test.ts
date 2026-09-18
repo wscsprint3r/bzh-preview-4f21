@@ -20,7 +20,7 @@ const opts = { dtstamp: '20260915T060000Z', location: 'Wehntalerstrasse 451, 804
 
 const ics = (days: ServiceDay[]) => generateIcs(days, opts);
 
-describe('structura documentului', () => {
+describe('the document structure', () => {
   it('opens and closes correctly', () => {
     const out = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(out.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
@@ -32,7 +32,7 @@ describe('structura documentului', () => {
     expect(out.split('\n').every((l) => l === '' || l.endsWith('\r'))).toBe(true);
   });
 
-  it('include fusul orar Europe/Zurich', () => {
+  it('includes the Europe/Zurich timezone', () => {
     const out = ics([day('2026-09-20', [['10:00', 'Sfânta Liturghie']])]);
     expect(out).toContain('BEGIN:VTIMEZONE');
     expect(out).toContain('TZID:Europe/Zurich');
@@ -413,12 +413,12 @@ describe('escaping and folding', () => {
         .replace(/\\,/g, ',')
         .replace(/\\;/g, ';')
         .replace(/\\\\/g, '\\');
-      expect(unescaped, 'iterația ' + iter).toBe(feast);
+      expect(unescaped, 'iteration ' + iter).toBe(feast);
     }
   });
 });
 
-describe('diacriticele feed-ului', () => {
+describe('the feed diacritics', () => {
   it('uses comma below, not cedilla', () => {
     // Everything that ends up in a SUMMARY goes through serviceLabel, so we scan
     // the generated feed for the entire list of services, not only the literals
@@ -447,7 +447,7 @@ describe('diacriticele feed-ului', () => {
 });
 
 
-describe('fusul orar', () => {
+describe('the timezone', () => {
   it('declares the offsets and the transition rules, not just the block', () => {
     // The VTIMEZONE block was checked only through the presence of BEGIN:VTIMEZONE.
     // Three mutations passed: the summer offset set to +0100, the spring rule
@@ -479,13 +479,13 @@ describe('fusul orar', () => {
       const declaredOffset = (signMatch[1] === '-' ? -1 : 1)
         * (Number(signMatch[2]) * 60 + Number(signMatch[3]));
 
-      expect(declaredOffset, 'decalajul declarat pentru ' + date).toBe(expectedOffset);
+      expect(declaredOffset, 'the declared offset for ' + date).toBe(expectedOffset);
       // And that it really is the actual offset of Zürich on that date.
       expect(actualZurichOffset(new Date(date + 'T12:00:00Z'))).toBe(expectedOffset);
 
       // 10:00 local, written with the declared offset, reads back as 10:00 too.
       const moment = new Date(Date.parse(date + 'T10:00:00Z') - declaredOffset * 60_000);
-      expect(actualZurichTime(moment), 'ora reală pentru ' + date).toBe('10:00');
+      expect(actualZurichTime(moment), 'the actual time for ' + date).toBe('10:00');
       expect(out).toContain('DTSTART;TZID=Europe/Zurich:' + date.replace(/-/g, '') + 'T100000');
     }
   });
@@ -497,7 +497,7 @@ describe('fusul orar', () => {
   });
 });
 
-describe('anulare', () => {
+describe('cancellation', () => {
   it('marks only the cancelled day, not the whole feed', () => {
     // STATUS:CANCELLED applied to the whole feed went unnoticed: a single
     // cancelled Sunday would have marked the entire parish schedule as cancelled.

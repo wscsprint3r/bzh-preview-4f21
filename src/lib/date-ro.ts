@@ -47,7 +47,7 @@ export const MONTH_NAMES = [
  */
 export function dateParts(date: string): { year: number; month: number; day: number } {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (!m) throw new Error(`Dată invalidă: ${date}`);
+  if (!m) throw new Error(`Invalid date: ${date}`);
   const year = Number(m[1]);
   const month = Number(m[2]);
   const day = Number(m[3]);
@@ -56,7 +56,7 @@ export function dateParts(date: string): { year: number; month: number; day: num
   // catch that, so a bad filename fails loudly instead of rendering a wrong day.
   const d = new Date(Date.UTC(year, month - 1, day));
   if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) {
-    throw new Error(`Dată inexistentă: ${date}`);
+    throw new Error(`Nonexistent date: ${date}`);
   }
   return { year, month, day };
 }

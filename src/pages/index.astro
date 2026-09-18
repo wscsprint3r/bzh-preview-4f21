@@ -16,7 +16,7 @@ const entries = await getCollection('services');
  * the parsed frontmatter — every field `daySchema` validated, which is every
  * field of a day EXCEPT its date; the date is the filename, i.e. `e.id`.
  *
- * DROPPING the override fails the build with `Dată invalidă: undefined` out of
+ * DROPPING the override fails the build with `Invalid date: undefined` out of
  * `dateParts`. REVERSING the order does nothing at all — `daySchema` declares no
  * `date` key, so both orders build byte-identical output, checked both ways.
  * This comment used to claim the reverse crashed; it does not. `date` goes last

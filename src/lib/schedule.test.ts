@@ -73,7 +73,7 @@ describe('serviceLabel', () => {
   });
 });
 
-describe('diacriticele etichetelor', () => {
+describe('the label diacritics', () => {
   it('uses comma below, not cedilla', () => {
     const allText = [
       ...SERVICE_NAMES.map((service) => serviceLabel({ time: '10:00', service })),
@@ -147,7 +147,7 @@ describe('groupIntoWeeks', () => {
 
   it('refuses a day whose date does not exist', () => {
     expect(() => groupIntoWeeks([day('2026-02-30', [['10:00', 'Utrenia']])]))
-      .toThrow(/inexistent/);
+      .toThrow(/Nonexistent date/);
   });
 
   it('keeps two different services that start at the same time', () => {
@@ -244,10 +244,10 @@ describe('nextService', () => {
     // Without the guard, '15/09/2026' compares below every stored date: every day would
     // pass the filter and the function would confidently return the service from
     // 2026-09-14 07:30. A wrong time, stated with full conviction.
-    expect(() => nextService(sampleDays, '15/09/2026', '08:00')).toThrow(/invalid/);
-    expect(() => nextService(sampleDays, '2026-9-21', '08:00')).toThrow(/invalid/);
+    expect(() => nextService(sampleDays, '15/09/2026', '08:00')).toThrow(/Invalid date/);
+    expect(() => nextService(sampleDays, '2026-9-21', '08:00')).toThrow(/Invalid date/);
     // Caught by the existence check, not by the regex: February 30 passes the shape check.
-    expect(() => nextService(sampleDays, '2026-02-30', '08:00')).toThrow(/inexistent/);
+    expect(() => nextService(sampleDays, '2026-02-30', '08:00')).toThrow(/Nonexistent date/);
   });
 });
 
@@ -279,8 +279,8 @@ describe('upcomingWeeks', () => {
   it('refuses an invalid date, just as nextService does', () => {
     // The three functions that take a date reject it the same way, so there is no
     // single gate through which a broken date could enter the page silently.
-    expect(() => upcomingWeeks(sampleDays, '15/09/2026', 3)).toThrow(/invalid/);
-    expect(() => upcomingWeeks(sampleDays, '2026-02-30', 3)).toThrow(/inexistent/);
+    expect(() => upcomingWeeks(sampleDays, '15/09/2026', 3)).toThrow(/Invalid date/);
+    expect(() => upcomingWeeks(sampleDays, '2026-02-30', 3)).toThrow(/Nonexistent date/);
   });
 
   it('returns an empty list for a non-positive number of weeks', () => {

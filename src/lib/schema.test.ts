@@ -213,7 +213,7 @@ describe('idFromFilename', () => {
     expect(() => idFromFilename('2026-9-21.yml')).toThrow();
   });
 
-  it('respinge extensia .yaml', () => {
+  it('rejects the .yaml extension', () => {
     expect(() => idFromFilename('2026-09-14.yaml')).toThrow();
   });
 
@@ -381,13 +381,13 @@ const CMS_CONFIG = parse(
 
 function collection(name: string): CmsCollection {
   const matched = CMS_CONFIG.collections?.find((c) => c.name === name);
-  if (!matched) throw new Error(`config.yml nu conține colecția "${name}"`);
+  if (!matched) throw new Error(`config.yml does not contain the collection "${name}"`);
   return matched;
 }
 
 function field(fields: CmsField[] | undefined, name: string): CmsField {
   const hit = fields?.find((c) => c.name === name);
-  if (!hit) throw new Error(`config.yml nu conține câmpul "${name}"`);
+  if (!hit) throw new Error(`config.yml does not contain the field "${name}"`);
   return hit;
 }
 
@@ -427,7 +427,7 @@ describe('the CMS configuration', () => {
     expect(verdicts.some((v) => v.schema)).toBe(true);
     expect(verdicts.some((v) => !v.schema)).toBe(true);
     for (const v of verdicts) {
-      expect(v.cms, `ora ${JSON.stringify(v.time)}`).toBe(v.schema);
+      expect(v.cms, `time ${JSON.stringify(v.time)}`).toBe(v.schema);
     }
   });
 
