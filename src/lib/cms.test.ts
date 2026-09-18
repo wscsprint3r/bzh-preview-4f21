@@ -183,7 +183,7 @@ describe('the CMS form, checked against the schemas the build enforces', () => {
   });
 
   it('every collection has a label and a description in Romanian', () => {
-    for (const name of ['articles', 'pages', 'settings']) {
+    for (const name of ['articles', 'pages', 'settings', 'events', 'galerii', 'documente']) {
       const c = collection(name);
       expect(c.label, `${name} has no label`).toBeTruthy();
       expect(c.label).not.toMatch(/^[a-z_]+$/); // not the raw key
@@ -199,6 +199,18 @@ describe('the CMS form, checked against the schemas the build enforces', () => {
     // somewhere they will never see it.
     for (const field of ['title', 'date', 'published', 'category']) {
       expect(collectionField('articles', field).required).not.toBe(false);
+    }
+  });
+
+  it('the new collections require their schema-required fields', () => {
+    for (const field of ['title', 'start_date', 'location']) {
+      expect(collectionField('events', field).required).not.toBe(false);
+    }
+    for (const field of ['title', 'date', 'cover', 'images']) {
+      expect(collectionField('galerii', field).required).not.toBe(false);
+    }
+    for (const field of ['title', 'date', 'file']) {
+      expect(collectionField('documente', field).required).not.toBe(false);
     }
   });
 

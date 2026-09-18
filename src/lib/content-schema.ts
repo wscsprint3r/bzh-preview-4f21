@@ -1,6 +1,7 @@
 /**
- * What an article, a prose page and the parish's own details are, and the only
- * place that decides whether one of them is valid.
+ * What an article, a prose page, an event, a gallery, a document and the
+ * parish's own details are, and the only place that decides whether one of them
+ * is valid.
  *
  * Same principle as `./schema.ts`, for the same reason: the person editing this
  * content is a parish volunteer, not a developer, and the alternative to a
@@ -226,6 +227,77 @@ export const pageSchema = z
   )
   .describe('O pagină de text editabilă.');
 
+const HOURS = /^([01]?\d|2[0-3]):[0-5]\d$/;
+
+const optionalTime = z
+  .string()
+  .regex(HOURS, 'Ora se scrie ca 18:00.')
+  .transform((value) => {
+    const [hours, minutes] = value.split(':');
+    return `${hours.padStart(2, '0')}:${minutes}`;
+  })
+  .optional();
+
+export const eventSchema = z
+  .strictObject(
+    {
+      title: nonEmptyText('Evenimentul trebuie să aibă un titlu.', 'Titlul nu poate fi gol.'),
+      start_date: realDate,
+      end_date: realDate.optional(),
+      time: optionalTime,
+      location: nonEmptyText('Evenimentul trebuie să aibă un loc.', 'Locul nu poate fi gol.'),
+      image: z.string().trim().optional(),
+      poster: z.string().trim().optional(),
+      description: z.string().trim().optional(),
+    },
+    strictKeys,
+  )
+  .refine((event) => event.end_date === undefined || event.end_date >= event.start_date, {
+    message: 'Data de sfârșit nu poate fi înainte de data de început.',
+    path: ['end_date'],
+  })
+  .describe('Un eveniment de pe /evenimente.');
+
+export const gallerySchema = z
+  .strictObject(
+    {
+      title: nonEmptyText('Galeria trebuie să aibă un titlu.', 'Titlul nu poate fi gol.'),
+      date: realDate,
+      cover: nonEmptyText('Galeria trebuie să aibă o copertă.', 'Coperta nu poate fi goală.'),
+      images: z
+        .array(
+          z.strictObject(
+            {
+              file: nonEmptyText('Imaginea trebuie să aibă o cale.', 'Calea imaginii nu poate fi goală.'),
+              description: z.string().trim().optional(),
+            },
+            strictKeys,
+          ),
+        )
+        .min(1, { message: 'Galeria trebuie să conțină cel puțin o imagine.' }),
+    },
+    strictKeys,
+  )
+  .describe('Un album foto de pe /galerie.');
+
+export const documentSchema = z
+  .strictObject(
+    {
+      title: nonEmptyText('Documentul trebuie să aibă un titlu.', 'Titlul nu poate fi gol.'),
+      date: realDate,
+      file: z
+        .string()
+        .trim()
+        .regex(/^\/documente\/[a-z0-9-]+\.pdf$/, {
+          message:
+            'Fișierul trebuie să fie un PDF din /documente/, de exemplu /documente/pastorala-2025.pdf.',
+        }),
+      author: z.string().trim().optional(),
+    },
+    strictKeys,
+  )
+  .describe('O pastorală sau alt document PDF de pe /pastorale.');
+
 /**
  * The two values the live WordPress footer shows today, both Athos theme demo
  * leftovers: an address nobody reads and a French phone number nobody answers.
@@ -342,4 +414,7 @@ export const settingsSchema = z
 
 export type Article = z.infer<typeof articleSchema>;
 export type Page = z.infer<typeof pageSchema>;
+export type Event = z.infer<typeof eventSchema>;
+export type Gallery = z.infer<typeof gallerySchema>;
+export type Document = z.infer<typeof documentSchema>;
 export type Settings = z.infer<typeof settingsSchema>;

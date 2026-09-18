@@ -390,6 +390,103 @@ collections:
         label: Textul paginii
         widget: markdown
 
+  - name: events
+    label: Evenimente
+    label_singular: Eveniment
+    folder: src/content/events
+    extension: md
+    format: yaml-frontmatter
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    summary: "{{start_date}} — {{title}}"
+    description: >
+      Evenimentele parohiei. Apar pe pagina Evenimente, cele viitoare primele.
+    fields:
+      - { name: title, label: Titlu, widget: string }
+      - name: start_date
+        label: Data începutului
+        widget: datetime
+        date_format: YYYY-MM-DD
+        time_format: false
+        picker_utc: false
+      - name: end_date
+        label: Data sfârșitului
+        widget: datetime
+        date_format: YYYY-MM-DD
+        time_format: false
+        picker_utc: false
+        required: false
+        hint: Lăsați gol dacă evenimentul ține o singură zi.
+      - name: time
+        label: Ora
+        widget: string
+        required: false
+        hint: Ora de început, scrisă ca 18:00.
+      - { name: location, label: Locul, widget: string }
+      - { name: image, label: Imagine, widget: image, required: false }
+      - name: poster
+        label: Afiș (PDF)
+        widget: string
+        required: false
+        hint: Calea din /documente/, dacă există un afiș.
+      - { name: description, label: Descriere scurtă, widget: text, required: false }
+      - { name: body, label: Detalii, widget: markdown, required: false }
+
+  - name: galerii
+    label: Galerii foto
+    label_singular: Galerie
+    folder: src/content/galerii
+    extension: md
+    format: yaml-frontmatter
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    summary: "{{date}} — {{title}}"
+    description: >
+      Albumele foto. Fiecare album are o copertă și o listă de imagini.
+    fields:
+      - { name: title, label: Titlu, widget: string }
+      - name: date
+        label: Data
+        widget: datetime
+        date_format: YYYY-MM-DD
+        time_format: false
+        picker_utc: false
+      - { name: cover, label: Copertă, widget: image }
+      - name: images
+        label: Imagini
+        label_singular: Imagine
+        widget: list
+        summary: "{{fields.description}}"
+        fields:
+          - { name: file, label: Imaginea, widget: image }
+          - { name: description, label: Descriere, widget: string, required: false }
+
+  - name: documente
+    label: Documente
+    label_singular: Document
+    folder: src/content/documente
+    extension: md
+    format: yaml-frontmatter
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    summary: "{{date}} — {{title}}"
+    description: >
+      Pastoralele și alte documente PDF, afișate pe pagina Pastorale.
+      Fișierele se pun manual în /documente/ înainte de a le înregistra aici.
+    fields:
+      - { name: title, label: Titlu, widget: string }
+      - name: date
+        label: Data
+        widget: datetime
+        date_format: YYYY-MM-DD
+        time_format: false
+        picker_utc: false
+      - { name: file, label: "Fișier (calea din /documente/)", widget: string }
+      - { name: author, label: Autor, widget: string, required: false }
+
   # ---------------------------------------------------------------------------
   # SETTINGS — one file, opened as a form. A `files` collection with a single
   # `file`, not a folder: the footer and the calendar feed both read

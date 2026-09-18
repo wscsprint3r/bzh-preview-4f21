@@ -4,10 +4,18 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { daySchema } from './schema';
-import { CATEGORIES, articleSchema, pageSchema, settingsSchema } from './content-schema';
+import {
+  CATEGORIES,
+  articleSchema,
+  documentSchema,
+  eventSchema,
+  gallerySchema,
+  pageSchema,
+  settingsSchema,
+} from './content-schema';
 
 /*
- * WHAT THIS FILE PROVES: the three schemas really do reject what must not
+ * WHAT THIS FILE PROVES: the schemas really do reject what must not
  * pass, not merely accept what must - and they say so in Romanian, naming the field.
  *
  * A schema is easy to test badly. A test that takes a valid value, spreads
@@ -388,6 +396,76 @@ describe('settingsSchema', () => {
     expect(settingsSchema.parse({ ...MINIMAL_SETTINGS, map_url: 'https://maps.example.ch/x' }).map_url).toBe(
       'https://maps.example.ch/x',
     );
+  });
+});
+
+describe('the events schema', () => {
+  const event = {
+    title: 'Concert de colinde',
+    start_date: '2026-12-19',
+    time: '18:00',
+    location: 'Capela Sf. Katharina',
+    description: 'Concertul corului parohial.',
+  };
+
+  it('accepts a minimal event and leaves end_date absent', () => {
+    const parsed = eventSchema.parse(event);
+    expect(parsed.start_date).toBe('2026-12-19');
+    expect(parsed.end_date).toBeUndefined();
+  });
+
+  it('rejects an end_date before the start, naming the field', () => {
+    expect(() => eventSchema.parse({ ...event, end_date: '2026-12-18' })).toThrow(/înainte/);
+  });
+
+  it('rejects a time that is not HH:MM and normalises 9:30', () => {
+    expect(() => eventSchema.parse({ ...event, time: '25:00' })).toThrow(/18:00/);
+    expect(eventSchema.parse({ ...event, time: '9:30' }).time).toBe('09:30');
+  });
+
+  it('rejects a misspelled key', () => {
+    expect(() => eventSchema.parse({ ...event, locatie: 'x' })).toThrow(/Câmp necunoscut/);
+  });
+});
+
+describe('the galleries schema', () => {
+  const gallery = {
+    title: 'Sfintele Paști 2024',
+    date: '2024-05-05',
+    cover: '../../assets/content/galleries/2024/05/a.jpg',
+    images: [{ file: '../../assets/content/galleries/2024/05/a.jpg' }],
+  };
+
+  it('accepts one image and leaves its description absent', () => {
+    expect(gallerySchema.parse(gallery).images[0]!.description).toBeUndefined();
+  });
+
+  it('rejects an empty image list, naming the field', () => {
+    expect(() => gallerySchema.parse({ ...gallery, images: [] })).toThrow(/cel puțin o imagine/);
+  });
+
+  it('rejects a misspelled key', () => {
+    expect(() => gallerySchema.parse({ ...gallery, titlu: 'x' })).toThrow(/Câmp necunoscut/);
+  });
+});
+
+describe('the documents schema', () => {
+  const document = {
+    title: 'Pastorală',
+    date: '2025-04-20',
+    file: '/documente/pastorala-invierii-2025.pdf',
+  };
+
+  it('accepts a PDF under /documente/', () => {
+    expect(documentSchema.parse(document).file).toBe('/documente/pastorala-invierii-2025.pdf');
+  });
+
+  it('rejects a file that is not a /documente/ PDF', () => {
+    expect(() => documentSchema.parse({ ...document, file: '/uploads/x.pdf' })).toThrow(/documente/);
+  });
+
+  it('rejects a misspelled key', () => {
+    expect(() => documentSchema.parse({ ...document, autor: 'x' })).toThrow(/Câmp necunoscut/);
   });
 });
 
