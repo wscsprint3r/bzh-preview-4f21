@@ -62,6 +62,7 @@ import sharp from 'sharp';
 import {
   isInside,
   migrateImages,
+  migrateLegacyImages,
   originalName,
   requireUploads,
   UPLOADS_ROOT,
@@ -950,5 +951,45 @@ describe('a name that is nothing but a size', () => {
     } catch (e) { thrown = e.message; }
     spy.mockRestore();
     expect(`${thrown ?? ''}${printed.join('')}`).toMatch(/nothing but a size/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The legacy album tree: htdocs/galerie/, outside the repository like the
+// uploads tree and taking the same second lock. A containment rule that is
+// never shown an escape attempt is not known to contain.
+// ---------------------------------------------------------------------------
+
+describe('the legacy gallery tree', () => {
+  it('re-encodes into src/assets/content/galleries/legacy and returns the mapping', async () => {
+    const legacyRoot = await mkdtemp(join(tmpdir(), 'bzh-legacy-'));
+    await mkdir(join(legacyRoot, 'galerie'), { recursive: true });
+    await writeFile(join(legacyRoot, 'galerie/8.jpg'), await sharp({
+      create: { width: 3000, height: 1000, channels: 3, background: '#7a1f1f' },
+    }).jpeg().toBuffer());
+
+    const mapping = await migrateLegacyImages(['galerie/8.jpg'], legacyRoot, root);
+    expect(mapping.get('galerie/8.jpg')).toBe('src/assets/content/galleries/legacy/8.jpg');
+    // The same MAX_EDGE path, not a copy: the long edge really was resized.
+    const meta = await sharp(join(root, mapping.get('galerie/8.jpg'))).metadata();
+    expect(Math.max(meta.width, meta.height)).toBe(2400);
+    await rm(legacyRoot, { recursive: true, force: true });
+  });
+
+  it('POSITIVE CONTROL: a path that escapes the legacy tree stops the run', async () => {
+    // The escape is derived from a path the parser can produce (`galerie/` plus
+    // anything but a quote), so the second lock is the only thing between it and
+    // a read outside the tree.
+    const legacyRoot = await mkdtemp(join(tmpdir(), 'bzh-legacy-'));
+    await mkdir(join(legacyRoot, 'galerie'), { recursive: true });
+    await expect(
+      migrateLegacyImages(['galerie/../../afara-legacy.jpg'], legacyRoot, root),
+    ).rejects.toThrow(/second lock/);
+    await rm(legacyRoot, { recursive: true, force: true });
+  });
+
+  it('fails by name when the legacy tree is missing', async () => {
+    await expect(migrateLegacyImages(['galerie/8.jpg'], '/nu/exista/niciunde', root))
+      .rejects.toThrow(/uploads/i);
   });
 });

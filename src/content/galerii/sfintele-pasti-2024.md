@@ -1,0 +1,21 @@
+---
+title: "Sfintele Paști 2024"
+date: "2024-05-05"
+cover: "../../assets/content/2024/05/fbac9ffd-709b-4e9c-ab78-8f88862fdbee.jpg"
+images:
+  - file: "../../assets/content/2024/05/fbac9ffd-709b-4e9c-ab78-8f88862fdbee.jpg"
+  - file: "../../assets/content/2024/05/d137c008-87ff-423a-a95f-5da44b9f1534.jpg"
+  - file: "../../assets/content/2024/05/cb4639d0-4f6b-4749-8e47-d235de6eb87d.jpg"
+  - file: "../../assets/content/2024/05/c39c82c3-2dfd-4d4b-aff6-db70248ab278.jpg"
+  - file: "../../assets/content/2024/05/be4eda1b-f6a7-4231-9e45-a6f146676da2.jpg"
+  - file: "../../assets/content/2024/05/ba60dac9-bf83-4c29-99a9-56e1593c6f28.jpg"
+  - file: "../../assets/content/2024/05/b6e9814a-7b9b-459f-a1c3-8c6d22ae2093-1.jpg"
+  - file: "../../assets/content/2024/05/acc259dc-f496-467b-b9f3-69c3ef719670.jpg"
+  - file: "../../assets/content/2024/05/abbcfa7c-20c8-45e0-9de4-8eb4997816c4.jpg"
+  - file: "../../assets/content/2024/05/344f7287-b28a-45fd-a980-895cbddc0f5f.jpg"
+  - file: "../../assets/content/2024/05/121a986d-2946-458f-82c6-c447fd29f7f3.jpg"
+  - file: "../../assets/content/2024/05/22b8f1ad-d8d4-4e63-9ab3-35f6f2f1ef1e.jpg"
+  - file: "../../assets/content/2024/05/21f068ae-18f7-45ba-b521-17a2c9abc974.jpg"
+  - file: "../../assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d.jpg"
+  - file: "../../assets/content/2024/05/01f17557-6b7a-45cb-810e-b110e56c046c-1.jpg"
+---

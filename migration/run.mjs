@@ -1,5 +1,6 @@
 import { start, stop } from './db.mjs';
 import { extractArticles } from './articles.mjs';
+import { extractGalleries } from './galleries.mjs';
 import { extractPages } from './pages.mjs';
 import { writeUrlMap } from './url-map.mjs';
 
@@ -26,6 +27,7 @@ let summary;
 try {
   const posts = await extractArticles();
   const pages = await extractPages();
+  const galleries = await extractGalleries();
   const redirects = await writeUrlMap();
   summary = {
     postsWritten: posts.written,
@@ -33,6 +35,8 @@ try {
     pagesWritten: pages.written,
     imagesMigrated: posts.imagesMigrated + pages.imagesMigrated,
     imagesSkipped: posts.imagesSkipped + pages.imagesSkipped,
+    albums: galleries.albums,
+    galleryImages: galleries.images,
     redirects,
   };
 } finally {
@@ -46,6 +50,8 @@ process.stdout.write(
     `  pages written:   ${summary.pagesWritten}\n` +
     `  images migrated: ${summary.imagesMigrated}\n` +
     `  images skipped:  ${summary.imagesSkipped}\n` +
+    `  albums:          ${summary.albums}\n` +
+    `  gallery images:  ${summary.galleryImages}\n` +
     `  redirects:       ${summary.redirects}\n`,
 );
 
@@ -54,6 +60,8 @@ const mustBePositive = [
   ['posts published', summary.postsPublished],
   ['pages written', summary.pagesWritten],
   ['images migrated', summary.imagesMigrated],
+  ['albums', summary.albums],
+  ['gallery images', summary.galleryImages],
   ['redirects', summary.redirects],
 ];
 const zeros = mustBePositive.filter(([, count]) => count === 0).map(([name]) => name);

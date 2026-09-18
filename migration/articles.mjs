@@ -181,9 +181,10 @@ export function fileName(slug, date) {
  * `src/assets/...` is not a relative URL - it would ship as a broken `src`
  * with the image sitting right there in the repository. Articles live two
  * levels under `src/`, so `../../` is exactly `src/`. Task 8 owns the
- * built-output assertion that this shape really renders.
+ * built-output assertion that this shape really renders. `galleries.mjs`
+ * reuses it for the album covers and image lists, which sit at the same depth.
  */
-function markdownPath(repoRelative) {
+export function markdownPath(repoRelative) {
   return `../../${repoRelative.slice('src/'.length)}`;
 }
 
