@@ -289,7 +289,7 @@ async function main() {
      * THE SCRATCH BUILD MUST NOT WRITE THE REPOSITORY'S CONTENT CACHE.
      *
      * `node_modules` is symlinked into the scratch project so both builds run
-     * the same Astro, and Astro's default `cacheDir` is `node_modules/.astro` -
+     * the same Astro, and Astro's default `cacheDir` is node_modules/.astro -
      * so until this was pinned the scratch build wrote its FIXTURE entries into
      * the repository's data-store.json, through the symlink, and deleted
      * them from `src/` when the scratch was removed. The next real build then

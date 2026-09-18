@@ -716,8 +716,8 @@ describe('the fixtures the picker swaps into the scratch build', () => {
  *
  * `writeFixtureFiles` is the function `main` writes the scratch content with,
  * so these cases exercise the real writer rather than a re-implementation of
- * its rules. The offset is chosen non-zero and not a multiple of 7 from the
- * fixture above; the zero-offset case is the control that the fix does not
+ * its rules. The offset is chosen non-zero and a whole number of weeks from
+ * the fixture above; the zero-offset case is the control that the fix does not
  * distort the verbatim path.
  * ===========================================================================
  */
