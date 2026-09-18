@@ -377,12 +377,18 @@ up, and what to hand Phase 4.
 
 - **Routes**: `/noutati/`, one `/noutati/<slug>/` per published post, `/rss.xml`, and the
   nine prose pages at their new paths (`/parohia/istoric/`, `/servicii-liturgice/`,
-  `/resurse/doxologia/`, …), with the old paths mapped in `docs/url-map.csv`. The routes
-  Phase 2 did not build — `/events`, `/galerie`, `/pastorale`, `/contact`, `/doneaza` —
-  are Phase 3.
+  `/resurse/doxologia/`, …), with the old paths mapped in `docs/url-map.csv`. The footer
+  carries a **Pagini** menu built from the pages collection's `order`, so all nine are
+  reachable from every visitor page; `src/lib/build-output.itest.ts` fails if one of them
+  loses its only link. The routes Phase 2 did not build — `/events`, `/galerie`,
+  `/pastorale`, `/contact`, `/doneaza` — are Phase 3.
 - **CMS collections** in `/admin/`: **Articole** (create and delete), **Pagini** (the
   nine files, edit only) and **Setări** (the singleton carrying the parish's address,
-  phone, e-mail and IBANs). Labels are Romanian; field keys are English.
+  phone, e-mail and IBANs). Labels are Romanian; field keys are English. Uploads go to
+  `public/uploads` and are written as `/uploads/…`, an absolute URL the host serves;
+  `src/lib/cms.test.ts` asserts the pair and `src/lib/binaries.itest.ts` decodes every
+  committed upload. They are served as uploaded — no Astro AVIF/WebP variants — unlike the
+  migrated media under `src/assets/content/`.
 - **`docs/url-map.csv`** — 55 data rows, one per old path, emitted by
   `migration/url-map.mjs`. **Nothing serves it yet**; it is Phase 4's input for
   `_redirects`. The 32 held-back posts keep their rows, so an old link reaches

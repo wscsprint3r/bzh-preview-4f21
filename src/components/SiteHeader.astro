@@ -3,9 +3,9 @@ const path = Astro.url.pathname;
 /*
  * FIVE LINKS, and the fifth reaches the parish pages by their first entry
  * (`/parohia/istoric/`) rather than by an index that does not exist. The
- * grouping exists in the URLs, not in a dropdown: the header is the only
- * navigation on the site, so every page it reaches is one click from every
- * other one.
+ * grouping exists in the URLs, not in a dropdown. This is the primary
+ * navigation; the full nine-page menu is in `SiteFooter.astro`, which is what
+ * makes every prose page reachable from every visitor page.
  */
 const links = [
   { href: '/', text: 'Acasă' },

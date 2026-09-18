@@ -69,25 +69,33 @@ site_url: https://www.bor-zh.ch
 logo_url: /favicon.svg
 
 # WHERE AN UPLOAD GOES, AND WHAT PATH THE CMS WRITES FOR IT. Phase 2 added the
-# first real image field (`image`, on articles and pages), so the pair is no
-# longer hypothetical and is settled here.
+# first real image field (`image`, on articles and pages) and the markdown
+# widget renders body images today, so the pair is exactly as live as an
+# article with a picture in it.
 #
-# `media_folder` is where the file is WRITTEN: `src/assets/uploads`, inside
-# `src/`, because that is where Astro's image pipeline looks for assets.
-# `public_folder` is the string the CMS writes into frontmatter and resolves in
-# its own editor preview: `/src/assets/uploads`. That is not a URL the site
-# serves - `/src/...` is not a public path at all - and the pair is deliberately
-# not a URL pair; it is the CMS's own storage convention.
+# `media_folder` is where the file is WRITTEN: `public/uploads`, which the host
+# serves at its own path. `public_folder` is the string the CMS writes into
+# frontmatter and body markdown: `/uploads`, an absolute URL prefix.
 #
-# THIS PAIR IS STILL LATENT IN PHASE 2: nothing renders an `image` field yet, so
-# a wrong value has no symptom on the site today. The migration writes paths
-# relative to the content file (`../../assets/content/...`); the CMS will write
-# `/src/assets/uploads/...`; Phase 3's components have to resolve BOTH shapes,
-# and until then an uploaded image reaches the repository and no page. Named
-# here so a later phase does not read a frontmatter path in a shape no component
-# resolves and call it a mystery.
-media_folder: src/assets/uploads
-public_folder: /src/assets/uploads
+# BOTH HALVES ARE FORCED, AND BOTH WERE MEASURED THE HARD WAY.
+#
+#   - It must be ROOT-ABSOLUTE. A relative `../../assets/uploads` looked like
+#     the right Astro idiom and is what an earlier version of this comment
+#     recommended; it makes Sveltia abort its own startup. The `/admin/` browser
+#     pass in `scripts/a11y.mjs` caught it: the page reached 2 of its 5 expected
+#     request endpoints and never drew the sign-in screen, and the audit failed.
+#   - It must NOT be `/src/assets/uploads`. `/src/...` is not a URL the host
+#     serves - there is no `dist/src/` - so a body image written that way 404s
+#     on a green build. That was the Phase 2 defect: the markdown widget wrote
+#     it and the first volunteer to add a photo would have shipped a broken one.
+#
+# THE PRICE, NAMED: because these files live in `public/`, Astro's image
+# pipeline does not touch them - no AVIF/WebP variants, no responsive `srcset`.
+# `src/lib/binaries.itest.ts` still decodes every file under `public/uploads/`
+# through `sharp`, so what lands there is an image, but it is served as
+# uploaded. Migrated media keeps the full pipeline under `src/assets/content/`.
+media_folder: public/uploads
+public_folder: /uploads
 
 # HOW THE FILES ARE WRITTEN, and why both of these are load-bearing.
 #

@@ -512,6 +512,46 @@ describe('the prose pages', () => {
     }
   });
 
+  /*
+   * REACHABILITY, WHICH "A FILE EXISTS" DOES NOT CHECK. The nine routes were
+   * exactly that - routes. On the Phase 2 build, seven of them had no inbound
+   * link on any built page: `getStaticPaths` had built them, every guard above
+   * found their files, and a page nobody can navigate to looks identical to one
+   * everybody can. The footer's `Pagini` menu is the sitewide answer, and this
+   * asserts the property rather than the component: every prose page is linked
+   * from every visitor page.
+   *
+   * The subject is the CONTENT FILES (nine fixed pages), not a walk of `dist/`.
+   * The universal is `builtPages()` minus `admin/`, which is the CMS and carries
+   * no site chrome; that set is the footer's reach, so a page the footer is
+   * missing from fails here rather than being silently excluded.
+   */
+  it('every prose page is linked from every visitor page', () => {
+    const paths = pageFiles().map((f) => f.slug);
+    expect(paths.length, 'no page - the guard would prove nothing').toBe(9);
+    const visitorPages = builtPages().filter((p) => !p.startsWith('admin/'));
+    expect(
+      visitorPages.length,
+      'no built visitor page - the guard would prove nothing',
+    ).toBeGreaterThan(0);
+
+    const missing: string[] = [];
+    for (const path of paths) {
+      const needle = `href="/${path}/"`;
+      const carriers = visitorPages.filter((p) => readFileSync(DIST + p, 'utf8').includes(needle));
+      if (carriers.length !== visitorPages.length) {
+        missing.push(`${path} (${carriers.length}/${visitorPages.length})`);
+      }
+    }
+    process.stdout.write(
+      `\nProse-page inbound links: ${paths.length} page(s) against ${visitorPages.length} visitor page(s).\n`,
+    );
+    expect(
+      missing,
+      `prose pages not linked from every visitor page: ${missing.join(', ')}`,
+    ).toEqual([]);
+  });
+
   it('every built page really has content, not just a title', () => {
     /*
      * A page whose body failed to render looks completely correct: header,
@@ -580,6 +620,44 @@ describe('the prose pages', () => {
       `\nProse page body images: ${imagesChecked} over ${withImages.length} page(s):\n` +
         `${measured.map((m) => `  ${m}`).join('\n')}\n`,
     );
+  });
+});
+
+/*
+ * THE `/src/` NAMESPACE IS NOT A URL. `media_folder` under `src/` is right -
+ * uploads go through Astro's image pipeline - but a path like
+ * `/src/assets/uploads/x.jpg` is root-absolute, so Astro does not rewrite it,
+ * and there is no `dist/src/`, so it 404s. That was the CMS's `public_folder`
+ * and the markdown widget wrote it into article bodies on a green build.
+ * `cms.test.ts` keeps the generator honest; this catches any other source of
+ * the shape - a content file, a template, or a person editing an entry by hand.
+ */
+function unservedSrcRefs(html: string): string[] {
+  return [...html.matchAll(/(?:src|href)="(\/src\/[^"]*)"/g)].map((m) => m[1] as string);
+}
+
+describe('no built page references the unserved /src/ namespace', () => {
+  it('the detector fires on the shape the CMS used to write', () => {
+    expect(unservedSrcRefs('<img src="/src/assets/uploads/x.jpg">')).toEqual([
+      '/src/assets/uploads/x.jpg',
+    ]);
+    expect(unservedSrcRefs('<a href="/src/assets/uploads/x.jpg">x</a>')).toEqual([
+      '/src/assets/uploads/x.jpg',
+    ]);
+    // The positive control's other half: the resolved shape must not match.
+    expect(unservedSrcRefs('<img src="/_astro/x.webp">')).toEqual([]);
+  });
+
+  it('no built page carries one', () => {
+    const pages = builtPages();
+    expect(pages.length, 'no built page - the guard would prove nothing').toBeGreaterThan(0);
+    const hits = pages.flatMap((p) =>
+      unservedSrcRefs(readFileSync(DIST + p, 'utf8')).map((ref) => `${p} -> ${ref}`),
+    );
+    expect(
+      hits,
+      `built pages reference /src/, which the host does not serve:\n${hits.join('\n')}`,
+    ).toEqual([]);
   });
 });
 

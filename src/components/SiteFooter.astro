@@ -29,6 +29,18 @@ import { pickSettings } from '../lib/settings';
  * link that claims a format nothing checks.
  */
 const settings = pickSettings(await getCollection('settings'));
+
+/*
+ * THE FOOTER CARRIES THE FULL PAGE MENU, and it is here rather than in the
+ * header because the header's five links cannot hold nine pages without
+ * wrapping into a second row on a phone. `order` is the field the CMS labels
+ * "Ordinea în meniu" (10, 20, 30 …), so the sequence is the parish's rather
+ * than this file's. Before this menu the nine prose routes existed and seven
+ * had no inbound link anywhere on the site: built, tested and unreachable, the
+ * shape `build-output.itest.ts` now fails on.
+ */
+const pages = (await getCollection('pages')).sort((a, b) => a.data.order - b.data.order);
+const path = Astro.url.pathname;
 ---
 
 <footer class="sf">
@@ -48,6 +60,19 @@ const settings = pickSettings(await getCollection('settings'));
       <p class="eyebrow">Calendar</p>
       <p><a href="/program.ics">Abonare la program (.ics)</a></p>
     </div>
+    <nav class="sf-nav" aria-label="Pagini">
+      <p class="eyebrow">Pagini</p>
+      <ul>
+        {pages.map((page) => (
+          <li>
+            <a
+              href={`/${page.data.path}/`}
+              aria-current={path === `/${page.data.path}/` ? 'page' : undefined}
+            >{page.data.title}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
   </div>
 </footer>
 
@@ -55,4 +80,14 @@ const settings = pickSettings(await getCollection('settings'));
   .sf { border-top: 1px solid var(--rule); background: var(--raised); margin-top: 3rem; }
   .sf-in { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1.5rem; padding-block: 2rem; }
   .sf p { margin: 0.35rem 0 0; font-size: 0.875rem; color: var(--muted); }
+  /* Layout only: the link colours are global.css's `a`/`a:hover` pair, so the
+     menu does not need its own hover rule to stay legible. Only the current
+     page is coloured here, and its hover is written out beside it for the
+     reason SiteHeader.astro documents at length - a scoped colour ships above
+     the global (0,1,1) hover and silently freezes it. */
+  .sf-nav ul { list-style: none; margin: 0.35rem 0 0; padding: 0; }
+  .sf-nav li { margin: 0.15rem 0; }
+  .sf-nav a { font-size: 0.875rem; }
+  .sf-nav a[aria-current='page'] { color: var(--oxblood); }
+  .sf-nav a[aria-current='page']:hover { color: var(--oxblood-dk); }
 </style>

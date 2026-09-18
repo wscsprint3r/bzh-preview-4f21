@@ -77,27 +77,30 @@ function trackedFiles(): string[] {
  * files one by one is how an exemption stays visible. Task 6 commits the
  * migrated images - 7 files today, around a hundred once the pages follow -
  * and a hundred JPEGs cannot be named one by one. So the rule is now: the
- * favicon, or a path under the migrated-image directory whose extension is on
- * the allow-list `migration/media.mjs` already owns. **The list is imported
- * from there, never copied here**: a second copy is how two answers come to
- * disagree about what sharp can write.
+ * favicon, or a path under an image directory whose extension is on the
+ * allow-list `migration/media.mjs` already owns. There are TWO image
+ * directories: `src/assets/content/`, the migration's output, and
+ * `public/uploads/`, what the CMS writes. **The list is imported from there,
+ * never copied here**: a second copy is how two answers come to disagree about
+ * what sharp can write.
  *
  * A PREFIX RULE ON ITS OWN IS A PURE WEAKENING, SO IT DOES NOT SHIP ALONE.
  * "A file under `src/assets/content/`" would excuse a PHP payload renamed to
  * `.jpg` for as long as it sat there, and the old list would not have. What
  * replaces the name-by-name property is stronger than naming: `binaries.itest.ts`
- * decodes every file under that prefix through sharp and fails by name on any
+ * decodes every file under BOTH prefixes through sharp and fails by name on any
  * that does not decode. A name list is defeated by renaming a payload to
  * `.jpg`; a decoder is not. The positive control below proves both arms of the
  * predicate still fire, and `binaries.itest.ts` asserts the extension half
- * against every real file, so the prefix cannot quietly become dead.
+ * against every real file, so the prefixes cannot quietly become dead.
  */
 const CONTENT_PREFIX = 'src/assets/content/';
+const UPLOADS_PREFIX = 'public/uploads/';
 
 /** Whether this tracked path is bytes rather than text, and so not swept. */
 function isBinary(path: string): boolean {
   if (path === 'public/favicon.ico') return true;
-  if (!path.startsWith(CONTENT_PREFIX)) return false;
+  if (!path.startsWith(CONTENT_PREFIX) && !path.startsWith(UPLOADS_PREFIX)) return false;
   const extension = path.split('.').pop()?.toLowerCase() ?? '';
   return (ALLOWED_EXTENSIONS as readonly string[]).includes(extension);
 }
@@ -167,6 +170,12 @@ describe('the sweep really does have something to sweep', () => {
     // Negative control: the predicate does not match everything.
     expect(isBinary('src/lib/week.ts')).toBe(false);
     expect(isBinary('src/assets/content/logo.svg')).toBe(false);
+    // The CMS writes uploads to `public/uploads/`, and the SAME two-part rule
+    // covers them: an allowed extension is bytes and exempt, anything else
+    // stays in the sweep. `binaries.itest.ts` decodes the exempt ones.
+    expect(isBinary('public/uploads/poza.jpg')).toBe(true);
+    expect(isBinary('public/uploads/pliant.doc')).toBe(false);
+    expect(isBinary('public/uploads/logo.svg')).toBe(false);
   });
 
   it('the sources really do contain comma below', () => {

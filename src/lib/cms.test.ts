@@ -202,9 +202,36 @@ describe('the CMS form, checked against the schemas the build enforces', () => {
     }
   });
 
-  it('media_folder and public_folder are a matched pair, not two separate guesses', () => {
-    expect(CONFIG.media_folder).toBe('src/assets/uploads');
-    expect(CONFIG.public_folder).toBe('/src/assets/uploads');
+  /*
+   * TWO DIFFERENT PATHS, AND FOR TWO ROUNDS THIS TEST CONFLATED THEM. It pinned
+   * `media_folder` and `public_folder` to the same string as a "matched pair",
+   * checking neither against what the build does with it.
+   *
+   * `media_folder` is where the file is committed: `public/uploads`, which the
+   * host serves directly. `public_folder` is the URL prefix the CMS writes into
+   * markdown and frontmatter: `/uploads`. It MUST be root-absolute - Sveltia
+   * aborts its own startup on a relative one, measured by the `/admin/` browser
+   * pass, which then saw only 2 of its 5 expected requests - and it must not
+   * point into `/src/`, which the host does not serve.
+   */
+  it('media_folder and public_folder are a served pair, not two separate guesses', () => {
+    expect(CONFIG.media_folder).toBe('public/uploads');
+    expect(CONFIG.public_folder).toBe('/uploads');
+  });
+
+  it('the pair writes a served URL, not the unserved /src/ namespace', () => {
+    expect(
+      String(CONFIG.public_folder).startsWith('/'),
+      'public_folder must be root-absolute; Sveltia aborts on a relative one',
+    ).toBe(true);
+    expect(
+      String(CONFIG.public_folder).startsWith('/src/'),
+      'public_folder points into /src/, which is not a URL the host serves',
+    ).toBe(false);
+    expect(
+      String(CONFIG.public_folder).endsWith('/'),
+      'public_folder is a prefix without a trailing slash, or /uploads + /x.jpg doubles it',
+    ).toBe(false);
   });
 });
 
