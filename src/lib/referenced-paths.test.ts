@@ -53,18 +53,8 @@ const TRACKED_SET = new Set(TRACKED);
  */
 const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
   'Phase 2 names it in its plan and has not written it yet': [
-    'ArticleCard.astro',
-    'ArticleList.astro',
-    'noutati/index.astro',
-    'rss.xml.ts',
-    'src/components/ArticleCard.astro',
-    'src/components/ArticleList.astro',
-    'src/lib/articles.test.ts',
-    'src/lib/articles.ts',
     'src/lib/settings.test.ts',
     'src/lib/settings.ts',
-    'src/pages/noutati/index.astro',
-    'src/pages/rss.xml.ts',
   ],
   'inside an installed npm package or the vendored CMS bundle, which git does not track': [
     'chunks/react-dom.js',

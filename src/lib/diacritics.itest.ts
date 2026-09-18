@@ -70,7 +70,11 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
  *
  * So the same files are asked the inverse question against the list below.
  * It is affordable because the answer is small: the entire non-ASCII inventory
- * of this site's own output is eighteen characters.
+ * of this site's own output is twenty-two distinct characters, measured, and
+ * the list holds twenty-five - the three extras are letters that no page
+ * happens to use today (the capital Â and Ă and the capital Ț), and keeping
+ * them legal is what stops a heading that starts with one from being a build
+ * failure the day it appears.
  *
  * BUILT FROM NUMBERS, like everything else here. An escape sequence of the form
  * backslash-u-then-four-hex-digits does not survive being written to disk in
@@ -107,8 +111,17 @@ const ALLOWED: ReadonlyArray<readonly [number, string]> = [
   // Typography. Every one of these was measured in the output, not assumed.
   [0x00a7, '§  paragraph, from the spec references'],
   [0x00b7, '·  middle dot, separator in subtitles'],
+  // The guillemets arrived with the migrated articles: the psalm and tropar
+  // quotations in two posts open with U+00AB and close with U+00BB, which is
+  // legitimate Romanian religious typography rather than a corrupted quote.
+  [0x00ab, '«  left guillemet, opening a psalm quotation'],
+  [0x00bb, '»  right guillemet, closing a psalm quotation'],
   [0x2013, '–  short dialogue dash, in date ranges'],
   [0x2014, '—  pause dash'],
+  // The English opening quote in the 26 April 2025 adormiti post, paired with
+  // the Romanian U+201D closing one. Asymmetric, and it is the parish's own
+  // text from the old site: normalising it would be editing their words.
+  [0x201c, '“  English opening quotation mark, in one migrated post'],
   [0x201d, '”  Romanian closing quotation mark'],
   [0x201e, '„  Romanian opening quotation mark'],
   [0x2020, '†  cross, feast-day marker'],

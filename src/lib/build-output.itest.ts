@@ -1,6 +1,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
+import type { ArticleEntry } from './articles';
+import { articleSlug, publishedArticles } from './articles';
 import { CEDILLAS, COMMA_BELOW } from './cedilla';
 import { INDEXABLE } from './site';
 
@@ -28,6 +31,7 @@ import { INDEXABLE } from './site';
 
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const CONTENT = fileURLToPath(new URL('../content/services/', import.meta.url));
+const ARTICLES = fileURLToPath(new URL('../content/articles/', import.meta.url));
 
 /** RFC 5545 §3.1: the line break in an iCalendar stream is CRLF, always. */
 const CRLF = '\r\n';
@@ -139,9 +143,20 @@ function icsReferences(html: string): string[] {
  *
  * THE SET IS CLOSED: the test requires that the pages in `dist` be exactly
  * the keys here. A new page fails until somebody writes its number in —
- * including `admin/index.html` from Task 12, which probably deserves `0`,
- * because the CMS shell is not built from `Base.astro`. That is an answer
- * given once, not a weakening of the rule.
+ * including `admin/index.html`, which deserves `0`, because the CMS shell is
+ * not built from `Base.astro`. That is an answer given once, not a weakening
+ * of the rule.
+ *
+ * THE ARTICLE PAGES ARE THE ONE PART THAT IS DERIVED, and the reason is not
+ * convenience. One article page exists per published post, so a hand-written
+ * list of thirteen would make the next post the parish publishes fail this
+ * suite until a developer edits a test - a red build sent to the volunteer
+ * who pressed Save, for a page that is not wrong. The COUNT for those pages
+ * is still written by hand below (every article page goes through
+ * `Base.astro` and the footer, so it carries exactly two), and the set comes
+ * from the content files, which is the same subject `articleFiles()` already
+ * gives the unpublished guard. A page under `noutati/` that is not a
+ * published article's page matches neither and fails.
  */
 const ICS_REFERENCES: Record<string, number> = {
   // `<link rel="alternate">` in `<head>` + „Abonare la program (.ics)” in the footer.
@@ -156,7 +171,25 @@ const ICS_REFERENCES: Record<string, number> = {
    * subscribes to the calendar from `/program/`, like anyone else.
    */
   'admin/index.html': 0,
+  // The same two as the homepage; the index does not subscribe on its own.
+  'noutati/index.html': 2,
 };
+
+/**
+ * The hand-written counts plus one entry per published article page.
+ *
+ * The derivation is by SLUG, the public URL, so it cannot be satisfied by a
+ * page whose directory happens to carry the collection id with its date
+ * prefix - that page would exist and not be listed here, and the set equality
+ * in the test below would fail.
+ */
+function expectedIcsReferences(): Record<string, number> {
+  const expected = { ...ICS_REFERENCES };
+  for (const f of publishedArticleFiles()) {
+    expected[`noutati/${f.slug}/index.html`] = 2;
+  }
+  return expected;
+}
 
 /** The days the collection has, read from the file names — its primary key. */
 function collectionDays(): string[] {
@@ -181,6 +214,39 @@ function collectionServices(): number {
     n += [...readFileSync(CONTENT + f, 'utf8').matchAll(/^[ \t]*-[ \t]*time:/gm)].length;
   }
   return n;
+}
+
+/**
+ * Every article content file, its public slug and its parsed frontmatter.
+ *
+ * THE SUBJECT COMES FROM THE CONTENT FILES, NOT FROM `dist/`. A guard that
+ * derives its subject from the artifact it checks can only check what it
+ * recognised - and what a walk of `dist/noutati/` would fail to recognise is
+ * precisely the page that should not exist, which is the one the unpublished
+ * guard below is about. The collection is the source, the slug is the single
+ * rule from `articles.ts` that the route also uses, and both directions are
+ * asserted: every published article has a page, no unpublished one does.
+ *
+ * `parseYaml` rather than the schema: this reads what the files SAY so a
+ * mismatch between a file and the built output can fail here. Validation is
+ * `articleSchema`'s job, and it has already run by the time this suite does.
+ */
+function articleFiles(): { file: string; slug: string; frontmatter: Record<string, unknown> }[] {
+  return readdirSync(ARTICLES)
+    .filter((file) => file.endsWith('.md'))
+    .sort()
+    .map((file) => {
+      const text = readFileSync(ARTICLES + file, 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, `${file} has no frontmatter block`).not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
+      return { file, slug: articleSlug(file.slice(0, -'.md'.length)), frontmatter };
+    });
+}
+
+/** The article content files that say `published: true`. */
+function publishedArticleFiles(): { file: string; slug: string; frontmatter: Record<string, unknown> }[] {
+  return articleFiles().filter((f) => f.frontmatter.published === true);
 }
 
 const DAYS = collectionDays();
@@ -212,6 +278,26 @@ describe("this file's detectors can actually fire", () => {
     expect(DAYS.length).toBeGreaterThan(0);
     expect(collectionServices()).toBeGreaterThanOrEqual(DAYS.length);
   });
+
+  /*
+   * THE ARTICLE CORPUS'S SHAPE, asserted rather than trusted. The split is
+   * the contract the migration was measured against (13 dated posts publish,
+   * 32 undated ones wait in the archive), and every guard below - the
+   * published/unpublished page assertions and the feed comparison - proves
+   * nothing if the corpus is empty or all one way.
+   */
+  it('the article corpus really is 45 files: 13 published and 32 archived', () => {
+    const files = articleFiles();
+    expect(files).toHaveLength(45);
+    expect(files.filter((f) => f.frontmatter.published === true), 'published').toHaveLength(13);
+    expect(files.filter((f) => f.frontmatter.published === false), 'unpublished').toHaveLength(32);
+    /*
+     * F3's property, where it can fail: the public slug is the file name minus
+     * its date prefix, and two files sharing one slug would share one URL -
+     * the second page would overwrite the first with nothing else failing.
+     */
+    expect(new Set(files.map((f) => f.slug)).size, 'two articles share a slug').toBe(45);
+  });
 });
 
 describe('the build output', () => {
@@ -225,6 +311,159 @@ describe('the build output', () => {
 
   it('emits the calendar feed', () => {
     expect(read('program.ics')).toContain('BEGIN:VCALENDAR');
+  });
+});
+
+/*
+ * THE NEWS PAGES AND THE FEED. `/noutati`, the thirteen article pages and
+ * `/rss.xml` are three surfaces built from one filter; these assertions are
+ * the joint between the content files and what was actually written to dist.
+ */
+describe('the news pages', () => {
+  it('every published article has a page of its own, with a body on it', () => {
+    const published = publishedArticleFiles();
+    expect(published.length, 'no published article - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    for (const f of published) {
+      const html = read(`noutati/${f.slug}/index.html`);
+      /*
+       * The body reached the page, not merely the title. A page whose markdown
+       * failed to render looks completely correct - header, title, footer - so
+       * the assertion is on the text inside `.prose`, which is where the body
+       * lands and nowhere else. Measured over the thirteen: the shortest real
+       * body is 205 characters (the Christmas pastoral, an announcement with a
+       * link), so 100 catches an empty body with margin and does not pin the
+       * test to today's content.
+       */
+      const prose = html.split('<div class="prose"')[1]?.split('</article>')[0] ?? '';
+      const text = prose.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      expect(text.length, `${f.slug} has an empty body`).toBeGreaterThan(100);
+    }
+  });
+
+  it('no unpublished article has a page of its own in dist/', () => {
+    /*
+     * "Unpublished" must not mean "reachable by anyone with the link". Taken
+     * from the CONTENT FILES rather than from the built output, because a
+     * guard that derives its subject from the artifact it checks can only
+     * check what it recognised - and what it would fail to recognise here is
+     * precisely the page that should not exist.
+     */
+    const unpublished = articleFiles()
+      .filter((f) => f.frontmatter.published === false)
+      .map((f) => f.slug);
+    expect(unpublished.length, 'no unpublished article - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    for (const slug of unpublished) {
+      expect(existsSync(`${DIST}noutati/${slug}/index.html`), `${slug} must not have a page`)
+        .toBe(false);
+    }
+  });
+
+  /*
+   * F5: THE MIGRATED BODY IMAGES, PROVEN TO RENDER. The migration wrote each
+   * body `src` as `../../assets/content/<rest>`, and whether Astro's markdown
+   * pipeline resolves that shape is not something the migration or the schema
+   * can know - a broken body `<img>` fails nothing and 404s silently. So the
+   * built page is read, every `<img>` is found, and each `src` is followed to
+   * a real file inside `dist/`. A raw `assets/content/...` path is not
+   * root-relative and would fail the second assertion; a rewritten
+   * `/_astro/...` hashed asset is what this expects to see, and the measured
+   * srcs are printed so a later reader can check the claim against a run.
+   */
+  it('a body image in a published article resolves to a real file in dist/', () => {
+    const withImages = publishedArticleFiles().filter((f) =>
+      /!\[[^\]]*\]\([^)]+\)/.test(readFileSync(ARTICLES + f.file, 'utf8')),
+    );
+    expect(
+      withImages.length,
+      'no published article carries a body image - the guard would prove nothing',
+    ).toBeGreaterThan(0);
+
+    const measured: string[] = [];
+    for (const f of withImages) {
+      const html = read(`noutati/${f.slug}/index.html`);
+      const srcs = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1] as string);
+      expect(srcs.length, `${f.slug} has a markdown image but no <img> in its built page`)
+        .toBeGreaterThan(0);
+      for (const src of srcs) {
+        measured.push(`${f.slug} -> ${src}`);
+        // Root-relative, or `DIST + path` is not the file the host serves.
+        expect(src.startsWith('/'), `${src} on ${f.slug} is not root-relative`).toBe(true);
+        const path = (src.split(/[?#]/)[0] as string).slice(1);
+        expect(existsSync(DIST + path), `${src} on ${f.slug} does not resolve inside dist/`)
+          .toBe(true);
+        // And not the migration's own path, which would be an attribute that
+        // 404s: the asset pipeline is what must have rewritten it.
+        expect(path.includes('assets/content'), `${src} is the unmigrated path, not a built asset`)
+          .toBe(false);
+      }
+    }
+    process.stdout.write(`\nArticle body images:\n${measured.map((m) => `  ${m}`).join('\n')}\n`);
+  });
+});
+
+describe('the news feed', () => {
+  /*
+   * The host is pinned by hand rather than read from `Astro.site`, because
+   * the claim being checked is that the DEPLOYED links are absolute and
+   * correct. If the site ever moves, this line and `astro.config.mjs` move
+   * together - which is the point.
+   */
+  const SITE = 'https://www.bor-zh.ch';
+
+  it('is an RSS 2.0 document with a Romanian channel', () => {
+    const xml = read('rss.xml');
+    expect(xml).toContain('<rss version="2.0">');
+    expect(xml).toContain('<language>ro</language>');
+    expect(xml).toContain(`<link>${SITE}/</link>`);
+    /*
+     * No build clock. `lastBuildDate` from `Date.now()` would change the bytes
+     * between two builds of unchanged content; `rss.test.ts` proves the
+     * generator omits it, and this proves the built file agrees.
+     */
+    expect(xml).not.toContain('lastBuildDate');
+  });
+
+  it('carries exactly the published articles, newest first', () => {
+    const xml = read('rss.xml');
+    /*
+     * The expected order comes from the same function the endpoint uses, fed
+     * the content files. `id: f.slug` is enough for the ordering: the real id
+     * is the date prefix plus the slug, and the tiebreak only compares ids of
+     * articles that share a date, so equal prefixes cancel.
+     */
+    const entries: ArticleEntry[] = articleFiles().map((f) => ({
+      id: f.slug,
+      data: {
+        title: String(f.frontmatter.title ?? ''),
+        date: String(f.frontmatter.date),
+        published: f.frontmatter.published === true,
+        category: 'Noutati',
+        author: 'Parohia',
+      },
+    }));
+    const expected = publishedArticles(entries).map(
+      (e) => `${SITE}/noutati/${articleSlug(e.id)}/`,
+    );
+    const actual = [
+      ...xml.matchAll(/<link>(https:\/\/[^<]+\/noutati\/[^<]*)<\/link>/g),
+    ].map((m) => m[1] as string);
+    expect(actual.length, 'the feed is empty - the comparison would prove nothing')
+      .toBeGreaterThan(0);
+    expect(actual).toEqual(expected);
+  });
+
+  it('leaks no unpublished slug into the feed', () => {
+    const xml = read('rss.xml');
+    const unpublished = articleFiles().filter((f) => f.frontmatter.published === false);
+    expect(unpublished.length, 'no unpublished article - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    for (const f of unpublished) {
+      // The trailing slash keeps `mosii-de-toamna` from matching the published
+      // `mosii-de-toamna-3`.
+      expect(xml, `${f.slug} must not be in the feed`).not.toContain(`/noutati/${f.slug}/`);
+    }
   });
 });
 
@@ -444,11 +683,12 @@ describe('the built pages', () => {
   it('carries exactly the expected references to the feed, on every page', () => {
     const pages = builtPages();
     expect(pages.length, 'dist/ contains no page at all').toBeGreaterThan(0);
+    const expected = expectedIcsReferences();
     expect(pages, 'a built page not declared in ICS_REFERENCES').toEqual(
-      Object.keys(ICS_REFERENCES).sort(),
+      Object.keys(expected).sort(),
     );
     for (const page of pages) {
-      expect(icsReferences(read(page)).length, page).toBe(ICS_REFERENCES[page]);
+      expect(icsReferences(read(page)).length, page).toBe(expected[page]);
     }
   });
 

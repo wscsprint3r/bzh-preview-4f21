@@ -137,7 +137,68 @@ const DIST = 'dist';
 const PAGE_BUDGET = {
   'index.html': 45 * 1024,
   'program/index.html': 135 * 1024,
+  /*
+   * `/noutati/` GROWS WITH EVERY POST THE PARISH PUBLISHES, like `/program/`
+   * grows with every week. Measured on the Task 8 build: 14,562 bytes at 13
+   * published posts, of which 8,270 is the fixed skeleton (document, inlined
+   * CSS, header, footer) and 6,292 is the 13 cards - 484 bytes per card.
+   * Derived from those two numbers rather than built: the 30 KiB limit is
+   * crossed at 47 posts, and at 29 posts if every card carried a 300-byte
+   * summary, which none does today because `summary` is optional and the
+   * migrated corpus has none. Both numbers are arithmetic on the measured
+   * bytes, labelled as such because no 47-post build exists.
+   *
+   * Task 12 owns the pagination decision this limit defers; the comment is
+   * here so the red build that decision arrives as says how far away it was.
+   */
+  'noutati/index.html': 30 * 1024,
+  /*
+   * THE PATTERN IS A PREFIX, and this is the only entry that needs one:
+   * article pages are one per published post, so naming all thirteen by hand
+   * would mean the next post the parish publishes fails the build until
+   * somebody edits this file - a red build sent to the volunteer who pressed
+   * Save, for a page that is not wrong. A key ending in `*` matches every
+   * page whose path starts with what comes before it. Exact keys still win,
+   * which is why the /noutati/ index above is matched by its own entry and
+   * not by this one.
+   *
+   * The limit is one post's whole body, which is the feature rather than a
+   * defect - the same ruling `/program/` gets above. Measured over the
+   * thirteen on the final Task 8 build: smallest 9,468 bytes, largest 16,120
+   * (the 26 April 2025 adormiti post, which repeats its section five times).
+   * 35 KiB is 2.2x the largest, enough that a long pastoral letter ships
+   * without a conversation, and small enough that a post twice the size of
+   * the current longest is a red build asking whether it should be split
+   * rather than a silent 200 KB page.
+   */
+  'noutati/*': 35 * 1024,
 };
+
+/**
+ * The budget for one page, or `undefined` when nothing covers it.
+ *
+ * EXACT KEYS FIRST, then the longest prefix key ending in `*`. Longest wins so
+ * that two overlapping patterns resolve to the more specific one rather than
+ * to whichever happens to sit earlier in the object - object order is a fact
+ * about how somebody typed, and a budget must not be.
+ *
+ * The caller treats `undefined` as a failure, so the rule this function exists
+ * for is also the rule that keeps "every visitor page has a budget" intact: a
+ * page that matches neither shape still has no budget and still stops the
+ * build.
+ */
+function budgetFor(page) {
+  if (Object.hasOwn(PAGE_BUDGET, page)) return PAGE_BUDGET[page];
+  let best;
+  for (const [key, limit] of Object.entries(PAGE_BUDGET)) {
+    if (!key.endsWith('*')) continue;
+    const prefix = key.slice(0, -1);
+    if (!page.startsWith(prefix)) continue;
+    if (best === undefined || prefix.length > best.prefix.length) best = { prefix, limit };
+  }
+  return best?.limit;
+}
+
 /*
  * 3,800 bytes, not a round 3 KB or 4 KB. Astro inlines a script below roughly
  * 4,096 bytes; above that it emits a file and the request count and the caching
@@ -253,7 +314,7 @@ if (PAGES.length === 0) stop(`${DIST}/ contains no visitor page at all.`);
  * the one page nobody is measuring, which is how a new route ships at 200 KB on
  * a green build.
  */
-const withoutBudget = PAGES.filter((p) => !(p in PAGE_BUDGET));
+const withoutBudget = PAGES.filter((p) => budgetFor(p) === undefined);
 if (withoutBudget.length > 0) {
   stop(
     `Pages with no budget in PAGE_BUDGET: ${withoutBudget.join(', ')}.\n` +
@@ -342,7 +403,7 @@ const filesSeen = new Set();
 
 for (const page of PAGES) {
   const html = readFileSync(join(DIST, page), 'utf8');
-  report(page, statSync(join(DIST, page)).size, PAGE_BUDGET[page], 'bytes', PAGE_EXPLANATION);
+  report(page, statSync(join(DIST, page)).size, budgetFor(page), 'bytes', PAGE_EXPLANATION);
 
   // ---- JavaScript, inlined or emitted ----
   let js = 0;

@@ -1,0 +1,68 @@
+---
+import type { ArticleEntry } from '../lib/articles';
+import { CATEGORY_LABELS, articleSlug } from '../lib/articles';
+import { dayHeading } from '../lib/date-ro';
+
+/**
+ * One post in a list: the date, the category, the title as a link, and the
+ * summary when the post has one.
+ *
+ * `headingLevel` is a prop because this card is used in two outlines. On
+ * `/noutati` the page title is the only `<h1>`, so the cards are `<h2>` (the
+ * default). The homepage's news section (Task 11) sits under its own `<h2>`,
+ * so it passes `headingLevel={3}` - a card that always rendered the same level
+ * would skip one of the two. axe's `heading-order` rule is what fails if that
+ * is got wrong, which is why the level is a decision made at the call site
+ * rather than a constant here.
+ *
+ * The date reuses `dayHeading` from `date-ro.ts` and appends the year from the
+ * stored string: `YYYY-MM-DD` is the validated shape, so its first four
+ * characters are the year and no `Date` is built. An article spans years in a
+ * way a week band never does, so the year cannot be dropped the way it is on
+ * the homepage.
+ */
+interface Props {
+  article: ArticleEntry;
+  headingLevel?: 2 | 3;
+}
+
+const { article, headingLevel = 2 } = Astro.props;
+const { title, date, category, summary } = article.data;
+const href = `/noutati/${articleSlug(article.id)}/`;
+const Heading = `h${headingLevel}` as 'h2' | 'h3';
+---
+
+<article class="ac">
+  <p class="ac-meta">
+    <time datetime={date}>{dayHeading(date)} {date.slice(0, 4)}</time>
+    <span class="ac-category">{CATEGORY_LABELS[category]}</span>
+  </p>
+  <Heading class="ac-title"><a href={href}>{title}</a></Heading>
+  {summary && <p class="ac-summary">{summary}</p>}
+</article>
+
+<style>
+  .ac { padding-block: 1.25rem; border-bottom: 1px solid var(--rule); }
+  .ac-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0 0 0.35rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  /* The category is the one part of the meta line in oxblood, so the eye can
+     find it without it competing with the title. */
+  .ac-category { color: var(--oxblood); }
+  .ac-title { font-size: 1.25rem; margin: 0 0 0.4rem; }
+  /* No `color` here: the link keeps global.css's --gold-text, and therefore
+     global.css's `a:hover` too. Declaring a colour in this scoped block would
+     ship at (0,3,1) and silently defeat the global hover at (0,1,1) - the trap
+     `SiteHeader.astro` and `program/index.astro` both document. Only the
+     underline changes on hover, so nothing is lost. */
+  .ac-title a { text-decoration: none; }
+  .ac-title a:hover { text-decoration: underline; }
+  .ac-summary { margin: 0; color: var(--muted); }
+</style>
