@@ -353,26 +353,28 @@ describe('the news pages', () => {
        * the assertion is on the `.prose` block, which is where the body lands
        * and nowhere else.
        *
-       * THE EXPECTATION COMES FROM THE FILE, not from a length floor. A fixed
-       * "at least 100 characters" was measured against the shortest body of
-       * today (205), and a legitimate short announcement the parish publishes
-       * tomorrow would be a red build for a page that is not wrong. So the
-       * property is the one the guard exists for: a file with a body has
-       * something inside `.prose`. A file with no body is not asserted about.
+       * TAGS ARE STRIPPED AND WHITESPACE COLLAPSED, and the opening tag's own
+       * `>` is consumed, because the natural empty shape is
+       * `<div class="prose" ...></div></article>`: read without the strip it
+       * leaves `</div>`, which trims to non-empty and lets this guard pass
+       * while checking nothing. Measured by emptying one built page's prose
+       * with its closing tag intact.
+       *
+       * The floor is the property the guard exists for - prose reached the
+       * page - not a corpus count. The shortest body measured is 205
+       * characters of text, so 100 is 2x headroom and no ordinary content edit
+       * comes near it. A file with no body is not asserted about at all.
        */
       const source = readFileSync(ARTICLES + f.file, 'utf8');
       const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim();
       if (body.length === 0) continue;
       bodiesChecked += 1;
-      /*
-       * The opening tag's own `>` is consumed before the block is read. Split
-       * on `<div class="prose"` alone, an emptied block leaves a lone `>` that
-       * trims to non-empty, and this guard passes while checking nothing -
-       * measured by emptying one built page's prose and watching it pass.
-       */
       const afterOpen = html.split('<div class="prose"')[1] ?? '';
       const prose = afterOpen.slice(afterOpen.indexOf('>') + 1).split('</article>')[0] ?? '';
-      expect(prose.trim(), `${f.slug} has a body in its file but nothing in .prose`).not.toBe('');
+      const text = prose.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      expect(text, `${f.slug} has a body in its file but nothing in .prose`).not.toBe('');
+      expect(text.length, `${f.slug} has a body in its file but no prose in .prose`)
+        .toBeGreaterThan(100);
     }
     // Without this, a corpus of empty bodies would make the loop above pass
     // while checking nothing.
