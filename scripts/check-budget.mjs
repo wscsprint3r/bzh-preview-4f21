@@ -178,14 +178,16 @@ const PAGE_BUDGET = {
    * the honest shape: the pages inside a group are the same kind of document,
    * and a tenth would be a decision somebody made.
    *
-   * MEASURED ON THE TASK 9 BUILD, all nine:
-   *   parohia/istoric        13,346    parohia/consiliul      10,392
-   *   servicii-liturgice     21,385
-   *   comunitate/scoala      15,701    comunitate/pictura     11,324
-   *   resurse/catehism       10,845    resurse/studii         15,755
-   *   resurse/doxologia      18,074    resurse/linkuri        12,095
+   * MEASURED ON THE TASK 9 BUILD, all nine (the first measurement was taken
+   * before the phone navigation gap was tuned, which is why the numbers here
+   * are the final build's):
+   *   parohia/istoric        13,419    parohia/consiliul      10,465
+   *   servicii-liturgice     21,458
+   *   comunitate/scoala      15,774    comunitate/pictura     10,188
+   *   resurse/catehism       10,918    resurse/studii         15,828
+   *   resurse/doxologia      18,147    resurse/linkuri        12,168
    *
-   * The limits are 1.5-2.4x the largest in each group. What makes a prose
+   * The limits are 1.4-1.8x the largest in each group. What makes a prose
    * page grow is an image or a paragraph, so the headroom is what a normal
    * content edit costs - and `servicii-liturgice` is already the largest of
    * the nine at 21 KB because its text is a long list of the services and
@@ -248,8 +250,9 @@ const JS_BUDGET = 3800;
  * THE NINE PROSE PAGES ARE MADE OF IMAGES, and that is their content rather
  * than a defect: `resurse/doxologia/` is a shelf of magazine covers (31
  * images) and `parohia/consiliul/` is portraits beside names (8). Measured on
- * the Task 9 build, requests: 12, 13, 14, 15, 19, 22, 42 - six of the nine
- * over a global 12, and the honest conclusion is not that the pages are
+ * the Task 9 build, requests per page: 12, 12, 13, 13, 14, 15, 19, 22, 42 -
+ * seven of the nine over a global 12, and the honest conclusion is not that
+ * the pages are
  * wrong but that one number was covering pages the spec never gave it.
  *
  * SO THE TABLE IS THE SAME SHAPE AS `PAGE_BUDGET`, exact keys winning and a
