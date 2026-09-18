@@ -485,6 +485,36 @@ describe('the news pages', () => {
     }
     process.stdout.write(`\nArticle body images:\n${measured.map((m) => `  ${m}`).join('\n')}\n`);
   });
+
+  it('a frontmatter image on a published article reaches the page as a real file', () => {
+    const withImage = publishedArticleFiles().filter((f) => Boolean(f.frontmatter.image));
+    for (const f of withImage) {
+      const html = read(`noutati/${f.slug}/index.html`);
+      const match = html.match(/<img[^>]+src="(\/_astro\/[^"]+)"/);
+      expect(match, `${f.slug} has a frontmatter image but no built image on its page`).not.toBeNull();
+      expect(existsSync(`dist${match![1]}`), `${match![1]} is missing from dist/`).toBe(true);
+    }
+
+    /*
+     * WHY THERE IS NO `length > 0` CONTROL ABOVE, and the corpus fact it rests
+     * on: the three articles that carry a frontmatter image are all archived
+     * (`published: false` - the import destroyed their dates), and an archived
+     * post has no page, which the guard above proves. A non-zero control would
+     * therefore be a red build over the corpus rather than over a defect, and
+     * the parish dating and publishing one of the three must not be the thing
+     * that turns it red. The subject is derived from the content, so the loop
+     * above starts checking the day that happens. The half that can fire today
+     * is the other direction, below: a published article whose frontmatter
+     * carries no image must render no wrapper at all.
+     */
+    const without = publishedArticleFiles().filter((f) => !f.frontmatter.image);
+    expect(without.length, 'no published article without a frontmatter image - the control would prove nothing')
+      .toBeGreaterThan(0);
+    for (const f of without) {
+      expect(read(`noutati/${f.slug}/index.html`), `${f.slug} renders an image its frontmatter does not carry`)
+        .not.toContain('class="article-image"');
+    }
+  });
 });
 
 /*

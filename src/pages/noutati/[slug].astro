@@ -2,6 +2,7 @@
 import { getCollection, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import Base from '../../layouts/Base.astro';
+import ContentImage from '../../components/ContentImage.astro';
 import { articleSlug, publishedArticles } from '../../lib/articles';
 import { dayHeading } from '../../lib/date-ro';
 import { normalizeHeadingLevels } from '../../lib/markdown-headings';
@@ -55,6 +56,11 @@ const { Content } = await render({ ...entry, rendered });
       <time datetime={date}>{dayHeading(date)} {date.slice(0, 4)}</time>
       <span>{author}</span>
     </p>
+    {entry.data.image && (
+      <div class="article-image">
+        <ContentImage image={entry.data.image} alt={title} widths="(max-width: 34rem) 90vw, 40rem" loading="eager" />
+      </div>
+    )}
     <div class="prose"><Content /></div>
   </article>
 </Base>
@@ -72,6 +78,7 @@ const { Content } = await render({ ...entry, rendered });
     color: var(--faint);
   }
   .prose { max-width: var(--masura); }
+  .article-image { margin: 0 0 1.75rem; max-width: var(--masura); border: 1px solid var(--rule); }
   .prose :global(p) { margin: 0 0 1.25rem; }
   .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
   .prose :global(h3) { font-size: 1.25rem; margin-block: 1.75rem 0.5rem; }

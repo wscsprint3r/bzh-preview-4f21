@@ -1,0 +1,45 @@
+---
+import { Image } from 'astro:assets';
+import { publicUpload, resolveImage } from '../lib/images';
+
+interface Props {
+  image: string;
+  alt: string;
+  widths?: string;
+  loading?: 'lazy' | 'eager';
+}
+
+const { image, alt, widths = '100vw', loading = 'lazy' } = Astro.props;
+/*
+ * TWO SHAPES, TWO RENDERINGS, AND A MISSING PATH FAILS THE BUILD.
+ * The migration's `../../assets/content/…` is an Astro asset: imported, hashed
+ * and served as responsive AVIF/WebP. The CMS's `/uploads/…` is a committed
+ * public file, served byte-for-byte and NOT an Astro asset, so it cannot go
+ * through `<Image>`; a plain `<img>` is the honest rendering. Anything else —
+ * including the unserved `/src/…` namespace the CMS no longer writes — is a
+ * build error, because `image` is an unvalidated string and this is the only
+ * place a wrong path is ever caught.
+ */
+const asset = resolveImage(image);
+const upload = publicUpload(image);
+if (asset === null && upload === null) {
+  throw new Error(
+    `Imaginea nu a fost găsită: „${image}”. Folosiți o cale de tipul ` +
+      '../../assets/content/… sau /uploads/…, nu /src/….',
+  );
+}
+const widthsList = widths.split(',').map((w) => Number(w.trim())).filter((w) => w > 0);
+---
+
+{asset !== null ? (
+  <Image
+    src={asset}
+    alt={alt}
+    widths={widthsList.length > 0 ? widthsList : undefined}
+    sizes={widths}
+    loading={loading}
+    decoding="async"
+  />
+) : (
+  <img src={upload} alt={alt} loading={loading} decoding="async" />
+)}
