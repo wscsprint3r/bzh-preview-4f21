@@ -137,7 +137,102 @@ const DIST = 'dist';
 const PAGE_BUDGET = {
   'index.html': 45 * 1024,
   'program/index.html': 135 * 1024,
+  /*
+   * `/noutati/` GROWS WITH EVERY POST THE PARISH PUBLISHES, like `/program/`
+   * grows with every week.
+   *
+   * MEASURED ON THE FINAL PHASE 2 BUILD (Task 12): 14,892 bytes at 13 published
+   * posts, of which 8,644 is the fixed skeleton (document, inlined CSS, header,
+   * footer) and 6,248 is the 13 card elements - 480.6 bytes per card on
+   * average, 546 for the largest and 432 for the smallest. Derived from the
+   * measured bytes rather than built, because no build has that many posts:
+   * the 30 KiB limit is crossed at 46 posts at the measured average, at 41 if
+   * every future card were as large as the largest today, and at 29 if every
+   * card also carried a 300-byte summary. That last figure is the conservative
+   * one: `summary` is optional and 0 of the 13 migrated posts has one, so the
+   * measured 546-byte maximum does not bound a card that uses the field. All
+   * three are arithmetic on a measurement, not measurements.
+   *
+   * THE PAGINATION DECISION, MADE HERE: no pagination. At 13 posts the index
+   * is less than half its limit, and the crossing point is 33 posts past the
+   * corpus today. Pagination would add a route, a page concept in the CMS and
+   * a crawl surface to solve a problem that does not exist yet; the red build
+   * at 29-46 posts is the signal that it has arrived, and this comment is so
+   * that red build says how far away it was. Raising this limit instead is
+   * not the answer - the same rule as `index.html` and `/program/` above.
+   */
+  'noutati/index.html': 30 * 1024,
+  /*
+   * THE PATTERN IS A PREFIX, and this is the only entry that needs one:
+   * article pages are one per published post, so naming all thirteen by hand
+   * would mean the next post the parish publishes fails the build until
+   * somebody edits this file - a red build sent to the volunteer who pressed
+   * Save, for a page that is not wrong. A key ending in `*` matches every
+   * page whose path starts with what comes before it. Exact keys still win,
+   * which is why the /noutati/ index above is matched by its own entry and
+   * not by this one.
+   *
+   * The limit is one post's whole body, which is the feature rather than a
+   * defect - the same ruling `/program/` gets above. Measured over the
+   * thirteen on the final Task 8 build: smallest 9,468 bytes, largest 16,120
+   * (the 26 April 2025 adormiti post, which repeats its section five times).
+   * 35 KiB is 2.2x the largest, enough that a long pastoral letter ships
+   * without a conversation, and small enough that a post twice the size of
+   * the current longest is a red build asking whether it should be split
+   * rather than a silent 200 KB page.
+   */
+  'noutati/*': 35 * 1024,
+  /*
+   * THE NINE PROSE PAGES, three groups and one exact key. They are a fixed
+   * contract - the CMS does not create them - so a pattern per URL group is
+   * the honest shape: the pages inside a group are the same kind of document,
+   * and a tenth would be a decision somebody made.
+   *
+   * MEASURED ON THE FINAL PHASE 2 BUILD (Task 12), all nine:
+   *   parohia/istoric        13,338    parohia/consiliul      10,384
+   *   servicii-liturgice     21,377
+   *   comunitate/scoala      15,693    comunitate/pictura     10,107
+   *   resurse/catehism       10,837    resurse/studii         15,747
+   *   resurse/doxologia      18,066    resurse/linkuri        12,087
+   *
+   * The limits are 1.4-1.9x the largest in each group (the top of that range
+   * is `parohia/istoric`, 24 KiB against a measured 13,338 = 1.84x). What makes
+   * a prose page grow is an image or a paragraph, so the headroom is what a
+   * normal content edit costs - and `servicii-liturgice` is already the largest
+   * of the nine at 21 KB because its text is a long list of the services and
+   * the bank details, which is the page's content rather than a defect.
+   */
+  'parohia/*': 24 * 1024,
+  'comunitate/*': 24 * 1024,
+  'resurse/*': 30 * 1024,
+  'servicii-liturgice/index.html': 30 * 1024,
 };
+
+/**
+ * The budget for one page in one table, or `undefined` when nothing covers it.
+ *
+ * EXACT KEYS FIRST, then the longest prefix key ending in `*`. Longest wins so
+ * that two overlapping patterns resolve to the more specific one rather than
+ * to whichever happens to sit earlier in the object - object order is a fact
+ * about how somebody typed, and a budget must not be.
+ *
+ * The caller treats `undefined` as a failure, so the rule this function exists
+ * for is also the rule that keeps "every visitor page has a budget" intact: a
+ * page that matches neither shape still has no budget and still stops the
+ * build. Both tables below go through it for exactly that reason.
+ */
+function budgetFor(table, page) {
+  if (Object.hasOwn(table, page)) return table[page];
+  let best;
+  for (const [key, limit] of Object.entries(table)) {
+    if (!key.endsWith('*')) continue;
+    const prefix = key.slice(0, -1);
+    if (!page.startsWith(prefix)) continue;
+    if (best === undefined || prefix.length > best.prefix.length) best = { prefix, limit };
+  }
+  return best?.limit;
+}
+
 /*
  * 3,800 bytes, not a round 3 KB or 4 KB. Astro inlines a script below roughly
  * 4,096 bytes; above that it emits a file and the request count and the caching
@@ -151,7 +246,56 @@ const PAGE_BUDGET = {
  * step with the plan and the spec; do not lower it without changing those too.
  */
 const JS_BUDGET = 3800;
-const REQUEST_BUDGET = 12;
+
+/*
+ * THE REQUEST BUDGET IS PER PAGE, because the spec's number is per page.
+ *
+ * Spec §13 budgets "requests (homepage) <= 12". The first version of this
+ * script applied 12 to every page, which was true of the site while every
+ * other page carried at most one image: the fixed chrome is 11 requests (the
+ * document, two icons and eight `@font-face` files), so a one-image article
+ * measured exactly 12 and a two-image one measured 13.
+ *
+ * THE ARTICLE PAGES, MEASURED ON THE FINAL PHASE 2 BUILD (Task 12): 11
+ * requests with no body image, 12 with exactly one - four of the thirteen
+ * published posts carry one and land on the cap - and 13 with a second. THE
+ * LIMIT STAYS 12, so a post with two body images is a red build. That is the
+ * decision, not an oversight: the cap is the spec's, and the red build asks
+ * whether the second image belongs on the page rather than shipping the
+ * heavier page in silence. Raising it is the one answer Task 12 does not give.
+ *
+ * THE NINE PROSE PAGES ARE MADE OF IMAGES, and that is their content rather
+ * than a defect: `resurse/doxologia/` is a shelf of magazine covers (31
+ * images) and `parohia/consiliul/` is portraits beside names (8). Measured on
+ * the same build, requests per page: 12, 12, 13, 13, 14, 15, 19, 22, 42 -
+ * seven of the nine over a global 12, and the honest conclusion is not that
+ * the pages are wrong but that one number was covering pages the spec never
+ * gave it.
+ *
+ * SO THE TABLE IS THE SAME SHAPE AS `PAGE_BUDGET`, exact keys winning and a
+ * `*` meaning a prefix, and every page still has a limit - an unmeasured page
+ * still stops the build. The homepage keeps the spec's 12, and the final
+ * build's upper bound for it is 11. The prose limits are the measured count
+ * plus room for three to six more images (stated per group), because the next
+ * issue of the magazine is an image like the last one; an unrelated request,
+ * like a new script or a stylesheet, is still a red build.
+ */
+const REQUEST_BUDGET = {
+  // The spec's own budget, and the page it was written about.
+  'index.html': 12,
+  'program/index.html': 12,
+  'noutati/index.html': 12,
+  // No body image measures 11, one measures exactly 12, a second crosses it.
+  'noutati/*': 12,
+  // Measured 14 and 19; 24 is room for five more portraits on either page.
+  'parohia/*': 24,
+  // Measured 13 on both; 16 is room for three more images.
+  'comunitate/*': 16,
+  // Measured 12, 15, 22 and 42; 48 is room for six more magazine covers.
+  'resurse/*': 48,
+  // Measured 12; 16 is room for four more images.
+  'servicii-liturgice/index.html': 16,
+};
 
 /*
  * THE SCRIPT IS INLINED, AND THAT IS A DECISION - so it is asserted, not
@@ -213,14 +357,17 @@ function report(label, value, limit, unit = 'bytes', explanation = '') {
  */
 const PAGE_EXPLANATION = [
   '          Cel mai probabil NU este o greșeală într-un fișier de program.',
-  '          Ori pagina a căpătat ceva nou (markup, un stil, un script), ori a crescut',
-  '          cu ce s-a publicat: /program/ ține fiecare zi publicată, iar limita spune',
-  '          cât de departe poate publica parohia înainte ca pagina să înceteze a mai fi',
-  '          o pagină. Măsurat pe o săptămână parohială obișnuită: /program/ trece de',
-  '          limită în jurul a 58 de săptămâni publicate înainte.',
-  '          Dacă tocmai ați salvat o zi în /admin/: ziua s-a publicat și situl este în',
-  '          regulă. Anunțați persoana care se ocupă de site; nu este ceva de reparat',
-  '          din CMS.',
+  '          Ori o pagină a căpătat ceva nou (markup, un stil, un script), ori a crescut',
+  '          cu ce s-a publicat. Două pagini cresc de la sine:',
+  '            · /program/ ține fiecare zi publicată, iar limita se atinge în jurul a 58',
+  '              de săptămâni publicate înainte (măsurat pe o săptămână parohială obișnuită);',
+  '            · /noutati/ ține fiecare articol publicat, iar limita se atinge în jurul a 46',
+  '              de articole, pentru că fiecare articol adaugă circa 480 de octeți; dacă fiecare',
+  '              articol ar avea și un rezumat, limita s-ar atinge în jurul a 29 (măsurat la 13',
+  '              articole, apoi socotit).',
+  '          Dacă tocmai ați salvat o zi sau un articol în /admin/: s-a publicat și situl',
+  '          este în regulă. Anunțați persoana care se ocupă de site; nu este ceva de',
+  '          reparat din CMS.',
 ].join('\n');
 
 function stop(message) {
@@ -249,14 +396,21 @@ const PAGES = visitorPages();
 if (PAGES.length === 0) stop(`${DIST}/ contains no visitor page at all.`);
 
 /*
- * Every visitor page must have a budget. A page with none would otherwise be
- * the one page nobody is measuring, which is how a new route ships at 200 KB on
- * a green build.
+ * Every visitor page must have a budget in BOTH tables. A page with none
+ * would otherwise be the one page nobody is measuring, which is how a new
+ * route ships at 200 KB and forty requests on a green build.
  */
-const withoutBudget = PAGES.filter((p) => !(p in PAGE_BUDGET));
+const withoutBudget = PAGES.filter((p) => budgetFor(PAGE_BUDGET, p) === undefined);
 if (withoutBudget.length > 0) {
   stop(
     `Pages with no budget in PAGE_BUDGET: ${withoutBudget.join(', ')}.\n` +
+      'Give them a limit or exclude them explicitly; an unmeasured page is not a page in good order.',
+  );
+}
+const withoutRequestBudget = PAGES.filter((p) => budgetFor(REQUEST_BUDGET, p) === undefined);
+if (withoutRequestBudget.length > 0) {
+  stop(
+    `Pages with no request budget in REQUEST_BUDGET: ${withoutRequestBudget.join(', ')}.\n` +
       'Give them a limit or exclude them explicitly; an unmeasured page is not a page in good order.',
   );
 }
@@ -342,7 +496,7 @@ const filesSeen = new Set();
 
 for (const page of PAGES) {
   const html = readFileSync(join(DIST, page), 'utf8');
-  report(page, statSync(join(DIST, page)).size, PAGE_BUDGET[page], 'bytes', PAGE_EXPLANATION);
+  report(page, statSync(join(DIST, page)).size, budgetFor(PAGE_BUDGET, page), 'bytes', PAGE_EXPLANATION);
 
   // ---- JavaScript, inlined or emitted ----
   let js = 0;
@@ -435,7 +589,7 @@ for (const page of PAGES) {
   for (let i = 0; i < imports; i += 1) requests.push('@import');
   for (const u of urls) requests.push(`url(${u})`);
 
-  report(`  requests (upper bound) for ${page}`, requests.length, REQUEST_BUDGET, 'requests');
+  report(`  requests (upper bound) for ${page}`, requests.length, budgetFor(REQUEST_BUDGET, page), 'requests');
   console.log(
     `          ${inDocument} in the document + ${faces} @font-face` +
       `${imports > 0 ? ` + ${imports} @import` : ''}` +

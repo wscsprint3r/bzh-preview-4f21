@@ -52,31 +52,10 @@ const TRACKED_SET = new Set(TRACKED);
  * here that has since been written is a stale exemption and fails.
  */
 const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
-  'Phase 2 names it in its plan and has not written it yet': [
-    'ArticleCard.astro',
-    'ArticleList.astro',
-    'docs/url-map.csv',
-    'migration/articles.mjs',
-    'migration/articles.test.mjs',
-    'migration/pages.mjs',
-    'migration/pages.test.mjs',
-    'migration/run.mjs',
-    'migration/url-map.mjs',
-    'noutati/index.astro',
-    'rss.xml.ts',
-    'src/components/ArticleCard.astro',
-    'src/components/ArticleList.astro',
-    'src/lib/articles.test.ts',
-    'src/lib/articles.ts',
-    'src/lib/binaries.itest.ts',
-    'src/lib/settings.test.ts',
-    'src/lib/settings.ts',
-    'src/pages/noutati/index.astro',
-    'src/pages/rss.xml.ts',
-  ],
   'inside an installed npm package or the vendored CMS bundle, which git does not track': [
     'chunks/react-dom.js',
     'dist/sveltia-cms.mjs',
+    'public/admin/sveltia-cms.mjs',
     'schema/sveltia-cms.json',
     'sveltia-cms.js',
     'sveltia-cms.mjs',
@@ -89,6 +68,13 @@ const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
     'htdocs.tar.gz',
     'localhost.sql',
     'task-1-report.md',
+  ],
+  "build output and the wrapper's report: untracked by design, so a clone that has not run a build or a test does not have them": [
+    '.vitest/json/output.json',
+    'dist/admin/index.html',
+    'dist/index.html',
+    'dist/program.ics',
+    'dist/program/index.html',
   ],
   'named BECAUSE it must not exist - a rejected filename, a route that must 404, or the fixture for a broken reference': [
     '2026-02-30.yml',
@@ -148,13 +134,23 @@ export function isPathLike(token: string): boolean {
  * directory, where this repository is the `web/` folder; the bare-basename rule
  * is what lets a comment say `week.ts` rather than `src/lib/week.ts`. Generous
  * resolution only risks a false PASS, so the list stays short on purpose.
+ *
+ * TRACKED FILES ONLY, PLUS `node_modules`, AND THAT IS THE FIX FOR A FRESH CLONE.
+ * The root and `beside` arms used to be `existsSync`, which made this guard green
+ * only in a working tree where something had already been built: `dist/` is
+ * untracked, so `dist/index.html` resolved here and resolved to nothing in a
+ * clone that had not run a build — and `npm test` runs BEFORE the build in
+ * `test:all` and in `ci.yml`, so the first step of a fresh clone was red. Build
+ * outputs are named in `ABSENT_ON_PURPOSE` with their reason now, and the
+ * "no exemption has quietly become real" check below still fires if one is ever
+ * committed.
  */
 export function resolvesFrom(token: string, fromFile: string): boolean {
   const bare = token.replace(/^\.\//, '').replace(/^web\//, '');
-  if (TRACKED_SET.has(bare) || existsSync(bare)) return true;
-  if (existsSync(join('node_modules', bare))) return true;
+  if (TRACKED_SET.has(bare)) return true;
+  if (existsSync(join('node_modules', bare.replace(/^node_modules\//, '')))) return true;
   const beside = normalize(join(dirname(fromFile), token));
-  if (TRACKED_SET.has(beside) || existsSync(beside)) return true;
+  if (TRACKED_SET.has(beside)) return true;
   return TRACKED.some((f) => f.endsWith(`/${bare}`));
 }
 
@@ -249,7 +245,6 @@ describe('the detector can fire', () => {
       'unpkg.com/@sveltia/cms/package.json',
       'src/**/*.test.ts',
       'src/content/services/${day}.yml',
-      '.superpowers/sdd/.../task-12-report.md',
     ]) {
       expect(isPathLike(token), token).toBe(false);
     }

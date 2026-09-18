@@ -1,0 +1,12 @@
+---
+title: "POSTUL PAȘTELUI"
+date: "2024-06-08"
+published: false
+category: "Noutati"
+---
+
+Luni 27 februarie a început Postul Pastelui, care ține sapte săptămâni (până pe 15 aprilie). Dintre toate perioadele de post rânduite de Biserică, Postul Sfintelor Paști este cel mai lung și reprezintă un timp menit să adâncească an de an abordările și trăirile pe care trebuie să le avem în legătură cu marea Taină a Învierii Domnului. Suntem îndemnați, prin rânduieli și slujbe speciale, să urcăm pe drumul anevoios al ostenelilor la capătul căruia se întrezărește lumina cea lină a Învierii Domnului nostru Iisus Hristos.
+
+Când postim, nu ajunge să ne abținem de la diferite mâncăruri, ci trebuie să postim și sufletește, să ne rugăm mai mult, să ne iertăm semenii, să facem milostenie și fapte bune.
+
+Sfântul Diadoh al Foticeei spunea că, „postul este apărătorul a toată virtutea, începutul nevoinței, curmarea aprinderii păcatelor, curăția rugăciunii, luminătorul sufletului, paza minții, înmuierea învârtoșării, ușa străpungerii inimii, suspinul smerit, începutul liniștirii, străjerul ascultării, ușurarea somnului, sănătatea trupului, pricinuitorul nepătimirii, ușa și desfătarea raiului, cununa sfințeniei, începutul căii viețuirii creștine, maica rugăciunii, izvorul neprihănirii, învățătorul liniștirii și înaintemergătorul tuturor faptelor bune” (Filocalia vol.1).

@@ -3,6 +3,7 @@ import { SERVICE_NAMES, type Service, type ServiceDay } from './schema';
 import { formatWeekRange } from './date-ro';
 import { addDays } from './week';
 import { FIXTURE_TODAY, FIXTURE_DAYS } from './fixtures';
+import { cedillasIn } from './cedilla';
 import {
   ISLAND_DAYS,
   serviceLabel,
@@ -73,16 +74,16 @@ describe('serviceLabel', () => {
   });
 });
 
-describe('diacriticele etichetelor', () => {
+describe('the label diacritics', () => {
   it('uses comma below, not cedilla', () => {
     const allText = [
       ...SERVICE_NAMES.map((service) => serviceLabel({ time: '10:00', service })),
       serviceLabel({ time: '10:00', service: 'Sfânta Liturghie', detail: 'și Parastas' }),
     ].join('');
-    // The Turkish cedillas, written as escapes so the guard cannot be
-    // defeated by pasting in the very characters it rejects:
-    // U+015F, U+0163 and their uppercase forms U+015E, U+0162.
-    expect(allText).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    // The shared detector in `./cedilla` holds the four forbidden numbers;
+    // this file names none of them, in any spelling. The escape form is a copy
+    // of the number too, and the repository sweep now sees it.
+    expect(cedillasIn(allText)).toEqual([]);
     // And the proof that the guard has something to catch, not that it passes because the scanned
     // strings turned out to be ASCII. The first comes from SERVICE_NAMES, through serviceLabel.
     expect(allText).toMatch(/\u021B/); // ț, from „Liturghia Darurilor … sfințite"
@@ -147,7 +148,7 @@ describe('groupIntoWeeks', () => {
 
   it('refuses a day whose date does not exist', () => {
     expect(() => groupIntoWeeks([day('2026-02-30', [['10:00', 'Utrenia']])]))
-      .toThrow(/inexistent/);
+      .toThrow(/Nonexistent date/);
   });
 
   it('keeps two different services that start at the same time', () => {
@@ -224,7 +225,7 @@ describe('nextService', () => {
     expect(nextService(sampleDays, '2026-09-14', '08:30')).toMatchObject({ time: '08:30' });
   });
 
-  it('sare peste zilele anulate', () => {
+  it('skips cancelled days', () => {
     const d = [
       day('2026-09-16', [['18:30', 'Acatist']], { cancelled: true }),
       day('2026-09-20', [['10:00', 'Sfânta Liturghie']]),
@@ -244,10 +245,10 @@ describe('nextService', () => {
     // Without the guard, '15/09/2026' compares below every stored date: every day would
     // pass the filter and the function would confidently return the service from
     // 2026-09-14 07:30. A wrong time, stated with full conviction.
-    expect(() => nextService(sampleDays, '15/09/2026', '08:00')).toThrow(/invalid/);
-    expect(() => nextService(sampleDays, '2026-9-21', '08:00')).toThrow(/invalid/);
+    expect(() => nextService(sampleDays, '15/09/2026', '08:00')).toThrow(/Invalid date/);
+    expect(() => nextService(sampleDays, '2026-9-21', '08:00')).toThrow(/Invalid date/);
     // Caught by the existence check, not by the regex: February 30 passes the shape check.
-    expect(() => nextService(sampleDays, '2026-02-30', '08:00')).toThrow(/inexistent/);
+    expect(() => nextService(sampleDays, '2026-02-30', '08:00')).toThrow(/Nonexistent date/);
   });
 });
 
@@ -279,8 +280,8 @@ describe('upcomingWeeks', () => {
   it('refuses an invalid date, just as nextService does', () => {
     // The three functions that take a date reject it the same way, so there is no
     // single gate through which a broken date could enter the page silently.
-    expect(() => upcomingWeeks(sampleDays, '15/09/2026', 3)).toThrow(/invalid/);
-    expect(() => upcomingWeeks(sampleDays, '2026-02-30', 3)).toThrow(/inexistent/);
+    expect(() => upcomingWeeks(sampleDays, '15/09/2026', 3)).toThrow(/Invalid date/);
+    expect(() => upcomingWeeks(sampleDays, '2026-02-30', 3)).toThrow(/Nonexistent date/);
   });
 
   it('returns an empty list for a non-positive number of weeks', () => {
@@ -553,10 +554,11 @@ describe('romanianList', () => {
   });
 
   it('puts no cedilla in the conjunction', () => {
-    // The conjunction is "și": s with comma below, U+0219. The guard is written on the
-    // codepoint, not the glyph, so the file stays scannable for cedillas.
+    // The conjunction is "și": s with comma below, U+0219. The guard asks the
+    // shared detector, which holds the four forbidden numbers in `./cedilla`;
+    // this file names none of them, in any spelling.
     const joined = romanianList(['A', 'B']);
-    expect(joined).not.toMatch(/[\u015F\u0163\u015E\u0162]/);
+    expect(cedillasIn(joined)).toEqual([]);
     expect(joined).toMatch(/\u0219/);
   });
 });
@@ -643,9 +645,9 @@ describe('the data island (used by no page; see the note above)', () => {
     // Printed, not only checked: the number below is the one a later reader
     // checks against if a comment contradicts it.
     process.stdout.write(
-      `\nInsula la 104 săptămâni publicate: ${bytes} octeți (${ISLAND_DAYS} zile)` +
-        ` — nemărginită ar fi ${unbounded} octeți (${TWO_YEARS.length} zile).\n` +
-        `Pagina de atunci, fără insulă, măsura 20693 octeți; bugetul este ${45 * 1024}.\n`,
+      `\nThe island at 104 published weeks: ${bytes} bytes (${ISLAND_DAYS} days)` +
+        ` — unbounded it would be ${unbounded} bytes (${TWO_YEARS.length} days).\n` +
+        `The page then, without the island, measured 20693 bytes; the budget is ${45 * 1024}.\n`,
     );
     // The bound here is generous because a day can carry more services,
     // a `location` or a `detail` longer than the ones above. The real budget
@@ -756,14 +758,14 @@ describe('the data island (used by no page; see the note above)', () => {
       const server = nextService(days, TODAY, '00:00');
       const client = nextService(scheduleForIsland(days, TODAY), TODAY, '00:00');
       measuredLines.push(
-        `  primele ${String(n).padStart(2)} zile anulate → server ${server?.date ?? 'NULL'}` +
-          ` | client ${client?.date ?? 'NULL'} | acord: ${server?.date === client?.date}`,
+        `  first ${String(n).padStart(2)} cancelled days → server ${server?.date ?? 'NULL'}` +
+          ` | client ${client?.date ?? 'NULL'} | agree: ${server?.date === client?.date}`,
       );
       expect(server, `n=${n}: the whole schedule still has services`).not.toBeNull();
       expect(client?.date, `n=${n}: the client does not answer as the server does`).toBe(server?.date);
       checked += 1;
     }
-    process.stdout.write(`\nInsula cu zile anulate la început:\n${measuredLines.join('\n')}\n`);
+    process.stdout.write(`\nThe island with cancelled days at the start:\n${measuredLines.join('\n')}\n`);
     expect(checked).toBe(6);
 
     /*
@@ -776,7 +778,7 @@ describe('the data island (used by no page; see the note above)', () => {
       .filter((z) => z.date >= TODAY)
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
       .slice(0, ISLAND_DAYS);
-    expect(nextService(oldIsland, TODAY, '00:00'), 'vechea ordine chiar golea insula').toBeNull();
+    expect(nextService(oldIsland, TODAY, '00:00'), 'the old order really did empty the island').toBeNull();
     expect(nextService(days, TODAY, '00:00')).not.toBeNull();
   });
 

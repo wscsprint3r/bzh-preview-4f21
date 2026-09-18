@@ -1,0 +1,114 @@
+---
+import { getCollection, render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import { normalizeHeadingLevels } from '../lib/markdown-headings';
+import { stripEmptyAnchors } from '../lib/markdown-links';
+
+/*
+ * ONE DYNAMIC ROUTE FOR THE NINE PROSE PAGES, not nine near-identical files.
+ * They differ only in their content, and nine copies of this page would be
+ * nine places to fix a heading level, a measure or a link treatment.
+ *
+ * `getStaticPaths` reads the collection and builds `/${path}/` for each. The
+ * path is `pageSchema`'s `path` field - `parohia/istoric`, not the file name
+ * `istoric.md` - which is why the route is the single place the two are tied
+ * together. The schema already rejects a leading or trailing slash, so the
+ * `//istoric//` a stored slash would produce cannot reach here.
+ */
+export async function getStaticPaths() {
+  const pages = await getCollection('pages');
+  return pages.map((entry) => ({ params: { page: entry.data.path }, props: { entry } }));
+}
+
+interface Props {
+  entry: CollectionEntry<'pages'>;
+}
+
+const { entry } = Astro.props;
+const { title, description } = entry.data;
+
+/*
+ * Two transforms on the migrated body, both before `render` and both for
+ * defects the migration can reintroduce:
+ *
+ * 1. Heading levels are shifted so the shallowest is an `<h2>` under the
+ *    page's `<h1>`, exactly as `noutati/[slug].astro` does and for the same
+ *    measured reason: the migrated WordPress bodies can open at `###`/`####`,
+ *    which axe reports as `heading-order`. The nine pages happen to start at
+ *    `##` today, so this is a no-op for them - and it stays because the rule
+ *    belongs to the pipeline that renders a body, not to today's files.
+ * 2. Empty anchors are removed. `cursuri-de-pictura` carries ten
+ *    `[](https://www.bor-zh.ch/wp-content/uploads/…jpg)` links from its
+ *    WordPress gallery - invisible to a sighted visitor, unnamed for everyone
+ *    else, and a red `link-name` axe pass. `markdown-links.ts` states the rule
+ *    and why it is conservative.
+ *
+ * A COPY, not a mutation: `entry` is the object `getStaticPaths` handed in,
+ * and `render` reads `entry.rendered` (the loader renders collection entries
+ * eagerly), so the transformed body is passed in its place and the original is
+ * left alone. Image references survive because neither transform touches
+ * `<img>`, and `render` does its asset rewriting after this.
+ */
+const rendered = entry.rendered
+  ? {
+      ...entry.rendered,
+      html: stripEmptyAnchors(normalizeHeadingLevels(entry.rendered.html)),
+    }
+  : entry.rendered;
+const { Content } = await render({ ...entry, rendered });
+---
+
+<Base title={title} description={description}>
+  <div class="container prose">
+    <h1>{title}</h1>
+    <Content />
+  </div>
+</Base>
+
+<style>
+  /*
+   * The prose treatment mirrors `noutati/[slug].astro`, which carries the
+   * measurements behind each rule: the measure is `--masura`, headings step
+   * down the display face, and the blockquote is a rule rather than a colour.
+   *
+   * NO `color` IS DECLARED FOR `a`, deliberately. global.css's `a`/`a:hover`
+   * pair already colours the body links, and a scoped colour here would ship
+   * at (0,3,1) and silently defeat the (0,1,1) hover - the trap
+   * `SiteHeader.astro` documents. Nothing here declares `outline` either, so
+   * the global `:focus-visible` ring reaches these links too.
+   */
+  .prose { max-width: var(--masura); }
+  .prose h1 { margin-top: 2rem; margin-bottom: 1.25rem; }
+  .prose :global(p) { margin: 0 0 1.25rem; }
+  .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
+  .prose :global(h3) { font-size: 1.25rem; margin-block: 1.75rem 0.5rem; }
+  .prose :global(h4) { font-size: 1.0625rem; margin-block: 1.5rem 0.5rem; }
+  .prose :global(ul),
+  .prose :global(ol) { margin: 0 0 1.25rem; padding-left: 1.5rem; }
+  .prose :global(li) { margin-bottom: 0.35rem; }
+  .prose :global(blockquote) {
+    margin: 1.5rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--rule);
+    color: var(--muted);
+  }
+  .prose :global(img) { margin: 1.5rem 0; }
+  /*
+   * No page carries a code block today, and this is here for the same reason
+   * the heading normalisation is: the next migrated body can. `pre-wrap` is
+   * what keeps a long line from scrolling a phone sideways - measured on the
+   * one article that has such a block, at `innerWidth` 390: 2,091px of
+   * document width with `white-space: pre`, 390px with `pre-wrap`.
+   */
+  .prose :global(pre) {
+    margin: 1.5rem 0;
+    padding: 0.875rem 1rem;
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+</style>

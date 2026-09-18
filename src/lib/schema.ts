@@ -34,8 +34,9 @@ import { z } from 'astro/zod';
  *
  * It matters now because `./content-schema.ts` imports `strictKeys` from here,
  * and that module IS loaded by the migration scripts under plain node. The guard
- * is `content-schema.test.ts`'s 'se poate importa din node simplu', which
- * spawns a real child process; vitest alone would never catch a regression here.
+ * is `content-schema.test.ts`'s 'can be imported from plain node, without
+ * Astro and without vitest', which spawns a real child process; vitest alone
+ * would never catch a regression here.
  */
 import { dateParts } from './date-ro.ts';
 
@@ -68,7 +69,7 @@ export function idFromFilename(entry: string, content?: Record<string, unknown>)
     );
   }
   try {
-    dateParts(m[1]); // aruncă pentru date inexistente, de exemplu 2026-02-30
+    dateParts(m[1]); // throws for a date that does not exist, e.g. 2026-02-30
   } catch (cause) {
     // dateParts names the date but not the file, and its stack points into
     // date-ro.ts, so on its own it leaves you hunting for which entry is wrong.
@@ -271,7 +272,7 @@ export const daySchema = z
   /**
    * At least one service, even on a cancelled day.
    *
-   * The `anulat` exemption used to live here, and it quietly broke the promise
+   * The cancelled-day exemption used to live here, and it quietly broke the promise
    * in spec 8 that a cancelled day emits STATUS:CANCELLED rather than
    * disappearing. `ics.ts` writes one VEVENT per service, so a cancelled day
    * left with no times emits nothing at all: a subscriber who already has

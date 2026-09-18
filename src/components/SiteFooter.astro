@@ -1,20 +1,58 @@
 ---
-// Contact details are hardcoded in Phase 1 and move to a CMS-editable
-// settings singleton in Phase 2 (spec §6.7). The live site's footer currently
-// shows `info@website.com` and a French phone number, both Athos theme demo
-// leftovers — they are deliberately not carried over.
+import { getCollection } from 'astro:content';
+import { pickSettings } from '../lib/settings';
+
+/*
+ * The parish's contact details come from the `settings` singleton, so changing
+ * a phone number or the address is a CMS edit rather than a developer's. The
+ * live site's footer used to show `info@website.com` and a French phone number,
+ * both Athos theme demo leftovers, and they are deliberately not carried over.
+ *
+ * `pickSettings` stops the build when the file is missing or doubled — a footer
+ * that renders blank looks like a design choice, and this one is on every page.
+ * See its comment for the two diagnostics.
+ *
+ * THE ADDRESS RENDERS AS ONE LINE. It used to be split across a `<br />` before
+ * the street, which was a rendering choice made when the string was a literal
+ * here. There is no second address to keep in step, and where an editable
+ * string should break is not something this file can decide for every value a
+ * volunteer might type.
+ *
+ * THE PHONE IS PLAIN TEXT, NOT A `tel:` LINK, and that is a decision rather
+ * than an omission. The schema promises only that the field is non-empty: it
+ * does not constrain the format, and the value it holds today is Swiss national
+ * form ("076 512 04 52") while the number the old hardcoded link dialled was
+ * international (+41...). A deterministic `tel:` href built from the string
+ * cannot know the country code, so it would either dial the wrong number from
+ * abroad or need that code hardcoded back into this file — which is the second
+ * source of truth this change exists to remove. Text a phone recognises beats a
+ * link that claims a format nothing checks.
+ */
+const settings = pickSettings(await getCollection('settings'));
+
+/*
+ * THE FOOTER CARRIES THE FULL PAGE MENU, and it is here rather than in the
+ * header because the header's five links cannot hold nine pages without
+ * wrapping into a second row on a phone. `order` is the field the CMS labels
+ * "Ordinea în meniu" (10, 20, 30 …), so the sequence is the parish's rather
+ * than this file's. Before this menu the nine prose routes existed and seven
+ * had no inbound link anywhere on the site: built, tested and unreachable, the
+ * shape `build-output.itest.ts` now fails on.
+ */
+const pages = (await getCollection('pages')).sort((a, b) => a.data.order - b.data.order);
+const path = Astro.url.pathname;
 ---
 
 <footer class="sf">
   <div class="container sf-in">
     <div>
       <p class="eyebrow">Unde ne găsiți</p>
-      <p>Capela Sf. Katharina<br />Wehntalerstrasse 451, 8046 Zürich</p>
+      <p>{settings.address}</p>
     </div>
     <div>
       <p class="eyebrow">Contact</p>
       <p>
-        <a href="tel:+41765120452">076 512 04 52</a><br />
+        {settings.phone}<br />
         <a href="/program/">Program liturgic</a>
       </p>
     </div>
@@ -22,6 +60,19 @@
       <p class="eyebrow">Calendar</p>
       <p><a href="/program.ics">Abonare la program (.ics)</a></p>
     </div>
+    <nav class="sf-nav" aria-label="Pagini">
+      <p class="eyebrow">Pagini</p>
+      <ul>
+        {pages.map((page) => (
+          <li>
+            <a
+              href={`/${page.data.path}/`}
+              aria-current={path === `/${page.data.path}/` ? 'page' : undefined}
+            >{page.data.title}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
   </div>
 </footer>
 
@@ -29,4 +80,14 @@
   .sf { border-top: 1px solid var(--rule); background: var(--raised); margin-top: 3rem; }
   .sf-in { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1.5rem; padding-block: 2rem; }
   .sf p { margin: 0.35rem 0 0; font-size: 0.875rem; color: var(--muted); }
+  /* Layout only: the link colours are global.css's `a`/`a:hover` pair, so the
+     menu does not need its own hover rule to stay legible. Only the current
+     page is coloured here, and its hover is written out beside it for the
+     reason SiteHeader.astro documents at length - a scoped colour ships above
+     the global (0,1,1) hover and silently freezes it. */
+  .sf-nav ul { list-style: none; margin: 0.35rem 0 0; padding: 0; }
+  .sf-nav li { margin: 0.15rem 0; }
+  .sf-nav a { font-size: 0.875rem; }
+  .sf-nav a[aria-current='page'] { color: var(--oxblood); }
+  .sf-nav a[aria-current='page']:hover { color: var(--oxblood-dk); }
 </style>

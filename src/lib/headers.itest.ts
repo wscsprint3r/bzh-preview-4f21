@@ -202,12 +202,12 @@ describe('the security policy', () => {
     ['Strict-Transport-Security', 'max-age=31536000; includeSubDomains'],
     ['X-Content-Type-Options', 'nosniff'],
     ['Referrer-Policy', 'strict-origin-when-cross-origin'],
-  ])('trimite %s pe orice pagină', (name, value) => {
+  ])('sends %s on any page', (name, value) => {
     expect(headersForPath(RULES, '/program/').get(name)).toBe(value);
   });
 
   it.each(["frame-ancestors 'none'", "object-src 'none'", "base-uri 'none'", "default-src 'self'"])(
-    'politica include %s',
+    'the policy includes %s',
     (directive) => {
       expect(CSP).toContain(directive);
     },
@@ -256,8 +256,8 @@ describe('the security policy', () => {
     // Print what was measured, not only the verdict. Straight to stdout:
     // vitest's default reporter swallows `console.log` from a passing test.
     process.stdout.write(
-      `\nScripturi inline construite:\n${perPage.map(([p, h]) => `  ${p} -> ${h}`).join('\n')}\n` +
-        `script-src numește ${inPolicy.length}: ${inPolicy.join(' ')}\n`,
+      `\nBuilt inline scripts:\n${perPage.map(([p, h]) => `  ${p} -> ${h}`).join('\n')}\n` +
+        `script-src names ${inPolicy.length}: ${inPolicy.join(' ')}\n`,
     );
     expect(inPolicy, 'the hashes in script-src are not exactly those of the built scripts').toEqual(
       built,
@@ -342,7 +342,7 @@ describe('the references inside public/_headers', () => {
   const PATHS = mentionedPaths(SOURCE);
 
   it('really does find paths to check', () => {
-    process.stdout.write(`\npublic/_headers menționează ${PATHS.length} cale(i):\n${PATHS.map((c) => `  ${c}`).join('\n')}\n`);
+    process.stdout.write(`\npublic/_headers mentions ${PATHS.length} path(s):\n${PATHS.map((c) => `  ${c}`).join('\n')}\n`);
     expect(PATHS.length, `the path detector found ${PATHS.length} — nothing below would be checked`).toBeGreaterThan(3);
     // Named explicitly so a regex that stopped recognising a shape fails here
     // rather than quietly shrinking the list the cases below iterate.
@@ -366,7 +366,7 @@ describe('the references inside public/_headers', () => {
    */
   it('names no path outside backticks', () => {
     const bareTokens = pathsOutsideBackticks(SOURCE);
-    expect(bareTokens, `scrie-le între apostrofuri inverse, altfel rezolvarea nu le vede: ${bareTokens.join(', ')}`).toEqual([]);
+    expect(bareTokens, `write them between backticks, otherwise the resolver does not see them: ${bareTokens.join(', ')}`).toEqual([]);
   });
 
   it('the outside-backticks path detector really does fire, and leaves routes and URLs alone', () => {
@@ -377,7 +377,7 @@ describe('the references inside public/_headers', () => {
     expect(pathsOutsideBackticks('#   curl -sI https://x.pages.dev/program.ics')).toEqual([]);
   });
 
-  it.each(PATHS)('`%s` există', (path) => {
+  it.each(PATHS)('`%s` exists', (path) => {
     expect(existsSync(ROOT + path), `public/_headers points at ${path}, which does not exist`).toBe(true);
   });
 
@@ -419,7 +419,7 @@ describe('the calendar feed', () => {
   });
 });
 
-describe('administrarea', () => {
+describe('the admin area', () => {
   it('is not indexed', () => {
     expect(existsSync(DIST + 'admin/index.html'), 'the rule has a subject that does not exist').toBe(true);
     expect(headersForPath(RULES, '/admin/').get('X-Robots-Tag')).toBe('noindex');

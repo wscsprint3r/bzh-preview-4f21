@@ -1,0 +1,37 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import ArticleList from '../../components/ArticleList.astro';
+import { publishedArticles } from '../../lib/articles';
+
+/*
+ * THE ONLY FILTER IS `publishedArticles`. The same call feeds `/rss.xml` and
+ * the homepage's news section, and it is also what `[slug].astro` builds its
+ * `getStaticPaths` from - so an unpublished post cannot appear here while
+ * having a page, or have a page while being absent here.
+ */
+const articles = publishedArticles(await getCollection('articles'));
+---
+
+<Base
+  title="Noutăți"
+  description="Știrile și anunțurile Parohiei Ortodoxe Române Sfântul Nicolae din Zürich."
+>
+  <div class="container">
+    <h1 class="page-title">Noutăți</h1>
+
+    {articles.length === 0 ? (
+      /* The same shape of sentence `/program/` uses when the schedule is not
+         published: it says what is true (nothing has been published) without
+         inventing a reason for it. */
+      <p class="empty">Noutățile următoarei perioade nu au fost încă publicate.</p>
+    ) : (
+      <ArticleList articles={articles} />
+    )}
+  </div>
+</Base>
+
+<style>
+  .page-title { margin-top: 2rem; }
+  .empty { color: var(--muted); font-style: italic; }
+</style>

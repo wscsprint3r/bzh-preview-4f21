@@ -1,15 +1,20 @@
 # Sveltia CMS — the form a parish volunteer fills in instead of editing YAML.
 #
-# WHAT THIS FILE IS. It is the only description of the schedule that a
+# WHAT THIS FILE IS. It is the only description of the content that a
 # non-developer ever sees, so every label, hint and description here is Romanian
 # and is read as prose, not as a field name. Comments are for whoever maintains
 # it and stay in English, the same split the rest of this repository uses.
 #
-# THE ONE RULE THAT IS NOT NEGOTIABLE. The `options:` under `service` must stay
-# identical — same strings, same order — to `SERVICE_NAMES` in `src/lib/schema.ts`.
-# `src/lib/schema.test.ts` fails if they drift, because the alternative is a
-# dropdown that offers a value the build then rejects: the volunteer picks an
-# option this file gave them and gets a failed deploy for it.
+# THE RULES THAT ARE NOT NEGOTIABLE. Two lists in this file are copies of lists
+# the build enforces, and both must stay identical — same strings, same order:
+#
+#   - the `options:` under `service`, identical to `SERVICE_NAMES` in
+#     `src/lib/schema.ts`, checked by `src/lib/schema.test.ts`;
+#   - the `options:` under `category`, identical to `CATEGORIES` in
+#     `src/lib/content-schema.ts`, checked by `src/lib/cms.test.ts`.
+#
+# The alternative is a dropdown that offers a value the build then rejects: the
+# volunteer picks an option this file gave them and gets a failed deploy for it.
 #
 # Decap-compatible on purpose (spec §17): if Sveltia — pre-1.0, one maintainer —
 # ever has to be swapped out, this is a config change, not a rewrite.
@@ -18,7 +23,7 @@ backend:
   name: github
   # TODO(out-of-repo): replace with the real values once the GitHub repository
   # and the OAuth worker exist. Until then `/admin/` can render but cannot sign
-  # in. The steps are in `.superpowers/sdd/.../task-12-report.md`.
+  # in. The steps are in `docs/handover.md`.
   repo: <OWNER>/<REPO>
   branch: main
   base_url: https://sveltia-cms-auth.<SUBDOMAIN>.workers.dev
@@ -63,12 +68,33 @@ site_url: https://www.bor-zh.ch
 # correctly either way.
 logo_url: /favicon.svg
 
-# Nothing in Phase 1 uses these: the schedule has no image or file field, so no
-# upload can reach them. They are declared because `media_folder` is required.
-# Phase 2 adds the first real media field and must revisit the pair together —
-# `src/assets/uploads` is where Astro's image pipeline wants files, and a file
-# there is NOT served at `/uploads`.
-media_folder: src/assets/uploads
+# WHERE AN UPLOAD GOES, AND WHAT PATH THE CMS WRITES FOR IT. Phase 2 added the
+# first real image field (`image`, on articles and pages) and the markdown
+# widget renders body images today, so the pair is exactly as live as an
+# article with a picture in it.
+#
+# `media_folder` is where the file is WRITTEN: `public/uploads`, which the host
+# serves at its own path. `public_folder` is the string the CMS writes into
+# frontmatter and body markdown: `/uploads`, an absolute URL prefix.
+#
+# BOTH HALVES ARE FORCED, AND BOTH WERE MEASURED THE HARD WAY.
+#
+#   - It must be ROOT-ABSOLUTE. A relative `../../assets/uploads` looked like
+#     the right Astro idiom and is what an earlier version of this comment
+#     recommended; it makes Sveltia abort its own startup. The `/admin/` browser
+#     pass in `scripts/a11y.mjs` caught it: the page reached 2 of its 5 expected
+#     request endpoints and never drew the sign-in screen, and the audit failed.
+#   - It must NOT be `/src/assets/uploads`. `/src/...` is not a URL the host
+#     serves - there is no `dist/src/` - so a body image written that way 404s
+#     on a green build. That was the Phase 2 defect: the markdown widget wrote
+#     it and the first volunteer to add a photo would have shipped a broken one.
+#
+# THE PRICE, NAMED: because these files live in `public/`, Astro's image
+# pipeline does not touch them - no AVIF/WebP variants, no responsive `srcset`.
+# `src/lib/binaries.itest.ts` still decodes every file under `public/uploads/`
+# through `sharp`, so what lands there is an image, but it is served as
+# uploaded. Migrated media keeps the full pipeline under `src/assets/content/`.
+media_folder: public/uploads
 public_folder: /uploads
 
 # HOW THE FILES ARE WRITTEN, and why both of these are load-bearing.
@@ -218,3 +244,214 @@ collections:
             hint: >
               De exemplu „și Parastas”. Pentru „Altceva”, scrieți aici numele
               slujbei — altfel pe program scrie chiar cuvântul „Altceva”.
+
+  # ---------------------------------------------------------------------------
+  # ARTICLES — the migrated posts and everything the parish writes next.
+  #
+  # `slug` reproduces the migration's `YYYY-MM-DD-<slug>` filenames. The date
+  # prefix is stripped again for the public URL by `articleSlug` in
+  # `src/lib/articles.ts`, so a file named after its date still has the bare
+  # WordPress slug as its address. Without this template Sveltia would name a
+  # new file after the title alone: both work, but only one matches every file
+  # the migration wrote, and a corpus with two naming schemes is a corpus where
+  # the next reader has to check which rule applies to which file.
+  # ---------------------------------------------------------------------------
+  - name: articles
+    label: Articole
+    label_singular: Articol
+    folder: src/content/articles
+    extension: md
+    format: yaml-frontmatter
+    create: true
+    delete: true
+    slug: "{{fields.date}}-{{slug}}"
+    # Newest first, for the same reason as the schedule: the default puts the
+    # oldest post at the top of the list and gets worse with every publication.
+    sortable_fields:
+      fields: [date]
+      default:
+        field: date
+        direction: descending
+    summary: "{{date}} — {{title}}"
+    description: >
+      Articolele de pe pagina Noutăți. Cel mai nou articol apare primul, iar
+      articolele nepublicate rămân în listă, dar nu ajung pe site.
+    fields:
+      - name: title
+        label: Titlu
+        widget: string
+      - name: date
+        label: Data
+        widget: datetime
+        date_format: YYYY-MM-DD
+        time_format: false
+        picker_utc: false
+        hint: >
+          Data apariției. Ea așază articolul în lista de noutăți, cel mai nou
+          primul, și apare sub titlu.
+      - name: published
+        label: Publicat
+        widget: boolean
+        default: false
+        hint: >
+          Un articol nepublicat nu apare nicăieri pe site și nu are pagină
+          proprie, nici măcar dacă cineva are linkul. Bifați doar când textul
+          este gata.
+      - name: category
+        label: Categoria
+        widget: select
+        # IDENTICAL TO `CATEGORIES` IN `src/lib/content-schema.ts`. See the note
+        # at the top of this file before changing a single character here.
+        options:
+          - Noutati
+          - Cateheza
+        hint: >
+          Alegeți Cateheza pentru articolele de învățătură și Noutati pentru
+          anunțuri și știri.
+      - name: author
+        label: Autor
+        widget: string
+        default: Parohia
+        hint: Numele care apare sub titlu. De obicei „Parohia”.
+      - name: summary
+        label: Rezumat
+        widget: text
+        required: false
+        hint: >
+          Un text scurt care apare sub titlu în lista de noutăți. Dacă îl
+          lăsați gol, articolul apare doar cu titlul.
+      - name: image
+        label: Imagine
+        widget: image
+        required: false
+        hint: Imaginea care însoțește articolul.
+      - name: body
+        label: Textul articolului
+        widget: markdown
+
+  # ---------------------------------------------------------------------------
+  # PAGES — the nine prose pages, each addressed by its own `path` field.
+  #
+  # `create: false` and `delete: false` are deliberate: the nine files exist,
+  # each has a route built from its `path`, and a tenth page is a route
+  # decision — a new file would build, but nothing would link to it. The
+  # volunteer edits the text; the structure is the developer's.
+  # ---------------------------------------------------------------------------
+  - name: pages
+    label: Pagini
+    label_singular: Pagină
+    folder: src/content/pages
+    extension: md
+    format: yaml-frontmatter
+    create: false
+    delete: false
+    sortable_fields:
+      fields: [order, title]
+      default:
+        field: order
+        direction: ascending
+    description: >
+      Cele nouă pagini de text ale site-ului. Calea este adresa paginii și se
+      schimbă rar, cu grijă.
+    fields:
+      - name: title
+        label: Titlu
+        widget: string
+      - name: path
+        label: Cale
+        widget: string
+        # THE SAME SHAPE AS `pageSchema`'S REGEX in `src/lib/content-schema.ts`:
+        # lower-case ASCII, digits and single hyphens between segments, no
+        # leading or trailing slash. Checked here as well as at build time so
+        # the volunteer sees it in the form.
+        pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$', 'Scrieți calea cu litere mici, cifre și liniuțe, fără slash la început sau la sfârșit, de exemplu parohia/istoric.']
+        hint: >
+          Calea din adresa paginii, cu litere mici, cifre și liniuțe, fără
+          slash la început sau la sfârșit, de exemplu parohia/istoric.
+          Schimbarea căii schimbă adresa paginii.
+      - name: order
+        label: Ordine
+        widget: number
+        value_type: int
+        hint: >
+          Ordinea în meniu, din zece în zece (10, 20, 30), ca să rămână loc
+          pentru pagini noi între cele existente.
+      - name: description
+        label: Descriere
+        widget: text
+        required: false
+        hint: Textul scurt care apare sub titlu în rezultatele căutărilor.
+      - name: image
+        label: Imagine
+        widget: image
+        required: false
+        hint: Imaginea care însoțește pagina.
+      - name: body
+        label: Textul paginii
+        widget: markdown
+
+  # ---------------------------------------------------------------------------
+  # SETTINGS — one file, opened as a form. A `files` collection with a single
+  # `file`, not a folder: the footer and the calendar feed both read
+  # `src/content/settings/settings.yml`, and `pickSettings` in
+  # `src/lib/settings.ts` stops the build on zero or two entries. A folder
+  # collection would offer a "New" button that can only ever break that.
+  # ---------------------------------------------------------------------------
+  - name: settings
+    label: Setări
+    description: >
+      Datele parohiei, folosite de subsolul fiecărei pagini și de calendarul de
+      abonare.
+    files:
+      - name: settings
+        label: Datele parohiei
+        file: src/content/settings/settings.yml
+        format: yaml
+        fields:
+          - name: name
+            label: Numele parohiei
+            widget: string
+          - name: address
+            label: Adresa
+            widget: string
+            hint: Adresa completă, așa cum trebuie să apară pe site.
+          - name: phone
+            label: Telefon
+            widget: string
+          - name: email
+            label: E-mail
+            widget: string
+            type: email
+          - name: phone2
+            label: Al doilea telefon
+            widget: string
+            required: false
+          - name: email2
+            label: Al doilea e-mail
+            widget: string
+            type: email
+            required: false
+          - name: iban
+            label: IBAN
+            widget: string
+            required: false
+          - name: iban2
+            label: Al doilea IBAN
+            widget: string
+            required: false
+          - name: visiting_hours
+            label: Program de vizite
+            widget: text
+            required: false
+            hint: Când poate fi vizitat parohul sau biserica, dacă se știe.
+          - name: map_url
+            label: Adresa hărții
+            widget: string
+            required: false
+            # HTTPS BY NAME, like `settingsSchema` in `src/lib/content-schema.ts`:
+            # a bare URL rule would also accept http:// and javascript:, which in
+            # an `href` is the hole this project exists to close.
+            pattern: ['^https://', 'Adresa hărții trebuie să înceapă cu https://.']
+            hint: >
+              Adresa completă a hărții, cu https:// la început, de exemplu un
+              link Google Maps.

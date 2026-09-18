@@ -1,4 +1,4 @@
-# migrare
+# migration
 
 The Phase 2 migration harness: a disposable MariaDB container loaded from the
 2026-08-27 WordPress dump, so the migration tasks can query the old content
@@ -16,8 +16,8 @@ not part of the site build.
   path outside the repository root. That parent directory holds several GB of
   forensic backups of the compromised WordPress install plus a file of
   database credentials, and is deliberately excluded from git — see the root
-  `CLAUDE.md`. `requireDump()` throws a named, Romanian error
-  (`Dumpul nu a fost gasit`) rather than silently migrating zero rows when the
+  `CLAUDE.md`. `requireDump()` throws a named error carrying the path
+  (`The dump was not found: …`) rather than silently migrating zero rows when the
   dump is absent, which is the failure this harness exists to prevent.
 
 ## Usage
@@ -133,7 +133,7 @@ comparison, and `task-1-report.md` for the full negative-control run.
 
 ## `media.mjs` — the image pipeline
 
-`migreazaImagini(surse, radacinaRepo?, radacinaUploads?)` takes the `src`
+`migrateImages(sources, repoRoot?, uploadsRoot?)` takes the `src`
 attributes `imagesIn()` found, writes sanitised images under
 `src/assets/content/`, and returns a `Map` from each original `src` to its new
 repo-relative path. A `src` with no entry in that map is a reference the

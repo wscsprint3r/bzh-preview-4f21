@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { CEDILLAS, hasCommaBelow, cedillasIn, uPlus } from './cedilla';
+import { ALLOWED_EXTENSIONS } from '../../migration/media.mjs';
 
 /*
  * WHAT THIS PROVES: no file this repository tracks contains a Turkish cedilla
@@ -31,7 +32,8 @@ import { CEDILLAS, hasCommaBelow, cedillasIn, uPlus } from './cedilla';
  *
  * WHY ONLY THIS QUESTION HERE. `diacritics.itest.ts` also asks the stronger one -
  * is every non-ASCII character one this project expects - against a list of
- * twenty-two. That works over `dist/`, whose whole vocabulary is Romanian copy
+ * twenty-eight, of which the output's measured inventory uses twenty-five. That works over
+ * `dist/`, whose whole vocabulary is Romanian copy
  * plus a handful of typographic marks. It does not transfer: the tracked sources
  * carry over thirty distinct non-ASCII characters between English prose, Romanian
  * comments, box-drawing in documents and deliberate astral test fixtures, and an
@@ -69,15 +71,39 @@ function trackedFiles(): string[] {
 }
 
 /*
- * The tracked files that are BYTES rather than text, named one by one.
+ * The tracked files that are BYTES rather than text, as a PREDICATE.
  *
- * Listed by exact path rather than by extension, so a `.svg` that is text stays
- * swept and a new binary has to be looked at by a person. The case below fails on
- * any tracked file that is neither on this list nor decodable as UTF-8 text, so
- * the list cannot fall behind the repository the way `NO_EXTENSION` once fell
- * behind the build.
+ * It was a list holding one exact path, `public/favicon.ico`, because naming
+ * files one by one is how an exemption stays visible. Task 6 commits the
+ * migrated images - 7 files today, around a hundred once the pages follow -
+ * and a hundred JPEGs cannot be named one by one. So the rule is now: the
+ * favicon, or a path under an image directory whose extension is on the
+ * allow-list `migration/media.mjs` already owns. There are TWO image
+ * directories: `src/assets/content/`, the migration's output, and
+ * `public/uploads/`, what the CMS writes. **The list is imported from there,
+ * never copied here**: a second copy is how two answers come to disagree about
+ * what sharp can write.
+ *
+ * A PREFIX RULE ON ITS OWN IS A PURE WEAKENING, SO IT DOES NOT SHIP ALONE.
+ * "A file under `src/assets/content/`" would excuse a PHP payload renamed to
+ * `.jpg` for as long as it sat there, and the old list would not have. What
+ * replaces the name-by-name property is stronger than naming: `binaries.itest.ts`
+ * decodes every file under BOTH prefixes through sharp and fails by name on any
+ * that does not decode. A name list is defeated by renaming a payload to
+ * `.jpg`; a decoder is not. The positive control below proves both arms of the
+ * predicate still fire, and `binaries.itest.ts` asserts the extension half
+ * against every real file, so the prefixes cannot quietly become dead.
  */
-const BINARIES = ['public/favicon.ico'];
+const CONTENT_PREFIX = 'src/assets/content/';
+const UPLOADS_PREFIX = 'public/uploads/';
+
+/** Whether this tracked path is bytes rather than text, and so not swept. */
+function isBinary(path: string): boolean {
+  if (path === 'public/favicon.ico') return true;
+  if (!path.startsWith(CONTENT_PREFIX) && !path.startsWith(UPLOADS_PREFIX)) return false;
+  const extension = path.split('.').pop()?.toLowerCase() ?? '';
+  return (ALLOWED_EXTENSIONS as readonly string[]).includes(extension);
+}
 
 /** Whether a file's bytes are text: valid UTF-8 and no NUL. */
 function isText(path: string): boolean {
@@ -88,7 +114,8 @@ function isText(path: string): boolean {
 }
 
 const TRACKED = trackedFiles();
-const TO_SWEEP = TRACKED.filter((path) => !BINARIES.includes(path));
+const BINARIES = TRACKED.filter(isBinary);
+const TO_SWEEP = TRACKED.filter((path) => !isBinary(path));
 
 describe('the sweep really does have something to sweep', () => {
   // A guard that reads files must prove it read something. Without these, a
@@ -119,15 +146,36 @@ describe('the sweep really does have something to sweep', () => {
     const notText = TO_SWEEP.filter((path) => !isText(path));
     expect(
       notText,
-      `fișiere urmărite care nu se citesc ca text: ${notText.join(', ')}. ` +
-        'Dacă sunt binare, pune-le în BINARE; dacă nu, află de ce nu se decodează.',
+      `tracked files that do not read as text: ${notText.join(', ')}. ` +
+        'If they are images, their extension belongs in ALLOWED_EXTENSIONS in ' +
+        'migration/media.mjs; if not, find out why they do not decode.',
     ).toEqual([]);
   });
 
-  it('every path in BINARIES really is a tracked file', () => {
-    // The other direction: an exemption for a file that no longer exists stays in
-    // the code looking like a rule, ready to excuse something else under the same name.
-    for (const path of BINARIES) expect(TRACKED, path).toContain(path);
+  it('the binary predicate fires on the named file and on the migrated images', () => {
+    // BOTH ARMS, each against a file that really is tracked. The old case here
+    // checked that every named exemption still existed; with a predicate the
+    // equivalent question is whether each arm still matches anything, because
+    // an arm that stopped matching would silently widen the sweep.
+    expect(TRACKED, 'public/favicon.ico').toContain('public/favicon.ico');
+    expect(isBinary('public/favicon.ico')).toBe(true);
+    const migrated = TRACKED.filter((path) => path.startsWith(CONTENT_PREFIX));
+    expect(
+      migrated.length,
+      'no tracked file under src/assets/content/ - the prefix arm matches nothing',
+    ).toBeGreaterThan(0);
+    // And the extension half is what decides under the prefix: a file there
+    // whose extension is off the allow-list stays in the sweep and fails above.
+    expect(migrated.filter((path) => !isBinary(path)), 'off the allow-list').toEqual([]);
+    // Negative control: the predicate does not match everything.
+    expect(isBinary('src/lib/week.ts')).toBe(false);
+    expect(isBinary('src/assets/content/logo.svg')).toBe(false);
+    // The CMS writes uploads to `public/uploads/`, and the SAME two-part rule
+    // covers them: an allowed extension is bytes and exempt, anything else
+    // stays in the sweep. `binaries.itest.ts` decodes the exempt ones.
+    expect(isBinary('public/uploads/poza.jpg')).toBe(true);
+    expect(isBinary('public/uploads/pliant.doc')).toBe(false);
+    expect(isBinary('public/uploads/logo.svg')).toBe(false);
   });
 
   it('the sources really do contain comma below', () => {
@@ -141,7 +189,7 @@ describe('the sweep really does have something to sweep', () => {
 describe('the detector fires on each of the four', () => {
   // Positive control, built from numbers just like the set being searched for: a guard that
   // cannot fire verifies nothing.
-  it.each(CEDILLAS)('prinde %i', (cp) => {
+  it.each(CEDILLAS)('catches %i', (cp) => {
     const bad = `Înăl${String.fromCodePoint(cp)}area`;
     expect(cedillasIn(bad)).toHaveLength(1);
     expect(cedillasIn(bad)[0]).toContain(uPlus(cp));
@@ -149,7 +197,7 @@ describe('the detector fires on each of the four', () => {
 });
 
 describe('no Turkish cedilla in the tracked files', () => {
-  it('niciunul dintre ele', () => {
+  it('none of them', () => {
     const found = TO_SWEEP.flatMap((path) =>
       cedillasIn(readFileSync(ROOT + path, 'utf8')).map((where) => `${path}: ${where}`),
     );
@@ -157,14 +205,14 @@ describe('no Turkish cedilla in the tracked files', () => {
     // checks against if a comment contradicts it. `console.log` is not visible on
     // the green run; `process.stdout.write` passes through the reporter in both cases.
     process.stdout.write(
-      `\nMăturate pentru sedile: ${TO_SWEEP.length} fișier(e) urmărite ` +
-        `(din ${TRACKED.length}; ${BINARIES.length} binar(e) numit(e)) — ${found.length} apariție(i).\n`,
+      `\nSwept for cedillas: ${TO_SWEEP.length} tracked file(s) ` +
+        `(of ${TRACKED.length}; ${BINARIES.length} excluded as binary by the predicate) — ${found.length} occurrence(s).\n`,
     );
     expect(
       found,
-      `cele patru caractere interzise, scrise ca glife în fișiere urmărite:\n${found.join('\n')}\n` +
-        'Scrie-le pe cod — String.fromCodePoint(0x…) în cod, U+015F în proză. ' +
-        'Un fișier care le scrie nu mai poate fi măturat pentru ele.',
+      `the four forbidden characters, written as glyphs in tracked files:\n${found.join('\n')}\n` +
+        'Write them as code — String.fromCodePoint(0x…) in code, U+015F in prose. ' +
+        'A file that writes them out can no longer be swept for them.',
     ).toEqual([]);
   });
 });
@@ -187,32 +235,64 @@ describe('no Turkish cedilla in the tracked files', () => {
  * has to judge each, and learns to wave hits through - which is the habit both
  * rules exist to prevent.
  *
- * SCOPE, SAID RATHER THAN IMPLIED. This looks for the HEXADECIMAL spellings,
- * which is how every codepoint in this repository is written, and it is built
- * from `CEDILLAS` so this file names none of them. A decimal spelling would not be
- * caught: measured, the four decimal values appear zero times in tracked files
- * today, and a scan for them would collide with ordinary byte counts in reports -
- * a check that cries wolf is a check somebody relaxes. `U+015F` IN PROSE IS NOT A
- * COPY and is deliberately not swept: naming the characters by number in words is
- * exactly what the rule asks for.
+ * SCOPE, SAID RATHER THAN IMPLIED, AND THE SECOND SPELLING IS WHY THIS BLOCK
+ * EXISTS AGAIN. The `0x…` form is how a codepoint is written in code; the escape
+ * form is how it is written in a JavaScript string or regex, and it is ALSO A
+ * COPY OF THE NUMBER. Three tracked test files carried sixteen of them - guards
+ * over other text, written in the very spelling the guard that exists to notice
+ * copies could not see. Both forms are matched now. The escape pattern is BUILT
+ * FROM A CHARCODE, because a literal backslash next to `u` and four hex digits
+ * does not survive this repository's file-writing tools (see CLAUDE.md): a
+ * detector written with one would be silently decoded into the characters it
+ * hunts, which is the failure the glyph rule was written about.
+ *
+ * A decimal spelling is still not caught: measured, the four decimal values
+ * appear zero times in tracked files today, and a scan for them would collide
+ * with ordinary byte counts in reports - a check that cries wolf is a check
+ * somebody relaxes. `U+015F` IN PROSE IS NOT A COPY and is deliberately not
+ * swept: naming the characters by number in words is exactly what the rule asks
+ * for.
  * ===========================================================================
  */
 
 /** Where the four numbers are allowed to be written. */
 const CODEPOINTS_FILE = 'src/lib/cedilla.ts';
 
+/*
+ * THE BACKSLASH, BUILT FROM ITS CODE.
+ *
+ * A literal one written next to `u` and four hex digits does not survive this
+ * repository's file-writing tools: the tools decode the sequence into the
+ * character on the way to disk, silently (CLAUDE.md). The escape pattern below
+ * needs TWO of these characters followed by `u` to match one literal backslash,
+ * so it is assembled from this single character and never written out.
+ */
+const BACKSLASH = String.fromCharCode(92);
+
 /**
- * Every hexadecimal spelling of the four codepoints in `text`, with its offset.
+ * Every spelling of the four codepoints in `text`, with its offset.
+ *
+ * TWO FORMS: `0x` then any number of leading zeros then the hex digits, and a
+ * literal backslash then `u` then any number of leading zeros then the hex
+ * digits. Both are copies of the number and both are found.
  *
  * Built from `CEDILLAS`, like everything else here, so this file can be swept by
- * its own rule. `0x` then any number of leading zeros then the hex digits, so
- * the spelling with a leading zero and the one without are both found.
+ * its own rule.
  */
 export function hexNumbersIn(text: string): string[] {
   const found: string[] = [];
   for (const cp of CEDILLAS) {
-    const pattern = new RegExp(`0x0*${cp.toString(16)}\\b`, 'gi');
-    for (const m of text.matchAll(pattern)) found.push(`${uPlus(cp)} ca ${m[0]} la ${m.index}`);
+    const hex = cp.toString(16);
+    const patterns = [
+      new RegExp(`0x0*${hex}\\b`, 'gi'),
+      // `BACKSLASH + BACKSLASH` is what a regex source needs to match one
+      // literal backslash; the `u` and the digits are what the escape form
+      // carries.
+      new RegExp(`${BACKSLASH}${BACKSLASH}u0*${hex}\\b`, 'gi'),
+    ];
+    for (const pattern of patterns) {
+      for (const m of text.matchAll(pattern)) found.push(`${uPlus(cp)} as ${m[0]} at ${m.index}`);
+    }
   }
   return found.sort();
 }
@@ -224,8 +304,15 @@ describe('the four numbers are written in one file only', () => {
       const bad = `const X = [0x${cp.toString(16)}];`;
       expect(hexNumbersIn(bad), uPlus(cp)).toHaveLength(1);
     }
-    // And the other direction: comma below is not one of them.
+    // The escape spelling too, and assembled at run time: writing one literally
+    // here would put a copy of the number into the one file that sweeps for it.
+    for (const cp of CEDILLAS) {
+      const escape = `${BACKSLASH}u${cp.toString(16)}`;
+      expect(hexNumbersIn(escape), uPlus(cp)).toHaveLength(1);
+    }
+    // And the other direction: comma below is not one of them, in either form.
     expect(hexNumbersIn('String.fromCodePoint(0x0219)')).toEqual([]);
+    expect(hexNumbersIn(`${BACKSLASH}u0219`)).toEqual([]);
     // `U+015F` in prose is not a copy of the number and is not swept.
     expect(hexNumbersIn(`${uPlus(CEDILLAS[0])} in prose`)).toEqual([]);
   });
@@ -241,14 +328,14 @@ describe('the four numbers are written in one file only', () => {
       hexNumbersIn(readFileSync(ROOT + path, 'utf8')).map((where) => `${path}: ${where}`),
     );
     process.stdout.write(
-      `\nCele patru numere, scrise în hexazecimal: ${CODEPOINTS_FILE} le are pe toate ${CEDILLAS.length}; ` +
-        `restul celor ${TO_SWEEP.length - 1} fișiere urmărite — ${found.length} apariție(i).\n`,
+      `\nThe four numbers, written in hexadecimal or as escapes: ${CODEPOINTS_FILE} has all ${CEDILLAS.length}; ` +
+        `the other ${TO_SWEEP.length - 1} tracked files — ${found.length} occurrence(s).\n`,
     );
     expect(
       found,
-      `cele patru numere, scrise în afara lui ${CODEPOINTS_FILE}:\n${found.join('\n')}\n` +
-        'Importă-le din ./cedilla. Un al doilea exemplar face ca o măturare după numărul lor să ' +
-        'întoarcă mai multe fișiere, iar cititorul să se obișnuiască să treacă peste rezultate.',
+      `the four numbers, written outside ${CODEPOINTS_FILE}:\n${found.join('\n')}\n` +
+        'Import them from ./cedilla. A second copy makes a sweep for their number return ' +
+        'more files, and teaches the reader to skip past the results.',
     ).toEqual([]);
   });
 });

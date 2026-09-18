@@ -87,7 +87,7 @@ export function weekKey(date: string): string {
  */
 function partValue(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
   const hit = parts.find((p) => p.type === type);
-  if (!hit) throw new Error(`Intl nu a produs campul ${type}`);
+  if (!hit) throw new Error(`Intl did not produce the field ${type}`);
   return hit.value;
 }
 

@@ -276,11 +276,11 @@ export const settingsSchema = z
       iban2: z.string().trim().optional(),
       visiting_hours: z.string().trim().optional(),
       /*
-       * HTTPS CERUT ANUME, nu doar "o adresă". Un `z.url()` simplu primește și
-       * `http://`, și `ftp://`, și - măsurat - `javascript:alert(1)`, care pus
-       * într-un `href` ar fi exact felul de gaură din care a pornit tot
-       * proiectul. Restrângerea face și mesajul adevărat: fără ea el promitea un
-       * https pe care regula nu îl cerea.
+       * HTTPS REQUIRED BY NAME, not just "a URL". A plain `z.url()` accepts
+       * `http://`, and `ftp://`, and - measured - `javascript:alert(1)`, which
+       * put in an `href` would be exactly the kind of hole this whole project
+       * started from. The restriction also makes the message true: without it
+       * the message promised an https the rule did not require.
        */
       map_url: z
         .string()
@@ -317,5 +317,5 @@ export const settingsSchema = z
   .describe('Datele parohiei, editabile din CMS.');
 
 export type Article = z.infer<typeof articleSchema>;
-export type Pagina = z.infer<typeof pageSchema>;
+export type Page = z.infer<typeof pageSchema>;
 export type Settings = z.infer<typeof settingsSchema>;

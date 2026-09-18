@@ -1,0 +1,118 @@
+---
+import { getCollection, render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { articleSlug, publishedArticles } from '../../lib/articles';
+import { dayHeading } from '../../lib/date-ro';
+import { normalizeHeadingLevels } from '../../lib/markdown-headings';
+
+/*
+ * `getStaticPaths` FROM `publishedArticles`, NEVER FROM THE RAW COLLECTION.
+ * This is the surface the whole one-filter rule exists for: a raw
+ * `.filter((a) => a.data.published)` written here and forgotten would give all
+ * 32 archived posts a live URL of their own, and nothing on the page would look
+ * wrong. `build-output.itest.ts` asserts the other direction - that every
+ * unpublished post's directory is absent from `dist/`.
+ */
+export async function getStaticPaths() {
+  const entries = await getCollection('articles');
+  return publishedArticles(entries).map((entry) => ({
+    params: { slug: articleSlug(entry.id) },
+    props: { entry },
+  }));
+}
+
+interface Props {
+  entry: CollectionEntry<'articles'>;
+}
+
+const { entry } = Astro.props;
+const { title, date, author, summary } = entry.data;
+
+/*
+ * The body's heading levels are shifted so its shallowest heading is an
+ * `<h2>` under the page's `<h1>`. The migrated WordPress bodies wrote their
+ * subheadings as `###`/`####`, and axe reported `heading-order` on every one
+ * of the thirteen published pages - see `lib/markdown-headings.ts` for the
+ * measurement and the rule.
+ *
+ * A COPY, not a mutation: `entry` is the object `getStaticPaths` handed in,
+ * and `render` reads `entry.rendered` (the loader renders collection
+ * entries eagerly), so the transformed body is passed in its place and the
+ * original is left alone. Image references survive because only heading tags
+ * are rewritten, and `render` does its asset rewriting after this.
+ */
+const rendered = entry.rendered
+  ? { ...entry.rendered, html: normalizeHeadingLevels(entry.rendered.html) }
+  : entry.rendered;
+const { Content } = await render({ ...entry, rendered });
+---
+
+<Base title={title} description={summary}>
+  <article class="container">
+    <h1 class="article-title">{title}</h1>
+    <p class="article-meta">
+      <time datetime={date}>{dayHeading(date)} {date.slice(0, 4)}</time>
+      <span>{author}</span>
+    </p>
+    <div class="prose"><Content /></div>
+  </article>
+</Base>
+
+<style>
+  .article-title { margin-top: 2rem; max-width: var(--masura); }
+  .article-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0 0 1.75rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .prose { max-width: var(--masura); }
+  .prose :global(p) { margin: 0 0 1.25rem; }
+  .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
+  .prose :global(h3) { font-size: 1.25rem; margin-block: 1.75rem 0.5rem; }
+  .prose :global(h4) { font-size: 1.0625rem; margin-block: 1.5rem 0.5rem; }
+  .prose :global(ul),
+  .prose :global(ol) { margin: 0 0 1.25rem; padding-left: 1.5rem; }
+  .prose :global(li) { margin-bottom: 0.35rem; }
+  .prose :global(blockquote) {
+    margin: 1.5rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--rule);
+    color: var(--muted);
+  }
+  .prose :global(img) { margin: 1.5rem 0; }
+  /*
+   * The corpus has exactly one code block, and it is a migration artifact: an
+   * indented WordPress list in the Hramul 2024 post. Its lines are long
+   * enough to scroll a phone sideways if the box is left at the browser
+   * default, and nothing audits horizontal overflow - `npm run a11y` passed
+   * with the page already overflowing. Measured in headless Chrome at
+   * `innerWidth` 390: with `white-space: pre` the document's `scrollWidth` is
+   * 2,091px; with `pre-wrap` it is 390. Wrapping is right for a list and
+   * would be wrong for real code; there is no real code on this site. The
+   * default monospace stack is deliberate: `@fontsource/noto-mono` is a
+   * dependency but is imported nowhere, and importing it would add two font
+   * requests to every page - the article pages that carry an image already
+   * measure 12 of the 12 request budget.
+   */
+  .prose :global(pre) {
+    margin: 1.5rem 0;
+    padding: 0.875rem 1rem;
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+  /* No `color` for `a`, deliberately: global.css's `a`/`a:hover` pair already
+     colours the body links, and a scoped colour here would ship at (0,3,1) and
+     silently defeat the (0,1,1) hover - the trap `SiteHeader.astro` documents.
+     Nothing in this block declares `outline`, so the global `:focus-visible`
+     ring reaches these links too. */
+</style>

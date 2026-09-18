@@ -1,0 +1,35 @@
+---
+import type { ArticleEntry } from '../lib/articles';
+import ArticleCard from './ArticleCard.astro';
+
+/**
+ * A list of post cards, newest first, with an optional `limit`.
+ *
+ * `/noutati` renders all of them; the homepage (Task 11) asks for three. The
+ * limit is applied HERE, after `publishedArticles` has already sorted the
+ * whole set, so "the three newest" is decided by the same order the index
+ * shows rather than by whatever order `getCollection` happened to return.
+ *
+ * `headingLevel` is passed straight through to the cards; see the note there
+ * for why the level is a decision at the call site.
+ */
+interface Props {
+  articles: ArticleEntry[];
+  limit?: number;
+  headingLevel?: 2 | 3;
+}
+
+const { articles, limit, headingLevel = 2 } = Astro.props;
+const shown = limit === undefined ? articles : articles.slice(0, limit);
+---
+
+<ul class="al">
+  {shown.map((article) => (
+    <li class="al-item"><ArticleCard article={article} headingLevel={headingLevel} /></li>
+  ))}
+</ul>
+
+<style>
+  .al { list-style: none; margin: 2rem 0 0; padding: 0; }
+  .al-item { margin: 0; }
+</style>

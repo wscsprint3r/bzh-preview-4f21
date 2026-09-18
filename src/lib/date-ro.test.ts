@@ -10,7 +10,7 @@ import {
   dayOfMonth,
 } from './date-ro';
 
-describe('vocabular', () => {
+describe('vocabulary', () => {
   it('has seven days starting with Monday', () => {
     expect(DAY_NAMES).toEqual([
       'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică',
@@ -120,27 +120,27 @@ describe('dateParts', () => {
   });
 
   it('rejects a wrong format', () => {
-    expect(() => dateParts('2026-9-14')).toThrow(/invalidă/);
+    expect(() => dateParts('2026-9-14')).toThrow(/Invalid date/);
   });
 
-  it('respinge luna 00', () => {
-    expect(() => dateParts('2026-00-01')).toThrow(/inexistentă/);
+  it('rejects month 00', () => {
+    expect(() => dateParts('2026-00-01')).toThrow(/Nonexistent date/);
   });
 
-  it('respinge luna 13', () => {
-    expect(() => dateParts('2026-13-01')).toThrow(/inexistentă/);
+  it('rejects month 13', () => {
+    expect(() => dateParts('2026-13-01')).toThrow(/Nonexistent date/);
   });
 
-  it('respinge 30 februarie', () => {
-    expect(() => dateParts('2026-02-30')).toThrow(/inexistentă/);
+  it('rejects 30 February', () => {
+    expect(() => dateParts('2026-02-30')).toThrow(/Nonexistent date/);
   });
 
-  it('respinge ziua 32', () => {
-    expect(() => dateParts('2026-01-32')).toThrow(/inexistentă/);
+  it('rejects day 32', () => {
+    expect(() => dateParts('2026-01-32')).toThrow(/Nonexistent date/);
   });
 
   it('rejects 29 February in an ordinary year', () => {
-    expect(() => dateParts('2026-02-29')).toThrow(/inexistentă/);
+    expect(() => dateParts('2026-02-29')).toThrow(/Nonexistent date/);
   });
 
   it('accepts 29 February in a leap year', () => {
@@ -149,21 +149,21 @@ describe('dateParts', () => {
   });
 
   it('rejects a year below 100, which Date.UTC would move into the 1900s', () => {
-    expect(() => dateParts('0026-01-01')).toThrow(/inexistentă/);
+    expect(() => dateParts('0026-01-01')).toThrow(/Nonexistent date/);
   });
 });
 
 describe('the validation applies to the public functions too', () => {
   it('monthName no longer returns undefined for month 13', () => {
-    expect(() => monthName('2026-13-01')).toThrow(/inexistentă/);
+    expect(() => monthName('2026-13-01')).toThrow(/Nonexistent date/);
   });
 
   it('dayName no longer reports a day for 30 February', () => {
-    expect(() => dayName('2026-02-30')).toThrow(/inexistentă/);
+    expect(() => dayName('2026-02-30')).toThrow(/Nonexistent date/);
   });
 
   it('formatWeekRange rejects a date that does not exist', () => {
     expect(() => formatWeekRange('2026-09-14', '2026-09-31'))
-      .toThrow(/inexistentă/);
+      .toThrow(/Nonexistent date/);
   });
 });

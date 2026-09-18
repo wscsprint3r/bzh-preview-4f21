@@ -70,7 +70,11 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
  *
  * So the same files are asked the inverse question against the list below.
  * It is affordable because the answer is small: the entire non-ASCII inventory
- * of this site's own output is eighteen characters.
+ * of this site's own output is twenty-five distinct characters, measured, and
+ * the list holds twenty-eight - the three extras are letters that no page
+ * happens to use today (the capital Â and Ă and the capital Ț), and keeping
+ * them legal is what stops a heading that starts with one from being a build
+ * failure the day it appears.
  *
  * BUILT FROM NUMBERS, like everything else here. An escape sequence of the form
  * backslash-u-then-four-hex-digits does not survive being written to disk in
@@ -92,30 +96,44 @@ const ALLOWED: ReadonlyArray<readonly [number, string]> = [
   // Romanian. Both cases, including the four capitals — a sentence or a heading
   // starts with one sooner or later, and being absent from today's output is no
   // reason to make that a build failure.
-  [0x0102, 'Ă  A cu breve'],
-  [0x0103, 'ă  a cu breve'],
-  [0x00c2, 'Â  A cu circumflex'],
-  [0x00e2, 'â  a cu circumflex'],
-  [0x00ce, 'Î  I cu circumflex'],
-  [0x00ee, 'î  i cu circumflex'],
-  [0x0218, 'Ș  S cu VIRGULĂ dedesubt'],
-  [0x0219, 'ș  s cu VIRGULĂ dedesubt'],
-  [0x021a, 'Ț  T cu VIRGULĂ dedesubt'],
-  [0x021b, 'ț  t cu VIRGULĂ dedesubt'],
-  // German. The lowercase only: the u in Zurich is never word-initial here.
-  [0x00fc, 'ü  u cu umlaut, din Zürich'],
+  [0x0102, 'Ă  A with breve'],
+  [0x0103, 'ă  a with breve'],
+  [0x00c2, 'Â  A with circumflex'],
+  [0x00e2, 'â  a with circumflex'],
+  [0x00ce, 'Î  I with circumflex'],
+  [0x00ee, 'î  i with circumflex'],
+  [0x0218, 'Ș  S with COMMA BELOW'],
+  [0x0219, 'ș  s with COMMA BELOW'],
+  [0x021a, 'Ț  T with COMMA BELOW'],
+  [0x021b, 'ț  t with COMMA BELOW'],
+  // German. The study texts on /resurse/studii/ carry the language, not only
+  // Zürich's lowercase ü: measured on the Task 9 build, ä once, ö twice and
+  // the capital Ü three times, each opening a German heading.
+  [0x00dc, 'Ü  U with umlaut, opening a German study heading'],
+  [0x00e4, 'ä  a with umlaut, in the German study texts'],
+  [0x00f6, 'ö  o with umlaut, in the German study texts'],
+  [0x00fc, 'ü  u with umlaut, from Zürich'],
   // Typography. Every one of these was measured in the output, not assumed.
-  [0x00a7, '§  paragraf, din trimiterile la specificație'],
-  [0x00b7, '·  punct median, separator în subtitluri'],
-  [0x2013, '–  linie de dialog scurtă, în intervale de dată'],
-  [0x2014, '—  linie de pauză'],
-  [0x201d, '”  ghilimea română de închidere'],
-  [0x201e, '„  ghilimea română de deschidere'],
-  [0x2020, '†  cruce, marcaj de zi de sărbătoare'],
-  [0x2026, '…  puncte de suspensie'],
-  [0x2039, '‹  săgeata „săptămâna trecută” din selector'],
-  [0x203a, '›  săgeata „săptămâna viitoare” din selector'],
-  [0x2192, '→  săgeată, în textul de pornire al CMS-ului'],
+  [0x00a7, '§  paragraph, from the spec references'],
+  [0x00b7, '·  middle dot, separator in subtitles'],
+  // The guillemets arrived with the migrated articles: the psalm and tropar
+  // quotations in two posts open with U+00AB and close with U+00BB, which is
+  // legitimate Romanian religious typography rather than a corrupted quote.
+  [0x00ab, '«  left guillemet, opening a psalm quotation'],
+  [0x00bb, '»  right guillemet, closing a psalm quotation'],
+  [0x2013, '–  short dialogue dash, in date ranges'],
+  [0x2014, '—  pause dash'],
+  // The English opening quote in the 26 April 2025 adormiti post, paired with
+  // the Romanian U+201D closing one. Asymmetric, and it is the parish's own
+  // text from the old site: normalising it would be editing their words.
+  [0x201c, '“  English opening quotation mark, in one migrated post'],
+  [0x201d, '”  Romanian closing quotation mark'],
+  [0x201e, '„  Romanian opening quotation mark'],
+  [0x2020, '†  cross, feast-day marker'],
+  [0x2026, '…  ellipsis'],
+  [0x2039, '‹  the „previous week” arrow in the picker'],
+  [0x203a, '›  the „next week” arrow in the picker'],
+  [0x2192, '→  arrow, in the CMS start-up text'],
 ];
 
 const ALLOWED_CP = new Set(ALLOWED.map(([cp]) => cp));
@@ -134,7 +152,7 @@ export function unexpectedIn(text: string): string[] {
     const cp = character.codePointAt(0) as number;
     if (cp > 0x7f && !ALLOWED_CP.has(cp)) {
       const context = text.slice(Math.max(0, i - 40), i + 40).replace(/\s+/g, ' ');
-      found.push(`${uPlus(cp)} la ${i}: …${context}…`);
+      found.push(`${uPlus(cp)} at ${i}: …${context}…`);
     }
     i += character.length;
   }
@@ -276,7 +294,7 @@ describe('the build output exists', () => {
 describe('the cedilla detector', () => {
   // Positive control: a guard that cannot fire verifies nothing.
   // The strings are built from codes, exactly like the set being searched for.
-  it.each(CEDILLAS)('prinde %i', (cp) => {
+  it.each(CEDILLAS)('catches %i', (cp) => {
     const bad = `Înăl${String.fromCodePoint(cp)}area`;
     expect(cedillasIn(bad)).toHaveLength(1);
     expect(cedillasIn(bad)[0]).toContain(uPlus(cp));
@@ -326,7 +344,7 @@ describe('what the sweep takes in and what it leaves out', () => {
    * reads, so it is exactly the kind of file a cedilla could
    * reach unseen.
    */
-  it.each(['admin/index.html', 'admin/config.yml', 'admin/start.mjs'])('mătură %s', (path) => {
+  it.each(['admin/index.html', 'admin/config.yml', 'admin/start.mjs'])('sweeps %s', (path) => {
     expect(existsSync(DIST + path), `${path} is missing from dist/`).toBe(true);
     expect(FILES).toContain(path);
   });
@@ -353,8 +371,8 @@ describe('what the sweep takes in and what it leaves out', () => {
     const unswept = extensionless.filter((c) => !FILES.includes(c));
     expect(
       unswept,
-      `fișiere fără extensie în dist/ pe care nu le citește nimeni: ${unswept.join(', ')}. ` +
-        'Dacă sunt text, pune-le în FARA_EXTENSIE; dacă nu, scrie aici de ce.',
+      `extensionless files in dist/ that nobody reads: ${unswept.join(', ')}. ` +
+        'If they are text, put them in NO_EXTENSION; if not, write why here.',
     ).toEqual([]);
   });
 });
@@ -395,7 +413,7 @@ describe('the unexpected-character detector', () => {
     expect(unexpectedIn(bad)[0]).toContain('regula pe care');
   });
 
-  it.each(CEDILLAS)('prinde și sedila %i, pe care oricum o prinde și cealaltă gardă', (cp) => {
+  it.each(CEDILLAS)('also catches cedilla %i, which the other guard catches anyway', (cp) => {
     expect(unexpectedIn(String.fromCodePoint(cp))).toHaveLength(1);
   });
 
@@ -443,14 +461,14 @@ describe('no unexpected non-ASCII character in the built output', () => {
     const name = new Map(ALLOWED);
     const lines = [...inventory]
       .sort((a, b) => a[0] - b[0])
-      .map(([cp, n]) => `  ${uPlus(cp)} x${String(n).padStart(4)}  ${name.get(cp) ?? 'NEAȘTEPTAT'}`);
+      .map(([cp, n]) => `  ${uPlus(cp)} x${String(n).padStart(4)}  ${name.get(cp) ?? 'UNEXPECTED'}`);
     process.stdout.write(
-      `\nInventar non-ASCII peste ${FILES.length} fișier(e) din dist/ ` +
-        `— ${inventory.size} caracter(e) distinct(e), din ${ALLOWED.length} permise:\n${lines.join('\n')}\n`,
+      `\nNon-ASCII inventory over ${FILES.length} file(s) in dist/ ` +
+        `— ${inventory.size} distinct character(s), of ${ALLOWED.length} allowed:\n${lines.join('\n')}\n`,
     );
     // A guard that reads files must prove it read something.
     expect(inventory.size, 'the output contains no non-ASCII character at all').toBeGreaterThan(0);
     const unexpected = [...inventory.keys()].filter((cp) => !ALLOWED_CP.has(cp)).map(uPlus);
-    expect(unexpected, `caractere pe care nimeni nu le-a prevăzut: ${unexpected.join(', ')}`).toEqual([]);
+    expect(unexpected, `characters nobody expected: ${unexpected.join(', ')}`).toEqual([]);
   });
 });

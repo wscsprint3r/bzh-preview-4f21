@@ -12,7 +12,7 @@ import { PALETTE, TEXT_ROLES, TEXT_ROLES_ON_OXBLOOD, cssTokens } from './tokens'
  * is used on the surface it was measured against. That is `npm run a11y`.
  */
 
-describe('paleta', () => {
+describe('the palette', () => {
   it('uses the values from the spec', () => {
     expect(PALETTE.parchment).toBe('#FAF6EE');
     expect(PALETTE.oxblood).toBe('#6B1F26');
@@ -22,7 +22,7 @@ describe('paleta', () => {
 });
 
 describe('contrast on the parchment ground', () => {
-  it.each(TEXT_ROLES)('%s trece WCAG AA pentru text normal', (role) => {
+  it.each(TEXT_ROLES)('%s passes WCAG AA for normal text', (role) => {
     expect(contrastRatio(PALETTE[role], PALETTE.parchment)).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -42,7 +42,7 @@ describe('cssTokens', () => {
 });
 
 describe('contrast on the oxblood ground', () => {
-  it.each(TEXT_ROLES_ON_OXBLOOD)('%s trece WCAG AA pentru text normal', (role) => {
+  it.each(TEXT_ROLES_ON_OXBLOOD)('%s passes WCAG AA for normal text', (role) => {
     expect(contrastRatio(PALETTE[role], PALETTE.oxblood)).toBeGreaterThanOrEqual(4.5);
   });
 });

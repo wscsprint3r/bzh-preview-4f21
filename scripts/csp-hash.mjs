@@ -1,6 +1,7 @@
 /*
- * Puts the hash of every inline script into the Content-Security-Policy that
- * ships, at `astro:build:done`.
+ * Puts the hash of every KNOWN inline script into the Content-Security-Policy
+ * that ships, at `astro:build:done`, and refuses a build whose inline scripts
+ * are not the ones `EXPECTED_INLINE` names.
  *
  * ---------------------------------------------------------------------------
  * WHY THE POLICY CANNOT SIMPLY BE WRITTEN BY HAND.
@@ -32,8 +33,11 @@
  * finds nothing to substitute leaves `script-src 'self'` on the deployed site,
  * which is the exact defect this file exists to prevent - so a missing
  * `dist/_headers`, a missing placeholder and an unrecognised `<script>` all
- * stop the build. `src/lib/headers.itest.ts` then asserts the shipped file from
- * the other side: a real hash, no placeholder left.
+ * stop the build. It also refuses any inline script that is not the one
+ * `EXPECTED_INLINE` names: hashing everything the build produced allow-listed
+ * an injected `<script>`, so the directive signed the very attack it exists to
+ * stop. `src/lib/headers.itest.ts` then asserts the shipped file from the
+ * other side: a real hash, no placeholder left.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -43,6 +47,47 @@ import { pageScripts } from './page-scripts.mjs';
 
 /** The token in `public/_headers` that this file replaces. */
 export const PLACEHOLDER = '{{script-hashes}}';
+
+/*
+ * THE INLINE SCRIPTS THIS SITE IS SUPPOSED TO HAVE, and the one lever that
+ * keeps `script-src` from becoming a rubber stamp.
+ *
+ * Hashing every inline script the build produced is backwards for a directive
+ * whose purpose is refusing injected scripts: a `<script>` written into an
+ * article body reached `dist/` and its hash was added to the policy, so the
+ * policy allow-listed the injection. Measured on this project: appending
+ * `<script>window.__pwned=1</script>` to a post's markdown put that script in
+ * the built page and its SHA-256 in `script-src`. The set is tiny and fixed -
+ * Task 10's week picker is the only inline script on the site - so it is
+ * declared here and anything else stops the build.
+ *
+ * `marker` is a string literal the picker's bundle keeps through minification
+ * (`data-picker-label` is the element it writes into), so an entry names the
+ * script without pinning its changing bytes. A new island is a deliberate
+ * addition to this list; content that injects a script is refused.
+ */
+export const EXPECTED_INLINE = [{ page: 'index.html', marker: 'data-picker-label' }];
+
+/**
+ * Why each script in `found` is not the one `EXPECTED_INLINE` expects, as
+ * human-readable lines. Empty means the build produced exactly the known set.
+ */
+export function unexpectedInlineScripts(found, expected = EXPECTED_INLINE) {
+  const problems = [];
+  const remaining = [...found];
+  for (const want of expected) {
+    const at = remaining.findIndex((s) => s.page === want.page && s.content.includes(want.marker));
+    if (at === -1) {
+      problems.push(`no inline script on ${want.page} containing "${want.marker}"`);
+    } else {
+      remaining.splice(at, 1);
+    }
+  }
+  for (const s of remaining) {
+    problems.push(`${s.page}: unexpected inline script of ${s.bytes} bytes (${s.hash})`);
+  }
+  return problems;
+}
 
 /** Every `.html` in a directory tree, as paths relative to it. */
 function htmlPages(root, relative = '') {
@@ -92,8 +137,23 @@ export function writeHeaders(dir, log = console.log) {
         );
       }
       if (s.kind !== 'executed' || s.src !== null) continue;
-      found.push({ page, bytes: Buffer.byteLength(s.content), hash: hashScript(s.content) });
+      found.push({
+        page,
+        content: s.content,
+        bytes: Buffer.byteLength(s.content),
+        hash: hashScript(s.content),
+      });
     }
+  }
+
+  const unexpected = unexpectedInlineScripts(found);
+  if (unexpected.length > 0) {
+    throw new Error(
+      'the inline scripts of this build are not the ones EXPECTED_INLINE in scripts/csp-hash.mjs names:\n' +
+        unexpected.map((p) => `  ${p}`).join('\n') +
+        '\nA new island belongs there, deliberately. Content that injected a <script> must not be: ' +
+        'hashing it into script-src allow-lists exactly what the directive exists to refuse.',
+    );
   }
 
   // Sorted and deduplicated, so two builds of the same output produce the same

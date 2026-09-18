@@ -47,4 +47,25 @@ export default defineConfig({
     routing: { prefixDefaultLocale: false },
   },
   build: { inlineStylesheets: 'always' },
+  markdown: {
+    /*
+     * SYNTAX HIGHLIGHTING OFF, and it is a decision about this site rather
+     * than about a preference. This is a parish's prose: no page ever intends
+     * a code block. One migrated article, however, carries an indented list
+     * from WordPress that Turndown turned into a fenced block, and Shiki's
+     * default theme rendered it as a dark panel with `background-color:
+     * #24292e; color: #e1e4e8` written into a `style=` attribute. That failed
+     * two guards at once: `stylesheet.itest.ts` ("the colours come from
+     * tokens, not from hex literals") and the axe pass, which reported the
+     * contrast inside it as an `incomplete` - and an incomplete is a failure
+     * here. Off, the same block renders as a plain `<pre><code>` styled by
+     * `[slug].astro` from the palette.
+     *
+     * Heading levels are normalised in `[slug].astro` via
+     * `src/lib/markdown-headings.ts`, not here: Astro 7's default processor is
+     * Sätteri, and `markdown.rehypePlugins` would require adding
+     * `@astrojs/markdown-remark` as a dependency for one transform.
+     */
+    syntaxHighlight: false,
+  },
 });

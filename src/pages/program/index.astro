@@ -14,7 +14,7 @@ const entries = await getCollection('services');
  * The date is the filename, i.e. `e.id`, validated by `idFromFilename`.
  *
  * DROPPING the override is the mistake that bites: `day.date` is then undefined
- * and the build fails with `Dată invalidă: undefined` out of `dateParts`.
+ * and the build fails with `Invalid date: undefined` out of `dateParts`.
  * Verified by doing it.
  *
  * REVERSING the order is not that mistake, and this comment used to say it was.
