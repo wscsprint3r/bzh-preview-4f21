@@ -172,10 +172,33 @@ const PAGE_BUDGET = {
    * rather than a silent 200 KB page.
    */
   'noutati/*': 35 * 1024,
+  /*
+   * THE NINE PROSE PAGES, three groups and one exact key. They are a fixed
+   * contract - the CMS does not create them - so a pattern per URL group is
+   * the honest shape: the pages inside a group are the same kind of document,
+   * and a tenth would be a decision somebody made.
+   *
+   * MEASURED ON THE TASK 9 BUILD, all nine:
+   *   parohia/istoric        13,346    parohia/consiliul      10,392
+   *   servicii-liturgice     21,385
+   *   comunitate/scoala      15,701    comunitate/pictura     11,324
+   *   resurse/catehism       10,845    resurse/studii         15,755
+   *   resurse/doxologia      18,074    resurse/linkuri        12,095
+   *
+   * The limits are 1.5-2.4x the largest in each group. What makes a prose
+   * page grow is an image or a paragraph, so the headroom is what a normal
+   * content edit costs - and `servicii-liturgice` is already the largest of
+   * the nine at 21 KB because its text is a long list of the services and
+   * the bank details, which is the page's content rather than a defect.
+   */
+  'parohia/*': 24 * 1024,
+  'comunitate/*': 24 * 1024,
+  'resurse/*': 30 * 1024,
+  'servicii-liturgice/index.html': 30 * 1024,
 };
 
 /**
- * The budget for one page, or `undefined` when nothing covers it.
+ * The budget for one page in one table, or `undefined` when nothing covers it.
  *
  * EXACT KEYS FIRST, then the longest prefix key ending in `*`. Longest wins so
  * that two overlapping patterns resolve to the more specific one rather than
@@ -185,12 +208,12 @@ const PAGE_BUDGET = {
  * The caller treats `undefined` as a failure, so the rule this function exists
  * for is also the rule that keeps "every visitor page has a budget" intact: a
  * page that matches neither shape still has no budget and still stops the
- * build.
+ * build. Both tables below go through it for exactly that reason.
  */
-function budgetFor(page) {
-  if (Object.hasOwn(PAGE_BUDGET, page)) return PAGE_BUDGET[page];
+function budgetFor(table, page) {
+  if (Object.hasOwn(table, page)) return table[page];
   let best;
-  for (const [key, limit] of Object.entries(PAGE_BUDGET)) {
+  for (const [key, limit] of Object.entries(table)) {
     if (!key.endsWith('*')) continue;
     const prefix = key.slice(0, -1);
     if (!page.startsWith(prefix)) continue;
@@ -212,7 +235,48 @@ function budgetFor(page) {
  * step with the plan and the spec; do not lower it without changing those too.
  */
 const JS_BUDGET = 3800;
-const REQUEST_BUDGET = 12;
+
+/*
+ * THE REQUEST BUDGET IS PER PAGE, because the spec's number is per page.
+ *
+ * Spec §13 budgets "requests (homepage) <= 12". The first version of this
+ * script applied 12 to every page, which was true of the site while every
+ * other page carried at most one image: the fixed chrome is 11 requests (the
+ * document, two icons and eight `@font-face` files), so a one-image article
+ * measured exactly 12 and a two-image one measured 13.
+ *
+ * THE NINE PROSE PAGES ARE MADE OF IMAGES, and that is their content rather
+ * than a defect: `resurse/doxologia/` is a shelf of magazine covers (31
+ * images) and `parohia/consiliul/` is portraits beside names (8). Measured on
+ * the Task 9 build, requests: 12, 13, 14, 15, 19, 22, 42 - six of the nine
+ * over a global 12, and the honest conclusion is not that the pages are
+ * wrong but that one number was covering pages the spec never gave it.
+ *
+ * SO THE TABLE IS THE SAME SHAPE AS `PAGE_BUDGET`, exact keys winning and a
+ * `*` meaning a prefix, and every page still has a limit - an unmeasured page
+ * still stops the build. The homepage keeps the spec's 12. The prose limits
+ * are the measured count plus room for a handful more images (2-6, stated per
+ * group), because the next issue of the magazine is an image like the last
+ * one; an unrelated request, like a new script or a stylesheet, is still a
+ * red build. The article limit stays 12: it is the pre-existing cap and Task
+ * 12 owns whether publishing a two-image post should change it.
+ */
+const REQUEST_BUDGET = {
+  // The spec's own budget, and the page it was written about.
+  'index.html': 12,
+  'program/index.html': 12,
+  'noutati/index.html': 12,
+  // One body image measures exactly 12; the second is Task 12's decision.
+  'noutati/*': 12,
+  // Measured 14 and 19; 24 is room for five more portraits on either page.
+  'parohia/*': 24,
+  // Measured 13 on both; 16 is room for three more images.
+  'comunitate/*': 16,
+  // Measured 12, 15, 22 and 42; 48 is room for six more magazine covers.
+  'resurse/*': 48,
+  // Measured 12; 16 is room for four more images.
+  'servicii-liturgice/index.html': 16,
+};
 
 /*
  * THE SCRIPT IS INLINED, AND THAT IS A DECISION - so it is asserted, not
@@ -310,14 +374,21 @@ const PAGES = visitorPages();
 if (PAGES.length === 0) stop(`${DIST}/ contains no visitor page at all.`);
 
 /*
- * Every visitor page must have a budget. A page with none would otherwise be
- * the one page nobody is measuring, which is how a new route ships at 200 KB on
- * a green build.
+ * Every visitor page must have a budget in BOTH tables. A page with none
+ * would otherwise be the one page nobody is measuring, which is how a new
+ * route ships at 200 KB and forty requests on a green build.
  */
-const withoutBudget = PAGES.filter((p) => budgetFor(p) === undefined);
+const withoutBudget = PAGES.filter((p) => budgetFor(PAGE_BUDGET, p) === undefined);
 if (withoutBudget.length > 0) {
   stop(
     `Pages with no budget in PAGE_BUDGET: ${withoutBudget.join(', ')}.\n` +
+      'Give them a limit or exclude them explicitly; an unmeasured page is not a page in good order.',
+  );
+}
+const withoutRequestBudget = PAGES.filter((p) => budgetFor(REQUEST_BUDGET, p) === undefined);
+if (withoutRequestBudget.length > 0) {
+  stop(
+    `Pages with no request budget in REQUEST_BUDGET: ${withoutRequestBudget.join(', ')}.\n` +
       'Give them a limit or exclude them explicitly; an unmeasured page is not a page in good order.',
   );
 }
@@ -403,7 +474,7 @@ const filesSeen = new Set();
 
 for (const page of PAGES) {
   const html = readFileSync(join(DIST, page), 'utf8');
-  report(page, statSync(join(DIST, page)).size, budgetFor(page), 'bytes', PAGE_EXPLANATION);
+  report(page, statSync(join(DIST, page)).size, budgetFor(PAGE_BUDGET, page), 'bytes', PAGE_EXPLANATION);
 
   // ---- JavaScript, inlined or emitted ----
   let js = 0;
@@ -496,7 +567,7 @@ for (const page of PAGES) {
   for (let i = 0; i < imports; i += 1) requests.push('@import');
   for (const u of urls) requests.push(`url(${u})`);
 
-  report(`  requests (upper bound) for ${page}`, requests.length, REQUEST_BUDGET, 'requests');
+  report(`  requests (upper bound) for ${page}`, requests.length, budgetFor(REQUEST_BUDGET, page), 'requests');
   console.log(
     `          ${inDocument} in the document + ${faces} @font-face` +
       `${imports > 0 ? ` + ${imports} @import` : ''}` +

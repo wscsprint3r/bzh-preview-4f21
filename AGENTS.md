@@ -57,7 +57,7 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   build the way it did.
   It asks two questions of each file: "is this one of the four wrong characters?", and the
   stronger "is every non-ASCII character one this project expects?" against a list of
-  twenty-five, of which the output's measured inventory uses twenty-two. The second
+  twenty-eight, of which the output's measured inventory uses twenty-five. The second
   exists because a stray U+5DEE once passed every scan the first could make. A new
   character in the output fails until somebody names it.
 - **Identifiers are English; Romanian is only for what a person reads.** Variables,

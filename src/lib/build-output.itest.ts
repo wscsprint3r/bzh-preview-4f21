@@ -32,6 +32,7 @@ import { INDEXABLE } from './site';
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const CONTENT = fileURLToPath(new URL('../content/services/', import.meta.url));
 const ARTICLES = fileURLToPath(new URL('../content/articles/', import.meta.url));
+const PAGES_CONTENT = fileURLToPath(new URL('../content/pages/', import.meta.url));
 
 /** RFC 5545 §3.1: the line break in an iCalendar stream is CRLF, always. */
 const CRLF = '\r\n';
@@ -173,6 +174,23 @@ const ICS_REFERENCES: Record<string, number> = {
   'admin/index.html': 0,
   // The same two as the homepage; the index does not subscribe on its own.
   'noutati/index.html': 2,
+  /*
+   * THE NINE PROSE PAGES, named one by one rather than derived, and the
+   * difference from the article entries below is deliberate: the nine are a
+   * fixed contract (the CMS does not create them), so a tenth appearing here
+   * is a decision somebody made rather than a post the parish published.
+   * Each goes through `Base.astro` and the footer like every other visitor
+   * page, so each carries the same two references.
+   */
+  'parohia/istoric/index.html': 2,
+  'parohia/consiliul/index.html': 2,
+  'servicii-liturgice/index.html': 2,
+  'comunitate/scoala/index.html': 2,
+  'comunitate/pictura/index.html': 2,
+  'resurse/catehism/index.html': 2,
+  'resurse/studii/index.html': 2,
+  'resurse/doxologia/index.html': 2,
+  'resurse/linkuri/index.html': 2,
 };
 
 /**
@@ -247,6 +265,31 @@ function articleFiles(): { file: string; slug: string; frontmatter: Record<strin
 /** The article content files that say `published: true`. */
 function publishedArticleFiles(): { file: string; slug: string; frontmatter: Record<string, unknown> }[] {
   return articleFiles().filter((f) => f.frontmatter.published === true);
+}
+
+/**
+ * Every prose page content file, its public route and its parsed frontmatter.
+ *
+ * THE SIBLING OF `articleFiles`, and the subject rule is the same one: the
+ * expected set comes from the CONTENT FILES, not from a walk of `dist/`, which
+ * would only ever confirm what `[...page].astro` already produced. `slug` is
+ * the public URL here too - for a page that is `frontmatter.path`, the value
+ * `pageSchema` validates and the route turns into `/${path}/`. The file name
+ * is not the route (`istoric.md` serves `/parohia/istoric/`), so a guard that
+ * read the directory instead would check nine pages that do not exist and miss
+ * the nine that do.
+ */
+function pageFiles(): { file: string; slug: string; frontmatter: Record<string, unknown> }[] {
+  return readdirSync(PAGES_CONTENT)
+    .filter((file) => file.endsWith('.md'))
+    .sort()
+    .map((file) => {
+      const text = readFileSync(PAGES_CONTENT + file, 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, `${file} has no frontmatter block`).not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
+      return { file, slug: String(frontmatter.path ?? ''), frontmatter };
+    });
 }
 
 const DAYS = collectionDays();
@@ -440,6 +483,102 @@ describe('the news pages', () => {
       }
     }
     process.stdout.write(`\nArticle body images:\n${measured.map((m) => `  ${m}`).join('\n')}\n`);
+  });
+});
+
+/*
+ * THE NINE PROSE PAGES, FROM ONE ROUTE. `[...page].astro` builds a page per
+ * entry in the `pages` collection; these assertions are the joint between the
+ * content files and what was written to dist.
+ */
+describe('the prose pages', () => {
+  it('every page in the collection has exactly one built file', () => {
+    /*
+     * The expected set comes from the CONTENT FILES, which the route cannot
+     * edit - not from walking `dist/`, which would only ever confirm what the
+     * route already produced.
+     *
+     * NINE IS A CONTRACT, not a corpus count: the nine prose pages are fixed
+     * (the CMS does not create them), so pinning the number is what makes an
+     * emptied collection a failure rather than a loop over nothing. Posts are
+     * the other case - they grow every time the parish publishes - and their
+     * guards hold properties instead.
+     */
+    const paths = pageFiles().map((f) => f.slug);
+    expect(paths.length, 'no page - the guard would prove nothing').toBe(9);
+    for (const path of paths) {
+      expect(existsSync(`${DIST}${path}/index.html`), `missing /${path}/`).toBe(true);
+    }
+  });
+
+  it('every built page really has content, not just a title', () => {
+    /*
+     * A page whose body failed to render looks completely correct: header,
+     * title, footer. Measured on the real corpus with tags stripped, the
+     * shortest of the nine is `/parohia/consiliul/` at 291 characters - it is
+     * a list of council members' names beside their portraits, not paragraphs
+     * - so the floor is 100: far above the ~20 characters a title-only page
+     * would leave, and far below anything a real body produces. The floor is
+     * the property the guard exists for, not a corpus count.
+     */
+    const files = pageFiles();
+    expect(files.length, 'no page - the guard would prove nothing').toBeGreaterThan(0);
+    for (const f of files) {
+      const html = read(`${f.slug}/index.html`);
+      const body = html.split('<main')[1]?.split('</main>')[0] ?? '';
+      const text = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      expect(text.length, `/${f.slug}/ looks empty`).toBeGreaterThan(100);
+    }
+  });
+
+  /*
+   * F5: THE MIGRATED BODY IMAGES OF THE PROSE PAGES, PROVEN TO RENDER. The
+   * same joint the article guard checks, over a corpus with many more images:
+   * the migration wrote each body `src` as `../../assets/content/<rest>`, and
+   * a body `<img>` that fails to resolve 404s silently. So the built page is
+   * read, every `<img>` is found, and each `src` is followed to a real file
+   * inside `dist/`. A raw `assets/content/...` path is not root-relative and
+   * would fail the second assertion; a rewritten `/_astro/...` hashed asset is
+   * what this expects to see, and the measured srcs are printed so a later
+   * reader can check the claim against a run.
+   */
+  it('a body image on a prose page resolves to a real file in dist/', () => {
+    const withImages = pageFiles().filter((f) =>
+      /!\[[^\]]*\]\([^)]+\)/.test(readFileSync(PAGES_CONTENT + f.file, 'utf8')),
+    );
+    expect(
+      withImages.length,
+      'no prose page carries a body image - the guard would prove nothing',
+    ).toBeGreaterThan(0);
+
+    const measured: string[] = [];
+    let imagesChecked = 0;
+    for (const f of withImages) {
+      const html = read(`${f.slug}/index.html`);
+      const srcs = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1] as string);
+      expect(srcs.length, `${f.slug} has a markdown image but no <img> in its built page`)
+        .toBeGreaterThan(0);
+      for (const src of srcs) {
+        imagesChecked += 1;
+        measured.push(`/${f.slug}/ -> ${src}`);
+        // Root-relative, or `DIST + path` is not the file the host serves.
+        expect(src.startsWith('/'), `${src} on /${f.slug}/ is not root-relative`).toBe(true);
+        const path = (src.split(/[?#]/)[0] as string).slice(1);
+        expect(existsSync(DIST + path), `${src} on /${f.slug}/ does not resolve inside dist/`)
+          .toBe(true);
+        // And not the migration's own path, which would be an attribute that
+        // 404s: the asset pipeline is what must have rewritten it.
+        expect(path.includes('assets/content'), `${src} is the unmigrated path, not a built asset`)
+          .toBe(false);
+      }
+    }
+    // Without this, a corpus whose pages all lost their images would make the
+    // loop above pass while checking nothing.
+    expect(imagesChecked, 'no body image in any built prose page').toBeGreaterThan(0);
+    process.stdout.write(
+      `\nProse page body images: ${imagesChecked} over ${withImages.length} page(s):\n` +
+        `${measured.map((m) => `  ${m}`).join('\n')}\n`,
+    );
   });
 });
 

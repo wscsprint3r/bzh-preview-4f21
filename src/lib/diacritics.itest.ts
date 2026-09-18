@@ -70,8 +70,8 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
  *
  * So the same files are asked the inverse question against the list below.
  * It is affordable because the answer is small: the entire non-ASCII inventory
- * of this site's own output is twenty-two distinct characters, measured, and
- * the list holds twenty-five - the three extras are letters that no page
+ * of this site's own output is twenty-five distinct characters, measured, and
+ * the list holds twenty-eight - the three extras are letters that no page
  * happens to use today (the capital Â and Ă and the capital Ț), and keeping
  * them legal is what stops a heading that starts with one from being a build
  * failure the day it appears.
@@ -106,7 +106,12 @@ const ALLOWED: ReadonlyArray<readonly [number, string]> = [
   [0x0219, 'ș  s with COMMA BELOW'],
   [0x021a, 'Ț  T with COMMA BELOW'],
   [0x021b, 'ț  t with COMMA BELOW'],
-  // German. The lowercase only: the u in Zurich is never word-initial here.
+  // German. The study texts on /resurse/studii/ carry the language, not only
+  // Zürich's lowercase ü: measured on the Task 9 build, ä once, ö twice and
+  // the capital Ü three times, each opening a German heading.
+  [0x00dc, 'Ü  U with umlaut, opening a German study heading'],
+  [0x00e4, 'ä  a with umlaut, in the German study texts'],
+  [0x00f6, 'ö  o with umlaut, in the German study texts'],
   [0x00fc, 'ü  u with umlaut, from Zürich'],
   // Typography. Every one of these was measured in the output, not assumed.
   [0x00a7, '§  paragraph, from the spec references'],

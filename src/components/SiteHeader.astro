@@ -1,8 +1,18 @@
 ---
 const path = Astro.url.pathname;
+/*
+ * FIVE LINKS, and the fifth reaches the parish pages by their first entry
+ * (`/parohia/istoric/`) rather than by an index that does not exist. The
+ * grouping exists in the URLs, not in a dropdown: the header is the only
+ * navigation on the site, so every page it reaches is one click from every
+ * other one.
+ */
 const links = [
   { href: '/', text: 'Acasă' },
   { href: '/program/', text: 'Program' },
+  { href: '/noutati/', text: 'Noutăți' },
+  { href: '/servicii-liturgice/', text: 'Servicii liturgice' },
+  { href: '/parohia/istoric/', text: 'Parohia' },
 ];
 ---
 
@@ -38,7 +48,26 @@ const links = [
   .sh-cross { font-family: var(--display); color: var(--gold-lt); font-size: 1.75rem; line-height: 1; }
   .sh-wm b { display: block; font-family: var(--display); font-size: 1.125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--oxblood); line-height: 1.1; }
   .sh-wm > span { display: block; font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); margin-top: 0.15rem; }
-  .sh-nav { display: flex; gap: 1.25rem; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }
+  /*
+   * WRAPS, and at 390px it has to: five links are wider than the phone's
+   * content column. The header row already wraps between brand and nav; this
+   * is the nav's own wrap, so the links fold onto a second line instead of
+   * overflowing the viewport. The row gap is smaller than the column gap so a
+   * wrapped line reads as a continuation rather than as a second nav.
+   */
+  .sh-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }
+  /*
+   * MEASURED AT 390px, and the reason is not taste. At the desktop column gap
+   * the five links need 369px against 358px of content width, so they wrapped
+   * 4+1 - `Parohia` alone on a second line. The links themselves measure 289px
+   * together, so a 12px column gap fits all five on one line with 21px to
+   * spare, and the phone keeps the single row. 34rem is not a new breakpoint:
+   * it is the one `DayRow` and `WeekBand` already cut at, so the audit's
+   * derived breakpoint set is unchanged.
+   */
+  @media (max-width: 34rem) {
+    .sh-nav { gap: 0.5rem 0.75rem; }
+  }
   .sh-nav a { color: var(--muted); text-decoration: none; }
   .sh-nav a[aria-current='page'] { color: var(--oxblood); border-bottom: 1.5px solid var(--gold-lt); padding-bottom: 2px; }
   /* A component that colours a link owns that link's hover, and both rules above
