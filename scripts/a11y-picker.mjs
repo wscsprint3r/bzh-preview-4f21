@@ -249,7 +249,7 @@ async function main() {
      * A CACHE OF THE SCRATCH BUILD'S OWN, with only the image cache shared.
      * The default `cacheDir` resolves under the symlinked `node_modules`, so
      * the scratch build wrote its fixture entries into the repository's
-     * `data-store.json`; the next real build then rendered fabricated services
+     * data-store.json; the next real build then rendered fabricated services
      * and events from that cache. The wrapper config points Astro at a
      * directory inside the scratch, which dies with it. `assets/` alone is
      * symlinked back in: it is content-addressed image data that cannot become
@@ -291,7 +291,7 @@ async function main() {
      * `node_modules` is symlinked into the scratch project so both builds run
      * the same Astro, and Astro's default `cacheDir` is `node_modules/.astro` -
      * so until this was pinned the scratch build wrote its FIXTURE entries into
-     * the repository's `data-store.json`, through the symlink, and deleted
+     * the repository's data-store.json, through the symlink, and deleted
      * them from `src/` when the scratch was removed. The next real build then
      * rendered fabricated events and fabricated services from the cache: the
      * invented liturgical content the fixtures exist to keep out of this
