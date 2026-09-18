@@ -25,6 +25,7 @@ import { dirname, join } from 'node:path';
 import Ajv from 'ajv';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { CATEGORIES } from './content-schema';
 
 const require = createRequire(import.meta.url);
 
@@ -57,6 +58,50 @@ const CONFIG_TEXT = readFileSync(
   'utf8',
 );
 const CONFIG = parse(CONFIG_TEXT) as Record<string, unknown>;
+
+/*
+ * ADDRESSED BY NAME, THROUGH A PARSER, like `schema.test.ts` does for the
+ * `services` collection - and for the reason written there: scanning for a line
+ * reading `options:` takes the FIRST one in the file, so adding any other
+ * `options:` above the one a test means would move the test onto a different
+ * list while it went on passing. Every step throws by name if it is missing, so
+ * a renamed collection or field fails loudly instead of comparing against
+ * `undefined`.
+ *
+ * The interfaces are local, and so are the helpers: `schema.test.ts` keeps its
+ * own copy for its own two fields, and exporting one across test files would
+ * make the two suites share a maintenance surface they do not need.
+ */
+interface CmsField {
+  name: string;
+  widget?: string;
+  required?: unknown;
+  options?: unknown;
+  fields?: CmsField[];
+}
+
+interface CmsCollection {
+  name: string;
+  label?: string;
+  description?: string;
+  folder?: string;
+  fields?: CmsField[];
+  files?: { name: string; file: string; fields: CmsField[] }[];
+}
+
+function collection(name: string): CmsCollection {
+  const collections = CONFIG.collections as CmsCollection[] | undefined;
+  const matched = collections?.find((c) => c.name === name);
+  if (!matched) throw new Error(`config.yml has no collection named "${name}"`);
+  return matched;
+}
+
+function collectionField(collectionName: string, fieldName: string): CmsField {
+  const fields = collection(collectionName).fields ?? [];
+  const hit = fields.find((f) => f.name === fieldName);
+  if (!hit) throw new Error(`collection "${collectionName}" has no field named "${fieldName}"`);
+  return hit;
+}
 
 const OUR_PACKAGE = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
@@ -125,6 +170,41 @@ describe('the CMS config, against the schema Sveltia publishes', () => {
 
   it('is valid', () => {
     expect(errors(CONFIG)).toEqual([]);
+  });
+});
+
+describe('the CMS form, checked against the schemas the build enforces', () => {
+  it('the CMS categories are identical to CATEGORIES', () => {
+    // Same mechanism, same reason as SERVICE_NAMES in Phase 1: a dropdown that
+    // offers a value the build then rejects hands the volunteer a failed deploy
+    // for picking an option this file gave them.
+    const field = collectionField('articles', 'category');
+    expect(field.options).toEqual([...CATEGORIES]);
+  });
+
+  it('every collection has a label and a description in Romanian', () => {
+    for (const name of ['articles', 'pages', 'settings']) {
+      const c = collection(name);
+      expect(c.label, `${name} has no label`).toBeTruthy();
+      expect(c.label).not.toMatch(/^[a-z_]+$/); // not the raw key
+      // The test name promises a description too, so it checks one: a label
+      // alone leaves the volunteer with no sentence about what the collection
+      // is for.
+      expect(c.description, `${name} has no description`).toBeTruthy();
+    }
+  });
+
+  it("the schema's required fields are required in the CMS too", () => {
+    // Otherwise the volunteer saves a valid-looking entry and the BUILD fails,
+    // somewhere they will never see it.
+    for (const field of ['title', 'date', 'published', 'category']) {
+      expect(collectionField('articles', field).required).not.toBe(false);
+    }
+  });
+
+  it('media_folder and public_folder are a matched pair, not two separate guesses', () => {
+    expect(CONFIG.media_folder).toBe('src/assets/uploads');
+    expect(CONFIG.public_folder).toBe('/src/assets/uploads');
   });
 });
 
