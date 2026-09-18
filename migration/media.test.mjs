@@ -988,6 +988,25 @@ describe('the legacy gallery tree', () => {
     await rm(legacyRoot, { recursive: true, force: true });
   });
 
+  it('POSITIVE CONTROL: two legacy paths cannot claim the same destination', async () => {
+    // Flattening to the basename is what makes this possible: `galerie/a/8.jpg`
+    // and `galerie/b/8.jpg` are two files in the tree and one destination in the
+    // repository. Without the guard the second silently overwrites the first on
+    // Linux and nobody sees it on macOS.
+    const legacyRoot = await mkdtemp(join(tmpdir(), 'bzh-legacy-'));
+    const photo = await sharp({
+      create: { width: 20, height: 16, channels: 3, background: '#2b6f3a' },
+    }).jpeg().toBuffer();
+    await mkdir(join(legacyRoot, 'galerie/a'), { recursive: true });
+    await mkdir(join(legacyRoot, 'galerie/b'), { recursive: true });
+    await writeFile(join(legacyRoot, 'galerie/a/8.jpg'), photo);
+    await writeFile(join(legacyRoot, 'galerie/b/8.jpg'), photo);
+    await expect(
+      migrateLegacyImages(['galerie/a/8.jpg', 'galerie/b/8.jpg'], legacyRoot, root),
+    ).rejects.toThrow(/claimed by two different legacy/);
+    await rm(legacyRoot, { recursive: true, force: true });
+  });
+
   it('fails by name when the legacy tree is missing', async () => {
     await expect(migrateLegacyImages(['galerie/8.jpg'], '/nu/exista/niciunde', root))
       .rejects.toThrow(/uploads/i);
