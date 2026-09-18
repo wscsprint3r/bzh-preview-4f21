@@ -431,14 +431,31 @@ collections:
             widget: string
             type: email
             required: false
-          - name: iban
-            label: IBAN
-            widget: string
-            required: false
-          - name: iban2
-            label: Al doilea IBAN
-            widget: string
-            required: false
+          - name: accounts
+            label: Conturi
+            label_singular: Cont
+            widget: list
+            summary: "{{fields.label}} — {{fields.iban}}"
+            hint: >
+              Conturile parohiei. Un singur cont poate purta bifa pentru cod QR,
+              cel afișat pe pagina Donează.
+            fields:
+              - name: label
+                label: Denumirea contului
+                widget: string
+              - name: iban
+                label: IBAN
+                widget: string
+              - name: holder
+                label: Titular
+                widget: string
+              - name: bank
+                label: Banca
+                widget: string
+              - name: qr_bill
+                label: Cod QR pe pagina Donează
+                widget: boolean
+                default: false
           - name: visiting_hours
             label: Program de vizite
             widget: text

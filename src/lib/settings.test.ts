@@ -3,7 +3,7 @@ import { pickSettings } from './settings';
 
 describe('pickSettings', () => {
   it('picks the single entry', () => {
-    const s = { name: 'Parohia', address: 'a', phone: 'b', email: 'c@d.ch' };
+    const s = { name: 'Parohia', address: 'a', phone: 'b', email: 'c@d.ch', accounts: [] };
     expect(pickSettings([{ id: 'settings', data: s }]).name).toBe('Parohia');
   });
 
@@ -14,7 +14,7 @@ describe('pickSettings', () => {
   });
 
   it('throws when there are two, because then it is not known which is true', () => {
-    const s = { name: 'x', address: 'a', phone: 'b', email: 'c@d.ch' };
+    const s = { name: 'x', address: 'a', phone: 'b', email: 'c@d.ch', accounts: [] };
     expect(() => pickSettings([{ id: 'a', data: s }, { id: 'b', data: s }]))
       .toThrow(/exactly one/);
   });

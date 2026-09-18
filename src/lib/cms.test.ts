@@ -202,6 +202,15 @@ describe('the CMS form, checked against the schemas the build enforces', () => {
     }
   });
 
+  it('offers the accounts as a list and keeps no second IBAN field', () => {
+    const settings = collection('settings').files?.[0];
+    expect(settings, 'settings has no file block').toBeDefined();
+    const names = (settings?.fields ?? []).map((f) => f.name);
+    expect(names).toContain('accounts');
+    expect(names).not.toContain('iban');
+    expect(names).not.toContain('iban2');
+  });
+
   /*
    * TWO DIFFERENT PATHS, AND FOR TWO ROUNDS THIS TEST CONFLATED THEM. It pinned
    * `media_folder` and `public_folder` to the same string as a "matched pair",

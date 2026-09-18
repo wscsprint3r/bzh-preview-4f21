@@ -44,6 +44,7 @@
  */
 
 import { z } from 'astro/zod';
+import { isValidIban } from './accounts.ts';
 import { dateParts } from './date-ro.ts';
 import { strictKeys } from './schema.ts';
 
@@ -233,6 +234,20 @@ export const pageSchema = z
  */
 const DEMO = ['info@website.com', '+33 877 554 332'];
 
+const accountSchema = z.strictObject(
+  {
+    label: nonEmptyText('Contul trebuie să aibă o denumire.', 'Denumirea contului nu poate fi goală.'),
+    iban: z
+      .string({ error: () => 'IBAN-ul se scrie ca text.' })
+      .trim()
+      .refine(isValidIban, { message: 'IBAN-ul nu este valid. Verificați cifrele.' }),
+    holder: nonEmptyText('Contul trebuie să aibă un titular.', 'Titularul nu poate fi gol.'),
+    bank: nonEmptyText('Contul trebuie să aibă o bancă.', 'Numele băncii nu poate fi gol.'),
+    qr_bill: z.boolean({ error: () => 'Câmpul qr_bill primește doar true sau false.' }).default(false),
+  },
+  strictKeys,
+);
+
 export const settingsSchema = z
   .strictObject(
     {
@@ -272,8 +287,7 @@ export const settingsSchema = z
         .trim()
         .pipe(z.email({ message: 'A doua adresă de e-mail nu este validă.' }))
         .optional(),
-      iban: z.string().trim().optional(),
-      iban2: z.string().trim().optional(),
+      accounts: z.array(accountSchema),
       visiting_hours: z.string().trim().optional(),
       /*
        * HTTPS REQUIRED BY NAME, not just "a URL". A plain `z.url()` accepts
@@ -312,6 +326,16 @@ export const settingsSchema = z
             'nu un contact al parohiei.',
         });
       }
+    }
+  })
+  .superRefine((value, ctx) => {
+    const flagged = value.accounts.filter((account) => account.qr_bill);
+    if (flagged.length > 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['accounts'],
+        message: 'Un singur cont poate purta codul QR; debifați restul.',
+      });
     }
   })
   .describe('Datele parohiei, editabile din CMS.');

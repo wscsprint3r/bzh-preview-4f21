@@ -45,6 +45,15 @@ const MINIMAL_SETTINGS = {
   address: 'Wehntalerstrasse 451, 8046 Zürich',
   phone: '076 512 04 52',
   email: 'contact@bor-zh.ch',
+  accounts: [
+    {
+      label: 'Susținerea parohiei',
+      iban: 'CH54 0021 5215 3048 5501 P',
+      holder: 'Parohia Ortodoxă Română Sfântul Nicolae',
+      bank: 'UBS (Schweiz) AG',
+      qr_bill: false,
+    },
+  ],
 };
 
 /** The same value, without one field - without damaging the original. */
@@ -353,7 +362,6 @@ describe('settingsSchema', () => {
       ...MINIMAL_SETTINGS,
       phone2: '044 000 00 00',
       email2: 'preot@bor-zh.ch',
-      iban: 'CH00 0000 0000 0000 0000 0',
       visiting_hours: 'Duminica, după Liturghie',
       map_url: 'https://maps.example.ch/parohia',
     });
