@@ -7,6 +7,14 @@ exists because something on this project looked right and was not.
 Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.md`.
 `CLAUDE.md` is a symlink to this file, so the two cannot drift.
 
+## Skills
+
+Before starting a non-trivial task, check the session skill catalog and load any skill
+whose description matches (systematic-debugging, test-driven-development,
+verification-before-completion, brainstorming, requesting/receiving-code-review, and the
+like). The skills here refine *how* you work; the rules below constrain *what* you may
+produce, and the rules win on any conflict.
+
 ## Rules that are not negotiable
 
 - **Diacritics are comma-below.** Romanian's letters are U+0218/U+0219 (S/s) and
