@@ -1,6 +1,7 @@
 # Phase 4 consumes this file: each row becomes one _redirects rule.
 # One row per old path: a page row wins over a post row, because a held-back
 # post has no page to land on and a redirect to a 404 is the failure to avoid.
+# A row whose two paths are equal needs no rule: the old URL already serves the page.
 vechi,nou
 /05-noiembrie-2025-hramul-parohiei/,/noutati/05-noiembrie-2025-hramul-parohiei/
 /adunarea-parohiala-anuala/,/noutati/adunarea-parohiala-anuala/

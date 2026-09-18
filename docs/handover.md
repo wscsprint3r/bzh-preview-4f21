@@ -376,9 +376,10 @@ up, and what to hand Phase 4.
 **What now exists.**
 
 - **Routes**: `/noutati/`, one `/noutati/<slug>/` per published post, `/rss.xml`, and the
-  nine prose pages at their old paths (`/parohia/istoric/`, `/servicii-liturgice/`,
-  `/resurse/doxologia/`, …). The routes Phase 2 did not build — `/events`, `/galerie`,
-  `/pastorale`, `/contact`, `/doneaza` — are Phase 3.
+  nine prose pages at their new paths (`/parohia/istoric/`, `/servicii-liturgice/`,
+  `/resurse/doxologia/`, …), with the old paths mapped in `docs/url-map.csv`. The routes
+  Phase 2 did not build — `/events`, `/galerie`, `/pastorale`, `/contact`, `/doneaza` —
+  are Phase 3.
 - **CMS collections** in `/admin/`: **Articole** (create and delete), **Pagini** (the
   nine files, edit only) and **Setări** (the singleton carrying the parish's address,
   phone, e-mail and IBANs). Labels are Romanian; field keys are English.
@@ -420,11 +421,17 @@ and nobody has edited them; they are for the parish to fix in the CMS:
 **Old-site links in the migrated prose, for Phase 4.** The markdown carries 53 absolute
 `https://www.bor-zh.ch/` links, none rewritten: 2 in articles and 51 in pages. 28 point
 at PDFs in legacy static directories outside `uploads/` — 26 under `/revista/` (the
-Doxologia issues) and 2 under `/files/` (the study texts). The other 25 point into
-`wp-content/uploads/`: 11 full-size images on `cursuri-de-pictura`, 8 `.doc` study files
-on `studii`, 5 PDFs (the 2024 pastoral letter and four Doxologia issues) and one
-old-site page link (the pastoral letter). Phase 4 has to decide what all 53 redirect to
-before the old host goes away.
+Doxologia issues) and 2 under `/files/` (the study texts). Of the remaining 25, 24 point
+into `wp-content/uploads/`: 11 full-size images on `cursuri-de-pictura`, 8 `.doc` study
+files on `studii` and 5 PDFs (the 2024 pastoral letter and four Doxologia issues). The
+25th is not an upload: it is the old-site page link for the pastoral letter. Phase 4 has
+to decide what all 53 redirect to before the old host goes away.
+
+**`/?p=<id>` short links are covered by nothing here.** The URL map is old-path to
+new-path only and carries no WordPress IDs, `_redirects` cannot match a query string,
+and the dump that could supply the IDs lives outside this repository. Phase 4 needs a
+Pages Function for them, or an explicit recorded decision to let those short links die —
+and that decision is due before the IDs become unrecoverable.
 
 **Check it from the repository.**
 

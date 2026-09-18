@@ -229,7 +229,7 @@ describe('no Turkish cedilla in the tracked files', () => {
  * SCOPE, SAID RATHER THAN IMPLIED, AND THE SECOND SPELLING IS WHY THIS BLOCK
  * EXISTS AGAIN. The `0x…` form is how a codepoint is written in code; the escape
  * form is how it is written in a JavaScript string or regex, and it is ALSO A
- * COPY OF THE NUMBER. Four tracked test files carried sixteen of them - guards
+ * COPY OF THE NUMBER. Three tracked test files carried sixteen of them - guards
  * over other text, written in the very spelling the guard that exists to notice
  * copies could not see. Both forms are matched now. The escape pattern is BUILT
  * FROM A CHARCODE, because a literal backslash next to `u` and four hex digits

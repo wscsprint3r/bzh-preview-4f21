@@ -52,6 +52,11 @@ const FIXED_REDIRECTS = [
  * `/noutati/scoala-parohiala/` has no page to land on - a redirect to a 404,
  * the exact failure this map exists to avoid - while `/comunitate/scoala/` is
  * live and is what the old site's own menu linked. One old URL gets one row.
+ *
+ * A ROW WHOSE TWO PATHS ARE EQUAL NEEDS NO RULE. `/servicii-liturgice/` is both
+ * the old slug and the new route, so Phase 4 emits nothing for it: the old URL
+ * already serves the page. The row stays, because the map is the contract of
+ * every old path that keeps working, and 55 is its count.
  */
 export function redirectRows(pages, postSlugs) {
   const rows = [
@@ -91,6 +96,7 @@ export async function writeUrlMap() {
       '# Phase 4 consumes this file: each row becomes one _redirects rule.',
       '# One row per old path: a page row wins over a post row, because a held-back',
       '# post has no page to land on and a redirect to a 404 is the failure to avoid.',
+      '# A row whose two paths are equal needs no rule: the old URL already serves the page.',
       'vechi,nou',
       ...rows.map(([oldPath, newPath]) => `${oldPath},${newPath}`),
     ].join('\n') + '\n';
