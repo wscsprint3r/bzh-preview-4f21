@@ -280,23 +280,43 @@ describe("this file's detectors can actually fire", () => {
   });
 
   /*
-   * THE ARTICLE CORPUS'S SHAPE, asserted rather than trusted. The split is
-   * the contract the migration was measured against (13 dated posts publish,
-   * 32 undated ones wait in the archive), and every guard below - the
-   * published/unpublished page assertions and the feed comparison - proves
-   * nothing if the corpus is empty or all one way.
+   * THE ARTICLE CORPUS'S SHAPE, asserted as properties rather than as today's
+   * counts. The parish dates and publishes the archived posts from the CMS,
+   * and `ci.yml` runs `test:build` on that push: a test pinned to "45 files,
+   * 13 published" would send a red build to the volunteer who pressed Save,
+   * for a change that is exactly what the site is for. The properties below
+   * are the ones every guard further down depends on, and none can go
+   * vacuous - `articleFiles()` reads a real directory, and each count carries
+   * the positive control that fails when the corpus is empty or one-sided.
    */
-  it('the article corpus really is 45 files: 13 published and 32 archived', () => {
+  it('the article corpus has both kinds of post, each with a slug of its own', () => {
     const files = articleFiles();
-    expect(files).toHaveLength(45);
-    expect(files.filter((f) => f.frontmatter.published === true), 'published').toHaveLength(13);
-    expect(files.filter((f) => f.frontmatter.published === false), 'unpublished').toHaveLength(32);
+    expect(files.length, 'no article file at all - the guards below would prove nothing')
+      .toBeGreaterThan(0);
+    const published = files.filter((f) => f.frontmatter.published === true);
+    const unpublished = files.filter((f) => f.frontmatter.published === false);
+    // Positive controls for the guards that iterate one kind each: the page
+    // and feed guards need a published post, the no-page guard needs an
+    // archived one, and an empty set makes its guard a loop over nothing.
+    expect(published.length, 'no published article - the page and feed guards would prove nothing')
+      .toBeGreaterThan(0);
+    expect(unpublished.length, 'no unpublished article - the no-page guard would prove nothing')
+      .toBeGreaterThan(0);
+    /*
+     * `published` is a required boolean in `articleSchema`, so the two sets
+     * partition the corpus. A file whose flag was lost, or written as the
+     * string `"true"`, is in neither set and the sum falls short here.
+     */
+    expect(published.length + unpublished.length, 'a file is neither published nor unpublished')
+      .toBe(files.length);
     /*
      * F3's property, where it can fail: the public slug is the file name minus
      * its date prefix, and two files sharing one slug would share one URL -
      * the second page would overwrite the first with nothing else failing.
+     * Compared against the corpus's own size, not a number from today.
      */
-    expect(new Set(files.map((f) => f.slug)).size, 'two articles share a slug').toBe(45);
+    expect(new Set(files.map((f) => f.slug)).size, 'two articles share a slug')
+      .toBe(files.length);
   });
 });
 
@@ -315,30 +335,48 @@ describe('the build output', () => {
 });
 
 /*
- * THE NEWS PAGES AND THE FEED. `/noutati`, the thirteen article pages and
- * `/rss.xml` are three surfaces built from one filter; these assertions are
- * the joint between the content files and what was actually written to dist.
+ * THE NEWS PAGES AND THE FEED. `/noutati`, the article pages and `/rss.xml`
+ * are three surfaces built from one filter; these assertions are the joint
+ * between the content files and what was actually written to dist.
  */
 describe('the news pages', () => {
-  it('every published article has a page of its own, with a body on it', () => {
+  it('every published article has a page of its own, with its body on it', () => {
     const published = publishedArticleFiles();
     expect(published.length, 'no published article - the guard would prove nothing')
       .toBeGreaterThan(0);
+    let bodiesChecked = 0;
     for (const f of published) {
       const html = read(`noutati/${f.slug}/index.html`);
       /*
        * The body reached the page, not merely the title. A page whose markdown
        * failed to render looks completely correct - header, title, footer - so
-       * the assertion is on the text inside `.prose`, which is where the body
-       * lands and nowhere else. Measured over the thirteen: the shortest real
-       * body is 205 characters (the Christmas pastoral, an announcement with a
-       * link), so 100 catches an empty body with margin and does not pin the
-       * test to today's content.
+       * the assertion is on the `.prose` block, which is where the body lands
+       * and nowhere else.
+       *
+       * THE EXPECTATION COMES FROM THE FILE, not from a length floor. A fixed
+       * "at least 100 characters" was measured against the shortest body of
+       * today (205), and a legitimate short announcement the parish publishes
+       * tomorrow would be a red build for a page that is not wrong. So the
+       * property is the one the guard exists for: a file with a body has
+       * something inside `.prose`. A file with no body is not asserted about.
        */
-      const prose = html.split('<div class="prose"')[1]?.split('</article>')[0] ?? '';
-      const text = prose.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      expect(text.length, `${f.slug} has an empty body`).toBeGreaterThan(100);
+      const source = readFileSync(ARTICLES + f.file, 'utf8');
+      const body = source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim();
+      if (body.length === 0) continue;
+      bodiesChecked += 1;
+      /*
+       * The opening tag's own `>` is consumed before the block is read. Split
+       * on `<div class="prose"` alone, an emptied block leaves a lone `>` that
+       * trims to non-empty, and this guard passes while checking nothing -
+       * measured by emptying one built page's prose and watching it pass.
+       */
+      const afterOpen = html.split('<div class="prose"')[1] ?? '';
+      const prose = afterOpen.slice(afterOpen.indexOf('>') + 1).split('</article>')[0] ?? '';
+      expect(prose.trim(), `${f.slug} has a body in its file but nothing in .prose`).not.toBe('');
     }
+    // Without this, a corpus of empty bodies would make the loop above pass
+    // while checking nothing.
+    expect(bodiesChecked, 'no published article has a body to check').toBeGreaterThan(0);
   });
 
   it('no unpublished article has a page of its own in dist/', () => {
@@ -429,9 +467,13 @@ describe('the news feed', () => {
     const xml = read('rss.xml');
     /*
      * The expected order comes from the same function the endpoint uses, fed
-     * the content files. `id: f.slug` is enough for the ordering: the real id
-     * is the date prefix plus the slug, and the tiebreak only compares ids of
-     * articles that share a date, so equal prefixes cancel.
+     * the content files. `id: f.slug` IS the public slug - `articleFiles()`
+     * already stripped the date prefix - and it is enough for the ordering:
+     * the real id is the date prefix plus the slug, and the tiebreak only
+     * compares ids of articles that share a date, so equal prefixes cancel.
+     * The URL is built from `e.id` directly, because calling `articleSlug` on
+     * an id that has already been stripped would eat a second date-shaped
+     * prefix from a WordPress slug that happened to begin with one.
      */
     const entries: ArticleEntry[] = articleFiles().map((f) => ({
       id: f.slug,
@@ -443,9 +485,7 @@ describe('the news feed', () => {
         author: 'Parohia',
       },
     }));
-    const expected = publishedArticles(entries).map(
-      (e) => `${SITE}/noutati/${articleSlug(e.id)}/`,
-    );
+    const expected = publishedArticles(entries).map((e) => `${SITE}/noutati/${e.id}/`);
     const actual = [
       ...xml.matchAll(/<link>(https:\/\/[^<]+\/noutati\/[^<]*)<\/link>/g),
     ].map((m) => m[1] as string);
