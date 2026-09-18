@@ -1,8 +1,10 @@
 ---
 import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
+import ArticleList from '../components/ArticleList.astro';
 import WeekBand from '../components/WeekBand.astro';
 import WeekPicker from '../components/WeekPicker.astro';
+import { publishedArticles } from '../lib/articles';
 import { formatWeekRange } from '../lib/date-ro';
 import { upcomingWeeks } from '../lib/schedule';
 import { nowInZurich } from '../lib/week';
@@ -39,6 +41,16 @@ const { today } = nowInZurich();
  * prints its own interval, which is the only range that is true.
  */
 const weeks = upcomingWeeks(days, today, 3);
+
+/*
+ * The news section, through the one filter `/noutati` and `/rss.xml` also use.
+ * `ArticleList`'s `limit` slices AFTER `publishedArticles` has sorted, so "the
+ * three newest" is the order the index page shows rather than whatever order
+ * `getCollection` returned. The section renders only when something is
+ * published: an empty heading with a link to an empty list is a worse answer
+ * than no section at all.
+ */
+const articles = publishedArticles(await getCollection('articles'));
 ---
 
 <Base title="Bine ați venit">
@@ -99,6 +111,24 @@ const weeks = upcomingWeeks(days, today, 3);
 
     <p class="all"><a href="/program/">Programul complet →</a></p>
   </div>
+
+  {/*
+    The third and last part of the homepage per spec §5: hero, week band, news.
+    `headingLevel={3}` because this section owns the page's second `<h2>` — a
+    card that rendered its default level would put an `<h2>` under a `<h2>` and
+    skip the level axe's heading-order rule expects.
+
+    No empty state here on purpose: when nothing is published the whole section
+    is absent, because a heading over an empty list and a link to an empty page
+    tell a visitor less than nothing.
+  */}
+  {articles.length > 0 && (
+    <div class="container">
+      <h2 class="section-title">Noutăți</h2>
+      <ArticleList articles={articles} limit={3} headingLevel={3} />
+      <p class="all"><a href="/noutati/">Toate noutățile →</a></p>
+    </div>
+  )}
 </Base>
 
 <style>

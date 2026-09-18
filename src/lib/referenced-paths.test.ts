@@ -52,10 +52,6 @@ const TRACKED_SET = new Set(TRACKED);
  * here that has since been written is a stale exemption and fails.
  */
 const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
-  'Phase 2 names it in its plan and has not written it yet': [
-    'src/lib/settings.test.ts',
-    'src/lib/settings.ts',
-  ],
   'inside an installed npm package or the vendored CMS bundle, which git does not track': [
     'chunks/react-dom.js',
     'dist/sveltia-cms.mjs',

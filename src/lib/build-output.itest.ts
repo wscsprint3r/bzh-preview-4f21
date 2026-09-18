@@ -828,6 +828,52 @@ describe('the built pages', () => {
     expect(html).toContain('Bine ați venit');
   });
 
+  /*
+   * THE HOMEPAGE NEWS SECTION, EXACTLY. The expected set comes from the content
+   * files through `publishedArticles` — the same filter the page uses — and the
+   * assertion is set equality on the article hrefs, not "contains three of
+   * them". A homepage that rendered the four newest, or the newest three plus
+   * an unpublished one, is a different page from the one `/noutati/` opens
+   * with, and both would pass a contains-check.
+   *
+   * The positive controls are what keep the two loops from being loops over
+   * nothing: the corpus is asserted to hold a published post (else the equality
+   * is `[] === []`) and an unpublished one (else the "no unpublished slug" loop
+   * never runs). The trailing slash in both patterns is load-bearing, the same
+   * way it is in the feed guard: it keeps a published `mosii-de-toamna-3` from
+   * matching the unpublished `mosii-de-toamna` as a substring.
+   */
+  it('the homepage carries exactly the three newest published articles, and no unpublished slug', () => {
+    const html = read('index.html');
+    const published = publishedArticles(
+      articleFiles().map((f) => ({
+        id: f.slug,
+        data: {
+          title: String(f.frontmatter.title ?? ''),
+          date: String(f.frontmatter.date),
+          published: f.frontmatter.published === true,
+          category: 'Noutati' as const,
+          author: 'Parohia',
+        },
+      })),
+    );
+    expect(published.length, 'no published article - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    const newest = published.slice(0, 3).map((e) => e.id);
+    const links = [...html.matchAll(/href="\/noutati\/([^"/]+)\/"/g)].map((m) => m[1] as string);
+    expect(links, 'the homepage news list is not exactly the three newest published posts')
+      .toEqual(newest);
+
+    const unpublished = articleFiles()
+      .filter((f) => f.frontmatter.published === false)
+      .map((f) => f.slug);
+    expect(unpublished.length, 'no unpublished article - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    for (const slug of unpublished) {
+      expect(html, `${slug} must not be on the homepage`).not.toContain(`/noutati/${slug}/`);
+    }
+  });
+
   it('declares the Romanian language and correct diacritics', () => {
     for (const p of ['index.html', 'program/index.html']) {
       const html = read(p);

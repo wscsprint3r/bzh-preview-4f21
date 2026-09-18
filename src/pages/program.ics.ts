@@ -17,20 +17,21 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 import { generateIcs } from '../lib/ics';
-
-/**
- * Where the services are, unless a day says otherwise.
- *
- * `ics.ts` writes `z.location || opts.location` into LOCATION, so this is the
- * address a subscriber's phone shows on an ordinary day. Fuller than the
- * footer's two lines on purpose: a calendar entry is read away from the site,
- * often in a map application, so it carries the building's name as well as the
- * street. The commas are escaped by `ics.ts` per RFC 5545 §3.3.11 — do not
- * escape them here as well.
- */
-const LOCATION = 'Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich';
+import { pickSettings } from '../lib/settings';
 
 export const GET: APIRoute = async () => {
+  /*
+   * WHERE THE SERVICES ARE, unless a day says otherwise. Read from the settings
+   * singleton, which is the same string the footer renders — before this, the
+   * feed held a byte-identical copy of the address, and the address a visitor
+   * actually drives to would have been the second one to change. `pickSettings`
+   * stops the build when the file is missing or doubled.
+   *
+   * `ics.ts` writes `z.location || opts.location` into LOCATION, so a day with
+   * its own `location` still wins. The commas are escaped by `ics.ts` per RFC
+   * 5545 §3.3.11 — do not escape them here as well.
+   */
+  const settings = pickSettings(await getCollection('settings'));
   const entries = await getCollection('services');
   /*
    * `data` and `date` are two different things on this line. `e.data` is
@@ -91,7 +92,7 @@ export const GET: APIRoute = async () => {
    * the file, which is the one outcome that would leave a parishioner with a
    * schedule that never updates again.
    */
-  return new Response(generateIcs(days, { dtstamp, location: LOCATION }), {
+  return new Response(generateIcs(days, { dtstamp, location: settings.address }), {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': 'inline; filename="program-liturgic.ics"',
