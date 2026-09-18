@@ -33,6 +33,7 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const CONTENT = fileURLToPath(new URL('../content/services/', import.meta.url));
 const ARTICLES = fileURLToPath(new URL('../content/articles/', import.meta.url));
 const PAGES_CONTENT = fileURLToPath(new URL('../content/pages/', import.meta.url));
+const GALERII = fileURLToPath(new URL('../content/galerii/', import.meta.url));
 
 /** RFC 5545 §3.1: the line break in an iCalendar stream is CRLF, always. */
 const CRLF = '\r\n';
@@ -148,16 +149,18 @@ function icsReferences(html: string): string[] {
  * not built from `Base.astro`. That is an answer given once, not a weakening
  * of the rule.
  *
- * THE ARTICLE PAGES ARE THE ONE PART THAT IS DERIVED, and the reason is not
- * convenience. One article page exists per published post, so a hand-written
- * list of thirteen would make the next post the parish publishes fail this
- * suite until a developer edits a test - a red build sent to the volunteer
- * who pressed Save, for a page that is not wrong. The COUNT for those pages
- * is still written by hand below (every article page goes through
- * `Base.astro` and the footer, so it carries exactly two), and the set comes
- * from the content files, which is the same subject `articleFiles()` already
- * gives the unpublished guard. A page under `noutati/` that is not a
- * published article's page matches neither and fails.
+ * THE ARTICLE AND GALLERY PAGES ARE THE PARTS THAT ARE DERIVED, and the reason
+ * is not convenience. One article page exists per published post and one
+ * gallery page per album, so a hand-written list of thirteen would make the
+ * next post the parish publishes fail this suite until a developer edits a
+ * test - a red build sent to the volunteer who pressed Save, for a page that
+ * is not wrong. The COUNT for those pages is still written by hand below
+ * (every article page and every album page goes through `Base.astro` and the
+ * footer, so each carries exactly two), and the set comes from the content
+ * files, which is the same subject `articleFiles()` and `galleryFiles()`
+ * already give the guards below. A page under `noutati/` that is not a
+ * published article's page, or under `galerie/` that is not an album's, matches
+ * neither and fails.
  */
 const ICS_REFERENCES: Record<string, number> = {
   // `<link rel="alternate">` in `<head>` + „Abonare la program (.ics)” in the footer.
@@ -172,8 +175,9 @@ const ICS_REFERENCES: Record<string, number> = {
    * subscribes to the calendar from `/program/`, like anyone else.
    */
   'admin/index.html': 0,
-  // The same two as the homepage; the index does not subscribe on its own.
+  // The same two as the homepage; neither index subscribes on its own.
   'noutati/index.html': 2,
+  'galerie/index.html': 2,
   /*
    * THE NINE PROSE PAGES, named one by one rather than derived, and the
    * difference from the article entries below is deliberate: the nine are a
@@ -194,7 +198,8 @@ const ICS_REFERENCES: Record<string, number> = {
 };
 
 /**
- * The hand-written counts plus one entry per published article page.
+ * The hand-written counts plus one entry per published article page and per
+ * album page.
  *
  * The derivation is by SLUG, the public URL, so it cannot be satisfied by a
  * page whose directory happens to carry the collection id with its date
@@ -205,6 +210,9 @@ function expectedIcsReferences(): Record<string, number> {
   const expected = { ...ICS_REFERENCES };
   for (const f of publishedArticleFiles()) {
     expected[`noutati/${f.slug}/index.html`] = 2;
+  }
+  for (const f of galleryFiles()) {
+    expected[`galerie/${f.slug}/index.html`] = 2;
   }
   return expected;
 }
@@ -268,6 +276,48 @@ function publishedArticleFiles(): { file: string; slug: string; frontmatter: Rec
 }
 
 /**
+ * Every gallery content file, its public slug and its parsed frontmatter.
+ *
+ * THE SAME SUBJECT RULE AS `articleFiles`: the expected set comes from the
+ * CONTENT FILES, not from a walk of `dist/`, which could only ever confirm
+ * what the route already produced. There is no `published` flag on a gallery -
+ * every file in the collection is an album the parish means to show - so the
+ * slug is the file name without its extension, which is the id Astro's loader
+ * gives the entry and the value the route turns into `/galerie/<slug>/`.
+ */
+function galleryFiles(): { file: string; slug: string; frontmatter: Record<string, unknown> }[] {
+  return readdirSync(GALERII)
+    .filter((file) => file.endsWith('.md'))
+    .sort()
+    .map((file) => {
+      const text = readFileSync(GALERII + file, 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, `${file} has no frontmatter block`).not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
+      return { file, slug: file.slice(0, -'.md'.length), frontmatter };
+    });
+}
+
+/**
+ * Every `<img>`'s alt text, in document order.
+ *
+ * ONE TAG AT A TIME, because Astro serialises an empty alt as the bare boolean
+ * attribute `alt`, not `alt=""` - measured on the Task 6 build. A pattern
+ * looking for `alt="..."` sees every non-empty alt and none of the empty ones,
+ * which is exactly backwards for a policy whose whole point is that they are
+ * empty. The control in "this file's detectors can actually fire" proves both
+ * readings.
+ */
+function altTexts(html: string): string[] {
+  return [...html.matchAll(/<img\b[^>]*>/g)].map((m) => {
+    const tag = m[0] as string;
+    const alt = /\salt(?:="([^"]*)")?(?=[\s>])/.exec(tag);
+    expect(alt, `an <img> with no alt attribute: ${tag}`).not.toBeNull();
+    return alt?.[1] ?? '';
+  });
+}
+
+/**
  * Every prose page content file, its public route and its parsed frontmatter.
  *
  * THE SIBLING OF `articleFiles`, and the subject rule is the same one: the
@@ -315,6 +365,20 @@ describe("this file's detectors can actually fire", () => {
 
   it('reading a file that does not exist fails, rather than passing vacuously', () => {
     expect(() => read('nu-exista-acest-fisier.ics')).toThrow();
+  });
+
+  /*
+   * The alt reader is a detector with a wrong direction available to it: the
+   * build serialises an empty alt as a bare `alt` attribute, so a pattern for
+   * `alt="..."` alone would report the captioned images and miss every
+   * decorative one. Both readings are pinned here, and a tag with no alt at
+   * all is a failure rather than an empty string.
+   */
+  it('reads a bare alt as empty, a written one as its text, and neither as an error', () => {
+    expect(altTexts('<img src="x" alt>')).toEqual(['']);
+    expect(altTexts('<img src="x" alt="">')).toEqual(['']);
+    expect(altTexts('<img alt="Icoană" src="x">')).toEqual(['Icoană']);
+    expect(() => altTexts('<img src="x">')).toThrow();
   });
 
   it('the collection really does have days and services to compare', () => {
@@ -649,6 +713,125 @@ describe('the prose pages', () => {
     process.stdout.write(
       `\nProse page body images: ${imagesChecked} over ${withImages.length} page(s):\n` +
         `${measured.map((m) => `  ${m}`).join('\n')}\n`,
+    );
+  });
+});
+
+/*
+ * THE TWO PHOTO ALBUMS, FROM ONE ROUTE. `[slug].astro` builds a page per entry
+ * in the `galerii` collection; these assertions are the joint between the
+ * content files and what was written to dist, and they are the only place the
+ * alt/caption policy - a description is the visible caption, every alt is
+ * empty, and an image without a description has no caption either - is checked
+ * against a built page.
+ */
+describe('the gallery pages', () => {
+  it('every album in the collection has a page of its own', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guards below would prove nothing')
+      .toBeGreaterThan(0);
+    for (const f of albums) {
+      expect(existsSync(`${DIST}galerie/${f.slug}/index.html`), `missing /galerie/${f.slug}/`)
+        .toBe(true);
+    }
+  });
+
+  /*
+   * REACHABILITY, WHICH "A FILE EXISTS" DOES NOT CHECK. An album page no link
+   * points at is a page nobody can navigate to, and it looks exactly like one
+   * everybody can - the lesson the prose pages paid for. The subject is the
+   * content files, so a new album is checked here the moment the parish saves
+   * it.
+   */
+  it('links every album from the index, with its title, and renders each cover', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    const html = read('galerie/index.html');
+    const covers = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1] as string);
+    // Count equality, not "at least one": the index's only `<img>`s are the
+    // covers (the site chrome carries none), so a lost cover fails here.
+    expect(covers.length, `the index renders ${covers.length} covers, not ${albums.length}`)
+      .toBe(albums.length);
+    for (const src of covers) {
+      expect(src.startsWith('/'), `${src} on /galerie/ is not root-relative`).toBe(true);
+      const path = (src.split(/[?#]/)[0] as string).slice(1);
+      expect(existsSync(DIST + path), `${src} on /galerie/ does not resolve inside dist/`).toBe(true);
+    }
+    for (const f of albums) {
+      expect(html, `the index does not link /galerie/${f.slug}/`)
+        .toContain(`href="/galerie/${f.slug}/"`);
+      expect(html, `the index does not show the title of ${f.slug}`)
+        .toContain(String(f.frontmatter.title ?? ''));
+    }
+  });
+
+  it('renders every image of the album, each resolving to a real file in dist/', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    let imagesChecked = 0;
+    for (const f of albums) {
+      const html = read(`galerie/${f.slug}/index.html`);
+      const images = (f.frontmatter.images ?? []) as { file?: string; description?: string }[];
+      expect(images.length, `${f.file} lists no image - the count below would prove nothing`)
+        .toBeGreaterThan(0);
+      const srcs = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1] as string);
+      expect(srcs.length, `${f.slug} renders ${srcs.length} images, not ${images.length}`)
+        .toBe(images.length);
+      for (const src of srcs) {
+        imagesChecked += 1;
+        expect(src.startsWith('/'), `${src} on /galerie/${f.slug}/ is not root-relative`).toBe(true);
+        const path = (src.split(/[?#]/)[0] as string).slice(1);
+        expect(existsSync(DIST + path), `${src} on /galerie/${f.slug}/ does not resolve inside dist/`)
+          .toBe(true);
+      }
+    }
+    expect(imagesChecked, 'no gallery image in any built album').toBeGreaterThan(0);
+    process.stdout.write(
+      `\nGallery images: ${imagesChecked} over ${albums.length} album page(s).\n`,
+    );
+  });
+
+  it('writes each description as the caption and leaves every alt empty', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    let captioned = 0;
+    let decorative = 0;
+    for (const f of albums) {
+      const html = read(`galerie/${f.slug}/index.html`);
+      const images = (f.frontmatter.images ?? []) as { file?: string; description?: string }[];
+      /*
+       * EVERY ALT IS EMPTY, and that is the measured policy rather than an
+       * oversight: the caption is the text alternative, and carrying the same
+       * sentence in `alt` made axe's `image-redundant-alt` fire on all nine
+       * captioned images of the legacy album in the default-width browser
+       * pass. The assertion still has teeth - an `alt` that came back carrying
+       * the description, or the album title, fails it - and `altTexts` has its
+       * own positive control above, because a pattern for `alt="..."` would
+       * report only the non-empty ones.
+       *
+       * THE CAPTIONS ARE THE EXACT SEQUENCE, in frontmatter order: the grid
+       * maps the array and renders one caption per described entry, so a
+       * dropped or reordered one changes this array. The paragraph is matched
+       * with `[^>]*` because Astro adds its scoping attribute to the rendered
+       * `<p>`.
+       */
+      expect(altTexts(html), `${f.slug} alt texts`).toEqual(images.map(() => ''));
+      const captions = [...html.matchAll(/<p class="gg-caption"[^>]*>([\s\S]*?)<\/p>/g)]
+        .map((m) => (m[1] as string).trim());
+      expect(captions, `${f.slug} captions`)
+        .toEqual(images.filter((i) => i.description).map((i) => i.description));
+      captioned += images.filter((i) => i.description).length;
+      decorative += images.filter((i) => !i.description).length;
+    }
+    // Printed, not asserted: both arms are exercised by today's corpus (the
+    // legacy album captions all nine of its images, the Easter album none), but
+    // a parish that captions everything would be doing the right thing, and a
+    // build must not go red over it.
+    process.stdout.write(
+      `\nGallery captions: ${captioned} captioned, ${decorative} uncaptioned.\n`,
     );
   });
 });

@@ -183,6 +183,22 @@ const PAGE_BUDGET = {
    */
   'noutati/*': 35 * 1024,
   /*
+   * THE TWO PHOTO ALBUMS. `/galerie/` lists one card per album and each album
+   * page is a grid of every image in it, so both grow with what the parish
+   * uploads, the way `/noutati/` grows with every post.
+   *
+   * MEASURED ON THE TASK 6 BUILD: the index 11,452 bytes at two albums, the
+   * album pages 13,398 (nine images) and 15,826 (fifteen). The limits are 1.8x
+   * the measured index and 1.55x the larger album, inside the 1.4-1.9x range
+   * the prose pages state. An album grows by roughly 400 bytes per photograph
+   * (measured between the two albums: six images = 2,428 bytes), so 24 KiB
+   * leaves room for about twenty more - the larger album today holds fifteen -
+   * and a parish album that crosses that is a red build asking whether it
+   * wants pagination, not a silent 100 KB page.
+   */
+  'galerie/index.html': 20 * 1024,
+  'galerie/*': 24 * 1024,
+  /*
    * THE NINE PROSE PAGES, three groups and one exact key. They are a fixed
    * contract - the CMS does not create them - so a pattern per URL group is
    * the honest shape: the pages inside a group are the same kind of document,
@@ -287,6 +303,17 @@ const REQUEST_BUDGET = {
   'noutati/index.html': 12,
   // No body image measures 11, one measures exactly 12, a second crosses it.
   'noutati/*': 12,
+  /*
+   * The index is the document plus one cover per album; an album page is the
+   * document plus one image per photograph. MEASURED ON THE TASK 6 BUILD: the
+   * index 13 (5 in the document + 8 @font-face), the album pages 20 (nine
+   * images) and 26 (fifteen). The plan's 6 for the index forgot the fixed
+   * chrome - 11 requests on every page - so the honest limits are the measured
+   * counts plus room: 16 is three more album covers, 32 is six more
+   * photographs.
+   */
+  'galerie/index.html': 16,
+  'galerie/*': 32,
   // Measured 14 and 19; 24 is room for five more portraits on either page.
   'parohia/*': 24,
   // Measured 13 on both; 16 is room for three more images.

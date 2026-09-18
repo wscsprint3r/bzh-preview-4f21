@@ -1,0 +1,62 @@
+---
+import type { Gallery } from '../lib/content-schema';
+import ContentImage from './ContentImage.astro';
+
+/**
+ * One album's images, two columns on a phone and three above `34rem`.
+ *
+ * THE ALT POLICY LIVES HERE, AND IT IS NOT THE ONE THE PLAN FIRST SKETCHED.
+ * A description becomes the visible caption and the image's `alt` stays empty:
+ * the caption IS the text alternative, and carrying the same sentence in `alt`
+ * makes a screen reader announce it twice. That is not a theory - the
+ * default-width browser pass measured it. With `alt` set to the description,
+ * axe's `image-redundant-alt` fired on all nine captioned images of the legacy
+ * album, and `npm run a11y` is the authority on what a person actually hears.
+ * An image without a description renders `alt=""` with no caption for the
+ * older reason: declaring a photograph decorative is honest, inventing a
+ * sentence for it is not, and `gallerySchema` leaves `description` optional
+ * precisely because the CMS field invites the parish to write one.
+ */
+interface Props {
+  gallery: { id: string; data: Gallery };
+}
+
+const { gallery } = Astro.props;
+---
+
+<ul class="gg">
+  {gallery.data.images.map((image) => (
+    <li class="gg-item">
+      <ContentImage
+        image={image.file}
+        alt=""
+        sizes="(max-width: 34rem) 45vw, 15rem"
+      />
+      {image.description && <p class="gg-caption">{image.description}</p>}
+    </li>
+  ))}
+</ul>
+
+<style>
+  .gg {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 2rem 0 0;
+    padding: 0;
+  }
+  /* The same `34rem` boundary `SiteHeader` and `DayRow` use, so the grid adds
+     no width band the browser passes do not already audit. */
+  @media (max-width: 34rem) {
+    .gg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  .gg-item { margin: 0; }
+  .gg-item img { border: 1px solid var(--rule); }
+  .gg-caption {
+    margin: 0.4rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+</style>

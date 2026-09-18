@@ -1,0 +1,89 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import ContentImage from '../../components/ContentImage.astro';
+import { dayHeading } from '../../lib/date-ro';
+
+/*
+ * Newest album first, with the id tiebreak `publishedArticles` uses: two
+ * albums sharing a date would otherwise order by whatever `getCollection`
+ * returned, and every rebuild could reorder them with nothing else changing.
+ * There is no `published` flag on a gallery, so unlike articles this is the
+ * whole collection.
+ */
+const albums = (await getCollection('galerii')).sort((a, b) =>
+  a.data.date === b.data.date
+    ? a.id.localeCompare(b.id, 'en')
+    : b.data.date.localeCompare(a.data.date, 'en'),
+);
+---
+
+<Base
+  title="Galerie"
+  description="Galeriile foto ale Parohiei Ortodoxe Române Sfântul Nicolae din Zürich."
+>
+  <div class="container">
+    <h1 class="page-title">Galerie</h1>
+
+    {albums.length === 0 ? (
+      /* The same shape of sentence `/noutati` uses when nothing has been
+         published: it says what is true without inventing a reason for it. */
+      <p class="empty">Galeriile foto nu au fost încă publicate.</p>
+    ) : (
+      <ul class="album-list">
+        {albums.map((album) => (
+          <li class="album-item">
+            <a class="album-link" href={`/galerie/${album.id}/`}>
+              {/* Decorative: the title in the same link is the accessible
+                  name, and repeating it as alt would say it twice. */}
+              <ContentImage
+                image={album.data.cover}
+                alt=""
+                sizes="(max-width: 34rem) 90vw, 20rem"
+              />
+              <h2 class="album-title">{album.data.title}</h2>
+              <p class="album-date">
+                <time datetime={album.data.date}>
+                  {dayHeading(album.data.date)} {album.data.date.slice(0, 4)}
+                </time>
+              </p>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</Base>
+
+<style>
+  .page-title { margin-top: 2rem; }
+  .empty { color: var(--muted); font-style: italic; }
+  .album-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.75rem;
+    margin: 2rem 0 0;
+    padding: 0;
+  }
+  /* One column on a phone, like the grid inside an album is two: the same
+     `34rem` boundary, so no unaudited band appears. */
+  @media (max-width: 34rem) {
+    .album-list { grid-template-columns: minmax(0, 1fr); }
+  }
+  .album-item { margin: 0; }
+  .album-link { display: block; text-decoration: none; }
+  .album-link img { border: 1px solid var(--rule); }
+  /* No `color` here: the title keeps global.css's `h2` oxblood, and the link's
+     hover is expressed on the title rather than by recolouring it - the trap
+     `ArticleCard.astro` documents. */
+  .album-link:hover .album-title { text-decoration: underline; }
+  .album-title { font-size: 1.25rem; margin: 0.75rem 0 0.25rem; }
+  .album-date {
+    margin: 0;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+</style>
