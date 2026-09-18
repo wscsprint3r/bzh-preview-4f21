@@ -64,6 +64,7 @@
  * ---------------------------------------------------------------------------
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -210,6 +211,11 @@ async function bundle(source, output) {
   return import(pathToFileURL(output).href);
 }
 
+/** The SHA-256 of a file, or null when it does not exist. */
+function fileDigest(path) {
+  return existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : null;
+}
+
 async function main() {
   /*
    * `realpathSync`, because on macOS `os.tmpdir()` is `/var/...`, a symlink to
@@ -239,6 +245,28 @@ async function main() {
     // same Sveltia bundle and the same fonts as the real one.
     symlinkSync(join(ROOT, 'node_modules'), join(project, 'node_modules'));
 
+    /*
+     * A CACHE OF THE SCRATCH BUILD'S OWN, with only the image cache shared.
+     * The default `cacheDir` resolves under the symlinked `node_modules`, so
+     * the scratch build wrote its fixture entries into the repository's
+     * `data-store.json`; the next real build then rendered fabricated services
+     * and events from that cache. The wrapper config points Astro at a
+     * directory inside the scratch, which dies with it. `assets/` alone is
+     * symlinked back in: it is content-addressed image data that cannot become
+     * a page, and sharing it is what keeps a run from re-encoding the whole
+     * site. The digest guard around the build is the positive control.
+     */
+    const cache = join(project, 'cache');
+    mkdirSync(cache, { recursive: true });
+    const sharedAssets = join(ROOT, 'node_modules/.astro/assets');
+    if (existsSync(sharedAssets)) symlinkSync(sharedAssets, join(cache, 'assets'));
+    const pickerConfig = join(project, 'astro.picker.config.mjs');
+    writeFileSync(
+      pickerConfig,
+      `import base from './astro.config.mjs';\n` +
+        `export default { ...base, cacheDir: ${JSON.stringify(cache)} };\n`,
+    );
+
     for (const collection of CLEARED_COLLECTIONS) {
       const dir = join(project, 'src/content', collection);
       rmSync(dir, { recursive: true, force: true });
@@ -257,10 +285,46 @@ async function main() {
       console.log(`  ${swap.collection}: ${items.length} file(s): ${names.join(', ')}`);
     }
 
-    execFileSync(process.execPath, [join(ROOT, 'node_modules/astro/bin/astro.mjs'), 'build', '--root', project], {
-      stdio: 'inherit',
-      cwd: project,
-    });
+    /*
+     * THE SCRATCH BUILD MUST NOT WRITE THE REPOSITORY'S CONTENT CACHE.
+     *
+     * `node_modules` is symlinked into the scratch project so both builds run
+     * the same Astro, and Astro's default `cacheDir` is `node_modules/.astro` -
+     * so until this was pinned the scratch build wrote its FIXTURE entries into
+     * the repository's `data-store.json`, through the symlink, and deleted
+     * them from `src/` when the scratch was removed. The next real build then
+     * rendered fabricated events and fabricated services from the cache: the
+     * invented liturgical content the fixtures exist to keep out of this
+     * repository, back in through the side door, and `npm run test:all` went
+     * red on its second run at `build-output.itest.ts`. A fresh clone cannot
+     * see it, which is exactly why it needs a check here.
+     *
+     * `cacheDir` is redirected to a directory inside the scratch, and the
+     * ASSETS cache alone is shared back in - that one is content-addressed
+     * image data, cannot become a page, and sharing it is what keeps a run
+     * from re-encoding the whole site. The digest below is the positive
+     * control: any future path that lets the scratch build write the
+     * repository's store fails the pass, loudly.
+     */
+    const repoStore = join(ROOT, 'node_modules/.astro/data-store.json');
+    const storeBefore = fileDigest(repoStore);
+    execFileSync(
+      process.execPath,
+      [join(ROOT, 'node_modules/astro/bin/astro.mjs'), 'build', '--root', project, '--config', 'astro.picker.config.mjs'],
+      { stdio: 'inherit', cwd: project },
+    );
+    if (fileDigest(repoStore) !== storeBefore) {
+      console.error(
+        "the scratch build wrote into the repository's content-layer cache.\n" +
+          '    Fixture entries left in node_modules/.astro/data-store.json are rendered by the\n' +
+          '    next real build, so fabricated services and events appear in the site built in\n' +
+          '    this checkout while every test still passes.\n' +
+          '    DO NOT WEAKEN THIS CHECK. Give the scratch build its own cacheDir and keep the\n' +
+          "    repository's data-store.json untouched, or delete the polluted store and\n" +
+          '    fix the sharing.',
+      );
+      return false;
+    }
 
     /*
      * THE FIXTURE REALLY RENDERED THE PAGES IT EXISTS FOR. The parish has no
