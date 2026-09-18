@@ -1,0 +1,79 @@
+---
+import type { EventEntry } from '../lib/events';
+import { eventDates, eventSlug } from '../lib/events';
+
+/**
+ * One event in a list: when it is, where, and its title as a link.
+ *
+ * `headingLevel` is a prop for the same reason `ArticleCard`'s is. On
+ * `/evenimente` the upcoming cards sit directly under the page's `<h1>`, so they
+ * are `<h2>`; the past cards sit under the `<h2>Trecute</h2>` heading, so they
+ * are `<h3>`. A card that always rendered one level would skip a level in one of
+ * the two lists, and axe's `heading-order` rule is what fails when that happens.
+ *
+ * NO IMAGE, DELIBERATELY. The card shows the date, the place and the short
+ * description; the picture belongs to the detail page. An `<img>` per card
+ * would make the index's request count grow with the number of events, which is
+ * the one number a list page cannot bound.
+ */
+interface Props {
+  event: EventEntry;
+  headingLevel?: 2 | 3;
+}
+
+const { event, headingLevel = 2 } = Astro.props;
+const { title, start_date, end_date, time, location, description } = event.data;
+const href = `/evenimente/${eventSlug(event.id)}/`;
+const Heading = `h${headingLevel}` as 'h2' | 'h3';
+
+/*
+ * The route normalises the same way, so a card and its detail page cannot
+ * disagree about whether the event is a range: `end_date` equal to the start is
+ * one day, not a range of one day.
+ */
+const endDate = end_date !== undefined && end_date !== start_date ? end_date : null;
+const dates = eventDates(start_date, endDate);
+---
+
+<article class="ec">
+  <p class="ec-meta">
+    <time datetime={start_date}>{dates.start}</time>
+    {dates.end && endDate && (
+      <>
+        <span aria-hidden="true">–</span>
+        <time datetime={endDate}>{dates.end}</time>
+      </>
+    )}
+    {time && <span class="ec-time">Ora {time}</span>}
+  </p>
+  <Heading class="ec-title"><a href={href}>{title}</a></Heading>
+  <p class="ec-location">{location}</p>
+  {description && <p class="ec-description">{description}</p>}
+</article>
+
+<style>
+  .ec { padding-block: 1.25rem; border-bottom: 1px solid var(--rule); }
+  .ec-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0 0 0.35rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  /* The time is the one part of the meta line in oxblood, so the eye can find
+     it without it competing with the title - the same device `ArticleCard`
+     uses for the category. */
+  .ec-time { color: var(--oxblood); }
+  .ec-title { font-size: 1.25rem; margin: 0 0 0.4rem; }
+  /* No `color` here: the link keeps global.css's --gold-text, and therefore
+     global.css's `a:hover` too. Declaring a colour in this scoped block would
+     ship at (0,3,1) and silently defeat the global hover at (0,1,1) - the trap
+     `SiteHeader.astro` and `ArticleCard.astro` both document. */
+  .ec-title a { text-decoration: none; }
+  .ec-title a:hover { text-decoration: underline; }
+  .ec-location { margin: 0; color: var(--muted); }
+  .ec-description { margin: 0.35rem 0 0; color: var(--muted); }
+</style>

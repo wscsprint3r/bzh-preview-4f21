@@ -5,6 +5,7 @@ import { parse as parseYaml } from 'yaml';
 import type { ArticleEntry } from './articles';
 import { articleSlug, publishedArticles } from './articles';
 import { CEDILLAS, COMMA_BELOW } from './cedilla';
+import { eventSlug } from './events';
 import { INDEXABLE } from './site';
 
 /*
@@ -34,6 +35,7 @@ const CONTENT = fileURLToPath(new URL('../content/services/', import.meta.url));
 const ARTICLES = fileURLToPath(new URL('../content/articles/', import.meta.url));
 const PAGES_CONTENT = fileURLToPath(new URL('../content/pages/', import.meta.url));
 const GALERII = fileURLToPath(new URL('../content/galerii/', import.meta.url));
+const EVENTS = fileURLToPath(new URL('../content/events/', import.meta.url));
 
 /** RFC 5545 §3.1: the line break in an iCalendar stream is CRLF, always. */
 const CRLF = '\r\n';
@@ -149,18 +151,18 @@ function icsReferences(html: string): string[] {
  * not built from `Base.astro`. That is an answer given once, not a weakening
  * of the rule.
  *
- * THE ARTICLE AND GALLERY PAGES ARE THE PARTS THAT ARE DERIVED, and the reason
- * is not convenience. One article page exists per published post and one
- * gallery page per album, so a hand-written list of thirteen would make the
- * next post the parish publishes fail this suite until a developer edits a
- * test - a red build sent to the volunteer who pressed Save, for a page that
- * is not wrong. The COUNT for those pages is still written by hand below
- * (every article page and every album page goes through `Base.astro` and the
- * footer, so each carries exactly two), and the set comes from the content
- * files, which is the same subject `articleFiles()` and `galleryFiles()`
- * already give the guards below. A page under `noutati/` that is not a
- * published article's page, or under `galerie/` that is not an album's, matches
- * neither and fails.
+ * THE ARTICLE, GALLERY AND EVENT PAGES ARE THE PARTS THAT ARE DERIVED, and the
+ * reason is not convenience. One article page exists per published post, one
+ * gallery page per album and one event page per event, so a hand-written list of
+ * thirteen would make the next post the parish publishes fail this suite until a
+ * developer edits a test - a red build sent to the volunteer who pressed Save,
+ * for a page that is not wrong. The COUNT for those pages is still written by
+ * hand below (every one of them goes through `Base.astro` and the footer, so
+ * each carries exactly two), and the set comes from the content files, which is
+ * the same subject `articleFiles()`, `galleryFiles()` and `eventFiles()` already
+ * give the guards below. A page under `noutati/` that is not a published
+ * article's page, under `galerie/` that is not an album's, or under
+ * `evenimente/` that is not an event's, matches none of them and fails.
  */
 const ICS_REFERENCES: Record<string, number> = {
   // `<link rel="alternate">` in `<head>` + „Abonare la program (.ics)” in the footer.
@@ -178,6 +180,15 @@ const ICS_REFERENCES: Record<string, number> = {
   // The same two as the homepage; neither index subscribes on its own.
   'noutati/index.html': 2,
   'galerie/index.html': 2,
+  /*
+   * The events index carries the same two. Its detail pages are derived from the
+   * content files like the article and album pages above - none exists today,
+   * because the parish has no events, and the first one the parish saves gets
+   * its count here without anybody editing this file. The layout of a detail
+   * page is audited by the picker's fixture build, which is a different build
+   * and not what this set describes.
+   */
+  'evenimente/index.html': 2,
   /*
    * THE NINE PROSE PAGES, named one by one rather than derived, and the
    * difference from the article entries below is deliberate: the nine are a
@@ -198,8 +209,8 @@ const ICS_REFERENCES: Record<string, number> = {
 };
 
 /**
- * The hand-written counts plus one entry per published article page and per
- * album page.
+ * The hand-written counts plus one entry per published article page, per album
+ * page and per event page.
  *
  * The derivation is by SLUG, the public URL, so it cannot be satisfied by a
  * page whose directory happens to carry the collection id with its date
@@ -213,6 +224,9 @@ function expectedIcsReferences(): Record<string, number> {
   }
   for (const f of galleryFiles()) {
     expected[`galerie/${f.slug}/index.html`] = 2;
+  }
+  for (const f of eventFiles()) {
+    expected[`evenimente/${f.slug}/index.html`] = 2;
   }
   return expected;
 }
@@ -295,6 +309,31 @@ function galleryFiles(): { file: string; slug: string; frontmatter: Record<strin
       expect(block, `${file} has no frontmatter block`).not.toBeNull();
       const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
       return { file, slug: file.slice(0, -'.md'.length), frontmatter };
+    });
+}
+
+/**
+ * Every event content file, its public slug and its parsed frontmatter.
+ *
+ * THE SAME SUBJECT RULE AS `articleFiles` AND `galleryFiles`: the expected set
+ * comes from the CONTENT FILES, not from a walk of `dist/`, which could only
+ * ever confirm what the route already produced. There is no `published` flag on
+ * an event, so every file in the collection gets a page, and the slug is the
+ * file name without its extension - the value `eventSlug` returns and the route
+ * turns into `/evenimente/<slug>/`. The collection is empty today, and that is
+ * exactly why the derivation exists rather than a hand-written key: the first
+ * event the parish saves must not be a red build.
+ */
+function eventFiles(): { file: string; slug: string; frontmatter: Record<string, unknown> }[] {
+  return readdirSync(EVENTS)
+    .filter((file) => file.endsWith('.md'))
+    .sort()
+    .map((file) => {
+      const text = readFileSync(EVENTS + file, 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, `${file} has no frontmatter block`).not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
+      return { file, slug: eventSlug(file.slice(0, -'.md'.length)), frontmatter };
     });
 }
 
@@ -833,6 +872,35 @@ describe('the gallery pages', () => {
     process.stdout.write(
       `\nGallery captions: ${captioned} captioned, ${decorative} uncaptioned.\n`,
     );
+  });
+});
+
+/*
+ * THE EVENTS INDEX, AGAINST THE COLLECTION. The parish has no events today, so
+ * the branch that fires now is the empty state - and it is written as a branch
+ * rather than pinned to "there are none", because the first event the parish
+ * saves is not a defect. The content files decide which branch should run, and
+ * the subject comes from them rather than from the page.
+ *
+ * WHAT THIS DOES NOT COVER: the detail layout, which no real build can render
+ * while the collection is empty. That is the picker's fixture build, and its
+ * own check fails if the fixture stops producing those pages.
+ */
+describe('the events pages', () => {
+  it('renders every event in the collection, or says there are none', () => {
+    const events = eventFiles();
+    const html = read('evenimente/index.html');
+    if (events.length === 0) {
+      expect(html, 'the index must say so when the collection is empty')
+        .toContain('Nu sunt evenimente anunțate pentru perioada următoare.');
+      return;
+    }
+    for (const f of events) {
+      expect(html, `the index does not link /evenimente/${f.slug}/`)
+        .toContain(`href="/evenimente/${f.slug}/"`);
+      expect(html, `the index does not show the title of ${f.slug}`)
+        .toContain(String(f.frontmatter.title ?? ''));
+    }
   });
 });
 

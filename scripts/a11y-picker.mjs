@@ -64,17 +64,75 @@
  * ---------------------------------------------------------------------------
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Key } from 'selenium-webdriver';
 import { build } from 'esbuild';
-import { stringify } from 'yaml';
+import { Scalar, stringify } from 'yaml';
 import { runAudit } from './a11y.mjs';
 
 const ROOT = process.cwd();
 const MS_PER_DAY = 86_400_000;
+
+/*
+ * ===========================================================================
+ * THE CONTENT THE SCRATCH BUILD IS GIVEN, AND WHY IT IS A TABLE.
+ *
+ * `src/` is copied wholesale, and then these collections are replaced: the
+ * parish's real schedule becomes `FIXTURE_DAYS`, and the events collection -
+ * empty in the real repository - becomes `FIXTURE_EVENTS`, which is the only
+ * reason a `/evenimente/<slug>/` page exists for axe to look at. `galerii` is
+ * cleared rather than replaced: the fixture build audits no album page, and
+ * copying the real albums' images into it would make every run process two
+ * dozen photographs for pages the picker bar does not touch.
+ *
+ * THE TABLE IS THE MECHANISM, NOT A DESCRIPTION OF IT. `main` clears
+ * `CLEARED_COLLECTIONS` and writes each `FIXTURE_SWAPS` entry, so a collection
+ * cannot be listed here and skipped there. `src/lib/a11y-passes.test.ts` holds
+ * the table against `fixtures.ts`: every `FIXTURE_*` array the module exports
+ * must appear here, so a new fixture that nobody swapped in is a red unit test
+ * rather than a page that quietly left the audit.
+ *
+ * `key` is the field whose value becomes the file name - `date` for a service
+ * day, `slug` for an event - and it is stripped from the frontmatter, because
+ * the file name is the primary key in both collections. `frontmatter` says
+ * whether the file carries `---` delimiters: a service day is a `.yml` file,
+ * which is YAML top to bottom, while an event is a `.md` file whose fields live
+ * in YAML frontmatter and whose body is markdown. Writing an event without the
+ * delimiters produces a file Astro parses as an empty entry with a long body,
+ * which fails the schema - measured, on this task's first run.
+ * `DATE_KEYS` are shifted by the whole-week offset below; everything else is
+ * written verbatim.
+ * ===========================================================================
+ */
+export const FIXTURE_SWAPS = [
+  { collection: 'services', fixtures: 'FIXTURE_DAYS', key: 'date', extension: 'yml', frontmatter: false },
+  { collection: 'events', fixtures: 'FIXTURE_EVENTS', key: 'slug', extension: 'md', frontmatter: true },
+];
+
+/** Every content directory the scratch tree loses before the fixture build. */
+export const CLEARED_COLLECTIONS = ['services', 'events', 'galerii'];
+
+/** The fields the whole-week offset moves. Everything else is written as it is. */
+const DATE_KEYS = new Set(['date', 'start_date', 'end_date']);
+
+/**
+ * A date as a QUOTED YAML scalar, the way every content file in the repository
+ * writes one.
+ *
+ * A plain `2026-09-05` is read back as a `Date`, not as text, and `eventSchema`
+ * rejects that by name - `start_date` is a `YYYY-MM-DD` string because a
+ * service time and an event date must not depend on the build machine's
+ * timezone. The migrated files quote their dates for the same reason; this is
+ * what makes the fixture files indistinguishable from a volunteer's.
+ */
+function quotedDate(value) {
+  const scalar = new Scalar(value);
+  scalar.type = 'QUOTE_DOUBLE';
+  return scalar;
+}
 
 /*
  * `fixtures.ts` and `week.ts` are TypeScript with extensionless imports, which
@@ -95,12 +153,6 @@ async function bundle(source, output) {
     logLevel: 'silent',
   });
   return import(pathToFileURL(output).href);
-}
-
-/** A fixture day as the YAML a volunteer's file would hold. No `date:` key: the filename is the date. */
-function asYaml(day) {
-  const { date, ...rest } = day;
-  return stringify(rest, { lineWidth: 0 });
 }
 
 async function main() {
@@ -132,20 +184,70 @@ async function main() {
     // same Sveltia bundle and the same fonts as the real one.
     symlinkSync(join(ROOT, 'node_modules'), join(project, 'node_modules'));
 
-    const content = join(project, 'src/content/services');
-    rmSync(content, { recursive: true, force: true });
-    mkdirSync(content, { recursive: true });
-    const days = fixtures.FIXTURE_DAYS.map((z) => ({ ...z, date: week.addDays(z.date, offset) }));
-    for (const day of days) writeFileSync(join(content, `${day.date}.yml`), asYaml(day));
+    for (const collection of CLEARED_COLLECTIONS) {
+      const dir = join(project, 'src/content', collection);
+      rmSync(dir, { recursive: true, force: true });
+      mkdirSync(dir, { recursive: true });
+    }
 
     console.log(`Fixture build in ${project}`);
     console.log(`  today ${today} · FIXTURE_TODAY ${fixtures.FIXTURE_TODAY} · offset ${offset} days`);
-    console.log(`  ${days.length} day(s): ${days.map((z) => z.date).join(', ')}`);
+
+    for (const swap of FIXTURE_SWAPS) {
+      const items = fixtures[swap.fixtures];
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error(`fixtures.ts exports no non-empty array named ${swap.fixtures}.`);
+      }
+      const dir = join(project, 'src/content', swap.collection);
+      const names = [];
+      for (const item of items) {
+        const { [swap.key]: name, ...rest } = item;
+        const shifted = Object.fromEntries(
+          Object.entries(rest).map(([key, value]) => [
+            key,
+            DATE_KEYS.has(key) && typeof value === 'string'
+              ? quotedDate(week.addDays(value, offset))
+              : value,
+          ]),
+        );
+        names.push(String(name));
+        const body = stringify(shifted, { lineWidth: 0 });
+        writeFileSync(
+          join(dir, `${name}.${swap.extension}`),
+          swap.frontmatter ? `---\n${body}---\n` : body,
+        );
+      }
+      console.log(`  ${swap.collection}: ${items.length} file(s): ${names.join(', ')}`);
+    }
 
     execFileSync(process.execPath, [join(ROOT, 'node_modules/astro/bin/astro.mjs'), 'build', '--root', project], {
       stdio: 'inherit',
       cwd: project,
     });
+
+    /*
+     * THE FIXTURE REALLY RENDERED THE PAGES IT EXISTS FOR. The parish has no
+     * events, so `/evenimente/<slug>/` is audited in this build and nowhere
+     * else: if the fixture stopped being written - a rename, a schema change, a
+     * collection quietly dropped from `FIXTURE_SWAPS` - the audit would run over
+     * the index alone and report a pass, which is the one outcome this check
+     * exists to make impossible. The failure names the fixture, because the
+     * repair is always in `src/lib/fixtures.ts`, never in the audit.
+     */
+    const eventPages = fixtures.FIXTURE_EVENTS.map((e) => `evenimente/${e.slug}/index.html`);
+    const missingEventPages = eventPages.filter((page) => !existsSync(join(project, 'dist', page)));
+    if (missingEventPages.length > 0) {
+      console.error(
+        `The fixture build produced no page for: ${missingEventPages.join(', ')}.\n` +
+          '    These pages are the only reason /evenimente/<slug>/ is audited at all - the\n' +
+          '    parish has no events, so a build without them renders the index and nothing else,\n' +
+          '    and this pass would audit a layout nobody has seen while reporting a pass.\n' +
+          '    DO NOT DELETE FIXTURE_EVENTS, AND DO NOT WEAKEN THIS CHECK. Fix the fixture in\n' +
+          '    src/lib/fixtures.ts, or the swap in FIXTURE_SWAPS.',
+      );
+      return false;
+    }
+    console.log(`  event detail page(s) in this audit: ${eventPages.join(', ')}`);
 
     /*
      * RETURNED, NOT `process.exit`ed. `process.exit` inside a `try` terminates
@@ -273,4 +375,13 @@ async function checkPickerBar(driver, condition, url) {
   return null;
 }
 
-process.exit((await main()) ? 0 : 1);
+/*
+ * GUARDED, unlike before: `src/lib/a11y-passes.test.ts` imports `FIXTURE_SWAPS`
+ * and `CLEARED_COLLECTIONS` from this module to hold them against `fixtures.ts`,
+ * and an import that ran a browser build would make the unit suite unusable.
+ * `scripts/a11y.mjs` guards its command line the same way and for the same
+ * reason.
+ */
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exit((await main()) ? 0 : 1);
+}

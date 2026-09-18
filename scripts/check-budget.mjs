@@ -199,6 +199,25 @@ const PAGE_BUDGET = {
   'galerie/index.html': 20 * 1024,
   'galerie/*': 24 * 1024,
   /*
+   * THE EVENTS INDEX AND ITS DETAIL PAGES. The index grows with every event the
+   * parish announces and never drops the past ones - „Trecute” keeps them - so
+   * like `/noutati/` it grows with what the parish publishes. A detail page is
+   * one event's own content, so the prefix key covers the first real event
+   * without a volunteer's Save failing the build for a page that is not wrong.
+   *
+   * MEASURED ON THE TASK 7 BUILD: the empty index 10,370 bytes; with one event
+   * carrying every optional field - a range, a time, a description, an image and
+   * a poster - the index 11,073 and the detail page 10,913. The event card costs
+   * 703 bytes, its description included, so 20 KiB - 1.85x the measured index
+   * and 1.88x the measured detail, inside the 1.4-1.9x range the prose pages
+   * state - leaves room for about thirteen more events before the red build
+   * asks whether the index wants pagination. The parish has none today, so the
+   * crossing point is a measurement of how far away it is, not a prediction
+   * that it is near.
+   */
+  'evenimente/index.html': 20 * 1024,
+  'evenimente/*': 20 * 1024,
+  /*
    * THE NINE PROSE PAGES, three groups and one exact key. They are a fixed
    * contract - the CMS does not create them - so a pattern per URL group is
    * the honest shape: the pages inside a group are the same kind of document,
@@ -314,6 +333,18 @@ const REQUEST_BUDGET = {
    */
   'galerie/index.html': 16,
   'galerie/*': 32,
+  /*
+   * The events index is the document plus the fixed chrome: MEASURED ON THE
+   * TASK 7 BUILD, 11 requests (3 in the document + 8 @font-face), the same as
+   * every other page with no image. The card renders no picture on purpose, so
+   * this count does not grow with the number of events. The detail page measures
+   * 12 when it carries its one optional image (4 in the document + 8 @font-face),
+   * which is the schema's maximum - `image` is a single field and the poster is a
+   * link, not a fetch - so 12 is the whole of what this page can ask for. The
+   * plan's 4 and 6 forgot the fixed chrome, as it did for `/galerie/` above.
+   */
+  'evenimente/index.html': 12,
+  'evenimente/*': 12,
   // Measured 14 and 19; 24 is room for five more portraits on either page.
   'parohia/*': 24,
   // Measured 13 on both; 16 is room for three more images.

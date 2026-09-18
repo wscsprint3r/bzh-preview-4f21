@@ -17,6 +17,8 @@ import {
   checkBreakpoints,
   checkPasses,
 } from '../../scripts/a11y.mjs';
+import { CLEARED_COLLECTIONS, FIXTURE_SWAPS } from '../../scripts/a11y-picker.mjs';
+import * as fixtures from './fixtures';
 
 /*
  * WHAT THIS PROVES: no viewport can be counted as audited unless some command
@@ -607,5 +609,88 @@ describe('every page taken out of the axe audit says why', () => {
     );
     expect(entries.length, 'the list is empty — the check would have nothing to compare').toBeGreaterThan(0);
     for (const [path, reason] of entries) expect(reason.trim().length, path).toBeGreaterThan(40);
+  });
+});
+
+/*
+ * ===========================================================================
+ * THE FIXTURE BUILD'S CONTENT, HELD AGAINST WHAT THE PICKER SWAPS IN.
+ *
+ * The picker builds a second site from `fixtures.ts` so the browser can audit
+ * markup the real content never renders - the week picker's bar, and now the
+ * `/evenimente/<slug>/` page, which the parish has no events to produce. That
+ * build is the ONLY place those pages are audited, so a fixture that quietly
+ * stopped being written would leave a layout covered by nothing while the pass
+ * reported a pass: the failure shape this project keeps paying for.
+ *
+ * `FIXTURE_SWAPS` in `scripts/a11y-picker.mjs` is the mechanism - `main` clears
+ * `CLEARED_COLLECTIONS` and writes exactly those entries - and the assertions
+ * below hold it against the module that owns the fixtures, in both directions.
+ * A new `FIXTURE_*` array added to `fixtures.ts` without an entry in the table
+ * fails here; so does a table entry naming an array that no longer exists.
+ * ===========================================================================
+ */
+
+/** Every `FIXTURE_*` array `fixtures.ts` exports - the whole subject of the swap. */
+function fixtureArrays(): [string, unknown[]][] {
+  const found: [string, unknown[]][] = [];
+  for (const [name, value] of Object.entries(fixtures)) {
+    if (name.startsWith('FIXTURE_') && Array.isArray(value)) found.push([name, value]);
+  }
+  return found;
+}
+
+describe('the fixtures the picker swaps into the scratch build', () => {
+  it('has something on both sides to compare', () => {
+    // A guard that reads nothing passes vacuously; both sides are asserted
+    // non-empty before anything is compared.
+    expect(FIXTURE_SWAPS.length).toBeGreaterThan(0);
+    expect(fixtureArrays().length).toBeGreaterThan(0);
+  });
+
+  it('swaps in every FIXTURE_* array fixtures.ts exports, and no invented name', () => {
+    expect(fixtureArrays().map(([name]) => name).sort()).toEqual(
+      FIXTURE_SWAPS.map((swap) => swap.fixtures).sort(),
+    );
+  });
+
+  it('clears every collection it writes, once each', () => {
+    for (const swap of FIXTURE_SWAPS) {
+      expect(CLEARED_COLLECTIONS, swap.collection).toContain(swap.collection);
+      expect(swap.key.length, `${swap.fixtures} names no key field`).toBeGreaterThan(0);
+      // A `.md` file without the flag is written as bare YAML and parsed as an
+      // entry with no fields at all - a failed fixture build, measured once.
+      expect(typeof swap.frontmatter, `${swap.collection} does not say whether its files carry frontmatter`)
+        .toBe('boolean');
+    }
+    // The same collection twice would overwrite one fixture with the other.
+    expect(new Set(FIXTURE_SWAPS.map((swap) => swap.collection)).size).toBe(FIXTURE_SWAPS.length);
+  });
+
+  it('the events fixture holds the shapes the detail layout is audited in', () => {
+    const events = fixtures.FIXTURE_EVENTS;
+    expect(events.length, 'no fixture event - the detail page would be audited by nothing')
+      .toBeGreaterThanOrEqual(3);
+    expect(new Set(events.map((e) => e.slug)).size, 'two fixture events share a slug')
+      .toBe(events.length);
+    // The two date layouts: the range and the single day.
+    expect(
+      events.filter((e) => e.end_date !== undefined).length,
+      'no fixture event has an end_date - the range layout would be audited by nothing',
+    ).toBeGreaterThan(0);
+    expect(
+      events.filter((e) => e.end_date === undefined).length,
+      'no fixture event is a single day - that layout would be audited by nothing',
+    ).toBeGreaterThan(0);
+    // The index's two sections, anchored to FIXTURE_TODAY so the picker's
+    // whole-week shift keeps them on the same sides of "today".
+    expect(
+      events.filter((e) => e.start_date < fixtures.FIXTURE_TODAY).length,
+      'no fixture event is past - the index would lose its „Trecute” section',
+    ).toBeGreaterThan(0);
+    expect(
+      events.filter((e) => e.start_date >= fixtures.FIXTURE_TODAY).length,
+      'no fixture event is upcoming - the index would lose its list',
+    ).toBeGreaterThan(0);
   });
 });

@@ -1,0 +1,86 @@
+---
+import { getCollection } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import ContentImage from '../../components/ContentImage.astro';
+import { eventDates, eventSlug } from '../../lib/events';
+
+/*
+ * ONE PAGE PER EVENT, from the raw collection. There is no `published` flag on
+ * an event - every file in `events` is an event the parish means to show - so
+ * unlike articles there is nothing to filter on. The id is the file name without
+ * its extension, which is the slug the index links to, and `eventSlug` is the
+ * one place that mapping lives, so the route and the card cannot disagree.
+ */
+export async function getStaticPaths() {
+  const entries = await getCollection('events');
+  return entries.map((entry) => ({
+    params: { slug: eventSlug(entry.id) },
+    props: { entry },
+  }));
+}
+
+interface Props {
+  entry: CollectionEntry<'events'>;
+}
+
+const { entry } = Astro.props;
+const { title, start_date, end_date, time, location, description, image, poster } = entry.data;
+
+/*
+ * `end_date` equal to the start is one day, not a range of one day - the same
+ * normalisation `EventCard` makes, so the list and the page agree.
+ */
+const endDate = end_date !== undefined && end_date !== start_date ? end_date : null;
+const dates = eventDates(start_date, endDate);
+---
+
+<Base title={title} description={description}>
+  <article class="container">
+    <h1 class="event-title">{title}</h1>
+    <p class="event-meta">
+      <time datetime={start_date}>{dates.start}</time>
+      {dates.end && endDate && (
+        <>
+          <span aria-hidden="true">–</span>
+          <time datetime={endDate}>{dates.end}</time>
+        </>
+      )}
+      {time && <span class="event-time">Ora {time}</span>}
+    </p>
+    <p class="event-location">{location}</p>
+    {description && <p class="event-description">{description}</p>}
+    {image && (
+      <div class="event-image">
+        <ContentImage image={image} alt={title} sizes="(max-width: 34rem) 90vw, 40rem" loading="eager" />
+      </div>
+    )}
+    {poster && (
+      <p class="event-poster"><a href={poster}>Afișul evenimentului (PDF)</a></p>
+    )}
+  </article>
+</Base>
+
+<style>
+  .event-title { margin-top: 2rem; max-width: var(--masura); }
+  .event-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0 0 0.5rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .event-time { color: var(--oxblood); }
+  .event-location { margin: 0 0 1.75rem; color: var(--muted); }
+  .event-description { max-width: var(--masura); margin: 0 0 1.75rem; }
+  .event-image { margin: 0 0 1.75rem; max-width: var(--masura); border: 1px solid var(--rule); }
+  /* No `color` on the poster link: global.css's `a`/`a:hover` pair already
+     colours body links, and a scoped colour here would ship at (0,3,1) and
+     silently defeat the hover - the trap `noutati/[slug].astro` documents.
+     Nothing in this block declares `outline`, so the global `:focus-visible`
+     ring reaches the link too. */
+  .event-poster { margin: 0; }
+</style>
