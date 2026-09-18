@@ -14,9 +14,10 @@
 
 ## Status
 
-Last updated 2026-09-17. **Tasks 1-5 are complete, reviewed and pushed**
-(`origin/phase-2`). Work is **paused** at the parish owner's request; Tasks 6-12
-have not been started.
+Last updated 2026-09-18. **Tasks 1-12 are complete.** Tasks 1-5 were reviewed on
+`origin/phase-2`; the work continued on `phase-2-2`, where Tasks 6-12 are committed.
+Task 12's range below ends at `HEAD` because this file ships inside the two commits it
+describes.
 
 | Task | State | Commits |
 |---|---|---|
@@ -25,13 +26,13 @@ have not been started.
 | 3 · HTML to Markdown | done, review clean | `3c0d0a7..fcb1e90` |
 | 4 · three schemas | done, 1 minor parked | `fcb1e90..d03abab` |
 | 5 · media pipeline | done, 3 minors parked | `d03abab..7f88abd` |
-| 6 · the 45 posts | not started | — |
-| 7 · nine prose pages, URL map | not started | — |
-| 8 · `/noutati`, article, feed | not started | — |
-| 9 · nine prose routes | not started | — |
-| 10 · homepage news, settings | not started | — |
-| 11 · the CMS | not started | — |
-| 12 · guards, budget, handover | not started | — |
+| 6 · the 45 posts | done | `471a720..e4b746e` |
+| 7 · nine prose pages, URL map | done | `e4b746e..5d18f20` |
+| 8 · `/noutati`, article, feed | done | `5d18f20..3b6906c` |
+| 9 · nine prose routes | done | `3b6906c..3baa316` |
+| 10 · homepage news, settings | done | `3baa316..cb093ad` |
+| 11 · the CMS | done | `cb093ad..5c87f41` |
+| 12 · guards, budget, handover | done, this task | `5c87f41..HEAD` |
 
 Since Task 5, a separate change renamed **every identifier, filename, field key,
 test name and build message in this repository from Romanian to English**

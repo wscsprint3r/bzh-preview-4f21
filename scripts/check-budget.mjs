@@ -139,17 +139,24 @@ const PAGE_BUDGET = {
   'program/index.html': 135 * 1024,
   /*
    * `/noutati/` GROWS WITH EVERY POST THE PARISH PUBLISHES, like `/program/`
-   * grows with every week. Measured on the Task 8 build: 14,562 bytes at 13
-   * published posts, of which 8,270 is the fixed skeleton (document, inlined
-   * CSS, header, footer) and 6,292 is the 13 cards - 484 bytes per card.
-   * Derived from those two numbers rather than built: the 30 KiB limit is
-   * crossed at 47 posts, and at 29 posts if every card carried a 300-byte
-   * summary, which none does today because `summary` is optional and the
-   * migrated corpus has none. Both numbers are arithmetic on the measured
-   * bytes, labelled as such because no 47-post build exists.
+   * grows with every week.
    *
-   * Task 12 owns the pagination decision this limit defers; the comment is
-   * here so the red build that decision arrives as says how far away it was.
+   * MEASURED ON THE FINAL PHASE 2 BUILD (Task 12): 14,892 bytes at 13 published
+   * posts, of which 8,644 is the fixed skeleton (document, inlined CSS, header,
+   * footer) and 6,248 is the 13 card elements - 480.6 bytes per card on
+   * average, 546 for the largest and 432 for the smallest. Derived from the
+   * measured bytes rather than built, because no build has that many posts:
+   * the 30 KiB limit is crossed at 46 posts at the measured average, or at 41
+   * if every future card were as large as the largest today. Both are
+   * arithmetic on a measurement, not measurements.
+   *
+   * THE PAGINATION DECISION, MADE HERE: no pagination. At 13 posts the index
+   * is less than half its limit, and the crossing point is 33 posts past the
+   * corpus today. Pagination would add a route, a page concept in the CMS and
+   * a crawl surface to solve a problem that does not exist yet; the red build
+   * at 41-46 posts is the signal that it has arrived, and this comment is so
+   * that red build says how far away it was. Raising this limit instead is
+   * not the answer - the same rule as `index.html` and `/program/` above.
    */
   'noutati/index.html': 30 * 1024,
   /*
@@ -187,10 +194,11 @@ const PAGE_BUDGET = {
    *   resurse/catehism       10,918    resurse/studii         15,828
    *   resurse/doxologia      18,147    resurse/linkuri        12,168
    *
-   * The limits are 1.4-1.8x the largest in each group. What makes a prose
-   * page grow is an image or a paragraph, so the headroom is what a normal
-   * content edit costs - and `servicii-liturgice` is already the largest of
-   * the nine at 21 KB because its text is a long list of the services and
+   * The limits are 1.4-1.9x the largest in each group (the top of that range
+   * is `parohia/istoric`, 24 KiB against a measured 13,419 = 1.83x). What makes
+   * a prose page grow is an image or a paragraph, so the headroom is what a
+   * normal content edit costs - and `servicii-liturgice` is already the largest
+   * of the nine at 21 KB because its text is a long list of the services and
    * the bank details, which is the page's content rather than a defect.
    */
   'parohia/*': 24 * 1024,
@@ -247,29 +255,36 @@ const JS_BUDGET = 3800;
  * document, two icons and eight `@font-face` files), so a one-image article
  * measured exactly 12 and a two-image one measured 13.
  *
+ * THE ARTICLE PAGES, MEASURED ON THE FINAL PHASE 2 BUILD (Task 12): 11
+ * requests with no body image, 12 with exactly one - four of the thirteen
+ * published posts carry one and land on the cap - and 13 with a second. THE
+ * LIMIT STAYS 12, so a post with two body images is a red build. That is the
+ * decision, not an oversight: the cap is the spec's, and the red build asks
+ * whether the second image belongs on the page rather than shipping the
+ * heavier page in silence. Raising it is the one answer Task 12 does not give.
+ *
  * THE NINE PROSE PAGES ARE MADE OF IMAGES, and that is their content rather
  * than a defect: `resurse/doxologia/` is a shelf of magazine covers (31
  * images) and `parohia/consiliul/` is portraits beside names (8). Measured on
- * the Task 9 build, requests per page: 12, 12, 13, 13, 14, 15, 19, 22, 42 -
+ * the same build, requests per page: 12, 12, 13, 13, 14, 15, 19, 22, 42 -
  * seven of the nine over a global 12, and the honest conclusion is not that
- * the pages are
- * wrong but that one number was covering pages the spec never gave it.
+ * the pages are wrong but that one number was covering pages the spec never
+ * gave it.
  *
  * SO THE TABLE IS THE SAME SHAPE AS `PAGE_BUDGET`, exact keys winning and a
  * `*` meaning a prefix, and every page still has a limit - an unmeasured page
- * still stops the build. The homepage keeps the spec's 12. The prose limits
- * are the measured count plus room for a handful more images (2-6, stated per
- * group), because the next issue of the magazine is an image like the last
- * one; an unrelated request, like a new script or a stylesheet, is still a
- * red build. The article limit stays 12: it is the pre-existing cap and Task
- * 12 owns whether publishing a two-image post should change it.
+ * still stops the build. The homepage keeps the spec's 12, and the final
+ * build's upper bound for it is 11. The prose limits are the measured count
+ * plus room for three to six more images (stated per group), because the next
+ * issue of the magazine is an image like the last one; an unrelated request,
+ * like a new script or a stylesheet, is still a red build.
  */
 const REQUEST_BUDGET = {
   // The spec's own budget, and the page it was written about.
   'index.html': 12,
   'program/index.html': 12,
   'noutati/index.html': 12,
-  // One body image measures exactly 12; the second is Task 12's decision.
+  // No body image measures 11, one measures exactly 12, a second crosses it.
   'noutati/*': 12,
   // Measured 14 and 19; 24 is room for five more portraits on either page.
   'parohia/*': 24,
@@ -341,14 +356,16 @@ function report(label, value, limit, unit = 'bytes', explanation = '') {
  */
 const PAGE_EXPLANATION = [
   '          Cel mai probabil NU este o greșeală într-un fișier de program.',
-  '          Ori pagina a căpătat ceva nou (markup, un stil, un script), ori a crescut',
-  '          cu ce s-a publicat: /program/ ține fiecare zi publicată, iar limita spune',
-  '          cât de departe poate publica parohia înainte ca pagina să înceteze a mai fi',
-  '          o pagină. Măsurat pe o săptămână parohială obișnuită: /program/ trece de',
-  '          limită în jurul a 58 de săptămâni publicate înainte.',
-  '          Dacă tocmai ați salvat o zi în /admin/: ziua s-a publicat și situl este în',
-  '          regulă. Anunțați persoana care se ocupă de site; nu este ceva de reparat',
-  '          din CMS.',
+  '          Ori o pagină a căpătat ceva nou (markup, un stil, un script), ori a crescut',
+  '          cu ce s-a publicat. Două pagini cresc de la sine:',
+  '            · /program/ ține fiecare zi publicată, iar limita se atinge în jurul a 58',
+  '              de săptămâni publicate înainte (măsurat pe o săptămână parohială obișnuită);',
+  '            · /noutati/ ține fiecare articol publicat, iar limita se atinge în jurul a 46',
+  '              de articole, pentru că fiecare articol adaugă circa 480 de octeți',
+  '              (măsurat la 13 articole, apoi socotit).',
+  '          Dacă tocmai ați salvat o zi sau un articol în /admin/: s-a publicat și situl',
+  '          este în regulă. Anunțați persoana care se ocupă de site; nu este ceva de',
+  '          reparat din CMS.',
 ].join('\n');
 
 function stop(message) {

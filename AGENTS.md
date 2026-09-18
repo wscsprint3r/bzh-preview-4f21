@@ -96,6 +96,52 @@ Design authority: `docs/superpowers/specs/2026-09-15-parish-site-rewrite-design.
   fallback, so a broken policy renders a page that looks perfect and announces a service
   that finished hours ago.
 
+## Phase 2 — the migrated content
+
+Phase 2 moved 45 news posts and nine prose pages off the compromised WordPress install,
+rendered them through three new collections, and put the parish's contact details in a
+settings singleton. Four rules came with it:
+
+- **`migration/` reads from outside this repository, and a fresh clone cannot run it.**
+  The dump and `uploads/` live in the parent directory (see the rule above) and are taken
+  by absolute path. A clone builds the site from the committed content and runs every
+  test; it cannot re-run the migration. Do not "fix" that by copying source material in.
+- **Re-encoding through `sharp` is the sanitisation, and SVG is never migrated.** The
+  source came off a server compromised twice in eighteen months; decoding a file and
+  re-encoding it discards everything that is not pixels. A file that fails to decode is
+  not an image and is dropped by name. SVG cannot be sanitised that way, and neither are
+  `.doc`, `.js`, `.html`, `.htaccess`, `.json`, `.css` or `.txt` from `uploads/`.
+- **`published: false` means no page at all, not a draft.** An unpublished post is absent
+  from `/noutati/`, the homepage and `/rss.xml`, and has no URL of its own — otherwise
+  "unpublished" would mean "reachable by anyone with the link". 32 of the 45 migrated
+  posts are unpublished because a bulk import destroyed their dates.
+- **`docs/url-map.csv` is Phase 4's input, not a running redirect.** It maps every old
+  path to its new one — 55 data rows, emitted by `migration/url-map.mjs` — and nothing
+  serves it yet. The 32 unpublished posts keep their rows, so an old link reaches a 404
+  until the parish dates and publishes that post; the file's own header says so.
+
+Three lessons this phase paid for:
+
+- **A mutation list derived from your own tests inherits their blind spots.** Task 4's
+  implementer reported "17 of 17 mutations killed a named test" — true of the 17 it ran,
+  none of which tested requiredness. `.partial()` over the three required article fields
+  left 34 of 34 tests green, and the real-world shape is a volunteer deleting a line from
+  `src/content/settings/settings.yml` while the parish's address disappears from the
+  footer on a green build. The list is not the check; the field set is.
+- **A probe whose arms share the defect measures nothing.** Task 5 compared
+  `withIccProfile('srgb')` against plain `.toBuffer()` when both arms already carried the
+  input conversion, read their agreement as "no transform happens", and commissioned a
+  fix that corrupted the colours it was measuring — max error 1 to 42-54 on the same PNGs.
+  A probe with no control cannot tell "nothing happened" from "the same thing happened to
+  both".
+- **`git status` can misreport a clean tree, so verify with `git diff-index --quiet
+  HEAD`.** A reviewer's `git status --porcelain` printed empty for a dirty tree, and
+  `rtk git status --short` prints `ok` for a clean one. `git diff-index` is a boolean from
+  an exit code rather than a rendering, so it cannot be collapsed or translated on the
+  way. One caveat, measured in Task 7: after a `cp` that leaves content identical, the
+  command exits 1 on a stat-only "M" until `git status` refreshes the index — so run
+  `git status` first, then `git diff-index --quiet HEAD`.
+
 ## Tooling here lies to you in five specific ways
 
 **Test verdicts: use the process exit code, never `.vitest/json/output.json`.** The `rtk`

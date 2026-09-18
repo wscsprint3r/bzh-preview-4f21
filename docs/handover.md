@@ -3,15 +3,15 @@
 Everything in this file needs credentials no agent has, so none of it has been done and
 none of it has been tested.
 
-**Status, 2026-09-17: still none of it.** Steps A-I below are all outstanding. The
+**Status, 2026-09-18: still none of it.** Steps A-J below are all outstanding. The
 site has never been deployed, so nothing here has a live system behind it yet.
-Phase 1 is complete; Phase 2 is paused after Task 5 of 12, which means the schedule
-and the CMS work, and the news posts and prose pages do not exist yet. Deploying
-now would publish a correct site with no articles on it, which is a reasonable
-thing to do and is why this file does not wait for Phase 2. Work through it in order; each step says what a good answer
+Phase 1 and Phase 2 are complete: the schedule, the CMS, the 45 news posts, the nine
+prose pages and the settings singleton all exist in the repository, so deploying now
+publishes the whole site rather than a schedule with no articles on it. Work through
+it in order; each step says what a good answer
 looks like, because "it did not error" is not one.
 
-> **During Phase 1 the site lives at `https://<project>.pages.dev/`.** `www.bor-zh.ch`
+> **Until the DNS cutover the site lives at `https://<project>.pages.dev/`.** `www.bor-zh.ch`
 > still points at the WordPress install that was compromised twice — nothing in this phase
 > touches DNS, so parish email cannot break, and nothing you do here changes what that
 > hostname serves. **Every verification below must be run against the Pages URL.** A
@@ -50,17 +50,17 @@ the product's promise, and this is the other way to lose it. If you ever find th
 has stopped and the branch is right, look here: re-enable it from the Actions tab, and any
 push or manual dispatch resets the clock.
 
-The work is on `phase-1`; `public/admin/config.yml` says `branch: main`. So either:
+The work is on `phase-2-2`; `public/admin/config.yml` says `branch: main`. So either:
 
-- **merge `phase-1` into `main` and keep `main` as the default** — simplest, and it needs no
+- **merge `phase-2-2` into `main` and keep `main` as the default** — simplest, and it needs no
   edits at all; or
-- **keep `phase-1`**: change that line in `config.yml`, set `phase-1` as the default branch
+- **keep `phase-2-2`**: change that line in `config.yml`, set `phase-2-2` as the default branch
   (GitHub → Settings → General → Default branch), and change the branch filter in
   `ci.yml`.
 
-**Keeping `phase-1` without making it the default is the one combination that fails
+**Keeping `phase-2-2` without making it the default is the one combination that fails
 silently**, which is why `rebuild.yml` says so about itself. Dispatch it by hand from
-`phase-1` while `main` is the default and the job goes **red** with
+`phase-2-2` while `main` is the default and the job goes **red** with
 `Reconstrucția a fost cerută, dar PROGRAMAREA NU VA RULA DE AICI` — rather than going green
 and letting you conclude the schedule works.
 
@@ -367,15 +367,82 @@ more than about a year and a bit of schedule. Neither is a decision an editor ca
 the CMS, and the message says so in Romanian. Tell the editors, at the training session,
 that a red build which names no file is one to forward to you and forget about.
 
-## I — finish
+## I — Phase 2: the migrated content
 
-**I1.** Print the editors' card and hand it out at the training session. Every row on it was
-read off a running CMS.
+Phase 2 is complete in the repository. Nothing here needs a new service: the content and
+its routes ship with the site. This section is what to know about them when you bring it
+up, and what to hand Phase 4.
 
-**I2.**
+**What now exists.**
+
+- **Routes**: `/noutati/`, one `/noutati/<slug>/` per published post, `/rss.xml`, and the
+  nine prose pages at their old paths (`/parohia/istoric/`, `/servicii-liturgice/`,
+  `/resurse/doxologia/`, …). The routes Phase 2 did not build — `/events`, `/galerie`,
+  `/pastorale`, `/contact`, `/doneaza` — are Phase 3.
+- **CMS collections** in `/admin/`: **Articole** (create and delete), **Pagini** (the
+  nine files, edit only) and **Setări** (the singleton carrying the parish's address,
+  phone, e-mail and IBANs). Labels are Romanian; field keys are English.
+- **`docs/url-map.csv`** — 55 data rows, one per old path, emitted by
+  `migration/url-map.mjs`. **Nothing serves it yet**; it is Phase 4's input for
+  `_redirects`. The 32 held-back posts keep their rows, so an old link reaches
+  `/noutati/<slug>/` and 404s until the parish dates and publishes that post.
+
+**Adding a post.** `/admin/` → **Articole** → **Create New Entry**, then title, date,
+category, text and optionally an image. `Save` is the only button and it commits.
+`Publicat` decides whether the post appears: unchecked it exists in the CMS and nowhere
+else — no page, no list entry, no feed item. Check it and save again to publish. The
+same behaviour is asserted against the build by `src/lib/build-output.itest.ts`.
+
+**Rerunning the migration.** It needs Docker and the backups that live **outside this
+repository** (the parent directory holds the 2026-08-27 database dump and the 08-22
+`uploads/` tree), so a fresh clone cannot run it:
 
 ```bash
-git tag -a phase-1 -m "Phase 1: liturgical schedule and CMS"
+node migration/run.mjs
+```
+
+It destroys and recreates the `bzh-migration` container, loads the dump, and rewrites
+`src/content/articles/`, `src/content/pages/`, `src/assets/content/` and
+`docs/url-map.csv`. It is deterministic: rerunning must produce byte-identical output
+(spec §11). **Not run here** — this repository does not carry the backups; the command
+is real and `migration/README.md` describes what it needs.
+
+**Known content anomalies, left faithful to the old site.** These are the parish's words
+and nobody has edited them; they are for the parish to fix in the CMS:
+
+- `src/content/pages/scoala-parohiala.md`, the „Încurajare” paragraph: repeated fragments
+  around „Credința este cea care” and the Corinthians quotation. The old site served
+  exactly this text.
+- `src/content/pages/revista-doxologia.md`: the heading `## Revista Doxologia` appears 31
+  times, once per magazine cover, because the old page used a heading as a caption. The
+  correct shape is one heading with 31 covers under it.
+
+**Old-site links in the migrated prose, for Phase 4.** The markdown carries 53 absolute
+`https://www.bor-zh.ch/` links, none rewritten: 2 in articles and 51 in pages. 28 point
+at PDFs in legacy static directories outside `uploads/` — 26 under `/revista/` (the
+Doxologia issues) and 2 under `/files/` (the study texts). The rest are page and
+full-size-image links under `wp-content/uploads/`. Phase 4 has to decide what all 53
+redirect to before the old host goes away.
+
+**Check it from the repository.**
+
+```bash
+TZ=Europe/Zurich npm run test:all && TZ=Europe/Zurich npm run check
+```
+
+*Good answer:* both exit 0. The integration tests read the built `dist/` — every
+published post's page, the nine prose routes, the feed, the unpublished posts' absence
+and the settings singleton — and the browser passes audit every built page.
+
+## J — finish
+
+**J1.** Print the editors' card and hand out at the training session. Every row on it was
+read off a running CMS.
+
+**J2.**
+
+```bash
+git tag -a phase-2 -m "Phase 2: the migrated content"
 git push --tags
 ```
 

@@ -42,6 +42,26 @@ privi — **anunțați persoana care se ocupă de site și lăsați-o în seama 
 tot ce înroșește o construcție este o greșeală într-un fișier de program; ziua pe
 care tocmai ați salvat-o poate fi perfect în regulă și publicată.
 
+## Pentru cei care adaugă o noutate
+
+Tot în `/admin/`, în secțiunea **Articole**. Apăsați **Create New Entry**,
+completați **Titlu**, **Data**, **Categoria** și **Textul articolului**, și, dacă
+vreți, atașați o fotografie la câmpul **Imagine**.
+
+**`Save` salvează și declanșează reconstrucția** — nu există un al doilea buton.
+Dacă bifa **Publicat** este pusă, articolul apare pe prima pagină și la
+`/noutati/` în aproximativ un minut. Dacă nu este pusă, articolul **nu apare
+nicăieri pe site și nu are pagină proprie**, nici măcar dacă cineva are linkul:
+rămâne doar în `/admin/`, în listă, gata de publicat. Îl puteți bifa oricând și
+apăsa din nou **`Save`**.
+
+- **Categoria**: `Noutati` pentru anunțuri și știri, `Cateheza` pentru articole
+  de învățătură. Dacă nu sunteți sigur, alegeți `Noutati`.
+- **Rezumatul** este opțional: un text scurt care apare sub titlu în liste. Dacă
+  îl lăsați gol, articolul apare doar cu titlul.
+- **Data** așază articolul în listă, cel mai nou primul, și apare sub titlu. Ea
+  nu se schimbă singură: dacă ați greșit-o, corectați-o și salvați.
+
 ## Dezvoltare
 
 ```bash
