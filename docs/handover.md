@@ -3,13 +3,13 @@
 Everything in this file needs credentials no agent has, so none of it has been done and
 none of it has been tested.
 
-**Status, 2026-09-18: still none of it.** Steps A-J below are all outstanding. The
-site has never been deployed, so nothing here has a live system behind it yet.
-Phases 1-3 are complete: the schedule, the CMS, the 45 news posts, the eleven prose
-pages, the galleries, the events surface, the 87 PDFs, the QR-bill and the contact
-form all exist in the repository, so deploying now publishes the whole site rather
-than a schedule with no articles on it. Work through it in order; each step says what
-a good answer looks like, because "it did not error" is not one.
+**Status, 2026-09-18: still none of it.** Every step below is outstanding - A-J, K1-K5,
+and section L's four live checks. The site has never been deployed, so nothing here has
+a live system behind it yet. Phases 1-3 are complete: the schedule, the CMS, the 45 news
+posts, the eleven prose pages, the galleries, the events surface, the 87 PDFs, the
+QR-bill and the contact form all exist in the repository, so deploying now publishes the
+whole site rather than a schedule with no articles on it. Work through it in order;
+each step says what a good answer looks like, because "it did not error" is not one.
 
 > **Until the DNS cutover the site lives at `https://<project>.pages.dev/`.** `www.bor-zh.ch`
 > still points at the WordPress install that was compromised twice — nothing in this phase

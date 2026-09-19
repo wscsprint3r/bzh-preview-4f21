@@ -156,12 +156,13 @@ const PAGE_BUDGET = {
    * three are arithmetic on a measurement, not measurements.
    *
    * THE PAGINATION DECISION, MADE HERE: no pagination. At 13 posts the index
-   * is less than half its limit, and the crossing point is 33 posts past the
-   * corpus today. Pagination would add a route, a page concept in the CMS and
-   * a crawl surface to solve a problem that does not exist yet; the red build
-   * at 29-46 posts is the signal that it has arrived, and this comment is so
-   * that red build says how far away it was. Raising this limit instead is
-   * not the answer - the same rule as `index.html` and `/program/` above.
+   * is at 57% of its limit (17,529 / 30,720), and the crossing point at the
+   * measured average is 28 posts past the corpus today - 41 in total.
+   * Pagination would add a route, a page concept in the CMS and a crawl
+   * surface to solve a problem that does not exist yet; the red build at 25-41
+   * posts is the signal that it has arrived, and this comment is so that red
+   * build says how far away it was. Raising this limit instead is not the
+   * answer - the same rule as `index.html` and `/program/` above.
    */
   'noutati/index.html': 30 * 1024,
   /*
@@ -176,18 +177,21 @@ const PAGE_BUDGET = {
    *
    * The limit is one post's whole body, which is the feature rather than a
    * defect - the same ruling `/program/` gets above. Measured over the
-   * thirteen on the final Task 8 build: smallest 9,468 bytes, largest 16,120
-   * (the 26 April 2025 adormiti post, which repeats its section five times).
-   * 35 KiB is 2.2x the largest, enough that a long pastoral letter ships
-   * without a conversation, and small enough that a post twice the size of
-   * the current longest is a red build asking whether it should be split
-   * rather than a silent 200 KB page.
+   * thirteen on the final Task 13 build, header and footer settled: smallest
+   * 12,468 bytes, largest 19,158 (the 26 April 2025 adormiti post, which
+   * repeats its section five times). 35 KiB is 1.87x the largest. The Task 8
+   * measurement this paragraph first carried - 9,468 to 16,120, taken before
+   * the settled chrome - is superseded by these, and the claim it supported is
+   * unchanged: enough that a long pastoral letter ships without a
+   * conversation, and small enough that a post twice the size of the current
+   * longest (38,316 against 35,840) is a red build asking whether it should be
+   * split rather than a silent 200 KB page.
    */
   'noutati/*': 35 * 1024,
   /*
    * `/pastorale/` LISTS EVERY DOCUMENT, so like `/noutati/` it grows with what
-   * the parish publishes - and it is the largest visitor page in the build
-   * today.
+   * the parish publishes. It was the largest visitor page in the build when
+   * this limit was set; the QR-bill made `doneaza` the largest in Task 11.
    *
    * MEASURED ON THE TASK 8 BUILD: 46,757 bytes at 87 documents, of which 10,358
    * is the fixed skeleton (document, inlined CSS, scoped styles, header, footer)
@@ -195,21 +199,22 @@ const PAGE_BUDGET = {
    * limit of 30 KiB is BELOW the measured page, so it cannot be the limit; the
    * plan's own step says to adjust it from the measurement.
    *
-   * 64 KiB WAS 1.40x THE MEASURED PAGE, the bottom of the 1.4-1.9x range the
-   * prose pages state, and it is where the arithmetic lands: 64 KiB leaves
-   * (65,536 - 46,757) / 418.4 = about 45 more documents, so the red build
-   * arrives at about 132 documents. The parish publishes a handful of PDFs a
-   * year, so that is years away - and when it arrives the question is
-   * pagination, not a bigger limit, the same ruling `/noutati/` and `/program/`
-   * carry. The list pages' 1.8-2x headroom would allow more; this is the
-   * conservative end of the documented range.
+   * 64 KiB WAS 1.40x THE TASK 8 MEASUREMENT, the bottom of the 1.4-1.9x range
+   * the prose pages state, and it is where the arithmetic lands: at that
+   * measurement 64 KiB left (65,536 - 46,757) / 418.4 = about 45 more
+   * documents, so the red build would have arrived at about 132 documents. The
+   * parish publishes a handful of PDFs a year, so that is years away - and
+   * when it arrives the question is pagination, not a bigger limit, the same
+   * ruling `/noutati/` and `/program/` carry. The list pages' 1.8-2x headroom
+   * would allow more; this is the conservative end of the documented range.
    *
    * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: 47,829
    * bytes - +1,072 over Task 8, all of it the sitewide chrome rather than a
    * document, which drops the ratio to 1.37x, a hair under the band. The limit
    * still does not move, and the reason is that the band guides how a limit is
-   * chosen from a measurement rather than bounding where a page may sit: the
-   * headroom that decides this one is the ~42 documents it leaves, and no
+   * chosen from a measurement rather than bounding where a page may sit: on
+   * this measurement 64 KiB leaves (65,536 - 47,829) / 418.4 = about 42 more
+   * documents, so the red build now arrives at about 129 documents, and no
    * document was added to spend it.
    */
   'pastorale/index.html': 64 * 1024,
