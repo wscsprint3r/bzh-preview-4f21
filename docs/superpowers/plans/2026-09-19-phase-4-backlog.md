@@ -134,12 +134,18 @@ so these are worth more than their size suggests.
       whole-feed subscription only. The spec asks for both: *"Plus a per-day 'Adaugă în
       calendar' link for people who want one service rather than a subscription."*
 
+      **Superseded 2026-09-19 — see the decisions table at the end of this file: the
+      per-day link is rejected and spec §8 is amended.**
+
 - [ ] **C5 · Lighthouse is in the budget table and nothing runs it.** Spec §13 budgets
       performance ≥ 95 and accessibility 100, and LCP on 4G < 1.2s. The byte, request and
       JS budgets are enforced in CI; the Lighthouse rows exist only as manual step **H8**
       on the deployed site. Decide whether Phase 4 automates them or drops them from the
       table — the hero in A1 is the change most likely to move LCP, so measure before and
       after.
+
+      **Superseded 2026-09-19 — see the decisions table at the end of this file: the
+      Lighthouse rows are deferred to Phase 5 and spec §13 is amended.**
 
 - [ ] **C6 · The footer links `/program/` twice** — "Program liturgic" under CONTACT and
       "Program" under SITE.
@@ -161,6 +167,10 @@ than restate them:
 - `/?p=<id>` short links, which `_redirects` cannot match.
 - 53 old-host prose links inventoried for Phase 4, including 8 `.doc` files the spec's
   "Not migrated" list means will never have a home.
+
+  **Superseded 2026-09-19 — see the decisions table at the end of this file: the eight
+  `.doc` files are converted once to PDF and hosted.**
+
 - CMS uploads keeping their EXIF, including GPS, because `public/uploads/` is served as
   uploaded.
 - The privacy statement being one sentence rather than a page.
