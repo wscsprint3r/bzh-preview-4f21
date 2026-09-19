@@ -586,6 +586,18 @@ and what to hand Phase 4.
   the build emits no sitemap; it was recorded as out of Phase 3's spec §19 scope. Phase 4
   decides whether to emit one — Astro's sitemap integration or a route of our own — and
   submits it to Search Console (spec §14 step 5).
+- **CMS uploads keep their metadata.** The migration re-encodes every migrated image
+  through sharp, which is where its EXIF — GPS included — is discarded; the CMS path does
+  not, because `public/uploads/` is committed and served as-is, so a photograph a
+  volunteer uploads ships with whatever the camera wrote into it. Phase 4 should sanitise
+  the tree at build time (re-encode `public/uploads/**` through sharp into `dist/`, the
+  same decode-or-drop shape the migration uses) rather than leave a volunteer's home
+  coordinates in a served file. Until then, editors should be told to strip metadata
+  before uploading.
+- **The privacy statement is one sentence.** The form now says what it collects, that it
+  is used only to answer, and that nothing is stored; a full statement (revDSG, the
+  e-mail processor, retention) is the parish's text to write, and Phase 4 should decide
+  whether it becomes a page rather than a paragraph.
 
 **Unverified until it is deployed.**
 

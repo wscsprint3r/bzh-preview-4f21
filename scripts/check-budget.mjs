@@ -330,6 +330,16 @@ const PAGE_BUDGET = {
    * library's coordinates would modify a payment instrument that spec §9 has
    * not yet validated with a real transfer. `contact` stays at 24 KiB.
    *
+   * THE LIMIT MEASURES THE WRONG QUANTITY HERE, AND THAT IS KNOWN. This file
+   * weighs the bytes in `dist`, and a page that is mostly a payment instrument
+   * compresses far better than prose does: measured 2026-09-19, `doneaza` is
+   * 232,600 bytes raw but 10,740 brotli and 14,833 gzip - smaller compressed
+   * than several pages this file holds to 24 KiB raw. The limit stays 256 KiB
+   * because every other limit here is raw bytes, and one page measuring a
+   * different quantity would make the table mean two things; what the number
+   * guards is accidental growth (a second artifact, a duplicated bill), not
+   * the bill itself.
+   *
    * MEASURED ON THE TASK 12 BUILD: `contact` 18,400 bytes with no site key -
    * the form's fallback paragraph, the 1,132-byte inline handler that
    * `EXPECTED_INLINE` names and the component's inlined CSS - and 19,662 with

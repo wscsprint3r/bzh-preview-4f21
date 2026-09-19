@@ -19,6 +19,16 @@ import { readFileSync } from 'node:fs';
  *   `pdfinfo -js` reports document JavaScript; the byte scan looks for the two
  *   payload names below.
  *
+ * WHAT NEITHER MECHANISM COVERS, SAID PLAINLY SO THE CLAIM IS NOT READ AS
+ * STRONGER THAN IT IS. The byte scan finds a name in the uncompressed stream:
+ * a `/EmbeddedFile` or `/Launch` inside an object stream is invisible to it by
+ * exactly the compression the `/JS` note below describes, and the only honest
+ * claim is "no such name in the bytes as stored". `pdfinfo -js` reports the
+ * document-level JavaScript name tree; it does not report `/OpenAction`, an
+ * annotation's `/AA` actions, or XFA forms. The ruling stands - copy rather
+ * than re-distil, with a gate that is weaker than re-encoding and says so -
+ * and this paragraph is the "says so".
+ *
  * WHY THE BYTE SCAN IS ONLY THOSE TWO. The plan's sentence named `/JavaScript`,
  * `/JS`, `/EmbeddedFile` and `/Launch` as "in `pdfinfo -js` output or the raw
  * bytes", which reads as one list for both mechanisms. Measured 2026-09-18
