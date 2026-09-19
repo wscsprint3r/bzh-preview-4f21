@@ -605,6 +605,11 @@ and what to hand Phase 4.
   photograph, and on the parchment ground it reads as an empty slab. The parish is
   waiting for his picture; replace the reference when it arrives, and do not delete the
   placeholder before then.
+- **No `@media print` exists anywhere in the repository.** The QR-bill prints inside the
+  reading column rather than at its natural 210mm, and the parchment ground prints as-is,
+  so a print stylesheet for `/doneaza/` is a Phase 4 decision — it needs its own visual
+  check, and the bill's correctness is a separate question, measured by the test transfer
+  below.
 
 **Unverified until it is deployed.**
 

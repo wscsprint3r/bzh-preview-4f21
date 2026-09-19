@@ -512,6 +512,49 @@ git commit -m "docs(plan): the layout, photo and navigation fixes, with their me
 
 ---
 
+## Review round (2026-09-19)
+
+An external deep review of the merge request found seven items. Five were accepted and
+changed the code above; the snippets in Task 1 are superseded where they disagree with
+this section.
+
+- **The guard could not see its own bug (major).** The width assertion was gated on
+  `m.column.width + 1 >= m.measurePx + 2 * m.gutter` - the column's own width - so with
+  the gutter inside the max-width the column shrank below its own threshold and the
+  assertion was skipped. Reproduced by feeding `readingColumnProblems` the measured
+  pre-fix shape: `column 578`, `text 513`, `measurePx 574`, `clientWidth 741` returned
+  `[]`. Fixed to `m.clientWidth >= m.measurePx + 2 * m.gutter`, with the narrow and
+  too-wide causes named separately (the too-wide message used to blame the gutter), and
+  the pre-fix shape added as a unit test. Proven by restoring
+  `max-width: var(--masura)`: the audit now exits 1 with
+  `the text box is 513px against the 574px --masura - narrower than the measure`.
+- **`ch` reflowed on font swap (moderate).** Measured at 17px: 68ch is 578px in Spectral
+  and 709.52px in Georgia, the declared fallback, so the column rendered 131px wider
+  until the webfont swapped in. The reviewer suggested `34rem`; rejected - the root font
+  is 16px, so 34rem is 544px, and a rem measure would shrink in characters as the fluid
+  body font grows. Accepted instead: `@font-face` `'Spectral Fallback'` with
+  `local('Georgia')` and `size-adjust: 81.46%` (578 / 709.52), inserted before Georgia
+  in `--body`; measured 577.63px against Spectral's 578px.
+- **The table pinned a published article slug (low).** `noutati/hramul-parohiei-2024`
+  made a volunteer's ordinary CMS action red a build. Replaced with a glob entry:
+  `noutati/*/index.html`, `requireOne: true`, and the first match in sorted order is
+  measured - on this build that is `noutati/05-noiembrie-2025-hramul-parohiei`.
+- **The event detail template was unguarded (low).** Added
+  `evenimente/*/index.html` with `requireOne: false`: `dist/` has no event page, the
+  picker pass's fixture check already fails if its event page disappears, and the
+  collector prints the skip in every build without one.
+- **The QR-bill has no print stylesheet (low).** Recorded in `docs/handover.md` beside
+  the test-transfer item; a print stylesheet needs its own visual verification rather
+  than riding on this change.
+- **Not actioned:** the 390px note (the audits always used
+  `Emulation.setDeviceMetricsOverride`, so nothing was miscredited) and the photograph
+  note (the photo was chosen deliberately, is already public in `/galerie/`, and the
+  privacy statement is already a Phase 4 item).
+
+The Phase 4 backlog file the MR description cites was staged in the working tree and
+committed nowhere; it is committed on this branch as its own docs commit so the
+reference resolves.
+
 ## Self-review
 
 - **Spec coverage:** the design system's token `--masura` is now what ships; the reading pages match the approved "well-printed bulletin" direction (centered column, full-width lists unchanged); the parish's navigation decision is implemented; the migrated-content defects on `/parohia/*` are addressed with the parish's own photographs. No spec section is added or changed.
