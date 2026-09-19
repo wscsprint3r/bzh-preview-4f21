@@ -95,6 +95,16 @@ describe('the committed PDF archive', () => {
     }
   });
 
+  /*
+   * THIRTY SECONDS, BECAUSE THE DEFAULT FIVE IS A CLOCK AND NOT A GUARD. This
+   * test shells `pdfinfo` and `pdfinfo -js` for each of the 87 committed PDFs,
+   * 174 subprocesses; measured on this machine under load (load average 10-36)
+   * it took 6,485-7,518 ms across five runs, against vitest's 5,000 ms default
+   * - so `npm run test:build` and `test:all` went red for no code reason. The
+   * suite is green at `--testTimeout=60000`. 30 s is the ceiling with room for
+   * a loaded CI runner; it is not a weakened check, because the same 87 files
+   * are still gated by the same three arms.
+   */
   it('gates every committed PDF through pdfinfo, with no failures', () => {
     const pdfs = committedPdfs();
     expect(pdfs.length, 'no PDF to gate - the check would prove nothing').toBeGreaterThan(0);
@@ -111,7 +121,7 @@ describe('the committed PDF archive', () => {
         `content files ${contentFiles().length}.\n`,
     );
     expect(failures, `committed PDFs the gate refuses:\n${failures.join('\n')}`).toEqual([]);
-  });
+  }, 30_000);
 });
 
 describe("the gate's own arms can still fire", () => {
