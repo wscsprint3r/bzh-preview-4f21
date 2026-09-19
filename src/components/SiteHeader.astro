@@ -1,13 +1,13 @@
 ---
 const path = Astro.url.pathname;
 /*
- * EIGHT LINKS: the five measured in Phase 1 plus `Evenimente`, `Contact` and
- * `Donează`, settled by the parish in Task 13. `Parohia` reaches the parish
- * pages by their first entry (`/parohia/istoric/`) rather than by an index that
- * does not exist, and the grouping exists in the URLs, not in a dropdown. This
- * is the primary navigation; the footer carries the rest of the sitemap - the
- * eleven prose pages plus a fixed `Site` list - and that is what makes every
- * prose page reachable from every visitor page.
+ * SEVEN LINKS: the five measured in Phase 1 plus `Evenimente`, `Contact` and
+ * `Donează`, settled by the parish in Task 13, minus `Parohia` - removed from
+ * the top bar at the parish's request (2026-09-19) and carried by the footer's
+ * `Pagini` menu, which reaches `Istoric` and `Consiliul Parohial` on every
+ * page. This is the primary navigation; the footer carries the rest of the
+ * sitemap - the eleven prose pages plus a fixed `Site` list - and that is what
+ * makes every prose page reachable from every visitor page.
  */
 const links = [
   { href: '/', text: 'Acasă' },
@@ -15,7 +15,6 @@ const links = [
   { href: '/noutati/', text: 'Noutăți' },
   { href: '/evenimente/', text: 'Evenimente' },
   { href: '/servicii-liturgice/', text: 'Servicii liturgice' },
-  { href: '/parohia/istoric/', text: 'Parohia' },
   { href: '/contact/', text: 'Contact' },
   { href: '/doneaza/', text: 'Donează' },
 ];
@@ -62,16 +61,18 @@ const links = [
    */
   .sh-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }
   /*
-   * MEASURED AT 390px AFTER THE EIGHT LINKS LANDED (Task 13), in headless
-   * Chrome with the audits' own chromedriver. The links measure 460px together
-   * against the phone's 358px content column, so the row wraps to two lines
-   * whatever the gap: measured 4+4 at both this 12px gap and the 20px desktop
-   * one, and two lines is the wrap Task 13 accepts. What this rule still
-   * decides is how tight the wrapped row reads - 12px between links on a phone
-   * - not the one-line trick it was written as when the header carried five.
-   * The numbers above replace that claim rather than extending it. 34rem is
-   * not a new breakpoint: it is the one `DayRow` and `WeekBand` already cut at,
-   * so the audit's derived breakpoint set is unchanged.
+   * MEASURED AT 390px AFTER THE SEVEN LINKS LANDED (Task 13's eight, minus
+   * `Parohia` on 2026-09-19), in headless Chrome with the audits' own
+   * chromedriver and `Emulation.setDeviceMetricsOverride`, because a window
+   * width under about 500px is clamped silently. The links measure 419px
+   * together against the phone's 358px content column, so the row wraps to two
+   * lines whatever the gap: measured 4+3 at both this 12px gap and the 20px
+   * desktop one, and two lines is the wrap Task 13 accepts. What this rule
+   * still decides is how tight the wrapped row reads - 12px between links on a
+   * phone - not the one-line trick it was written as when the header carried
+   * five. The numbers above replace that claim rather than extending it. 34rem
+   * is not a new breakpoint: it is the one `DayRow` and `WeekBand` already cut
+   * at, so the audit's derived breakpoint set is unchanged.
    */
   @media (max-width: 34rem) {
     .sh-nav { gap: 0.5rem 0.75rem; }

@@ -50,7 +50,7 @@ const { Content } = await render({ ...entry, rendered });
 ---
 
 <Base title={title} description={summary}>
-  <article class="container">
+  <article class="container reading-column">
     <h1 class="article-title">{title}</h1>
     <p class="article-meta">
       <time datetime={date}>{dayHeading(date)} {date.slice(0, 4)}</time>
@@ -66,7 +66,15 @@ const { Content } = await render({ ...entry, rendered });
 </Base>
 
 <style>
-  .article-title { margin-top: 2rem; max-width: var(--masura); }
+  /*
+   * THE COLUMN IS `.container.reading-column` ON THE ARTICLE, and the children
+   * need no measure of their own: the column's content box is exactly
+   * `--masura`, so title, image and body share one centered axis. The old
+   * per-child `max-width: var(--masura)` on the title was dead anyway - `ch` is
+   * relative to the element's own font, and 68ch at the h1's 34px is 1156px,
+   * wider than the container it sat in.
+   */
+  .article-title { margin-top: 2rem; }
   .article-meta {
     display: flex;
     flex-wrap: wrap;
@@ -77,8 +85,7 @@ const { Content } = await render({ ...entry, rendered });
     text-transform: uppercase;
     color: var(--faint);
   }
-  .prose { max-width: var(--masura); }
-  .article-image { margin: 0 0 1.75rem; max-width: var(--masura); border: 1px solid var(--rule); }
+  .article-image { margin: 0 0 1.75rem; border: 1px solid var(--rule); }
   .prose :global(p) { margin: 0 0 1.25rem; }
   .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
   .prose :global(h3) { font-size: 1.25rem; margin-block: 1.75rem 0.5rem; }

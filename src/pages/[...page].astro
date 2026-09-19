@@ -83,7 +83,7 @@ const { Content } = await render({ ...entry, rendered });
 ---
 
 <Base title={title} description={description}>
-  <div class="container prose">
+  <div class="container prose reading-column">
     <h1>{title}</h1>
     <Content />
   </div>
@@ -92,8 +92,11 @@ const { Content } = await render({ ...entry, rendered });
 <style>
   /*
    * The prose treatment mirrors `noutati/[slug].astro`, which carries the
-   * measurements behind each rule: the measure is `--masura`, headings step
-   * down the display face, and the blockquote is a rule rather than a colour.
+   * measurements behind each rule: headings step down the display face, and the
+   * blockquote is a rule rather than a colour. The measure and the centering
+   * are NOT here - they live on `.container.reading-column` in `global.css`,
+   * which this route's wrapper carries, so the text box is exactly `--masura`
+   * and shares one axis with every generated block.
    *
    * NO `color` IS DECLARED FOR `a`, deliberately. global.css's `a`/`a:hover`
    * pair already colours the body links, and a scoped colour here would ship
@@ -101,7 +104,6 @@ const { Content } = await render({ ...entry, rendered });
    * `SiteHeader.astro` documents. Nothing here declares `outline` either, so
    * the global `:focus-visible` ring reaches these links too.
    */
-  .prose { max-width: var(--masura); }
   .prose h1 { margin-top: 2rem; margin-bottom: 1.25rem; }
   .prose :global(p) { margin: 0 0 1.25rem; }
   .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }

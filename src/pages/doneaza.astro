@@ -68,7 +68,7 @@ const qrBillSvg =
 ---
 
 <Base title={title} description={description}>
-  <div class="container prose">
+  <div class="container prose reading-column">
     <h1>{title}</h1>
     <p class="lead">
       Donațiile dumneavoastră susțin lucrarea parohiei și achiziționarea unui
@@ -92,7 +92,7 @@ const qrBillSvg =
     belong. The only rule below touches its width, so the bill scales on a
     phone instead of overflowing.
   */}
-  <div class="container">
+  <div class="container reading-column">
     {settings.accounts.map((account) => (
       <>
         <AccountBlock account={account} />
@@ -117,6 +117,10 @@ const qrBillSvg =
    * THE PROSE TREATMENT IS `[...page].astro`'S, rule for rule. That file
    * carries the measurements behind each one; they are properties of the
    * migrated body rather than of this route, so they are not repeated here.
+   * The measure and the centering are NOT here either - they live on
+   * `.container.reading-column` in `global.css`, which the prose wrapper and
+   * the accounts wrapper both carry, so the account blocks and the QR bill sit
+   * on the text's own axis instead of the bare container's edge.
    *
    * NO `color` IS DECLARED FOR `a`, deliberately. global.css's `a`/`a:hover`
    * pair already colours the body links, and a scoped colour here would ship
@@ -124,7 +128,6 @@ const qrBillSvg =
    * `SiteHeader.astro` documents. Nothing here declares `outline` either, so
    * the global `:focus-visible` ring reaches these links too.
    */
-  .prose { max-width: var(--masura); }
   .prose h1 { margin-top: 2rem; margin-bottom: 1.25rem; }
   .prose .lead { font-size: 1.125rem; color: var(--muted); margin-bottom: 1.75rem; }
   .prose :global(p) { margin: 0 0 1.25rem; }

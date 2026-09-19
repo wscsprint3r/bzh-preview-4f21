@@ -536,8 +536,9 @@ and what to hand Phase 4.
   the parish creates its first event, and its layout is audited through the picker
   fixture rather than through a page in `dist/`), `/pastorale/` (the PDF list), and
   `/contact/` and `/doneaza/` as dedicated routes over their migrated prose plus
-  generated blocks. The header carries **eight** links; the footer carries the full
-  sitemap — a fixed **Site** list (Program, Noutăți, Evenimente, Galerie, Pastorale)
+  generated blocks. The header carries **seven** links (`Parohia` left the top bar on
+  2026-09-19 and is reached through the footer's `Pagini` menu); the footer carries the
+  full sitemap — a fixed **Site** list (Program, Noutăți, Evenimente, Galerie, Pastorale)
   beside the **Pagini** menu, which now has eleven entries. `build-output.itest.ts`
   fails if any prose page loses its inbound link from any visitor page.
 - **CMS collections** in `/admin/`: **Evenimente**, **Galerii foto** and **Documente**,
@@ -598,6 +599,17 @@ and what to hand Phase 4.
   is used only to answer, and that nothing is stored; a full statement (revDSG, the
   e-mail processor, retention) is the parish's text to write, and Phase 4 should decide
   whether it becomes a page rather than a paragraph.
+- **One portrait is still the old placeholder.** `src/content/pages/consiliul-parohial.md`
+  carries `Captura-de-ecran-din-2024-05-14-la-15.25.58.png` — a white-background ornament
+  from the old site — under **Eduard Gabriel Bazavan**, where every other member has a
+  photograph, and on the parchment ground it reads as an empty slab. The parish is
+  waiting for his picture; replace the reference when it arrives, and do not delete the
+  placeholder before then.
+- **No `@media print` exists anywhere in the repository.** The QR-bill prints inside the
+  reading column rather than at its natural 210mm, and the parchment ground prints as-is,
+  so a print stylesheet for `/doneaza/` is a Phase 4 decision — it needs its own visual
+  check, and the bill's correctness is a separate question, measured by the test transfer
+  below.
 
 **Unverified until it is deployed.**
 
