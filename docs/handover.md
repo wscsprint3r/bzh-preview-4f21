@@ -5,11 +5,11 @@ none of it has been tested.
 
 **Status, 2026-09-18: still none of it.** Steps A-J below are all outstanding. The
 site has never been deployed, so nothing here has a live system behind it yet.
-Phase 1 and Phase 2 are complete: the schedule, the CMS, the 45 news posts, the nine
-prose pages and the settings singleton all exist in the repository, so deploying now
-publishes the whole site rather than a schedule with no articles on it. Work through
-it in order; each step says what a good answer
-looks like, because "it did not error" is not one.
+Phases 1-3 are complete: the schedule, the CMS, the 45 news posts, the eleven prose
+pages, the galleries, the events surface, the 87 PDFs, the QR-bill and the contact
+form all exist in the repository, so deploying now publishes the whole site rather
+than a schedule with no articles on it. Work through it in order; each step says what
+a good answer looks like, because "it did not error" is not one.
 
 > **Until the DNS cutover the site lives at `https://<project>.pages.dev/`.** `www.bor-zh.ch`
 > still points at the WordPress install that was compromised twice — nothing in this phase
@@ -516,6 +516,110 @@ so the widget never loads there. Open the browser console on `/contact/` and sub
 *Good answer:* no Content-Security-Policy violation for
 `https://challenges.cloudflare.com` in the console, and the K4 message arrives.
 
+## L — Phase 3: the rest
+
+Phase 3 is complete in the repository. The routes, the collections, the PDFs and the
+QR-bill all ship with the site; the only service it needs beyond Phase 2's is the form's,
+which is section K. This section is what to know about them when you bring the site up,
+and what to hand Phase 4.
+
+**What now exists.**
+
+- **Routes**: `/galerie/` with one page per album (`/galerie/<slug>/`), `/evenimente/`
+  with one page per event (`/evenimente/<slug>/` — there is no real detail page until
+  the parish creates its first event, and its layout is audited through the picker
+  fixture rather than through a page in `dist/`), `/pastorale/` (the PDF list), and
+  `/contact/` and `/doneaza/` as dedicated routes over their migrated prose plus
+  generated blocks. The header carries **eight** links; the footer carries the full
+  sitemap — a fixed **Site** list (Program, Noutăți, Evenimente, Galerie, Pastorale)
+  beside the **Pagini** menu, which now has eleven entries. `build-output.itest.ts`
+  fails if any prose page loses its inbound link from any visitor page.
+- **CMS collections** in `/admin/`: **Evenimente**, **Galerii foto** and **Documente**,
+  beside Phase 2's three. A gallery's images and an event's image go through the same
+  resolver as an article's, so both shapes render: the migration's
+  `src/assets/content/…` through Astro's image pipeline, a CMS upload at `/uploads/…`
+  as-is.
+- **87 PDFs** under `public/documente/` (about 197 MiB), copied from the old host by
+  `migration/` behind a gate: each file must open with `pdfinfo`, and its raw bytes are
+  scanned for `/EmbeddedFile` and `/Launch`; "no JavaScript" is judged by
+  `pdfinfo -js`, not by a byte scan. **The gate does not rewrite the bytes** — that
+  ruling, and why the byte scan is narrower than it looks, are in
+  `migration/README.md` and `migration/pdf-gate.mjs`. The files are therefore the old
+  bytes, with a browser's PDF viewer as the execution boundary.
+- **The QR-bill** on `/doneaza/`, generated at build from the account flagged `qr_bill`
+  in Setări and embedded as raw SVG. It is an **open** bill: currency CHF, no amount,
+  so the donor fills in the sum in their banking app.
+- **The contact form** on `/contact/`; its configuration is section K.
+- **`docs/url-map.csv`** now carries **144 data rows**, 87 of them the PDFs. Nothing
+  serves the file yet: it is Phase 4's input.
+
+**What to hand Phase 4.**
+
+- **The 87 PDF redirect rows.** One row per old `/pastorala/…`, `/files/…`,
+  `wp-content/uploads/…` or `/revista/…` path, pointing at `/documente/<slug>.pdf`.
+  The old paths are **percent-encoded per segment**, because that is the form a browser
+  requested; copy each token verbatim and do not re-encode it. Two measured decisions
+  are Phase 4's: the design spec's `/wp-content/*` 410 rules **shadow** the ten uploads
+  301s unless the specific document rows are emitted above the wildcard, and the CSV is
+  sorted by old path, so the ordering in `_redirects` must be deliberate rather than
+  the file's order.
+- **The album and event URL rows, which do not exist and must be decided.** The old
+  photo album was the WordPress page `/evenimente/`, and the legacy static album was
+  `/galerie.html`. `/evenimente/` now serves the events index, so the old album content
+  cannot also redirect there and no row maps it to `/galerie/sfintele-pasti-2024/`;
+  `/galerie.html` has no row either. The old Events Calendar URLs are in the same
+  position. Before the old host goes away, Phase 4 has to decide what each of them
+  does.
+- **Eight `.doc` links** in the migrated `studii` page still point at the old host by
+  design: the spec never migrates `.doc`, and what they should do is Phase 4's ruling.
+- **The `?p=<id>` short links are unchanged from Phase 2** (section I): the URL map
+  carries no WordPress IDs, `_redirects` cannot match a query string, and the dump that
+  could supply the IDs lives outside this repository. Phase 4 needs a Pages Function
+  for them, or an explicit recorded decision to let those links die.
+
+**Unverified until it is deployed.**
+
+1. **The Turnstile/Resend round trip** — steps K1-K5. The Function's logic is
+   unit-tested with an injected `fetch`; no run in this repository has ever reached
+   either service.
+2. **The QR-bill test transfer** (spec §9). The bill is byte-stable and structurally
+   correct, and no bank app has scanned this exact payload. Make one small real
+   transfer from the deployed `/doneaza/` and confirm the recipient, IBAN, currency and
+   reference arrive as printed. A wrong reference field produces a payment nobody can
+   reconcile.
+3. **The Cloudflare IP rate-limit rule** — step K3. It exists only in the dashboard;
+   nothing in this repository can see it fire.
+4. **PDF response headers.** Nothing here can see what Cloudflare sends for a PDF, and
+   the gate cannot rewrite the bytes, so this is the last control on a file the parish
+   uploads and the site serves. Check one:
+
+   ```bash
+   curl -sI https://<project>.pages.dev/documente/pastorala-invierea-domnului-ro-2019.pdf \
+     | grep -i -E 'content-type|cache-control|x-content-type-options'
+   ```
+
+   *Good answer:* `content-type: application/pdf` and the sitewide
+   `x-content-type-options: nosniff`. The cache header is Cloudflare's default —
+   nothing in this repository sets one for the PDFs — so write down what you see rather
+   than assuming it.
+
+**A declared gap, not an open question.** Text contrast inside the QR-bill's inline SVG
+cannot be judged by axe: it treats any SVG node as a graphic and returns an
+`incomplete`, so `scripts/a11y.mjs` prints those nodes as an exempt set on every run
+and still fails on every other incomplete. The bill is black on white by the
+specification, and the test transfer in point 2 is what exercises the bill itself.
+
+**Check it from the repository.**
+
+```bash
+TZ=Europe/Zurich npm run test:all && TZ=Europe/Zurich npm run check
+```
+
+*Good answer:* both exit 0. The integration tests read the built `dist/` — every new
+route, the collections, the 87 PDFs, the QR-bill and the form's fallback — and the four
+browser passes audit every built page, including the phone and wide widths and the
+picker fixture that renders the week the JavaScript hides.
+
 ## What still cannot be verified from this repository
 
 Say "unverified" about these, not "should work".
@@ -536,3 +640,7 @@ Say "unverified" about these, not "should work".
    chromedriver's download skipped.
 6. **Lighthouse scores.** Step H8.
 7. **The six-hourly rebuild firing.** Step E3.
+8. **Everything Phase 3 added that a deployment decides.** Section L's four unverified
+   items — the form's round trip, the QR-bill's test transfer, the rate-limit rule and
+   the PDFs' response headers — plus the QR-bill's SVG text, which axe cannot judge.
+   Section L is where each is written out.

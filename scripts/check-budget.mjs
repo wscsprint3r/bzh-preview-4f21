@@ -141,13 +141,15 @@ const PAGE_BUDGET = {
    * `/noutati/` GROWS WITH EVERY POST THE PARISH PUBLISHES, like `/program/`
    * grows with every week.
    *
-   * MEASURED ON THE FINAL PHASE 2 BUILD (Task 12): 14,892 bytes at 13 published
-   * posts, of which 8,644 is the fixed skeleton (document, inlined CSS, header,
-   * footer) and 6,248 is the 13 card elements - 480.6 bytes per card on
+   * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: 17,529
+   * bytes at 13 published posts, of which 11,281 is the fixed skeleton
+   * (document, inlined CSS, header, footer - 2,637 more chrome than the 8,644
+   * Task 12 measured, the settled navigation and footer menus) and 6,248 is
+   * the 13 card elements, byte-identical to Task 12's - 480.6 bytes per card on
    * average, 546 for the largest and 432 for the smallest. Derived from the
    * measured bytes rather than built, because no build has that many posts:
-   * the 30 KiB limit is crossed at 46 posts at the measured average, at 41 if
-   * every future card were as large as the largest today, and at 29 if every
+   * the 30 KiB limit is crossed at 41 posts at the measured average, at 36 if
+   * every future card were as large as the largest today, and at 25 if every
    * card also carried a 300-byte summary. That last figure is the conservative
    * one: `summary` is optional and 0 of the 13 migrated posts has one, so the
    * measured 546-byte maximum does not bound a card that uses the field. All
@@ -193,7 +195,7 @@ const PAGE_BUDGET = {
    * limit of 30 KiB is BELOW the measured page, so it cannot be the limit; the
    * plan's own step says to adjust it from the measurement.
    *
-   * 64 KiB IS 1.40x THE MEASURED PAGE, the bottom of the 1.4-1.9x range the
+   * 64 KiB WAS 1.40x THE MEASURED PAGE, the bottom of the 1.4-1.9x range the
    * prose pages state, and it is where the arithmetic lands: 64 KiB leaves
    * (65,536 - 46,757) / 418.4 = about 45 more documents, so the red build
    * arrives at about 132 documents. The parish publishes a handful of PDFs a
@@ -201,6 +203,14 @@ const PAGE_BUDGET = {
    * pagination, not a bigger limit, the same ruling `/noutati/` and `/program/`
    * carry. The list pages' 1.8-2x headroom would allow more; this is the
    * conservative end of the documented range.
+   *
+   * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: 47,829
+   * bytes - +1,072 over Task 8, all of it the sitewide chrome rather than a
+   * document, which drops the ratio to 1.37x, a hair under the band. The limit
+   * still does not move, and the reason is that the band guides how a limit is
+   * chosen from a measurement rather than bounding where a page may sit: the
+   * headroom that decides this one is the ~42 documents it leaves, and no
+   * document was added to spend it.
    */
   'pastorale/index.html': 64 * 1024,
   /*
@@ -216,6 +226,12 @@ const PAGE_BUDGET = {
    * leaves room for about twenty more - the larger album today holds fifteen -
    * and a parish album that crosses that is a red build asking whether it
    * wants pagination, not a silent 100 KB page.
+   *
+   * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: the index
+   * 12,524 bytes and the two albums 14,450 (nine images) and 16,878 (fifteen),
+   * each about a kilobyte over Task 6 with the same chrome. No limit moves:
+   * 20 KiB is 1.63x the index and 24 KiB is 1.46x the larger album, both
+   * inside the band.
    */
   'galerie/index.html': 20 * 1024,
   'galerie/*': 24 * 1024,
@@ -235,6 +251,11 @@ const PAGE_BUDGET = {
    * asks whether the index wants pagination. The parish has none today, so the
    * crossing point is a measurement of how far away it is, not a prediction
    * that it is near.
+   *
+   * MEASURED ON THE FINAL TASK 13 BUILD: the empty index 11,462 bytes, +1,092
+   * over Task 7 with the same chrome, so 20 KiB is 1.79x - inside the band, no
+   * limit moves. There is still no real detail page to measure; its limit
+   * stands on the Task 7 fixture measurement above.
    */
   'evenimente/index.html': 20 * 1024,
   'evenimente/*': 20 * 1024,
@@ -310,6 +331,11 @@ const PAGE_BUDGET = {
    * 1.4-1.9x band the prose pages state is how a limit is chosen from a
    * measurement, not a floor a measurement has to reach. `doneaza` is unchanged
    * by Task 12.
+   *
+   * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: `contact`
+   * 19,295 bytes - 0.79x of its 24 KiB - and `doneaza` 232,600, 0.89x of its
+   * 256. Neither limit moves: the +895 on each is the two new footer menus and
+   * the three new header links, chrome rather than content.
    */
   'contact/index.html': 24 * 1024,
   'doneaza/index.html': 256 * 1024,
@@ -565,9 +591,9 @@ const PAGE_EXPLANATION = [
   '          cu ce s-a publicat. Două pagini cresc de la sine:',
   '            · /program/ ține fiecare zi publicată, iar limita se atinge în jurul a 58',
   '              de săptămâni publicate înainte (măsurat pe o săptămână parohială obișnuită);',
-  '            · /noutati/ ține fiecare articol publicat, iar limita se atinge în jurul a 46',
+  '            · /noutati/ ține fiecare articol publicat, iar limita se atinge în jurul a 41',
   '              de articole, pentru că fiecare articol adaugă circa 480 de octeți; dacă fiecare',
-  '              articol ar avea și un rezumat, limita s-ar atinge în jurul a 29 (măsurat la 13',
+  '              articol ar avea și un rezumat, limita s-ar atinge în jurul a 25 (măsurat la 13',
   '              articole, apoi socotit).',
   '          Dacă tocmai ați salvat o zi sau un articol în /admin/: s-a publicat și situl',
   '          este în regulă. Anunțați persoana care se ocupă de site; nu este ceva de',

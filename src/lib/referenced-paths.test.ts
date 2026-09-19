@@ -66,6 +66,7 @@ const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
     'backup-2026-08-27/htdocs.tar.gz',
     'database.sql.gz',
     'htdocs.tar.gz',
+    'htdocs/galerie.html',
     'localhost.sql',
     'task-1-report.md',
   ],

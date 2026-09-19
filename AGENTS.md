@@ -295,6 +295,13 @@ Every one of these was paid for.
 - **An explicit gap beats a vacuous pass.** Where something cannot be checked here — what
   Cloudflare does with `_headers`, what the CMS does after a real sign-in — say so and say
   what to run instead.
+- **A byte scan is not the stronger version of a parser, and the PDF gate is where that
+  was measured.** `migration/pdf-gate.mjs` judges "no JavaScript" by `pdfinfo -js`, where
+  any non-empty output fails, and scans raw bytes only for `/EmbeddedFile` and `/Launch`,
+  the two markers `pdfinfo` cannot report. Widening that byte scan to `/JavaScript` or
+  `/JS` is the change that looks stronger and is not: six clean committed PDFs carry the
+  sequence inside compressed streams, so the "stronger" gate would drop them by name. A
+  wider scan is a smaller corpus.
 
 ## Commands
 
