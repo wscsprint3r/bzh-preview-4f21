@@ -24,7 +24,7 @@ export const WP_IDS_FILE = 'functions/wp-ids.json';
 export function shortLinkMap(posts, mapRows) {
   const target = new Map();
   for (const [oldPath, newPath] of mapRows) {
-    const match = /^\/(.+)\/$/.exec(oldPath);
+    const match = /^\/([^/]+)\/$/.exec(oldPath);
     if (match !== null) target.set(match[1], newPath);
   }
   const out = new Map();

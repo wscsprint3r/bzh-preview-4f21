@@ -4,7 +4,7 @@ import { shortLinkMap } from './wp-ids.mjs';
 describe('the short-link map', () => {
   const ROWS = [
     ['/slujbe/', '/noutati/slujbe/'],
-    ['/parohia/istoric/', '/parohia/istoric/'],
+    ['/istoric/', '/parohia/istoric/'],
     ['/wp-content/uploads/2024/05/x.pdf', '/documente/x.pdf'],
   ];
 
@@ -13,7 +13,7 @@ describe('the short-link map', () => {
   });
 
   it('maps a page slug to its new path', () => {
-    expect(shortLinkMap([{ id: 7, slug: 'parohia/istoric' }], ROWS)).toEqual([
+    expect(shortLinkMap([{ id: 7, slug: 'istoric' }], ROWS)).toEqual([
       ['7', '/parohia/istoric/'],
     ]);
   });
@@ -26,7 +26,7 @@ describe('the short-link map', () => {
     const map = shortLinkMap(
       [
         { id: 30, slug: 'slujbe' },
-        { id: 4, slug: 'parohia/istoric' },
+        { id: 4, slug: 'istoric' },
       ],
       ROWS,
     );
