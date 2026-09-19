@@ -4,6 +4,7 @@ import { extractDocuments } from './documents.mjs';
 import { extractGalleries } from './galleries.mjs';
 import { extractPages } from './pages.mjs';
 import { writeUrlMap } from './url-map.mjs';
+import { writeShortLinks } from './wp-ids.mjs';
 
 /**
  * The migration's one entry point: `node migration/run.mjs`.
@@ -43,6 +44,7 @@ try {
   const pages = await extractPages(documents.redirects);
   const galleries = await extractGalleries();
   const redirects = await writeUrlMap(documents.redirects);
+  const shortLinks = await writeShortLinks();
   summary = {
     postsWritten: posts.written,
     postsPublished: posts.published,
@@ -56,6 +58,7 @@ try {
     skippedDocuments: documents.skipped,
     bytesCopied: documents.bytes,
     redirects,
+    shortLinks,
   };
 } finally {
   await stop();
@@ -73,7 +76,8 @@ process.stdout.write(
     `  documents written: ${summary.documentsWritten}\n` +
     `  PDFs skipped:      ${summary.pdfsSkipped}\n` +
     `  bytes copied:      ${summary.bytesCopied}\n` +
-    `  redirects:         ${summary.redirects}\n`,
+    `  redirects:         ${summary.redirects}\n` +
+    `  short links:        ${summary.shortLinks}\n`,
 );
 
 if (summary.pdfsSkipped > 0) {
@@ -98,6 +102,7 @@ const mustBePositive = [
   ['gallery images', summary.galleryImages],
   ['documents written', summary.documentsWritten],
   ['redirects', summary.redirects],
+  ['short links', summary.shortLinks],
 ];
 const zeros = mustBePositive.filter(([, count]) => count === 0).map(([name]) => name);
 if (zeros.length > 0) {
