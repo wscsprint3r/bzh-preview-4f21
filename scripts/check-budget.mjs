@@ -717,31 +717,43 @@ function pageCss(html) {
 /**
  * Every request the page's CSS can make, as an upper bound.
  *
- * ONE PER `@font-face` RULE, not one per `url()` inside it: a face lists woff2
- * and woff, a browser fetches at most one of them, and none at all when the
- * face's `unicode-range` never matches. Every OTHER `url()` - a background, a
- * mask, a cursor, a `list-style-image` - is a request of its own, and so is
- * each `@import`.
+ * ONE PER `@font-face` RULE THAT NAMES A FILE, not one per `url()` inside it: a
+ * face lists woff2 and woff, a browser fetches at most one of them, and none at
+ * all when the face's `unicode-range` never matches. Every OTHER `url()` - a
+ * background, a mask, a cursor, a `list-style-image` - is a request of its own,
+ * and so is each `@import`.
+ *
+ * A FACE WHOSE ONLY SOURCE IS `local()` IS NOT A REQUEST, and counting it as
+ * one was the upper bound overstating itself in the direction that blocks a
+ * zero-cost change. Measured 2026-09-19: the metric-adjusted fallback face
+ * (`src: local('Georgia')`, `size-adjust: 81.46%`, so the `ch` measure survives
+ * the font swap) added a ninth face and no fetch at all - and four article
+ * pages that sit exactly on the 12-request limit went to 13/12, which would
+ * have forced a choice between the fallback and a limit. A face with no `url()`
+ * has no file to fetch, so skipping it keeps the bound BY CONSTRUCTION; a face
+ * that names even one file still counts one.
  *
  * Counting only the faces was SOUND ON THE DAY IT WAS WRITTEN, because all
- * sixteen url()s in this build sit inside the eight faces. "Sound today" is the
- * state that decays, and this file claims its count is an upper bound BY
- * CONSTRUCTION, so the construction has to mean it: one background-image added
- * to global.css would otherwise be a request nothing counted.
+ * sixteen url()s in this build sit inside the eight fetching faces. "Sound
+ * today" is the state that decays, and this file claims its count is an upper
+ * bound BY CONSTRUCTION, so the construction has to mean it: one background-
+ * image added to global.css would otherwise be a request nothing counted.
  *
- * `date:` URIs and bare fragments (`url(#id)`, an SVG filter reference) fetch
+ * `data:` URIs and bare fragments (`url(#id)`, an SVG filter reference) fetch
  * nothing and are skipped.
  */
 function cssRequests(css) {
   const FACE_BLOCK = /@font-face\s*\{[^}]*\}/g;
-  const faces = (css.match(FACE_BLOCK) ?? []).length;
+  const faceBlocks = css.match(FACE_BLOCK) ?? [];
+  const faces = faceBlocks.filter((block) => /\burl\(/.test(block)).length;
+  const localFaces = faceBlocks.length - faces;
   // Faces first, then imports, so an `@import url(...)` is not counted twice.
   const rest = css.replace(FACE_BLOCK, ' ');
   const imports = (rest.match(/@import\b[^;]*;/g) ?? []).length;
   const urls = [...rest.replace(/@import\b[^;]*;/g, ' ').matchAll(/\burl\(\s*[\x27"]?([^\x27")]+)/g)]
     .map((m) => m[1].trim())
     .filter((u) => !u.startsWith('data:') && !u.startsWith('#'));
-  return { faces, imports, urls };
+  return { faces, localFaces, imports, urls };
 }
 
 console.log(`Budget for ${PAGES.length} visitor page(s):\n`);
@@ -843,7 +855,7 @@ for (const page of PAGES) {
     if (ATTRIBUTE(m[2], 'src') !== null || ATTRIBUTE(m[2], 'srcset') !== null) requests.push(`${m[1]}`);
   }
   const inDocument = requests.length;
-  const { faces, imports, urls } = cssRequests(pageCss(html));
+  const { faces, localFaces, imports, urls } = cssRequests(pageCss(html));
   for (let i = 0; i < faces; i += 1) requests.push('@font-face');
   for (let i = 0; i < imports; i += 1) requests.push('@import');
   for (const u of urls) requests.push(`url(${u})`);
@@ -851,6 +863,7 @@ for (const page of PAGES) {
   report(`  requests (upper bound) for ${page}`, requests.length, budgetFor(REQUEST_BUDGET, page), 'requests');
   console.log(
     `          ${inDocument} in the document + ${faces} @font-face` +
+      `${localFaces > 0 ? ` (+${localFaces} local-only face, no request)` : ''}` +
       `${imports > 0 ? ` + ${imports} @import` : ''}` +
       `${urls.length > 0 ? ` + ${urls.length} url() in CSS` : ''}`,
   );
