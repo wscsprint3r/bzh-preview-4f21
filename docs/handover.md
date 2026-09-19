@@ -536,8 +536,9 @@ and what to hand Phase 4.
   the parish creates its first event, and its layout is audited through the picker
   fixture rather than through a page in `dist/`), `/pastorale/` (the PDF list), and
   `/contact/` and `/doneaza/` as dedicated routes over their migrated prose plus
-  generated blocks. The header carries **eight** links; the footer carries the full
-  sitemap — a fixed **Site** list (Program, Noutăți, Evenimente, Galerie, Pastorale)
+  generated blocks. The header carries **seven** links (`Parohia` left the top bar on
+  2026-09-19 and is reached through the footer's `Pagini` menu); the footer carries the
+  full sitemap — a fixed **Site** list (Program, Noutăți, Evenimente, Galerie, Pastorale)
   beside the **Pagini** menu, which now has eleven entries. `build-output.itest.ts`
   fails if any prose page loses its inbound link from any visitor page.
 - **CMS collections** in `/admin/`: **Evenimente**, **Galerii foto** and **Documente**,
