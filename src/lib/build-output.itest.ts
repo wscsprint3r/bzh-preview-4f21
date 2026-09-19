@@ -181,6 +181,12 @@ const ICS_REFERENCES: Record<string, number> = {
   'noutati/index.html': 2,
   'galerie/index.html': 2,
   /*
+   * `/pastorale/` goes through `Base.astro` and the footer like every other
+   * visitor page, so it carries the same two references. The documents
+   * themselves are downloads and have no feed.
+   */
+  'pastorale/index.html': 2,
+  /*
    * The events index carries the same two. Its detail pages are derived from the
    * content files like the article and album pages above - none exists today,
    * because the parish has no events, and the first one the parish saves gets
@@ -753,6 +759,32 @@ describe('the prose pages', () => {
       `\nProse page body images: ${imagesChecked} over ${withImages.length} page(s):\n` +
         `${measured.map((m) => `  ${m}`).join('\n')}\n`,
     );
+  });
+
+  /*
+   * THE LINKS THE MIGRATION REWROTE, CHECKED WHERE THEY LAND. `rewriteDocumentLinks`
+   * turns a PDF link into `/documente/<slug>.pdf` and `rewriteLinkedImages`
+   * turns an uploads-image anchor into a link at the migrated asset; both run in
+   * `extractArticles`/`extractPages`, and neither is visible in the source
+   * Markdown as an old-host URL any more. What could still ship is an old-host
+   * file href the rewrite did not reach - a shape `linkImagesIn` did not
+   * collect, a URL with a host spelling the pattern does not know - and nothing
+   * else on the site reads a link's destination. So every built page is read
+   * and every `href` at `https://www.bor-zh.ch/…` with a file extension is
+   * collected; the assertion is that there are none.
+   *
+   * THE EXTENSION LIST IS THE FILES WE NOW HOST: the 87 PDFs and the migrated
+   * images. `.doc` is deliberately outside it: `studii.md` links eight of them
+   * and the migration never copies a `.doc` (the spec's ruling), so those links
+   * stay on the old host and are Phase 4's to rule on - naming them here would
+   * make this assertion say something it does not mean.
+   */
+  it('the migrated prose no longer links at the old host for a file we now host', () => {
+    const hosted = builtPages().map((page) => readFileSync(DIST + page, 'utf8')).join('\n');
+    const dead = [...hosted.matchAll(/href="https:\/\/www\.bor-zh\.ch\/[^"]+\.(?:pdf|jpg|jpeg|png)"/g)]
+      .map((m) => m[0]);
+    expect(dead, `links to files the old host no longer needs to serve:\n${dead.join('\n')}`)
+      .toEqual([]);
   });
 });
 

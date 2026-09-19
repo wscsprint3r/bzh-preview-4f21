@@ -2,7 +2,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { stringify } from 'yaml';
 import { pageSchema } from '../src/lib/content-schema.ts';
-import { assertImageReferences, rewriteImageSources } from './articles.mjs';
+import {
+  assertImageReferences,
+  markdownPath,
+  rewriteDocumentLinks,
+  rewriteImageSources,
+} from './articles.mjs';
 import { query } from './db.mjs';
 import { normalize } from './diacritics.mjs';
 import { imagesIn, toMarkdown } from './html-md.mjs';
@@ -117,7 +122,176 @@ export function assertImageTagCount(slug, html, sources) {
 }
 
 /**
+ * The uploads-image href this migration can rewrite, anchored to the parish's
+ * own host the way `media.mjs` anchors its own sources.
+ *
+ * Measured over the nine pages, 2026-09-19: 11 anchors with an uploads-image
+ * href, all on `cursuri-de-pictura`, all `https://www.bor-zh.ch`, all `.jpg`.
+ * The host is part of the shape because a foreign uploads path is somebody
+ * else's file: `migrateImages` would skip it as foreign, and collecting it here
+ * would turn that skip into a stopped run.
+ */
+const LINKED_IMAGE =
+  /^https:\/\/www\.bor-zh\.ch\/wp-content\/uploads\/[^\s"']+\.(?:jpe?g|png|webp)$/i;
+
+/**
+ * An anchor element, with quoted attribute values allowed to contain `>`.
+ * The same shape `src/lib/markdown-links.ts` uses for `stripEmptyAnchors`,
+ * which is the render-time transform these links must survive.
+ */
+const ANCHOR = /(<a\b(?:"[^"]*"|'[^']*'|[^>"'])*>)([\s\S]*?)<\/a>/gi;
+
+/** The visible text of an anchor's content: every tag removed, whitespace collapsed. */
+function visibleText(inner) {
+  return inner.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * The link text for one anchor: the lightbox title when it has one, the file's
+ * own name otherwise.
+ *
+ * `data-elementor-lightbox-title` is the text Elementor shows for the gallery
+ * item, and it is the only human-meaningful string the anchor carries - the
+ * anchors are empty, which is why `stripEmptyAnchors` deletes them today.
+ * Measured 2026-09-19: all 11 carry it; nine hold the file's stem and two hold
+ * real titles (`Curs Pictura 2`). The fallback exists so a future anchor
+ * without the attribute still gets a name and survives that transform.
+ */
+function linkName(title, href) {
+  const trimmed = (title ?? '').replace(/\s+/g, ' ').trim();
+  if (trimmed !== '') return trimmed;
+  return href.split('/').pop().replace(/\.[^.]+$/, '');
+}
+
+/**
+ * The anchors that can become usable links: an uploads-image href with no
+ * visible text inside.
+ *
+ * THE ELEVEN CURSURI ANCHORS. The page's WordPress gallery wrote each
+ * full-size image as an anchor with nothing inside it - the thumbnails live in
+ * a separate paragraph and the targets were never migrated - so the body
+ * renders eleven invisible, unnamed link stops and axe's `link-name` fails.
+ * `src/lib/markdown-links.ts` states the render-time rule and why it is
+ * conservative; this is the migration side of the same defect, giving each
+ * anchor a name and a destination instead of deleting it.
+ *
+ * "NO VISIBLE TEXT" IS TAGS-STRIPPED, so an anchor wrapping an `<img>` counts
+ * as textless and is collected; the rewrite below cannot name that shape, and
+ * `assertImageLinkCount` is what stops the run on it rather than letting it
+ * keep an old-host href. Measured: 0 such anchors on the nine pages.
+ *
+ * Pure and exported, so the positive control - an anchor with no image href -
+ * needs no database.
+ */
+export function linkImagesIn(html) {
+  const links = [];
+  for (const [, tag, inner] of html.matchAll(ANCHOR)) {
+    const href = tag.match(/\bhref\s*=\s*["']([^"']*)["']/i)?.[1];
+    if (href === undefined || !LINKED_IMAGE.test(href)) continue;
+    if (visibleText(inner) !== '') continue;
+    const title = tag.match(/\bdata-elementor-lightbox-title\s*=\s*["']([^"']*)["']/i)?.[1];
+    links.push({ href, name: linkName(title, href) });
+  }
+  return links;
+}
+
+/**
+ * The link text with Markdown syntax escaped, so a title cannot become link
+ * structure.
+ *
+ * The titles come off a server that was compromised twice; an unescaped `]`
+ * closes the link early and whatever follows it becomes markup. Backslashes are
+ * escaped first, in the same pass, so a title carrying one cannot neutralise
+ * the escape of the next character.
+ */
+function escapeLinkText(name) {
+  return name.replace(/[\\[\]]/g, '\\$&');
+}
+
+/**
+ * Turns each collected anchor into a named Markdown link at the migrated path.
+ *
+ * THE EMPTY-ANCHOR SHAPE, `[](<href>)`, which is what Turndown writes for the
+ * markup `linkImagesIn` collects. The count of tokens replaced is returned
+ * rather than assumed: an anchor whose Markdown shape this did not find is one
+ * the caller must refuse to ship, and `assertImageLinkCount` is where that
+ * happens.
+ *
+ * ONE SPACE BETWEEN ADJACENT LINKS, AND IT IS LOAD-BEARING. The source's eleven
+ * anchors sit next to each other with nothing between them - the WordPress
+ * markup separates them with whitespace Turndown drops - so the rewritten links
+ * would be glued into one unbreakable string. Measured on the built page: axe's
+ * color-contrast rule returns an `incomplete` for two of them ("partially
+ * obscured by another element"), and an incomplete is a red browser pass here.
+ * A space is inserted before a link only when the character before it is the
+ * closing `)` of another link, so the first link is not indented and no trailing
+ * space is left behind.
+ *
+ * A missing destination is a named error rather than the string "undefined" in
+ * a page - the same defence `rewriteImageSources` carries, for the same reason.
+ */
+export function rewriteLinkedImages(markdown, links, mapping) {
+  for (const { href } of links) {
+    if (!mapping.has(href)) {
+      throw new Error(
+        `${href} was collected as a gallery link, but the image migration did not write it. ` +
+          'The link is dead; fix it at the source before migrating, because a missing image ' +
+          'fails nothing downstream.',
+      );
+    }
+  }
+  if (links.length === 0) return { markdown, rewritten: 0 };
+  const byHref = new Map(links.map((link) => [link.href, link]));
+  const alternatives = [...byHref.keys()]
+    .map((href) => href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  let rewritten = 0;
+  const result = markdown.replace(
+    new RegExp(`\\[\\]\\((${alternatives})\\)`, 'g'),
+    (_match, href, offset, whole) => {
+      rewritten += 1;
+      const { name } = byHref.get(href);
+      const separator = whole[offset - 1] === ')' ? ' ' : '';
+      return `${separator}[${escapeLinkText(name)}](${markdownPath(mapping.get(href))})`;
+    },
+  );
+  return { markdown: result, rewritten };
+}
+
+/**
+ * Stops the run when the image anchors and the rewrites disagree.
+ *
+ * THE COUNT IS THE RAW HTML'S, not `linkImagesIn`'s: it counts every anchor
+ * whose href has the uploads-image shape, whether or not this pipeline could
+ * collect it. An anchor it did not collect or the rewrite did not find would
+ * keep pointing at the old host, and nothing downstream reads a link's
+ * destination - `build-output.itest.ts`'s old-host assertion is the second net,
+ * and this is the one that fails the migration instead of the build.
+ *
+ * Pure, so the positive control needs no database; the `<a href uploads-image>`
+ * fixture that fires it is the shape a future page could carry.
+ */
+export function assertImageLinkCount(slug, html, rewritten) {
+  const anchors = [...html.matchAll(ANCHOR)].filter(([, tag]) => {
+    const href = tag.match(/\bhref\s*=\s*["']([^"']*)["']/i)?.[1];
+    return href !== undefined && LINKED_IMAGE.test(href);
+  }).length;
+  if (anchors !== rewritten) {
+    throw new Error(
+      `${slug}: ${anchors} <a href uploads-image> anchor(s) but ${rewritten} rewritten. ` +
+        'An anchor the migration cannot rewrite keeps pointing at the old host, which stops ' +
+        'serving these files - do not ship it.',
+    );
+  }
+}
+
+/**
  * The nine prose pages, converted and written. Returns the counts.
+ *
+ * `redirects` is what `extractDocuments` returns as its own `redirects`; the
+ * bodies' old-host PDF links are rewritten to the `/documente/<slug>.pdf` files
+ * this run writes. The default is the empty map, and that is not a silent pass:
+ * every PDF-shaped old-host link in the corpus then stops the run by name.
  *
  * The container must already be running - `run.mjs` starts it once for both
  * extractors - so a test that has no Docker never reaches a query by accident.
@@ -128,7 +302,8 @@ export function assertImageTagCount(slug, html, sources) {
  * have a preamble, so this is the one place where calling it a second time
  * could eat real content that happens to look preamble-shaped.
  */
-export async function extractPages() {
+export async function extractPages(redirects = []) {
+  const documentMap = new Map(redirects.map(({ from, to }) => [from, to]));
   const rows = await query(
     'SELECT post_name, post_title, post_content FROM wpoi_posts ' +
       "WHERE post_type='page' AND post_status='publish' ORDER BY post_name",
@@ -146,23 +321,42 @@ export async function extractPages() {
     assertImageTagCount(page.slug, content, bodySources);
     documents.push({
       page,
+      // Kept for `assertImageLinkCount`: the guard counts the RAW html's
+      // anchors, not the ones `linkImagesIn` recognised.
+      html: content,
       title: titlesBySlug.get(page.slug),
       bodySources,
+      linkSources: linkImagesIn(content),
       markdown: toMarkdown(content, page.slug),
     });
   }
 
   // ONE `migrateImages` CALL OVER EVERY PAGE, so a picture the nine share
   // (`istoric`, `consiliul-parohial` and `revista-doxologia` all carry the same
-  // screenshot) is decoded and written exactly once.
-  const allSources = documents.flatMap((doc) => doc.bodySources);
+  // screenshot) is decoded and written exactly once. The cursuri gallery's
+  // full-size files are in the same call: they are referenced only by an
+  // anchor, and an anchor is as capable of naming a missing file as an `<img>`
+  // is, so the same `assertImageReferences` gate covers them.
+  const allSources = documents.flatMap((doc) => [
+    ...doc.bodySources,
+    ...doc.linkSources.map((link) => link.href),
+  ]);
   const mapping = await migrateImages(allSources);
 
   await mkdir(PAGES_DIR, { recursive: true });
   let written = 0;
   for (const doc of documents) {
-    assertImageReferences(doc.page.slug, doc.bodySources, mapping);
-    const body = rewriteImageSources(doc.page.slug, doc.markdown, doc.bodySources, mapping);
+    const sources = [...doc.bodySources, ...doc.linkSources.map((link) => link.href)];
+    assertImageReferences(doc.page.slug, sources, mapping);
+    const linked = rewriteLinkedImages(
+      rewriteImageSources(doc.page.slug, doc.markdown, doc.bodySources, mapping),
+      doc.linkSources,
+      mapping,
+    );
+    // Before the document rewrite, and against the raw HTML: an image anchor
+    // this pipeline did not rewrite must stop the run, not keep its old host.
+    assertImageLinkCount(doc.page.slug, doc.html, linked.rewritten);
+    const body = rewriteDocumentLinks(linked.markdown, documentMap);
 
     const frontmatter = {
       title: doc.title,

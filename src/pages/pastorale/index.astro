@@ -1,0 +1,90 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { dayHeading } from '../../lib/date-ro';
+
+/*
+ * EVERY DOCUMENT, NEWEST FIRST, and there is no `published` flag to filter on:
+ * every file in the collection is a PDF the parish means to show, the way every
+ * file in `galerii` is an album.
+ *
+ * THE ID TIEBREAK IS NOT DECORATION. A document's date is the year in its
+ * filename, 1 January - the months are not in the names, and inventing one from
+ * a PDF's internal timestamp would be a date nobody published - so most of the
+ * 87 documents share a date with another and the build's output order would
+ * otherwise depend on filesystem order. The comparator is the one
+ * `publishedArticles` uses, for the same reason.
+ *
+ * NO DETAIL ROUTE: the document IS the file, and `data.file` is already the
+ * absolute `/documente/<slug>.pdf` the schema validates - so the link is a
+ * download and the route depth of this page never enters into it.
+ */
+const documents = (await getCollection('documente')).sort((a, b) =>
+  a.data.date === b.data.date
+    ? a.id.localeCompare(b.id, 'en')
+    : b.data.date.localeCompare(a.data.date, 'en'),
+);
+---
+
+<Base
+  title="Pastorale"
+  description="Pastoralele, revista Doxologia și alte documente ale Parohiei Ortodoxe Române Sfântul Nicolae din Zürich."
+>
+  <div class="container">
+    <h1 class="page-title">Pastorale</h1>
+
+    {documents.length === 0 ? (
+      /* The same shape of sentence `/noutati` and `/program/` use when there is
+         nothing to show: it says what is true without inventing a reason. */
+      <p class="empty">Documentele nu au fost încă publicate.</p>
+    ) : (
+      <ul class="documents">
+        {documents.map((document) => (
+          <li class="documents-item">
+            <article class="document">
+              <h2 class="document-title">
+                <a href={document.data.file}>{document.data.title}</a>
+              </h2>
+              <p class="document-meta">
+                <time datetime={document.data.date}>
+                  {dayHeading(document.data.date)} {document.data.date.slice(0, 4)}
+                </time>
+                {document.data.author && (
+                  <span class="document-author">{document.data.author}</span>
+                )}
+              </p>
+            </article>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</Base>
+
+<style>
+  .page-title { margin-top: 2rem; }
+  .empty { color: var(--muted); font-style: italic; }
+  .documents { list-style: none; margin: 2rem 0 0; padding: 0; }
+  .documents-item { margin: 0; }
+  .document { padding-block: 1.25rem; border-bottom: 1px solid var(--rule); }
+  .document-title { font-size: 1.25rem; margin: 0 0 0.4rem; }
+  /* No `color` here: the link keeps global.css's --gold-text and its `a:hover`
+     too. A scoped colour would ship at (0,3,1) and silently defeat the global
+     hover at (0,1,1) - the trap `ArticleCard.astro` documents. Only the
+     underline changes on hover, so nothing is lost. */
+  .document-title a { text-decoration: none; }
+  .document-title a:hover { text-decoration: underline; }
+  .document-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  /* The author, when a document has one, is the one part of the meta line in
+     oxblood, so the eye can find it without it competing with the title. */
+  .document-author { color: var(--oxblood); }
+</style>

@@ -183,6 +183,27 @@ const PAGE_BUDGET = {
    */
   'noutati/*': 35 * 1024,
   /*
+   * `/pastorale/` LISTS EVERY DOCUMENT, so like `/noutati/` it grows with what
+   * the parish publishes - and it is the largest visitor page in the build
+   * today.
+   *
+   * MEASURED ON THE TASK 8 BUILD: 46,757 bytes at 87 documents, of which 10,358
+   * is the fixed skeleton (document, inlined CSS, scoped styles, header, footer)
+   * and 36,399 is the 87 rows - 418.4 bytes per document. The plan's starting
+   * limit of 30 KiB is BELOW the measured page, so it cannot be the limit; the
+   * plan's own step says to adjust it from the measurement.
+   *
+   * 64 KiB IS 1.40x THE MEASURED PAGE, the bottom of the 1.4-1.9x range the
+   * prose pages state, and it is where the arithmetic lands: 64 KiB leaves
+   * (65,536 - 46,757) / 418.4 = about 45 more documents, so the red build
+   * arrives at about 132 documents. The parish publishes a handful of PDFs a
+   * year, so that is years away - and when it arrives the question is
+   * pagination, not a bigger limit, the same ruling `/noutati/` and `/program/`
+   * carry. The list pages' 1.8-2x headroom would allow more; this is the
+   * conservative end of the documented range.
+   */
+  'pastorale/index.html': 64 * 1024,
+  /*
    * THE TWO PHOTO ALBUMS. `/galerie/` lists one card per album and each album
    * page is a grid of every image in it, so both grow with what the parish
    * uploads, the way `/noutati/` grows with every post.
@@ -322,6 +343,17 @@ const REQUEST_BUDGET = {
   'noutati/index.html': 12,
   // No body image measures 11, one measures exactly 12, a second crosses it.
   'noutati/*': 12,
+  /*
+   * `/pastorale/` is 87 links and no images, so it is the document plus the
+   * fixed chrome: MEASURED ON THE TASK 8 BUILD, 11 requests (3 in the document
+   * - the document itself and its two icons - plus 8 @font-face), the same as
+   * every other page with no image. The plan's 4 forgot the fixed chrome, as it
+   * did for `/galerie/` and `/evenimente/`; 12 is the measured count plus one,
+   * the same one-slot headroom `/noutati/`'s index carries. A document row is a
+   * link, not a fetch, so this count does not grow with the number of
+   * documents.
+   */
+  'pastorale/index.html': 12,
   /*
    * The index is the document plus one cover per album; an album page is the
    * document plus one image per photograph. MEASURED ON THE TASK 6 BUILD: the

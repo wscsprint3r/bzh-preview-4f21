@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { PAGES, assertImageTagCount, assertPageTitles, assertPagesFound } from './pages.mjs';
+import {
+  PAGES,
+  assertImageLinkCount,
+  assertImageTagCount,
+  assertPageTitles,
+  assertPagesFound,
+  linkImagesIn,
+  rewriteLinkedImages,
+} from './pages.mjs';
 import { redirectRows } from './url-map.mjs';
 import { pageSchema } from '../src/lib/content-schema.ts';
 import { imagesIn } from './html-md.mjs';
@@ -80,6 +88,129 @@ describe('the image tag guard', () => {
     // stopped run instead of a silently missing picture.
     const html = '<img src="a.jpg"><img data-src="lazy.jpg">';
     expect(() => assertImageTagCount('un-post', html, imagesIn(html))).toThrow(/un-post.*2.*1/s);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The cursuri gallery: eleven empty anchors whose href is the full-size
+// upload, with no thumbnail inside them. `stripEmptyAnchors` deletes them at
+// render time because an anchor with no content has no accessible name, so the
+// migration gives each one a name and the migrated file. Measured 2026-09-19
+// over the nine pages: 11 anchors with an uploads-image href, all on
+// `cursuri-de-pictura`, all empty, all carrying `data-elementor-lightbox-title`.
+// ---------------------------------------------------------------------------
+
+const GALLERY_HREF = 'https://www.bor-zh.ch/wp-content/uploads/2024/05/a.jpg';
+
+describe('the linked gallery images', () => {
+  it('collects an empty anchor with its lightbox title as the name', () => {
+    const html =
+      `<p><a href="${GALLERY_HREF}" data-elementor-open-lightbox="yes" ` +
+      'data-elementor-lightbox-title="Curs Pictura 2"></a></p>';
+    expect(linkImagesIn(html)).toEqual([{ href: GALLERY_HREF, name: 'Curs Pictura 2' }]);
+  });
+
+  it('falls back to the file name when the anchor carries no title', () => {
+    expect(linkImagesIn(`<a href="${GALLERY_HREF}"></a>`)).toEqual([
+      { href: GALLERY_HREF, name: 'a' },
+    ]);
+  });
+
+  it('collapses whitespace in the title, so a newline cannot reach the link text', () => {
+    const html = `<a href="${GALLERY_HREF}" data-elementor-lightbox-title="Curs\n  Pictura"></a>`;
+    expect(linkImagesIn(html)).toEqual([{ href: GALLERY_HREF, name: 'Curs Pictura' }]);
+  });
+
+  it('POSITIVE CONTROL: ignores an anchor whose href is not an uploads image', () => {
+    // The two ways an href is not one: it is not an image, and it is not ours.
+    expect(linkImagesIn('<a href="https://www.bor-zh.ch/istoric/"></a>')).toEqual([]);
+    expect(linkImagesIn('<a href="https://example.com/a.jpg"></a>')).toEqual([]);
+    expect(linkImagesIn('<a href="https://www.bor-zh.ch/files/a.pdf"></a>')).toEqual([]);
+  });
+
+  it('ignores an anchor that carries visible text', () => {
+    expect(linkImagesIn(`<a href="${GALLERY_HREF}">Vezi imaginea</a>`)).toEqual([]);
+  });
+
+  it('collects an anchor whose content is an image: an <img> is not visible text', () => {
+    // The tag-stripped definition, pinned. The rewrite below cannot name this
+    // shape (Turndown writes `[![](thumb)](full)`), so `assertImageLinkCount`
+    // stops the run on it rather than letting it keep an old-host href.
+    const html =
+      `<a href="${GALLERY_HREF}"><img src="${GALLERY_HREF.replace('.jpg', '-300x200.jpg')}" ` +
+      'alt=""></a>';
+    expect(linkImagesIn(html)).toEqual([{ href: GALLERY_HREF, name: 'a' }]);
+  });
+});
+
+describe('rewriting the linked gallery images', () => {
+  const MAPPING = new Map([[GALLERY_HREF, 'src/assets/content/2024/05/a.jpg']]);
+
+  it('turns an empty markdown anchor into a named link at the migrated path', () => {
+    // The name matters as much as the href: `stripEmptyAnchors` removes an
+    // anchor with no content, so a rewrite without a name would put the page
+    // back where it started.
+    expect(rewriteLinkedImages(`[](${GALLERY_HREF})`, [{ href: GALLERY_HREF, name: 'Curs Pictura 2' }], MAPPING))
+      .toEqual({ markdown: '[Curs Pictura 2](../../assets/content/2024/05/a.jpg)', rewritten: 1 });
+  });
+
+  it('counts every anchor it rewrote, and separates adjacent links', () => {
+    // THE SEPARATOR IS NOT COSMETIC. The source's eleven anchors sit next to
+    // each other with nothing between them, so Turndown wrote the links glued
+    // together; rendered, the link texts run together as one unbreakable
+    // string, and axe's color-contrast rule returns an `incomplete` for two of
+    // them ("partially obscured by another element") - measured, and it is a
+    // red browser pass. One space between them is the fix.
+    const second = GALLERY_HREF.replace('a.jpg', 'b.jpg');
+    const mapping = new Map([
+      [GALLERY_HREF, 'src/assets/content/2024/05/a.jpg'],
+      [second, 'src/assets/content/2024/05/b.jpg'],
+    ]);
+    const result = rewriteLinkedImages(
+      `[](${GALLERY_HREF})[](${second})`,
+      [
+        { href: GALLERY_HREF, name: 'prima' },
+        { href: second, name: 'a doua' },
+      ],
+      mapping,
+    );
+    expect(result.rewritten).toBe(2);
+    expect(result.markdown).toBe(
+      '[prima](../../assets/content/2024/05/a.jpg) ' +
+        '[a doua](../../assets/content/2024/05/b.jpg)',
+    );
+  });
+
+  it('escapes markdown syntax in the name, so a title cannot become link structure', () => {
+    // The name is text off the compromised server; unescaped, a `]` closes the
+    // link early and whatever follows becomes markup.
+    const result = rewriteLinkedImages(
+      `[](${GALLERY_HREF})`,
+      [{ href: GALLERY_HREF, name: 'x](https://evil.example)' }],
+      MAPPING,
+    );
+    expect(result.markdown).toBe(
+      '[x\\](https://evil.example)](../../assets/content/2024/05/a.jpg)',
+    );
+  });
+
+  it('POSITIVE CONTROL: an href with no migrated file is a named error', () => {
+    expect(() => rewriteLinkedImages(`[](${GALLERY_HREF})`, [{ href: GALLERY_HREF, name: 'x' }], new Map()))
+      .toThrow(/a\.jpg/);
+  });
+});
+
+describe('the image-link guard', () => {
+  const HTML = `<a href="${GALLERY_HREF}"></a>`;
+
+  it('passes when the image-anchor count equals the number rewritten', () => {
+    expect(() => assertImageLinkCount('un-post', HTML, 1)).not.toThrow();
+  });
+
+  it('POSITIVE CONTROL: stops the run when an image anchor was not rewritten', () => {
+    // The shape this catches: an anchor `linkImagesIn` did not collect or the
+    // markdown rewrite did not find, which would keep an old-host href.
+    expect(() => assertImageLinkCount('un-post', HTML, 0)).toThrow(/un-post.*1.*0/s);
   });
 });
 

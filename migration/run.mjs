@@ -13,6 +13,13 @@ import { writeUrlMap } from './url-map.mjs';
  * for two container starts. Each extractor is imported and called; none of
  * them starts or stops anything itself.
  *
+ * THE DOCUMENTS COME FIRST, and the order is load-bearing: the prose bodies
+ * link at old-host PDFs, and `rewriteDocumentLinks` rewrites those links to the
+ * `/documente/<slug>.pdf` files this step writes. The redirects are passed
+ * into `extractArticles` and `extractPages` rather than recomputed, so the
+ * links and the files cannot disagree. A caller that forgets the map is not
+ * silent: every PDF-shaped old-host link then stops the run by name.
+ *
  * THE SUMMARY PRINTS WHAT WAS MEASURED, NOT ONLY THE VERDICT, and the process
  * exits non-zero when one of the counts that must be positive is zero - a
  * migration that produced nothing must not report success. `images skipped` is
@@ -31,10 +38,10 @@ import { writeUrlMap } from './url-map.mjs';
 await start();
 let summary;
 try {
-  const posts = await extractArticles();
-  const pages = await extractPages();
-  const galleries = await extractGalleries();
   const documents = await extractDocuments();
+  const posts = await extractArticles(documents.redirects);
+  const pages = await extractPages(documents.redirects);
+  const galleries = await extractGalleries();
   const redirects = await writeUrlMap(documents.redirects);
   summary = {
     postsWritten: posts.written,

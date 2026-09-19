@@ -95,6 +95,21 @@ const { Content } = await render({ ...entry, rendered });
   }
   .prose :global(img) { margin: 1.5rem 0; }
   /*
+   * LONG TOKENS WRAP INSTEAD OF OVERFLOWING THEIR PARAGRAPH, and the rule is
+   * here because a browser is what found it. `cursuri-de-pictura`'s gallery is
+   * eleven links whose text is a file name, and the longest,
+   * `299423305_1614475615639_144441808512976432_n`, has no break opportunity at
+   * all. Measured on the built page at 390px: the link is 389px against the
+   * 358px paragraph, so it overflowed its block ancestor. axe's color-contrast
+   * rule cannot decide the background of text its block ancestor does not fully
+   * encompass (`fullyEncompasses` in axe-core), so it returned an `incomplete`
+   * for six of the eleven - and an incomplete is a red browser pass here. With
+   * `break-word` the widest link measures 358px and the phone pass is green.
+   * `break-word`, not `anywhere`, to match the rule already used for `pre`
+   * above.
+   */
+  .prose :global(a) { overflow-wrap: break-word; }
+  /*
    * No page carries a code block today, and this is here for the same reason
    * the heading normalisation is: the next migrated body can. `pre-wrap` is
    * what keeps a long line from scrolling a phone sideways - measured on the

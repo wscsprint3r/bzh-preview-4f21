@@ -435,19 +435,20 @@ function assertMeasuredCorpus(entries) {
 }
 
 /**
- * Gates every PDF, copies the passing ones byte-for-byte, and writes one
- * content file each. Returns the counts `run.mjs` reports.
- *
- * The container must already be running - `run.mjs` starts it once for every
- * extractor - so importing this module starts nothing.
+ * Every entry, with its destination slug, title and date - the one plan the
+ * writer and the redirect reader both start from.
  *
  * THE SLUGS ARE COMPUTED TWICE, on purpose. The computation is pure today, so
  * the two runs agree by construction; the comparison is a tripwire for the day
  * slugification grows a dependency on the locale, the clock or anything else
  * that would make two machines write two `docs/url-map.csv` files. It is cheap
  * and it is the property the repeatability check downstream depends on.
+ *
+ * Titles and dates are resolved for EVERY entry before anything is written: an
+ * unmeasured filename must stop the run before the tree holds a half-migrated
+ * corpus.
  */
-export async function extractDocuments() {
+async function plannedDocuments() {
   const entries = [...(await legacyEntries()), ...(await uploadEntries())].sort((a, b) =>
     a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0,
   );
@@ -465,14 +466,43 @@ export async function extractDocuments() {
     }
   }
 
-  // Titles and dates for EVERY entry before anything is written: an unmeasured
-  // filename must stop the run before the tree holds a half-migrated corpus.
-  const planned = entries.map((entry, index) => ({
+  return entries.map((entry, index) => ({
     ...entry,
     slug: slugs[index],
     title: documentTitle(entry.relativePath),
     date: documentDate(entry.relativePath),
   }));
+}
+
+/**
+ * The old path -> new `/documente/<slug>.pdf` for every migrated PDF.
+ *
+ * THE SAME PLAN `extractDocuments` WRITES FROM, exposed so the prose extractors
+ * can rewrite their old-host PDF links to the files this run writes. Planning
+ * only - it reads the dump and the legacy trees and writes nothing - so the
+ * direct run of `articles.mjs` can call it without copying 87 PDFs. `run.mjs`
+ * passes `extractDocuments`'s own redirects instead, because it has them;
+ * both derive from `plannedDocuments`, so the two cannot disagree.
+ *
+ * The old path is the legacy absolute path (`/revista/doxologia_18_2019.pdf`)
+ * or the uploads path as the old site served it (`/wp-content/uploads/…`),
+ * which is what a migrated body links to; the new path is absolute, because a
+ * document is a download and the route depth of the page must not matter.
+ */
+export async function documentRedirects() {
+  const planned = await plannedDocuments();
+  return planned.map((entry) => ({ from: entry.oldPath, to: `/documente/${entry.slug}.pdf` }));
+}
+
+/**
+ * Gates every PDF, copies the passing ones byte-for-byte, and writes one
+ * content file each. Returns the counts `run.mjs` reports.
+ *
+ * The container must already be running - `run.mjs` starts it once for every
+ * extractor - so importing this module starts nothing.
+ */
+export async function extractDocuments() {
+  const planned = await plannedDocuments();
 
   await mkdir(DOCUMENTS_DIR, { recursive: true });
   await mkdir(CONTENT_DIR, { recursive: true });
