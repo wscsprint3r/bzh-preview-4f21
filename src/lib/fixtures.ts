@@ -1,12 +1,13 @@
 /**
- * A schedule wide enough to exercise the paths `src/content/services/` cannot.
+ * Content wide enough to exercise the paths the real collections cannot.
  *
  * WHY THIS IS NOT SEED CONTENT. The files under `src/content/services/` are the
  * parish's real published schedule, and this repository is the source of truth
  * for what the parish actually does — so nothing invented may go in there. A
  * reader six months from now cannot tell a fabricated Vecernie from a real one.
  * Everything below IS fabricated, which is why it lives here, under a name that
- * says so, and is imported only by tests.
+ * says so, and is written into a scratch build by `scripts/a11y-picker.mjs`
+ * rather than into the repository's own content.
  *
  * WHAT IT COVERS, and why each one is here rather than in the seeds:
  *
@@ -26,12 +27,22 @@
  * - **A past week**, 2026-W37, so that "excludes weeks already over" is tested
  *   against data rather than against an empty list.
  *
- * Every day is built through `daySchema`, not written as a literal. That costs a
- * line and buys the guarantee that the fixture can only contain days the CMS
- * could actually produce: a fixture that drifted from the schema would prove
- * things about a schedule the site can never be given.
+ * THE EVENTS ARE A DIFFERENT KIND OF FIXTURE, for a different kind of absence:
+ * the parish has no events at all, so without them `dist/` renders the index's
+ * empty state and `/evenimente/<slug>/` is audited by nothing. Three of them
+ * cover the three layouts the detail page has: a range with every optional
+ * field, a single day, and one already past so the index's „Trecute” section is
+ * rendered too. Their dates are anchored to `FIXTURE_TODAY` and shifted by the
+ * picker exactly as the days are, so the split around "today" cannot age out.
+ *
+ * Every day is built through `daySchema` and every event through `eventSchema`,
+ * not written as a literal. That costs a line and buys the guarantee that the
+ * fixtures can only contain content the CMS could actually produce: a fixture
+ * that drifted from the schema would prove things about a schedule the site can
+ * never be given.
  */
 
+import { eventSchema, type Event } from './content-schema';
 import { daySchema, type ServiceDay } from './schema';
 
 /** Validates the frontmatter through the real schema, then attaches the date. */
@@ -100,4 +111,77 @@ export const FIXTURE_DAYS: ServiceDay[] = [
   // 2026-W53 and 2027-W01 — the ISO year boundary.
   day('2026-12-28', { services: [{ time: '18:30', service: 'Acatist' }] }),
   day('2027-01-06', { services: [{ time: '18:30', service: 'Acatist' }] }),
+];
+
+/** A fixture event plus the slug its file name carries, which the schema does not know about. */
+export interface FixtureEvent extends Event {
+  slug: string;
+  /*
+   * The CMS's „Detalii” markdown, which Sveltia extracts BELOW the
+   * frontmatter and `eventSchema` therefore never sees. The picker writes it
+   * after the closing `---`; the rich event carries one so the audited
+   * `/evenimente/<slug>/` page renders a real body, and the other two carry
+   * none, which is the control that an event without details still builds.
+   */
+  body?: string;
+}
+
+/** Validates the frontmatter through the real schema, then attaches the slug and the body. */
+function event(slug: string, raw: unknown, body?: string): FixtureEvent {
+  return { ...eventSchema.parse(raw), slug, body };
+}
+
+/*
+ * THE DATES ARE RELATIVE TO `FIXTURE_TODAY`, and the picker shifts them with the
+ * days, so 2026-09-05 is always just past and the two October ones always
+ * follow. Without the shift the past event would one day be the only one left
+ * and the index's upcoming branch would stop being rendered - the same ageing
+ * that would hide the picker bar, in a second place.
+ *
+ * The multi-day event carries every optional field on purpose: `image` through
+ * `ContentImage`, the `poster` link into `/documente/`, a `time` and a
+ * `description`, so the detail layout is audited in its full shape rather than
+ * only in its minimal one. It also carries a markdown BODY, the CMS's
+ * „Detalii” field: it is written below the frontmatter, and it is the only
+ * event body any build renders, so the picker's post-build check asserts the
+ * sentence reaches the page. The other two events have no body, and that is
+ * deliberate - they are the empty-body control. The poster names a real
+ * committed PDF and the image a real committed asset, because a fixture path
+ * that does not resolve is a failed build, not a covered branch.
+ */
+export const FIXTURE_EVENTS: FixtureEvent[] = [
+  event(
+    'hramul-parohiei',
+    {
+      title: 'Hramul parohiei (probă)',
+      start_date: '2026-10-02',
+      end_date: '2026-10-04',
+      time: '10:00',
+      location: 'Capela Sf. Gallus, Winterthur',
+      image: '../../assets/content/galleries/legacy/8.jpg',
+      poster: '/documente/9-001-2025-pastorala-invierea-domnului-ro-2025.pdf',
+      description: 'Două zile de slujbe, agapă și un concert de probă.',
+    },
+    /*
+     * ONE PLAIN SENTENCE, with no markdown syntax: the picker looks for this
+     * string in the built HTML, so it must survive rendering verbatim. If a
+     * future body needs emphasis or a heading, the check moves with it.
+     */
+    'Parohia Sfântul Nicolae vă invită la agapă după Sfânta Liturghie.',
+  ),
+
+  event('cateheza-de-toamna', {
+    title: 'Cateheză de toamnă (probă)',
+    start_date: '2026-09-26',
+    time: '18:00',
+    location: 'Sala parohială, Zürich',
+    description: 'O seară de întrebări și răspunsuri.',
+  }),
+
+  // Already over on FIXTURE_TODAY, so the index's „Trecute” section is rendered.
+  event('serata-de-primavara', {
+    title: 'Serată de primăvară (probă)',
+    start_date: '2026-09-05',
+    location: 'Sala parohială, Zürich',
+  }),
 ];

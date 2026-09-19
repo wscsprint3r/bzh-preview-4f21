@@ -57,6 +57,14 @@
  *     `incomplete` rather than as a pass, so this script fails on any
  *     `incomplete` for color-contrast and prints the selector. "Could not
  *     determine" is a decision someone makes, not a silence.
+ *   - text drawn inside an inline `<svg>`, which axe can never resolve a
+ *     background for: `elementHasImage` treats every SVG node as a graphic, so
+ *     the `color-contrast` rule returns `incomplete` for each `<text>`/`<tspan>`
+ *     whatever the markup says. `svgTextIncompletes` recognises exactly those
+ *     nodes, and the pass PRINTS them every run as this declared gap instead of
+ *     failing. Every other incomplete still fails, and a node the classifier
+ *     cannot clearly place inside an SVG stays in scope - see the block above
+ *     `runAudit`.
  *   - :hover, :focus and :active states
  *   - anything display:none, visibility:hidden, opacity:0 or [hidden]. This is
  *     why the JavaScript-off condition exists at all: with scripts running, the
@@ -70,7 +78,8 @@
  *     run over some other build buys this one nothing. What stays uncovered is
  *     width WITHIN a band, and any axis that is not width.
  *   - colour-scheme branches other than dark
- *   - ::before / ::after content, and SVG <text>
+ *   - ::before / ::after content, and SVG <text> (reported and exempted, not
+ *     silent - the bullet above the list says how)
  *   - pages that were not built when the audit ran
  *   - non-hex colour literals, which neither this nor the hex guard catches
  *   - whether Cloudflare actually applies `_headers`. This serves the file's
@@ -171,6 +180,15 @@ const NO_AXE = Object.keys(NO_AXE_REASONS);
  * from whatever the browser reported would accept anything the CMS decided to
  * fetch next, which is the one thing this check exists to notice: a Sveltia
  * upgrade reaching for a new origin from the page that holds a credential.
+ *
+ * THE TURNSTILE ORIGINS ARE NOT HERE BECAUSE NO AUDIT CAN REACH THEM. The
+ * form's `script-src` and `frame-src https://challenges.cloudflare.com` in
+ * `public/_headers` are never exercised by this file: every pass builds and
+ * audits without `PUBLIC_TURNSTILE_SITE_KEY`, so the form is not rendered, the
+ * widget never loads and no refusal for those origins can appear. That is a
+ * declared gap, not a green - step K of `docs/handover.md` checks them against
+ * the deployed site, where the key is set. If a future pass ever builds with a
+ * site key, a refusal for either origin belongs in this list, with its reason.
  *
  * Keyed `directive <- blockedURI`, which is what Chrome reports.
  */
@@ -425,10 +443,12 @@ export const PASSES = {
 export const NO_JS_REASONS = {
   fixture: [
     'the picker bar exists only with scripts on: the component ships it `hidden` and the script',
-    'reveals it, so with JS off the fixture build has no state of its own to audit — it renders',
-    'exactly what `dist` renders, every week visible, and `checkPickerBar` returns early for',
-    '`condition.js === false` anyway. The no-JS state of these pages is covered by the passes',
-    'over `dist`, which really do have one.',
+    'reveals it, so with JS off the fixture build has no picker state of its own to audit, and',
+    '`checkPickerBar` returns early for `condition.js === false` anyway. The fixture also renders',
+    'the event detail pages `dist` never renders — `FIXTURE_EVENTS` gives the parish a first',
+    'event — but those pages carry no script at all, so their scripts-off rendering is identical',
+    'to their scripts-on one: there is no second state for a no-JS pass to audit. The no-JS state',
+    'of the shared pages is covered by the passes over `dist`, which really do have one.',
   ].join('\n      '),
 };
 
@@ -1379,6 +1399,66 @@ async function waitForCsp(driver, expected) {
   }
 }
 
+/* -------------------------------------------------------------------------- *
+ * THE DECLARED SVG-TEXT GAP, RECONCILED WITH THE CODE THAT ENFORCES IT.
+ *
+ * axe can never resolve a background for text drawn inside an inline `<svg>`:
+ * `elementHasImage()` in axe-core treats any `SVG` node as a graphic, so a
+ * `<text>`/`<tspan>` in an inline SVG comes back as an `incomplete` rather than
+ * a pass or a violation - `imgNode` for the spans inside the QR-bill, and
+ * `bgOverlap` for the one the bill's own layout overlaps. Measured on the Task
+ * 11 build: `/doneaza`'s QR-bill produces 23 of them, and the audit below fails
+ * on every `color-contrast` incomplete by design.
+ *
+ * The header above already declares SVG `<text>` out of scope. That declaration
+ * and this enforcement disagreed - the build was red over something the audit
+ * says it does not cover - and `svgTextIncompletes` is the reconciliation: the
+ * nodes axe reported for SVG text are PRINTED every run as the declared gap,
+ * and every other incomplete still fails the pass.
+ *
+ * THE TARGET IS THE TEST, NOT THE MESSAGE. `text` and `tspan` are SVG element
+ * names; no HTML element has them, so a node whose selector chains all end in
+ * one is SVG text whatever axe could not determine - which is why the
+ * overlapped `<text>` is exempted alongside the `imgNode` spans. The reason is
+ * not consulted, because the audit could never have judged any of them.
+ *
+ * IT FAILS CLOSED. A node is returned only when EVERY selector chain in its
+ * target ends in `text` or `tspan`. A target that is missing, empty, not an
+ * array of strings, an HTML element, or a set of chains that disagree stays in
+ * scope and keeps failing. An exemption is a decision, and ambiguity is not
+ * one. The contract is unit-tested in `src/lib/a11y-passes.test.ts` against
+ * the exact nodes axe reported on this build.
+ * -------------------------------------------------------------------------- */
+
+/** The tag name at the end of one selector chain, or null when it has none. */
+function selectorTag(chain) {
+  if (typeof chain !== 'string') return null;
+  const last = chain.trim().split(/\s*>\s*/).pop() ?? '';
+  return /^([a-zA-Z][\w-]*)/.exec(last)?.[1]?.toLowerCase() ?? null;
+}
+
+/** Every chain's tag, or null when the target is not an array of selectors. */
+function targetTags(target) {
+  if (!Array.isArray(target) || target.length === 0) return null;
+  const tags = target.map(selectorTag);
+  return tags.every((tag) => tag !== null) ? tags : null;
+}
+
+/**
+ * The nodes of a `color-contrast` incomplete that are SVG text.
+ *
+ * Returns an empty array for every other rule, and for every node whose target
+ * does not clearly name an SVG text element - the fail-closed direction is the
+ * only one allowed, for the reason in the block above.
+ */
+export function svgTextIncompletes(rule) {
+  if (rule?.id !== 'color-contrast') return [];
+  return (rule.nodes ?? []).filter((node) => {
+    const tags = targetTags(node?.target);
+    return tags !== null && tags.every((tag) => tag === 'text' || tag === 'tspan');
+  });
+}
+
 /**
  * Runs the audit and returns true when everything passed.
  *
@@ -1608,11 +1688,33 @@ export async function runAudit({ dist, pass, extraCheck = null, log = console.lo
         }
         for (const undecided of audit.incomplete ?? []) {
           if (undecided.id !== 'color-contrast') continue;
-          fail(`  ${page}: contrast undetermined (usually text over a gradient or an image):`);
-          for (const node of undecided.nodes ?? []) {
-            log(`      ${(node.target ?? []).join(' ')}`);
-            const reason = (node.any ?? []).map((a) => a.message).filter(Boolean).join('; ');
-            if (reason) log(`        ${reason}`);
+          /*
+           * THE EXEMPTION IS VISIBLE, NOT SILENT. The SVG-text nodes are
+           * printed with a label naming the declared gap; only the in-scope
+           * incompletes fail. `svgTextIncompletes` returns nothing for anything
+           * it cannot clearly place inside an inline SVG, so a node it is
+           * unsure about lands in `inScope` and the pass fails - which is the
+           * direction that must stay.
+           */
+          const exempt = svgTextIncompletes(undecided);
+          const inScope = (undecided.nodes ?? []).filter((node) => !exempt.includes(node));
+          const printNodes = (nodes) => {
+            for (const node of nodes) {
+              log(`      ${(node.target ?? []).join(' ')}`);
+              const reason = (node.any ?? []).map((a) => a.message).filter(Boolean).join('; ');
+              if (reason) log(`        ${reason}`);
+            }
+          };
+          if (inScope.length > 0) {
+            fail(`  ${page}: contrast undetermined (usually text over a gradient or an image):`);
+            printNodes(inScope);
+          }
+          if (exempt.length > 0) {
+            log(
+              `    ${page}: ${exempt.length} contrast incomplete(s) exempted as the declared ` +
+                'SVG-text gap (HONEST SCOPE at the top of this file), printed rather than failed:',
+            );
+            printNodes(exempt);
           }
         }
 

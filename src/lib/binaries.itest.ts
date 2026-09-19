@@ -24,6 +24,14 @@ import { ALLOWED_EXTENSIONS } from '../../migration/media.mjs';
  * name-by-name property is stronger than naming: a decoder. A name list is
  * defeated by renaming a file; a decoder is not.
  *
+ * THE PDF TREE IS NOT HERE, DELIBERATELY. `public/documente/` is a fourth
+ * binary prefix in `diacritics-sources.test.ts`, and sharp cannot decode a PDF,
+ * so it stays out of this file rather than being forced through a decoder that
+ * would fail every real document. Its replacement guarantee is
+ * `documents.itest.ts`, which runs the same `pdfinfo` gate over every
+ * committed PDF - a parser that reads the file, the same shape as this
+ * decoder, in the one file whose subject is documents.
+ *
  * It needs sharp and a whole tree of files, which is why it lives here and not
  * in the unit sweep: `npm run test:build` runs this file after the build, where
  * the images are present.

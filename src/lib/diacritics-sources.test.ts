@@ -32,7 +32,7 @@ import { ALLOWED_EXTENSIONS } from '../../migration/media.mjs';
  *
  * WHY ONLY THIS QUESTION HERE. `diacritics.itest.ts` also asks the stronger one -
  * is every non-ASCII character one this project expects - against a list of
- * twenty-eight, of which the output's measured inventory uses twenty-five. That works over
+ * twenty-eight, of which the output's measured inventory uses twenty-six. That works over
  * `dist/`, whose whole vocabulary is Romanian copy
  * plus a handful of typographic marks. It does not transfer: the tracked sources
  * carry over thirty distinct non-ASCII characters between English prose, Romanian
@@ -71,7 +71,7 @@ function trackedFiles(): string[] {
 }
 
 /*
- * The tracked files that are BYTES rather than text, as a PREDICATE.
+ * THE TRACKED FILES THAT ARE BYTES RATHER THAN TEXT, as a PREDICATE.
  *
  * It was a list holding one exact path, `public/favicon.ico`, because naming
  * files one by one is how an exemption stays visible. Task 6 commits the
@@ -84,24 +84,35 @@ function trackedFiles(): string[] {
  * never copied here**: a second copy is how two answers come to disagree about
  * what sharp can write.
  *
+ * TASK 5 ADDED THE THIRD BINARY TREE, `public/documente/`, and it is the one
+ * arm with a hard-coded extension rather than an imported list. A PDF is not
+ * an image and sharp cannot decode it, so `binaries.itest.ts` stays out of it
+ * by design; what replaces the name-by-name property here is
+ * `documents.itest.ts`, which runs the same `pdfinfo` gate over every
+ * committed PDF. That guarantee is named beside the arm so the exemption
+ * cannot read as unguarded.
+ *
  * A PREFIX RULE ON ITS OWN IS A PURE WEAKENING, SO IT DOES NOT SHIP ALONE.
  * "A file under `src/assets/content/`" would excuse a PHP payload renamed to
  * `.jpg` for as long as it sat there, and the old list would not have. What
  * replaces the name-by-name property is stronger than naming: `binaries.itest.ts`
- * decodes every file under BOTH prefixes through sharp and fails by name on any
- * that does not decode. A name list is defeated by renaming a payload to
- * `.jpg`; a decoder is not. The positive control below proves both arms of the
- * predicate still fire, and `binaries.itest.ts` asserts the extension half
- * against every real file, so the prefixes cannot quietly become dead.
+ * decodes every file under BOTH image prefixes through sharp and fails by name
+ * on any that does not decode, and `documents.itest.ts` parses every PDF under
+ * the document prefix. A name list is defeated by renaming a payload to
+ * `.jpg`; a decoder is not. The positive control below proves all four arms of
+ * the predicate still fire, and the itests assert the extension halves against
+ * the real trees, so the prefixes cannot quietly become dead.
  */
 const CONTENT_PREFIX = 'src/assets/content/';
 const UPLOADS_PREFIX = 'public/uploads/';
+const DOCUMENTS_PREFIX = 'public/documente/';
 
 /** Whether this tracked path is bytes rather than text, and so not swept. */
 function isBinary(path: string): boolean {
   if (path === 'public/favicon.ico') return true;
-  if (!path.startsWith(CONTENT_PREFIX) && !path.startsWith(UPLOADS_PREFIX)) return false;
   const extension = path.split('.').pop()?.toLowerCase() ?? '';
+  if (path.startsWith(DOCUMENTS_PREFIX)) return extension === 'pdf';
+  if (!path.startsWith(CONTENT_PREFIX) && !path.startsWith(UPLOADS_PREFIX)) return false;
   return (ALLOWED_EXTENSIONS as readonly string[]).includes(extension);
 }
 
@@ -153,7 +164,7 @@ describe('the sweep really does have something to sweep', () => {
   });
 
   it('the binary predicate fires on the named file and on the migrated images', () => {
-    // BOTH ARMS, each against a file that really is tracked. The old case here
+    // ALL ARMS, each against a file that really is tracked. The old case here
     // checked that every named exemption still existed; with a predicate the
     // equivalent question is whether each arm still matches anything, because
     // an arm that stopped matching would silently widen the sweep.
@@ -176,6 +187,18 @@ describe('the sweep really does have something to sweep', () => {
     expect(isBinary('public/uploads/poza.jpg')).toBe(true);
     expect(isBinary('public/uploads/pliant.doc')).toBe(false);
     expect(isBinary('public/uploads/logo.svg')).toBe(false);
+    // The PDF tree, the fourth arm, and the one whose guarantee lives in a
+    // different file: `documents.itest.ts` gates every committed PDF, because
+    // sharp cannot decode one. The arm is exact-extension, so a `.html` under
+    // the prefix stays in the sweep and fails above.
+    const documents = TRACKED.filter((path) => path.startsWith(DOCUMENTS_PREFIX));
+    expect(
+      documents.length,
+      'no tracked file under public/documente/ - the prefix arm matches nothing',
+    ).toBeGreaterThan(0);
+    expect(documents.filter((path) => !isBinary(path)), 'off the PDF extension').toEqual([]);
+    expect(isBinary('public/documente/x.pdf')).toBe(true);
+    expect(isBinary('public/documente/x.html')).toBe(false);
   });
 
   it('the sources really do contain comma below', () => {

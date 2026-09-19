@@ -12,7 +12,7 @@ order: 70
 
 Poate că fiecare om se roagă zilnic la el acasă. Dar, între rugăciunea de acasă și rugăciunea de la biserică sau, mai bine zis, între rugăciunea de acasă și slujba de la biserică este o mare deosebire, o deosebire pe care nici eu n-am învățat-o de mult.
 
-[Citeste mai mult](https://www.bor-zh.ch/files/SfLiturgie.pdf) ![](../../assets/content/2024/05/BISERICA-ORTODOXA-POGORAREA-SFANTULUI-DUH-4.jpg)
+[Citeste mai mult](/documente/sfliturgie.pdf) ![](../../assets/content/2024/05/BISERICA-ORTODOXA-POGORAREA-SFANTULUI-DUH-4.jpg)
 
 ## STUDIU
 
@@ -20,7 +20,7 @@ Poate că fiecare om se roagă zilnic la el acasă. Dar, între rugăciunea de a
 
 Ich glaube an den einen Gott, den Vater, den Allmächtigen, den Schöpfer des Himmels und der Erde, aller sichtbaren und unsichtbaren Dinge. Und an den einen Herrn, Jesus Christus, Gottes eingeborenen Sohn, den aus dem Vater Geborenen vor aller Zeit. Licht vom Lichte, wahrer Gott vom wahren Gott, gezeugt, nicht geschaffen, eines Wesens mit dem Vater; durch ihn ist alles geschaffen.
 
-[Citeste mai mult](https://www.bor-zh.ch/files/Das%20Bekenntnis%20des%20Glaubens%20der%20Heiligen%20Orthodoxen%20Kirche.pdf) ![](../../assets/content/2024/05/BISERICA-ORTODOXA-POGORAREA-SFANTULUI-DUH-4.jpg)
+[Citeste mai mult](/documente/das-bekenntnis-des-glaubens-der-heiligen-orthodoxen-kirche.pdf) ![](../../assets/content/2024/05/BISERICA-ORTODOXA-POGORAREA-SFANTULUI-DUH-4.jpg)
 
 ## STUDIU
 

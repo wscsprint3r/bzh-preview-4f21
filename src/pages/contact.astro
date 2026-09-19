@@ -1,0 +1,133 @@
+---
+import { getCollection, getEntry, render } from 'astro:content';
+import AccountBlock from '../components/AccountBlock.astro';
+import ContactForm from '../components/ContactForm.astro';
+import { COPY_SCRIPT } from '../lib/copy-script.mjs';
+import Base from '../layouts/Base.astro';
+import { normalizeHeadingLevels } from '../lib/markdown-headings';
+import { resolveContentAssetLinks, stripEmptyAnchors } from '../lib/markdown-links';
+import { pickSettings } from '../lib/settings';
+
+/*
+ * `/contact` IS BUILT HERE, NOT BY `[...page].astro`, and `RESERVED_PATHS` in
+ * `src/lib/routes.ts` is the one list that keeps the two from both claiming it.
+ * The page is prose like the other nine; the dedicated route exists because it
+ * grows generated blocks below the prose - the contact form, then the account
+ * blocks Task 10 adds - which the generic route has no business knowing
+ * about.
+ *
+ * THE BODY'S TRANSFORM PIPELINE IS `[...page].astro`'s, in the same order and
+ * for the same measured reasons; that file carries the measurements. The order
+ * is load-bearing: `stripEmptyAnchors` runs BEFORE `resolveContentAssetLinks`,
+ * so an anchor with no name is removed rather than made fatal, and a named
+ * anchor at a migrated asset gets the URL the build emitted. The helper is
+ * imported from `src/lib/markdown-links.ts` rather than reimplemented, so this
+ * route cannot drift from the rule the site-wide built-output guard enforces.
+ *
+ * A COPY, not a mutation: `render` reads `entry.rendered`, so the transformed
+ * body is passed in its place and the collection entry is left alone.
+ */
+const entry = await getEntry('pages', 'contact');
+if (entry === undefined) {
+  throw new Error(
+    'src/content/pages/contact.md is missing. The migration writes it; a reserved path ' +
+      'with no content file would build an empty page.',
+  );
+}
+const { title, description } = entry.data;
+
+const rendered = entry.rendered
+  ? {
+      ...entry.rendered,
+      html: resolveContentAssetLinks(
+        stripEmptyAnchors(normalizeHeadingLevels(entry.rendered.html)),
+      ),
+    }
+  : entry.rendered;
+const { Content } = await render({ ...entry, rendered });
+
+/*
+ * The parish's accounts, from the settings singleton. `pickSettings` stops the
+ * build naming the file when it is missing or doubled, and the blocks render
+ * from `settings.accounts` directly - the `qr_bill` flag is Task 11's to read,
+ * not this page's.
+ */
+const settings = pickSettings(await getCollection('settings'));
+---
+
+<Base title={title} description={description}>
+  <div class="container prose">
+    <h1>{title}</h1>
+    <p class="lead">
+      Datele de contact ale parohiei și ale preotului paroh, adresa bisericii și
+      indicațiile pentru a ajunge la ea.
+    </p>
+    <Content />
+  </div>
+
+  {/*
+    The form, then the accounts. The form is the page's action; the accounts
+    answer the donation question the migrated prose raises, and both read the
+    settings singleton the route already loaded. `ContactForm` emits its own
+    inline script unconditionally - see the comment there - so nothing about
+    the form's script is decided here.
+  */}
+  <div class="container">
+    <ContactForm phone={settings.phone} address={settings.address} />
+  </div>
+
+  {/*
+    One block per account, then the copy script ONCE per page. The script lives
+    here rather than in `AccountBlock.astro` on purpose: `/doneaza` renders
+    three blocks, and a script inside the component would be emitted three
+    times with identical bytes - which `EXPECTED_INLINE` in
+    `scripts/csp-hash.mjs` refuses. The emission is after the last block, so
+    the controls exist by the time it runs.
+  */}
+  <div class="container">
+    {settings.accounts.map((account) => <AccountBlock account={account} />)}
+  </div>
+  <script is:inline set:html={COPY_SCRIPT}></script>
+</Base>
+
+<style>
+  /*
+   * THE PROSE TREATMENT IS `[...page].astro`'S, rule for rule. That file
+   * carries the measurements behind each one; they are properties of the
+   * migrated body rather than of this route, so they are not repeated here.
+   *
+   * NO `color` IS DECLARED FOR `a`, deliberately. global.css's `a`/`a:hover`
+   * pair already colours the body links, and a scoped colour here would ship
+   * at (0,3,1) and silently defeat the (0,1,1) hover - the trap
+   * `SiteHeader.astro` documents. Nothing here declares `outline` either, so
+   * the global `:focus-visible` ring reaches these links too.
+   */
+  .prose { max-width: var(--masura); }
+  .prose h1 { margin-top: 2rem; margin-bottom: 1.25rem; }
+  .prose .lead { font-size: 1.125rem; color: var(--muted); margin-bottom: 1.75rem; }
+  .prose :global(p) { margin: 0 0 1.25rem; }
+  .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
+  .prose :global(h3) { font-size: 1.25rem; margin-block: 1.75rem 0.5rem; }
+  .prose :global(h4) { font-size: 1.0625rem; margin-block: 1.5rem 0.5rem; }
+  .prose :global(ul),
+  .prose :global(ol) { margin: 0 0 1.25rem; padding-left: 1.5rem; }
+  .prose :global(li) { margin-bottom: 0.35rem; }
+  .prose :global(blockquote) {
+    margin: 1.5rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--rule);
+    color: var(--muted);
+  }
+  .prose :global(img) { margin: 1.5rem 0; }
+  .prose :global(a) { overflow-wrap: break-word; }
+  .prose :global(pre) {
+    margin: 1.5rem 0;
+    padding: 0.875rem 1rem;
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+</style>

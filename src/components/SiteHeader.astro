@@ -1,18 +1,23 @@
 ---
 const path = Astro.url.pathname;
 /*
- * FIVE LINKS, and the fifth reaches the parish pages by their first entry
- * (`/parohia/istoric/`) rather than by an index that does not exist. The
- * grouping exists in the URLs, not in a dropdown. This is the primary
- * navigation; the full nine-page menu is in `SiteFooter.astro`, which is what
- * makes every prose page reachable from every visitor page.
+ * EIGHT LINKS: the five measured in Phase 1 plus `Evenimente`, `Contact` and
+ * `Donează`, settled by the parish in Task 13. `Parohia` reaches the parish
+ * pages by their first entry (`/parohia/istoric/`) rather than by an index that
+ * does not exist, and the grouping exists in the URLs, not in a dropdown. This
+ * is the primary navigation; the footer carries the rest of the sitemap - the
+ * eleven prose pages plus a fixed `Site` list - and that is what makes every
+ * prose page reachable from every visitor page.
  */
 const links = [
   { href: '/', text: 'Acasă' },
   { href: '/program/', text: 'Program' },
   { href: '/noutati/', text: 'Noutăți' },
+  { href: '/evenimente/', text: 'Evenimente' },
   { href: '/servicii-liturgice/', text: 'Servicii liturgice' },
   { href: '/parohia/istoric/', text: 'Parohia' },
+  { href: '/contact/', text: 'Contact' },
+  { href: '/doneaza/', text: 'Donează' },
 ];
 ---
 
@@ -49,7 +54,7 @@ const links = [
   .sh-wm b { display: block; font-family: var(--display); font-size: 1.125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--oxblood); line-height: 1.1; }
   .sh-wm > span { display: block; font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); margin-top: 0.15rem; }
   /*
-   * WRAPS, and at 390px it has to: five links are wider than the phone's
+   * WRAPS, and at 390px it has to: eight links are wider than the phone's
    * content column. The header row already wraps between brand and nav; this
    * is the nav's own wrap, so the links fold onto a second line instead of
    * overflowing the viewport. The row gap is smaller than the column gap so a
@@ -57,13 +62,16 @@ const links = [
    */
   .sh-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }
   /*
-   * MEASURED AT 390px, and the reason is not taste. At the desktop column gap
-   * the five links need 369px against 358px of content width, so they wrapped
-   * 4+1 - `Parohia` alone on a second line. The links themselves measure 289px
-   * together, so a 12px column gap fits all five on one line with 21px to
-   * spare, and the phone keeps the single row. 34rem is not a new breakpoint:
-   * it is the one `DayRow` and `WeekBand` already cut at, so the audit's
-   * derived breakpoint set is unchanged.
+   * MEASURED AT 390px AFTER THE EIGHT LINKS LANDED (Task 13), in headless
+   * Chrome with the audits' own chromedriver. The links measure 460px together
+   * against the phone's 358px content column, so the row wraps to two lines
+   * whatever the gap: measured 4+4 at both this 12px gap and the 20px desktop
+   * one, and two lines is the wrap Task 13 accepts. What this rule still
+   * decides is how tight the wrapped row reads - 12px between links on a phone
+   * - not the one-line trick it was written as when the header carried five.
+   * The numbers above replace that claim rather than extending it. 34rem is
+   * not a new breakpoint: it is the one `DayRow` and `WeekBand` already cut at,
+   * so the audit's derived breakpoint set is unchanged.
    */
   @media (max-width: 34rem) {
     .sh-nav { gap: 0.5rem 0.75rem; }

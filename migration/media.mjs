@@ -21,6 +21,18 @@ export const UPLOADS_ROOT =
 const CONTENT_SUBDIR = 'src/assets/content';
 
 /**
+ * Where the legacy album's images land, relative to the repository root.
+ *
+ * FLATTENED TO THE BASENAME, unlike the WordPress tree, because the legacy page
+ * names its files `galerie/8.jpg` with no year or month folder to keep. That
+ * flattening is a new collision surface the uploads tree does not have - two
+ * legacy paths under different directories would become one destination - so
+ * `migrateLegacyImages` keeps the same lower-cased claims guard `migrateImages`
+ * has, rather than inheriting uniqueness from the source paths.
+ */
+const LEGACY_GALLERY_SUBDIR = 'src/assets/content/galleries/legacy';
+
+/**
  * What `sharp` can decode AND re-encode, which is the same thing as what can
  * be sanitised. Derived from the capability, not from a list of file types
  * somebody remembered to worry about.
@@ -387,6 +399,43 @@ const ENCODE_OPTIONS = {
  */
 const EXTENSIONS_FOR_FORMAT = { jpeg: ['jpg', 'jpeg'], png: ['png'], webp: ['webp'] };
 
+/**
+ * Decode, resize and re-encode one file, or throw. THE sanitisation, in one
+ * place because there are now two trees that must get the same treatment.
+ *
+ * Extracted from `migrateImages` so `migrateLegacyImages` cannot drift from it:
+ * "runs the same decode/re-encode/MAX_EDGE path" is a shared function rather
+ * than a second copy of the same six lines. The error text for a name that lies
+ * about its type is the one `migrateImages` used to push into its skip list, so
+ * its callers' reports are unchanged.
+ *
+ * `relative` is the name the file was referenced by, used for the extension
+ * question only; the bytes come from `source`, which the caller has already
+ * proved is inside the tree it belongs to.
+ */
+async function reencode(source, relative) {
+  const raw = await readFile(source);
+  // Decode -> resize -> re-encode. Whatever was appended to, or hidden in, the
+  // original does not survive being turned back into pixels and written out
+  // fresh. Nothing calls `withMetadata`, so EXIF goes too.
+  const image = sharp(raw, { failOn: 'error' }).rotate();
+  const meta = await image.metadata();
+  const ext = relative.split('.').pop().toLowerCase();
+  const allowedForFormat = EXTENSIONS_FOR_FORMAT[meta.format];
+  if (allowedForFormat === undefined || !allowedForFormat.includes(ext)) {
+    throw new Error(`the name says .${ext}, the content is ${meta.format}`);
+  }
+  // `Math.max` of both edges, so an EXIF orientation that swaps them cannot
+  // change the decision.
+  const resized =
+    Math.max(meta.width ?? 0, meta.height ?? 0) > MAX_EDGE
+      ? image.resize({
+          width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', kernel: 'lanczos3',
+        })
+      : image;
+  return ENCODE_OPTIONS[meta.format](resized).toBuffer();
+}
+
 /** Dimensions as a viewer sees them: EXIF orientation applied. */
 async function orientedSize(path) {
   const m = await sharp(path).metadata();
@@ -581,30 +630,7 @@ export async function migrateImages(
     // prints a tidy list and exits 0 having written nothing.
     let output;
     try {
-      const raw = await readFile(source);
-      // Decode -> resize -> re-encode. This is the sanitisation: whatever was
-      // appended to, or hidden in, the original does not survive being turned
-      // back into pixels and written out fresh. Nothing calls `withMetadata`,
-      // so EXIF goes too - which is where a payload hides when appending one
-      // after the end marker stops working.
-      const image = sharp(raw, { failOn: 'error' }).rotate();
-      const meta = await image.metadata();
-      const ext = relative.split('.').pop().toLowerCase();
-      const allowedForFormat = EXTENSIONS_FOR_FORMAT[meta.format];
-      if (allowedForFormat === undefined || !allowedForFormat.includes(ext)) {
-        skipped.push([src, `the name says .${ext}, the content is ${meta.format}`]);
-        undecodable.add(relative);
-        continue;
-      }
-      // `Math.max` of both edges, so an EXIF orientation that swaps them cannot
-      // change the decision.
-      const resized =
-        Math.max(meta.width ?? 0, meta.height ?? 0) > MAX_EDGE
-          ? image.resize({
-              width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', kernel: 'lanczos3',
-            })
-          : image;
-      output = await ENCODE_OPTIONS[meta.format](resized).toBuffer();
+      output = await reencode(source, relative);
     } catch (e) {
       skipped.push([src, e instanceof Error ? e.message : String(e)]);
       undecodable.add(relative);
@@ -635,6 +661,94 @@ export async function migrateImages(
   for (const rel of unverified) {
     process.stdout.write(`  unverified: ${rel} is not on disk, resolved by name alone\n`);
   }
+  for (const [src, reason] of skipped) process.stdout.write(`  skipped: ${src} - ${reason}\n`);
+  return mapping;
+}
+
+/**
+ * Copies the legacy album's images across, sanitising each one the same way.
+ *
+ * A SECOND TREE, NOT A SECOND PIPELINE: `reencode` is the same decode, resize
+ * and encode `migrateImages` uses, so the two cannot drift. What differs is
+ * where the files come from and go to - the legacy page names them
+ * `galerie/8.jpg` under `htdocs/`, not WordPress upload paths - and the
+ * destination is flattened to the basename under
+ * `src/assets/content/galleries/legacy/`.
+ *
+ * `legacyRoot` is a parameter rather than a constant here because the tree
+ * belongs to the caller: `galleries.mjs` owns `LEGACY_ROOT`, and the positive
+ * controls in `media.test.mjs` pass a temporary tree. `requireUploads` is
+ * reused for the missing-tree guard - it takes a path for exactly this reason -
+ * because a machine without the backups must fail by name rather than migrate
+ * zero in silence.
+ *
+ * THE SECOND LOCK IS HERE TOO, for the same reason it exists for uploads: the
+ * legacy tree sits outside the repository and is read by absolute path, and the
+ * paths come out of HTML from a twice-compromised server. `isInside` is asked
+ * of the resolved paths before anything touches the filesystem, so a
+ * `galerie/../../…` reference stops the run instead of becoming a read.
+ *
+ * Returns `Map<src, repoRelativePath>` like `migrateImages`, so the callers'
+ * `assertImageReferences` and path rewriting work unchanged.
+ */
+export async function migrateLegacyImages(sources, legacyRoot, repoRoot = process.cwd()) {
+  requireUploads(legacyRoot);
+  const mapping = new Map();
+  const skipped = [];
+  const destinationDir = join(repoRoot, LEGACY_GALLERY_SUBDIR);
+  // Destination (lower-cased) -> the source that claimed it. FLATTENING TO THE
+  // BASENAME is what makes this guard necessary here: two legacy paths in
+  // different directories would become one destination, and the tag/unique
+  // count guards in `galleries.mjs` cannot see that difference. Same
+  // `toLowerCase()` key, and the same ASCII-only reasoning, as `migrateImages`.
+  const claims = new Map();
+  let writes = 0;
+
+  for (const src of [...new Set(sources)]) {
+    // The type question first, as in `migrateImages`: an SVG is not migrated at
+    // all, whatever the tree says.
+    if (!allowedExtension(src)) { skipped.push([src, 'disallowed type']); continue; }
+    const source = join(legacyRoot, src);
+    const destinationRelative = `${LEGACY_GALLERY_SUBDIR}/${basename(src)}`;
+    const destination = join(repoRoot, destinationRelative);
+    // NOTHING TOUCHES THE FILESYSTEM ABOVE THIS LINE. Both the read and the
+    // write are checked before either happens.
+    if (!isInside(legacyRoot, source) || !isInside(destinationDir, destination)) {
+      throw new Error(
+        `Unsafe legacy path, caught by the second lock: ${src}\n` +
+          `  would have read ${source}\n  would have written ${destination}`,
+      );
+    }
+    const key = destinationRelative.toLowerCase();
+    const claimedBy = claims.get(key);
+    if (claimedBy !== undefined && claimedBy !== src) {
+      throw new Error(
+        `The destination ${destinationRelative} is claimed by two different legacy ` +
+          `files: ${claimedBy} and ${src}.\n` +
+          '  The legacy destination keeps only the basename, so two directories would ' +
+          'overwrite each other; rename one at the source before resuming the migration.',
+      );
+    }
+    claims.set(key, src);
+    let output;
+    try {
+      output = await reencode(source, src);
+    } catch (e) {
+      skipped.push([src, e instanceof Error ? e.message : String(e)]);
+      continue;
+    }
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, output);
+    writes += 1;
+    mapping.set(src, destinationRelative);
+  }
+
+  // Print what was measured, not only the verdict - `process.stdout.write` for
+  // the reason the other reporters use it.
+  process.stdout.write(
+    `\nLegacy images migrated: ${mapping.size} of ${new Set(sources).size} referenced.\n` +
+      `  ${writes} source file(s) written.\n`,
+  );
   for (const [src, reason] of skipped) process.stdout.write(`  skipped: ${src} - ${reason}\n`);
   return mapping;
 }

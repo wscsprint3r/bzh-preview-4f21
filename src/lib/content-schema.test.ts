@@ -4,10 +4,18 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { daySchema } from './schema';
-import { CATEGORIES, articleSchema, pageSchema, settingsSchema } from './content-schema';
+import {
+  CATEGORIES,
+  articleSchema,
+  documentSchema,
+  eventSchema,
+  gallerySchema,
+  pageSchema,
+  settingsSchema,
+} from './content-schema';
 
 /*
- * WHAT THIS FILE PROVES: the three schemas really do reject what must not
+ * WHAT THIS FILE PROVES: the schemas really do reject what must not
  * pass, not merely accept what must - and they say so in Romanian, naming the field.
  *
  * A schema is easy to test badly. A test that takes a valid value, spreads
@@ -40,11 +48,34 @@ const MINIMAL_ARTICLE = {
 
 const MINIMAL_PAGE = { title: 'Istoric', path: 'parohia/istoric', order: 10 };
 
+/*
+ * The holder's address for the QR-bill, and the same values the shipped file
+ * carries. A separate constant because the cases below delete one inner field
+ * at a time, the way the top-level cases delete one setting at a time.
+ */
+const MINIMAL_CREDITOR = {
+  street: 'Wehntalerstrasse',
+  house_number: '451',
+  postal_code: '8046',
+  town: 'Zürich',
+  country: 'CH',
+};
+
 const MINIMAL_SETTINGS = {
   name: 'Parohia Ortodoxă Română Sfântul Nicolae',
   address: 'Wehntalerstrasse 451, 8046 Zürich',
   phone: '076 512 04 52',
   email: 'contact@bor-zh.ch',
+  accounts: [
+    {
+      label: 'Susținerea parohiei',
+      iban: 'CH54 0021 5215 3048 5501 P',
+      holder: 'Parohia Ortodoxă Română Sfântul Nicolae',
+      bank: 'UBS (Schweiz) AG',
+      qr_bill: false,
+    },
+  ],
+  creditor_address: MINIMAL_CREDITOR,
 };
 
 /** The same value, without one field - without damaging the original. */
@@ -353,7 +384,6 @@ describe('settingsSchema', () => {
       ...MINIMAL_SETTINGS,
       phone2: '044 000 00 00',
       email2: 'preot@bor-zh.ch',
-      iban: 'CH00 0000 0000 0000 0000 0',
       visiting_hours: 'Duminica, după Liturghie',
       map_url: 'https://maps.example.ch/parohia',
     });
@@ -381,6 +411,200 @@ describe('settingsSchema', () => {
       'https://maps.example.ch/x',
     );
   });
+
+  /*
+   * THE CREDITOR ADDRESS, WHICH THE QR-BILL PRINTS. Its fields are what the
+   * library puts on the payment part, so a wrong one is a bill a donor cannot
+   * pay - and unlike a page, the bill is not something anybody proofreads
+   * before it is scanned. Every required inner field is checked twice: gone
+   * altogether, and present but blank. Those are the two shapes a volunteer
+   * produces in the CMS, and the two messages differ.
+   */
+  describe('creditor_address', () => {
+    it('accepts the address and carries every field', () => {
+      const s = settingsSchema.parse(MINIMAL_SETTINGS);
+      expect(s.creditor_address).toEqual(MINIMAL_CREDITOR);
+    });
+
+    it('requires the whole block, not only its fields', () => {
+      // Zod's own message, and it is not Romanian - the block is an object
+      // rather than a text field, and `accounts` is guarded the same way. The
+      // path names the field, which is what the failure has to do.
+      expect(() => settingsSchema.parse(without(MINIMAL_SETTINGS, 'creditor_address'))).toThrow(
+        /creditor_address/,
+      );
+    });
+
+    it('accepts a missing house number', () => {
+      const s = settingsSchema.parse({
+        ...MINIMAL_SETTINGS,
+        creditor_address: without(MINIMAL_CREDITOR, 'house_number'),
+      });
+      expect(s.creditor_address.house_number).toBeUndefined();
+    });
+
+    const REQUIRED_INNER: [string, RegExp, RegExp][] = [
+      ['street', /Adresa completă a titularului trebuie să aibă strada\./, /Strada nu poate fi goală\./],
+      ['postal_code', /Codul poștal lipsește\./, /Codul poștal nu poate fi gol\./],
+      ['town', /Localitatea lipsește\./, /Localitatea nu poate fi goală\./],
+    ];
+    for (const [field, missing, empty] of REQUIRED_INNER) {
+      it(`requires the field ${field}`, () => {
+        const address = without(MINIMAL_CREDITOR, field);
+        expect(() =>
+          settingsSchema.parse({ ...MINIMAL_SETTINGS, creditor_address: address }),
+        ).toThrow(missing);
+      });
+
+      it(`says which field is empty for ${field}`, () => {
+        expect(() =>
+          settingsSchema.parse({
+            ...MINIMAL_SETTINGS,
+            creditor_address: { ...MINIMAL_CREDITOR, [field]: '   ' },
+          }),
+        ).toThrow(empty);
+      });
+    }
+
+    it('requires a two-letter country code', () => {
+      expect(() =>
+        settingsSchema.parse({
+          ...MINIMAL_SETTINGS,
+          creditor_address: { ...MINIMAL_CREDITOR, country: 'Elveția' },
+        }),
+      ).toThrow(/Codul țării are două litere/);
+    });
+
+    it('rejects a misspelled key inside the address', () => {
+      expect(() =>
+        settingsSchema.parse({
+          ...MINIMAL_SETTINGS,
+          creditor_address: { ...MINIMAL_CREDITOR, oras: 'Zürich' },
+        }),
+      ).toThrow(/Câmp necunoscut: oras\./);
+    });
+  });
+});
+
+describe('the events schema', () => {
+  const event = {
+    title: 'Concert de colinde',
+    start_date: '2026-12-19',
+    time: '18:00',
+    location: 'Capela Sf. Katharina',
+    description: 'Concertul corului parohial.',
+  };
+
+  it('accepts a minimal event and leaves end_date absent', () => {
+    const parsed = eventSchema.parse(event);
+    expect(parsed.start_date).toBe('2026-12-19');
+    expect(parsed.end_date).toBeUndefined();
+  });
+
+  it('rejects an end_date before the start, naming the field', () => {
+    expect(() => eventSchema.parse({ ...event, end_date: '2026-12-18' })).toThrow(/înainte/);
+  });
+
+  it('rejects a time that is not HH:MM and normalises 9:30', () => {
+    expect(() => eventSchema.parse({ ...event, time: '25:00' })).toThrow(/18:00/);
+    expect(eventSchema.parse({ ...event, time: '9:30' }).time).toBe('09:30');
+  });
+
+  it('rejects a misspelled key', () => {
+    expect(() => eventSchema.parse({ ...event, locatie: 'x' })).toThrow(/Câmp necunoscut/);
+  });
+
+  const REQUIRED_FIELDS: [string, RegExp][] = [
+    ['title', /Evenimentul trebuie să aibă un titlu\./],
+    ['start_date', /trebuie să aibă o dată/],
+    ['location', /Evenimentul trebuie să aibă un loc\./],
+  ];
+  it('has required fields to check', () => {
+    expect(REQUIRED_FIELDS.length).toBeGreaterThan(0);
+  });
+  for (const [field, message] of REQUIRED_FIELDS) {
+    it(`requires the field ${field}`, () => {
+      expect(() => eventSchema.parse(without(event, field))).toThrow(message);
+    });
+  }
+
+  it('accepts an end_date equal to the start', () => {
+    expect(eventSchema.parse({ ...event, end_date: '2026-12-19' }).end_date).toBe('2026-12-19');
+  });
+
+  it('accepts an event with no time', () => {
+    expect(eventSchema.parse(without(event, 'time')).time).toBeUndefined();
+  });
+});
+
+describe('the galleries schema', () => {
+  const gallery = {
+    title: 'Sfintele Paști 2024',
+    date: '2024-05-05',
+    cover: '../../assets/content/galleries/2024/05/a.jpg',
+    images: [{ file: '../../assets/content/galleries/2024/05/a.jpg' }],
+  };
+
+  it('accepts one image and leaves its description absent', () => {
+    expect(gallerySchema.parse(gallery).images[0]!.description).toBeUndefined();
+  });
+
+  it('rejects an empty image list, naming the field', () => {
+    expect(() => gallerySchema.parse({ ...gallery, images: [] })).toThrow(/cel puțin o imagine/);
+  });
+
+  it('rejects a misspelled key', () => {
+    expect(() => gallerySchema.parse({ ...gallery, titlu: 'x' })).toThrow(/Câmp necunoscut/);
+  });
+
+  const REQUIRED_FIELDS: [string, RegExp][] = [
+    ['title', /Galeria trebuie să aibă un titlu\./],
+    ['date', /trebuie să aibă o dată/],
+    ['cover', /Galeria trebuie să aibă o copertă\./],
+    ['images', /expected array/],
+  ];
+  it('has required fields to check', () => {
+    expect(REQUIRED_FIELDS.length).toBeGreaterThan(0);
+  });
+  for (const [field, message] of REQUIRED_FIELDS) {
+    it(`requires the field ${field}`, () => {
+      expect(() => gallerySchema.parse(without(gallery, field))).toThrow(message);
+    });
+  }
+});
+
+describe('the documents schema', () => {
+  const document = {
+    title: 'Pastorală',
+    date: '2025-04-20',
+    file: '/documente/pastorala-invierii-2025.pdf',
+  };
+
+  it('accepts a PDF under /documente/', () => {
+    expect(documentSchema.parse(document).file).toBe('/documente/pastorala-invierii-2025.pdf');
+  });
+
+  it('rejects a file that is not a /documente/ PDF', () => {
+    expect(() => documentSchema.parse({ ...document, file: '/uploads/x.pdf' })).toThrow(/documente/);
+  });
+
+  it('rejects a misspelled key', () => {
+    expect(() => documentSchema.parse({ ...document, autor: 'x' })).toThrow(/Câmp necunoscut/);
+  });
+
+  const REQUIRED_FIELDS: [string, RegExp][] = [
+    ['title', /Documentul trebuie să aibă un titlu\./],
+    ['date', /trebuie să aibă o dată/],
+    ['file', /expected string/],
+  ];
+  it('has required fields to check', () => {
+    expect(REQUIRED_FIELDS.length).toBeGreaterThan(0);
+  });
+  for (const [field, message] of REQUIRED_FIELDS) {
+    it(`requires the field ${field}`, () => {
+      expect(() => documentSchema.parse(without(document, field))).toThrow(message);
+    });
+  }
 });
 
 describe('settings.yml', () => {

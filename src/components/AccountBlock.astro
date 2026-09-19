@@ -1,0 +1,67 @@
+---
+import type { Account } from '../lib/accounts';
+import { formatIban } from '../lib/accounts';
+
+/*
+ * ONE ACCOUNT, AS MARKUP ONLY. The interactive part is `COPY_SCRIPT` in
+ * `src/lib/copy-script.mjs`, emitted once per route by the page rather than
+ * here: two accounts on `/doneaza` would render this component twice, and a
+ * `<script>` inside it would then appear twice with identical bytes, which
+ * `unexpectedInlineScripts` refuses - the CSP names one script per page.
+ *
+ * THE NO-JS STATE IS THE TEXT. The button ships `hidden` and the script
+ * unhides it, never the reverse: without JavaScript the formatted IBAN is
+ * visible and selectable, which is the whole task, and the control that would
+ * copy it is simply absent. No `display` is declared for `.ab-copy`, so the
+ * user-agent's `[hidden] { display: none }` still applies; an author
+ * `display` declaration would beat it by origin and silently show a dead
+ * button to every visitor without JavaScript - the trap `WeekPicker.astro`
+ * documents for its bar.
+ */
+interface Props {
+  account: Account;
+}
+const { account } = Astro.props;
+---
+
+<div class="ab">
+  <p class="ab-label">{account.label}</p>
+  <p class="ab-iban">{formatIban(account.iban)}</p>
+  <p class="ab-meta">{account.holder} · {account.bank}</p>
+  <button class="ab-copy" type="button" hidden data-copy={account.iban}>Copiază IBAN</button>
+</div>
+
+<style>
+  .ab {
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    padding: 1rem 1.125rem;
+    margin-top: 1rem;
+    max-width: var(--masura);
+  }
+  .ab-label {
+    font-family: var(--display);
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--oxblood);
+    margin: 0 0 0.35rem;
+  }
+  .ab-iban { font-size: 1.0625rem; letter-spacing: 0.02em; margin: 0 0 0.25rem; }
+  .ab-meta { font-size: 0.8125rem; color: var(--muted); margin: 0 0 0.75rem; }
+  /* The colours are this component's own pair, base AND hover, so the global
+     `a`/`a:hover` pair cannot half-apply - the trap `SiteHeader.astro`
+     documents. A button does not inherit the page font, so `font-family` is
+     not decoration; the same measurement is in `WeekPicker.astro`. No
+     `outline` is declared, so the global `:focus-visible` ring reaches this
+     control. */
+  .ab-copy {
+    background: var(--raised);
+    color: var(--oxblood);
+    border: 1px solid var(--oxblood);
+    font-family: var(--body);
+    font-size: 0.875rem;
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+  }
+  .ab-copy:hover { color: var(--oxblood-dk); border-color: var(--oxblood-dk); }
+</style>

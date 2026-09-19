@@ -1,4 +1,8 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 import {
   CONDITIONS,
   NO_AXE_REASONS,
@@ -16,7 +20,11 @@ import {
   conditionFeatures,
   checkBreakpoints,
   checkPasses,
+  svgTextIncompletes,
 } from '../../scripts/a11y.mjs';
+import { CLEARED_COLLECTIONS, FIXTURE_SWAPS, writeFixtureFiles } from '../../scripts/a11y-picker.mjs';
+import * as fixtures from './fixtures';
+import { addDays } from './week';
 
 /*
  * WHAT THIS PROVES: no viewport can be counted as audited unless some command
@@ -607,5 +615,331 @@ describe('every page taken out of the axe audit says why', () => {
     );
     expect(entries.length, 'the list is empty — the check would have nothing to compare').toBeGreaterThan(0);
     for (const [path, reason] of entries) expect(reason.trim().length, path).toBeGreaterThan(40);
+  });
+});
+
+/*
+ * ===========================================================================
+ * THE FIXTURE BUILD'S CONTENT, HELD AGAINST WHAT THE PICKER SWAPS IN.
+ *
+ * The picker builds a second site from `fixtures.ts` so the browser can audit
+ * markup the real content never renders - the week picker's bar, and now the
+ * `/evenimente/<slug>/` page, which the parish has no events to produce. That
+ * build is the ONLY place those pages are audited, so a fixture that quietly
+ * stopped being written would leave a layout covered by nothing while the pass
+ * reported a pass: the failure shape this project keeps paying for.
+ *
+ * `FIXTURE_SWAPS` in `scripts/a11y-picker.mjs` is the mechanism - `main` clears
+ * `CLEARED_COLLECTIONS` and writes exactly those entries - and the assertions
+ * below hold it against the module that owns the fixtures, in both directions.
+ * A new `FIXTURE_*` array added to `fixtures.ts` without an entry in the table
+ * fails here; so does a table entry naming an array that no longer exists.
+ * ===========================================================================
+ */
+
+/** Every `FIXTURE_*` array `fixtures.ts` exports - the whole subject of the swap. */
+function fixtureArrays(): [string, unknown[]][] {
+  const found: [string, unknown[]][] = [];
+  for (const [name, value] of Object.entries(fixtures)) {
+    if (name.startsWith('FIXTURE_') && Array.isArray(value)) found.push([name, value]);
+  }
+  return found;
+}
+
+describe('the fixtures the picker swaps into the scratch build', () => {
+  it('has something on both sides to compare', () => {
+    // A guard that reads nothing passes vacuously; both sides are asserted
+    // non-empty before anything is compared.
+    expect(FIXTURE_SWAPS.length).toBeGreaterThan(0);
+    expect(fixtureArrays().length).toBeGreaterThan(0);
+  });
+
+  it('swaps in every FIXTURE_* array fixtures.ts exports, and no invented name', () => {
+    expect(fixtureArrays().map(([name]) => name).sort()).toEqual(
+      FIXTURE_SWAPS.map((swap) => swap.fixtures).sort(),
+    );
+  });
+
+  it('clears every collection it writes, once each', () => {
+    for (const swap of FIXTURE_SWAPS) {
+      expect(CLEARED_COLLECTIONS, swap.collection).toContain(swap.collection);
+      expect(swap.key.length, `${swap.fixtures} names no key field`).toBeGreaterThan(0);
+      // A `.md` file without the flag is written as bare YAML and parsed as an
+      // entry with no fields at all - a failed fixture build, measured once.
+      expect(typeof swap.frontmatter, `${swap.collection} does not say whether its files carry frontmatter`)
+        .toBe('boolean');
+    }
+    // The same collection twice would overwrite one fixture with the other.
+    expect(new Set(FIXTURE_SWAPS.map((swap) => swap.collection)).size).toBe(FIXTURE_SWAPS.length);
+  });
+
+  it('the events fixture holds the shapes the detail layout is audited in', () => {
+    const events = fixtures.FIXTURE_EVENTS;
+    expect(events.length, 'no fixture event - the detail page would be audited by nothing')
+      .toBeGreaterThanOrEqual(3);
+    expect(new Set(events.map((e) => e.slug)).size, 'two fixture events share a slug')
+      .toBe(events.length);
+    // The two date layouts: the range and the single day.
+    expect(
+      events.filter((e) => e.end_date !== undefined).length,
+      'no fixture event has an end_date - the range layout would be audited by nothing',
+    ).toBeGreaterThan(0);
+    expect(
+      events.filter((e) => e.end_date === undefined).length,
+      'no fixture event is a single day - that layout would be audited by nothing',
+    ).toBeGreaterThan(0);
+    // The index's two sections, anchored to FIXTURE_TODAY so the picker's
+    // whole-week shift keeps them on the same sides of "today".
+    expect(
+      events.filter((e) => e.start_date < fixtures.FIXTURE_TODAY).length,
+      'no fixture event is past - the index would lose its „Trecute” section',
+    ).toBeGreaterThan(0);
+    expect(
+      events.filter((e) => e.start_date >= fixtures.FIXTURE_TODAY).length,
+      'no fixture event is upcoming - the index would lose its list',
+    ).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * ===========================================================================
+ * THE OFFSET REACHES THE FILE NAME.
+ *
+ * The picker rewrites the fixtures into a scratch build, shifting every date
+ * field by the whole number of weeks between `FIXTURE_TODAY` and today - the
+ * mechanism that keeps the pass alive as the calendar moves away from 2026.
+ * For an event the shifted dates live in the frontmatter, but for a SERVICE
+ * DAY THE FILE NAME IS THE DATE, and the first version of the swap read the
+ * key field out of the item before the shift ran: the services were written
+ * under their FIXTURE_TODAY names forever. Nothing failed while today's ISO
+ * week happened to equal the fixture's, which is why the defect could only be
+ * seen by reading the names the writer produces at a non-zero offset.
+ *
+ * `writeFixtureFiles` is the function `main` writes the scratch content with,
+ * so these cases exercise the real writer rather than a re-implementation of
+ * its rules. The offset is chosen non-zero and a whole number of weeks from
+ * the fixture above; the zero-offset case is the control that the fix does not
+ * distort the verbatim path.
+ * ===========================================================================
+ */
+describe('a swap shifts what its collection keys on', () => {
+  const SHIFT = 14;
+
+  /** The swap table entry for a collection, or a failure naming the table. */
+  function swapFor(collection: string) {
+    const swap = FIXTURE_SWAPS.find((s) => s.collection === collection);
+    if (!swap) throw new Error(`FIXTURE_SWAPS no longer contains the ${collection} swap`);
+    return swap;
+  }
+
+  /** A scratch root, removed even when an assertion throws. */
+  function inScratch(run: (root: string) => void) {
+    const root = mkdtempSync(join(tmpdir(), 'fixture-swap-'));
+    try {
+      run(root);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  it('moves a date-keyed file name by the same offset as the date fields', () => {
+    inScratch((root) => {
+      const names = writeFixtureFiles(root, swapFor('services'), fixtures.FIXTURE_DAYS, addDays, SHIFT);
+      expect(names, 'the names returned are the ones written').toEqual(
+        fixtures.FIXTURE_DAYS.map((day) => addDays(day.date, SHIFT)),
+      );
+      for (const name of names) {
+        expect(existsSync(join(root, 'src/content/services', `${name}.yml`)), name).toBe(true);
+      }
+      // The unshifted name must be ABSENT, not merely joined by the shifted
+      // one: a writer that emitted both would satisfy the loop above.
+      expect(existsSync(join(root, 'src/content/services', `${fixtures.FIXTURE_DAYS[0].date}.yml`))).toBe(
+        false,
+      );
+    });
+  });
+
+  it('control: offset zero writes the fixture dates unchanged', () => {
+    inScratch((root) => {
+      const names = writeFixtureFiles(root, swapFor('services'), fixtures.FIXTURE_DAYS, addDays, 0);
+      expect(names).toEqual(fixtures.FIXTURE_DAYS.map((day) => day.date));
+    });
+  });
+
+  it('leaves a slug file name alone and still shifts the dates beside it', () => {
+    inScratch((root) => {
+      const swap = swapFor('events');
+      const names = writeFixtureFiles(root, swap, fixtures.FIXTURE_EVENTS, addDays, SHIFT);
+      expect(names).toEqual(fixtures.FIXTURE_EVENTS.map((event) => event.slug));
+      const first = fixtures.FIXTURE_EVENTS[0];
+      const text = readFileSync(join(root, 'src/content/events', `${first.slug}.md`), 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, `${first.slug}.md has no frontmatter block`).not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, string>;
+      expect(frontmatter.start_date).toBe(addDays(first.start_date, SHIFT));
+    });
+  });
+
+  /*
+   * THE BODY GOES BELOW THE CLOSING DELIMITER. A `body` written into the
+   * frontmatter would be rejected by `eventSchema`'s `strictKeys` at build
+   * time - loud, but a build failure instead of a rendered page. The fixture's
+   * body is what the audited `/evenimente/<slug>/` page renders, so the
+   * writer's half of that path is pinned here.
+   */
+  it('writes a fixture body after the frontmatter, not into it', () => {
+    inScratch((root) => {
+      const item = {
+        slug: 'cu-detalii',
+        title: 'Titlu de probă',
+        start_date: '2026-10-02',
+        location: 'Sala parohială, Zürich',
+        body: 'Un paragraf de probă.',
+      };
+      writeFixtureFiles(root, swapFor('events'), [item], addDays, SHIFT);
+      const text = readFileSync(join(root, 'src/content/events/cu-detalii.md'), 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, 'cu-detalii.md has no frontmatter block').not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
+      expect(frontmatter, 'the body must not be a frontmatter field').not.toHaveProperty('body');
+      const afterFrontmatter = text.slice((block as RegExpExecArray)[0].length);
+      expect(afterFrontmatter).toContain('Un paragraf de probă.');
+    });
+  });
+
+  /*
+   * A service day is YAML top to bottom; it has nowhere to put a body. The
+   * writer strips the `body` key from the frontmatter before writing, so
+   * without this failure a body on a day fixture would simply disappear - the
+   * silent loss the body support exists to prevent, one collection over.
+   */
+  it('refuses a body on a swap whose files carry no frontmatter', () => {
+    inScratch((root) => {
+      const item = { date: '2026-09-09', services: [], body: 'Text care nu are unde să ajungă.' };
+      expect(() => writeFixtureFiles(root, swapFor('services'), [item], addDays, 0)).toThrow(
+        /frontmatter/,
+      );
+    });
+  });
+});
+
+/*
+ * The body's other half: the fixture must actually carry one, and it must
+ * still carry empty-bodied events. The picker's post-build check proves the
+ * page rendered the first; the second is the control that an event a
+ * volunteer left without details still builds and audits, which is what the
+ * `<Content />` of an empty markdown body amounts to.
+ */
+describe('the event fixtures the rendered body comes from', () => {
+  it('has both a body to render and events with no body', () => {
+    const withBody = fixtures.FIXTURE_EVENTS.filter(
+      (event) => typeof event.body === 'string' && event.body.trim().length > 0,
+    );
+    const withoutBody = fixtures.FIXTURE_EVENTS.filter((event) => !event.body);
+    expect(
+      withBody.length,
+      'no fixture event carries a body - the picker would audit a detail page with no rendered markdown',
+    ).toBeGreaterThan(0);
+    expect(
+      withoutBody.length,
+      'no fixture event is body-less - the empty-body control would be gone',
+    ).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * THE SVG-TEXT GAP, MADE A FUNCTION INSTEAD OF A SILENCE.
+ *
+ * axe can never resolve a background for text drawn inside an inline `<svg>`
+ * (its `elementHasImage` treats any SVG node as a graphic), so every run over
+ * `/doneaza` reports one `color-contrast` incomplete per `<tspan>` in the
+ * QR-bill. `scripts/a11y.mjs` fails on every incomplete by design, and its own
+ * HONEST SCOPE header already declared SVG `<text>` out of reach - the checker
+ * and the declaration disagreed, and `svgTextIncompletes` is the reconciliation.
+ *
+ * THE CASES BELOW ARE THE CONTRACT, and the first one is not invented: it is
+ * the exact shape axe reported on the Task 11 build, node and check, copied
+ * from the probe. The rest are the fail-closed half - a node the classifier
+ * cannot place inside an SVG stays in scope, and an in-scope incomplete still
+ * fails the pass. An exemption is a decision, so every way of being ambiguous
+ * keeps the failure.
+ */
+
+/** The node axe reported for the QR-bill's `<tspan>Empfangsschein</tspan>`. */
+const SVG_TEXT_NODE = {
+  target: ['tspan[font-size="11pt"][y="0"][dy="11pt"]'],
+  html: '<tspan x="0" y="0" dy="11pt" font-family="Arial" font-weight="bold" font-size="11pt">Empfangsschein</tspan>',
+  any: [
+    {
+      id: 'color-contrast',
+      impact: 'serious',
+      message: "Element's background color could not be determined because element contains an image node",
+      data: { bgColor: null, contrastRatio: 0, messageKey: 'imgNode' },
+      relatedNodes: [{ html: '<svg x="5mm" y="5mm">', target: ['svg[x="5mm"][y="5mm"]'] }],
+    },
+  ],
+};
+
+/*
+ * THE OTHER SHAPE THE SAME RUN REPORTED, and the reason the classifier keys on
+ * the target rather than on axe's message: the bill's `<text>` element whose
+ * contrast failed because it is overlapped by another element. It is still SVG
+ * text, which is the whole subject of the declared gap, so it is classified
+ * the same way - the audit could never have judged it, whatever the reason.
+ */
+const SVG_TEXT_OVERLAP_NODE = {
+  target: ['text[font-size="11pt"][y="0"]'],
+  html: '<text x="0" y="0" font-family="Arial" font-weight="bold" font-size="11pt">Zahlteil</text>',
+  any: [
+    {
+      id: 'color-contrast',
+      impact: 'serious',
+      message: "Element's background color could not be determined because it is overlapped by another element",
+      data: { bgColor: null, messageKey: 'bgOverlap' },
+      relatedNodes: [],
+    },
+  ],
+};
+
+/** A `color-contrast` incomplete carrying one node. */
+const incompleteOf = (node: Record<string, unknown>) => ({ id: 'color-contrast', nodes: [node] });
+
+/** The same node with one field replaced, for the fail-closed cases. */
+const withNode = (patch: Record<string, unknown>) => incompleteOf({ ...SVG_TEXT_NODE, ...patch });
+
+describe('svgTextIncompletes', () => {
+  it('classifies the node axe actually reported inside the QR-bill', () => {
+    const rule = incompleteOf(SVG_TEXT_NODE);
+    expect(svgTextIncompletes(rule)).toEqual(rule.nodes);
+  });
+
+  it('classifies an SVG <text> whose contrast failed for the overlap reason', () => {
+    const rule = incompleteOf(SVG_TEXT_OVERLAP_NODE);
+    expect(svgTextIncompletes(rule)).toEqual(rule.nodes);
+  });
+
+  it('classifies a chain that ends in an SVG text element', () => {
+    const rule = withNode({ target: ['svg > text > tspan'] });
+    expect(svgTextIncompletes(rule)).toEqual(rule.nodes);
+  });
+
+  /*
+   * THE IN-SCOPE DIRECTION. An incomplete on an HTML element must keep failing
+   * the pass: the exemption is for SVG text, not for "could not determine".
+   */
+  it('leaves an HTML element in scope, whatever axe could not determine', () => {
+    const rule = withNode({ target: ['p'] });
+    expect(svgTextIncompletes(rule)).toEqual([]);
+  });
+
+  it('fails closed when the target is missing, empty or not selectors', () => {
+    for (const target of [undefined, [], ['p'], [42], ['tspan', 'p']]) {
+      expect(svgTextIncompletes(withNode({ target })), JSON.stringify(target)).toEqual([]);
+    }
+  });
+
+  it('does not touch a rule that is not color-contrast', () => {
+    expect(svgTextIncompletes({ id: 'link-in-text-block', nodes: [SVG_TEXT_NODE] })).toEqual([]);
+    expect(svgTextIncompletes({ id: 'color-contrast' })).toEqual([]);
   });
 });

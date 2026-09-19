@@ -3,22 +3,32 @@ import { getCollection, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import { normalizeHeadingLevels } from '../lib/markdown-headings';
-import { stripEmptyAnchors } from '../lib/markdown-links';
+import { resolveContentAssetLinks, stripEmptyAnchors } from '../lib/markdown-links';
+import { RESERVED_PATHS } from '../lib/routes';
 
 /*
- * ONE DYNAMIC ROUTE FOR THE NINE PROSE PAGES, not nine near-identical files.
- * They differ only in their content, and nine copies of this page would be
- * nine places to fix a heading level, a measure or a link treatment.
+ * ONE DYNAMIC ROUTE FOR THE PROSE PAGES, not one near-identical file each.
+ * They differ only in their content, and a copy of this page per route would
+ * be a place per route to fix a heading level, a measure or a link treatment.
  *
- * `getStaticPaths` reads the collection and builds `/${path}/` for each. The
- * path is `pageSchema`'s `path` field - `parohia/istoric`, not the file name
- * `istoric.md` - which is why the route is the single place the two are tied
- * together. The schema already rejects a leading or trailing slash, so the
- * `//istoric//` a stored slash would produce cannot reach here.
+ * `getStaticPaths` reads the collection and builds `/${path}/` for each, minus
+ * the RESERVED_PATHS - `/contact` and `/doneaza` are built by dedicated files
+ * that carry generated blocks this route has no business knowing about. The
+ * list is imported rather than copied so the two sides cannot disagree; a page
+ * built here and there at once is a route collision, and one skipped by both
+ * is a page in the CMS with no page on the site. `routes.test.ts` pins both
+ * directions.
+ *
+ * The path is `pageSchema`'s `path` field - `parohia/istoric`, not the file
+ * name `istoric.md` - which is why the route is the single place the two are
+ * tied together. The schema already rejects a leading or trailing slash, so
+ * the `//istoric//` a stored slash would produce cannot reach here.
  */
 export async function getStaticPaths() {
   const pages = await getCollection('pages');
-  return pages.map((entry) => ({ params: { page: entry.data.path }, props: { entry } }));
+  return pages
+    .filter((entry) => !RESERVED_PATHS.has(entry.data.path))
+    .map((entry) => ({ params: { page: entry.data.path }, props: { entry } }));
 }
 
 interface Props {
@@ -29,7 +39,7 @@ const { entry } = Astro.props;
 const { title, description } = entry.data;
 
 /*
- * Two transforms on the migrated body, both before `render` and both for
+ * Three transforms on the migrated body, all before `render` and all for
  * defects the migration can reintroduce:
  *
  * 1. Heading levels are shifted so the shallowest is an `<h2>` under the
@@ -43,17 +53,30 @@ const { title, description } = entry.data;
  *    WordPress gallery - invisible to a sighted visitor, unnamed for everyone
  *    else, and a red `link-name` axe pass. `markdown-links.ts` states the rule
  *    and why it is conservative.
+ * 3. Content-asset anchors are resolved. The migration turned that same
+ *    gallery's eleven full-size images into `[name](../../assets/content/…)`
+ *    links; Astro rewrites markdown IMAGES, not link nodes, so without this
+ *    the built page emitted `href="../../assets/content/…"` - measured on the
+ *    d73b49e build, resolving to `/assets/content/…` where `dist/assets/`
+ *    does not exist, and three of the eleven originals were in the build only
+ *    as `.webp` derivatives, unreachable from those hrefs. The helper imports
+ *    every content asset with `?url`, so the originals are emitted and each
+ *    href names one; a named anchor it cannot resolve stops the build rather
+ *    than shipping a 404. It runs AFTER the strip, so an empty anchor to a
+ *    missing file is still removed rather than made fatal.
  *
  * A COPY, not a mutation: `entry` is the object `getStaticPaths` handed in,
  * and `render` reads `entry.rendered` (the loader renders collection entries
  * eagerly), so the transformed body is passed in its place and the original is
- * left alone. Image references survive because neither transform touches
+ * left alone. Image references survive because none of the transforms touches
  * `<img>`, and `render` does its asset rewriting after this.
  */
 const rendered = entry.rendered
   ? {
       ...entry.rendered,
-      html: stripEmptyAnchors(normalizeHeadingLevels(entry.rendered.html)),
+      html: resolveContentAssetLinks(
+        stripEmptyAnchors(normalizeHeadingLevels(entry.rendered.html)),
+      ),
     }
   : entry.rendered;
 const { Content } = await render({ ...entry, rendered });
@@ -94,6 +117,21 @@ const { Content } = await render({ ...entry, rendered });
     color: var(--muted);
   }
   .prose :global(img) { margin: 1.5rem 0; }
+  /*
+   * LONG TOKENS WRAP INSTEAD OF OVERFLOWING THEIR PARAGRAPH, and the rule is
+   * here because a browser is what found it. `cursuri-de-pictura`'s gallery is
+   * eleven links whose text is a file name, and the longest,
+   * `299423305_1614475615639_144441808512976432_n`, has no break opportunity at
+   * all. Measured on the built page at 390px: the link is 389px against the
+   * 358px paragraph, so it overflowed its block ancestor. axe's color-contrast
+   * rule cannot decide the background of text its block ancestor does not fully
+   * encompass (`fullyEncompasses` in axe-core), so it returned an `incomplete`
+   * for six of the eleven - and an incomplete is a red browser pass here. With
+   * `break-word` the widest link measures 358px and the phone pass is green.
+   * `break-word`, not `anywhere`, to match the rule already used for `pre`
+   * above.
+   */
+  .prose :global(a) { overflow-wrap: break-word; }
   /*
    * No page carries a code block today, and this is here for the same reason
    * the heading normalisation is: the next migrated body can. `pre-wrap` is

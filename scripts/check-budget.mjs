@@ -8,7 +8,7 @@
  * WHY THIS READS THE PAGES RATHER THAN THE FILES IN `dist/_astro/`.
  *
  * The obvious JS check is to add up `dist/**\/*.js`. Task 10 proved that check
- * cannot work here: at 2,988 bytes - the figure every run prints below, which is
+ * cannot work here: at 2,010 bytes - the figure every run prints below, which is
  * the one to trust if this sentence ever disagrees with it - the week picker lands
  * under Vite's 4 KB inline threshold, so Astro writes it INTO the document and
  * emits no `.js` file at all. A file-walking check reports `0 / 3800 OK` and is
@@ -141,25 +141,28 @@ const PAGE_BUDGET = {
    * `/noutati/` GROWS WITH EVERY POST THE PARISH PUBLISHES, like `/program/`
    * grows with every week.
    *
-   * MEASURED ON THE FINAL PHASE 2 BUILD (Task 12): 14,892 bytes at 13 published
-   * posts, of which 8,644 is the fixed skeleton (document, inlined CSS, header,
-   * footer) and 6,248 is the 13 card elements - 480.6 bytes per card on
+   * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: 17,529
+   * bytes at 13 published posts, of which 11,281 is the fixed skeleton
+   * (document, inlined CSS, header, footer - 2,637 more chrome than the 8,644
+   * Task 12 measured, the settled navigation and footer menus) and 6,248 is
+   * the 13 card elements, byte-identical to Task 12's - 480.6 bytes per card on
    * average, 546 for the largest and 432 for the smallest. Derived from the
    * measured bytes rather than built, because no build has that many posts:
-   * the 30 KiB limit is crossed at 46 posts at the measured average, at 41 if
-   * every future card were as large as the largest today, and at 29 if every
+   * the 30 KiB limit is crossed at 41 posts at the measured average, at 36 if
+   * every future card were as large as the largest today, and at 25 if every
    * card also carried a 300-byte summary. That last figure is the conservative
    * one: `summary` is optional and 0 of the 13 migrated posts has one, so the
    * measured 546-byte maximum does not bound a card that uses the field. All
    * three are arithmetic on a measurement, not measurements.
    *
    * THE PAGINATION DECISION, MADE HERE: no pagination. At 13 posts the index
-   * is less than half its limit, and the crossing point is 33 posts past the
-   * corpus today. Pagination would add a route, a page concept in the CMS and
-   * a crawl surface to solve a problem that does not exist yet; the red build
-   * at 29-46 posts is the signal that it has arrived, and this comment is so
-   * that red build says how far away it was. Raising this limit instead is
-   * not the answer - the same rule as `index.html` and `/program/` above.
+   * is at 57% of its limit (17,529 / 30,720), and the crossing point at the
+   * measured average is 28 posts past the corpus today - 41 in total.
+   * Pagination would add a route, a page concept in the CMS and a crawl
+   * surface to solve a problem that does not exist yet; the red build at 25-41
+   * posts is the signal that it has arrived, and this comment is so that red
+   * build says how far away it was. Raising this limit instead is not the
+   * answer - the same rule as `index.html` and `/program/` above.
    */
   'noutati/index.html': 30 * 1024,
   /*
@@ -174,19 +177,100 @@ const PAGE_BUDGET = {
    *
    * The limit is one post's whole body, which is the feature rather than a
    * defect - the same ruling `/program/` gets above. Measured over the
-   * thirteen on the final Task 8 build: smallest 9,468 bytes, largest 16,120
-   * (the 26 April 2025 adormiti post, which repeats its section five times).
-   * 35 KiB is 2.2x the largest, enough that a long pastoral letter ships
-   * without a conversation, and small enough that a post twice the size of
-   * the current longest is a red build asking whether it should be split
-   * rather than a silent 200 KB page.
+   * thirteen on the final Task 13 build, header and footer settled: smallest
+   * 12,468 bytes, largest 19,158 (the 26 April 2025 adormiti post, which
+   * repeats its section five times). 35 KiB is 1.87x the largest. The Task 8
+   * measurement this paragraph first carried - 9,468 to 16,120, taken before
+   * the settled chrome - is superseded by these, and the claim it supported is
+   * unchanged: enough that a long pastoral letter ships without a
+   * conversation, and small enough that a post twice the size of the current
+   * longest (38,316 against 35,840) is a red build asking whether it should be
+   * split rather than a silent 200 KB page.
    */
   'noutati/*': 35 * 1024,
   /*
-   * THE NINE PROSE PAGES, three groups and one exact key. They are a fixed
-   * contract - the CMS does not create them - so a pattern per URL group is
-   * the honest shape: the pages inside a group are the same kind of document,
-   * and a tenth would be a decision somebody made.
+   * `/pastorale/` LISTS EVERY DOCUMENT, so like `/noutati/` it grows with what
+   * the parish publishes. It was the largest visitor page in the build when
+   * this limit was set; the QR-bill made `doneaza` the largest in Task 11.
+   *
+   * MEASURED ON THE TASK 8 BUILD: 46,757 bytes at 87 documents, of which 10,358
+   * is the fixed skeleton (document, inlined CSS, scoped styles, header, footer)
+   * and 36,399 is the 87 rows - 418.4 bytes per document. The plan's starting
+   * limit of 30 KiB is BELOW the measured page, so it cannot be the limit; the
+   * plan's own step says to adjust it from the measurement.
+   *
+   * 64 KiB WAS 1.40x THE TASK 8 MEASUREMENT, the bottom of the 1.4-1.9x range
+   * the prose pages state, and it is where the arithmetic lands: at that
+   * measurement 64 KiB left (65,536 - 46,757) / 418.4 = about 45 more
+   * documents, so the red build would have arrived at about 132 documents. The
+   * parish publishes a handful of PDFs a year, so that is years away - and
+   * when it arrives the question is pagination, not a bigger limit, the same
+   * ruling `/noutati/` and `/program/` carry. The list pages' 1.8-2x headroom
+   * would allow more; this is the conservative end of the documented range.
+   *
+   * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: 47,829
+   * bytes - +1,072 over Task 8, all of it the sitewide chrome rather than a
+   * document, which drops the ratio to 1.37x, a hair under the band. The limit
+   * still does not move, and the reason is that the band guides how a limit is
+   * chosen from a measurement rather than bounding where a page may sit: on
+   * this measurement 64 KiB leaves (65,536 - 47,829) / 418.4 = about 42 more
+   * documents, so the red build now arrives at about 129 documents, and no
+   * document was added to spend it.
+   */
+  'pastorale/index.html': 64 * 1024,
+  /*
+   * THE TWO PHOTO ALBUMS. `/galerie/` lists one card per album and each album
+   * page is a grid of every image in it, so both grow with what the parish
+   * uploads, the way `/noutati/` grows with every post.
+   *
+   * MEASURED ON THE TASK 6 BUILD: the index 11,452 bytes at two albums, the
+   * album pages 13,398 (nine images) and 15,826 (fifteen). The limits are 1.8x
+   * the measured index and 1.55x the larger album, inside the 1.4-1.9x range
+   * the prose pages state. An album grows by roughly 400 bytes per photograph
+   * (measured between the two albums: six images = 2,428 bytes), so 24 KiB
+   * leaves room for about twenty more - the larger album today holds fifteen -
+   * and a parish album that crosses that is a red build asking whether it
+   * wants pagination, not a silent 100 KB page.
+   *
+   * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: the index
+   * 12,524 bytes and the two albums 14,450 (nine images) and 16,878 (fifteen),
+   * each about a kilobyte over Task 6 with the same chrome. No limit moves:
+   * 20 KiB is 1.63x the index and 24 KiB is 1.46x the larger album, both
+   * inside the band.
+   */
+  'galerie/index.html': 20 * 1024,
+  'galerie/*': 24 * 1024,
+  /*
+   * THE EVENTS INDEX AND ITS DETAIL PAGES. The index grows with every event the
+   * parish announces and never drops the past ones - „Trecute” keeps them - so
+   * like `/noutati/` it grows with what the parish publishes. A detail page is
+   * one event's own content, so the prefix key covers the first real event
+   * without a volunteer's Save failing the build for a page that is not wrong.
+   *
+   * MEASURED ON THE TASK 7 BUILD: the empty index 10,370 bytes; with one event
+   * carrying every optional field - a range, a time, a description, an image and
+   * a poster - the index 11,073 and the detail page 10,913. The event card costs
+   * 703 bytes, its description included, so 20 KiB - 1.85x the measured index
+   * and 1.88x the measured detail, inside the 1.4-1.9x range the prose pages
+   * state - leaves room for about thirteen more events before the red build
+   * asks whether the index wants pagination. The parish has none today, so the
+   * crossing point is a measurement of how far away it is, not a prediction
+   * that it is near.
+   *
+   * MEASURED ON THE FINAL TASK 13 BUILD: the empty index 11,462 bytes, +1,092
+   * over Task 7 with the same chrome, so 20 KiB is 1.79x - inside the band, no
+   * limit moves. There is still no real detail page to measure; its limit
+   * stands on the Task 7 fixture measurement above.
+   */
+  'evenimente/index.html': 20 * 1024,
+  'evenimente/*': 20 * 1024,
+  /*
+   * THE NINE PHASE 2 PROSE PAGES, three groups and one exact key. The two
+   * Phase 3 pages have their own exact keys in the block below, and together
+   * the eleven are a fixed contract - the CMS does not create them - so a
+   * pattern per URL group is the honest shape: the pages inside a group are
+   * the same kind of document, and a new page in a group would be a decision
+   * somebody made.
    *
    * MEASURED ON THE FINAL PHASE 2 BUILD (Task 12), all nine:
    *   parohia/istoric        13,338    parohia/consiliul      10,384
@@ -206,6 +290,72 @@ const PAGE_BUDGET = {
   'comunitate/*': 24 * 1024,
   'resurse/*': 30 * 1024,
   'servicii-liturgice/index.html': 30 * 1024,
+  /*
+   * THE TWO PHASE 3 PAGES, `contact` and `doneaza`. They are `pages` entries
+   * built by dedicated routes (`RESERVED_PATHS` in `src/lib/routes.ts`), and
+   * they are one group because they are the same kind of page: migrated prose
+   * plus the generated blocks Tasks 10-12 add below it.
+   *
+   * MEASURED ON THE TASK 9 BUILD: `contact` 12,732 bytes, `doneaza` 13,228 -
+   * the prose alone, with no account block, QR-bill or form yet. 24 KiB is
+   * 1.86x the larger, inside the 1.4-1.9x range the prose pages state. The
+   * plan's starting limits (24 KiB and 32 KiB) were written before any
+   * measurement; the 32 would have been 2.48x, above the range, so it is
+   * lowered to the same 24 as its sibling rather than copied.
+   *
+   * MEASURED ON THE TASK 10 BUILD: `contact` 15,331 bytes, `doneaza` 15,827.
+   * The +2,599 on each is three account blocks - label, formatted IBAN, holder
+   * and bank, one hidden copy button apiece - plus the 422-byte copy script
+   * that `csp-hash.mjs` names once per page. 24 KiB is 1.55x the larger page,
+   * inside the 1.4-1.9x range the prose pages state, so the limit does not
+   * move. Tasks 11-12 add the QR-bill image and the form, and each measures
+   * again rather than assuming this headroom still fits.
+   *
+   * MEASURED ON THE TASK 11 BUILD: `contact` 15,331 bytes (unchanged), `doneaza`
+   * 231,705. The QR-bill alone is 215,310 bytes of that - the library's SVG,
+   * embedded once as raw markup, 1,629 `<rect>` elements of it the QR modules
+   * drawn at full floating-point precision, plus the viewBox `renderQrBillSvg`
+   * sets from the library's own mm pair so the bill scales instead of being
+   * clipped. The 24 KiB limit was written for
+   * prose plus small generated blocks and cannot hold a payment instrument, so
+   * `doneaza` moves to 256 KiB, 1.13x the measured page. THIS IS NOT THE
+   * CONTENT-GROWTH CASE the other limits are written against, and the
+   * difference is why the raise is legitimate here: nothing the parish
+   * publishes or edits changes the bill's size, which is fixed by the
+   * specification and by the library's renderer. 256 KiB is tight on purpose -
+   * it leaves room for prose edits, and a second embedded artifact even half
+   * this size is a red build asking whether it belongs inline. The
+   * alternatives were considered and rejected: an external SVG referenced by
+   * `<img>` would cost a request and is not "raw markup", and rounding the
+   * library's coordinates would modify a payment instrument that spec §9 has
+   * not yet validated with a real transfer. `contact` stays at 24 KiB.
+   *
+   * THE LIMIT MEASURES THE WRONG QUANTITY HERE, AND THAT IS KNOWN. This file
+   * weighs the bytes in `dist`, and a page that is mostly a payment instrument
+   * compresses far better than prose does: measured 2026-09-19, `doneaza` is
+   * 232,600 bytes raw but 10,740 brotli and 14,833 gzip - smaller compressed
+   * than several pages this file holds to 24 KiB raw. The limit stays 256 KiB
+   * because every other limit here is raw bytes, and one page measuring a
+   * different quantity would make the table mean two things; what the number
+   * guards is accidental growth (a second artifact, a duplicated bill), not
+   * the bill itself.
+   *
+   * MEASURED ON THE TASK 12 BUILD: `contact` 18,400 bytes with no site key -
+   * the form's fallback paragraph, the 1,132-byte inline handler that
+   * `EXPECTED_INLINE` names and the component's inlined CSS - and 19,662 with
+   * a key, where the form renders and the external Turnstile script is one more
+   * reference. THE LIMIT DOES NOT MOVE: the page is at 0.75x of it, and the
+   * 1.4-1.9x band the prose pages state is how a limit is chosen from a
+   * measurement, not a floor a measurement has to reach. `doneaza` is unchanged
+   * by Task 12.
+   *
+   * MEASURED ON THE FINAL TASK 13 BUILD, header and footer settled: `contact`
+   * 19,295 bytes - 0.79x of its 24 KiB - and `doneaza` 232,600, 0.89x of its
+   * 256. Neither limit moves: the +895 on each is the two new footer menus and
+   * the three new header links, chrome rather than content.
+   */
+  'contact/index.html': 24 * 1024,
+  'doneaza/index.html': 256 * 1024,
 };
 
 /**
@@ -244,6 +394,21 @@ function budgetFor(table, page) {
  * makes the correct architecture uncomfortable gets met by moving rendering back
  * into the browser - which is the thing this budget exists to prevent. Kept in
  * step with the plan and the spec; do not lower it without changing those too.
+ *
+ * THE CEILING IS PER PAGE AND TASK 10'S COPY SCRIPT SHARES IT. Measured on the
+ * Task 10 build, that script is 422 bytes on `/contact/` and `/doneaza/` - a
+ * ninth of this ceiling - so it needs no limit of its own; what matters is that
+ * the run prints it per page, where a page that grew a second copy would show
+ * 844. Unlike the picker it is `is:inline` in the route, so Vite's 4,096-byte
+ * threshold never sees it: only the picker's bundle can flip to a file, and
+ * `EMITTED_JS_ALLOWED` below is what refuses that.
+ *
+ * TASK 12'S FORM HANDLER IS THE SECOND INLINE SCRIPT ON `/contact/`, 1,132
+ * bytes, so that page's visitor JS measures 1,554 (the handler plus the copy
+ * script) - still under half this ceiling. It is `is:inline` in the component
+ * for the same reason, and the external Turnstile script is NOT part of this
+ * number: it is third-party bytes no build here can weigh, named in
+ * `EXTERNAL_SCRIPTS` above.
  */
 const JS_BUDGET = 3800;
 
@@ -287,6 +452,40 @@ const REQUEST_BUDGET = {
   'noutati/index.html': 12,
   // No body image measures 11, one measures exactly 12, a second crosses it.
   'noutati/*': 12,
+  /*
+   * `/pastorale/` is 87 links and no images, so it is the document plus the
+   * fixed chrome: MEASURED ON THE TASK 8 BUILD, 11 requests (3 in the document
+   * - the document itself and its two icons - plus 8 @font-face), the same as
+   * every other page with no image. The plan's 4 forgot the fixed chrome, as it
+   * did for `/galerie/` and `/evenimente/`; 12 is the measured count plus one,
+   * the same one-slot headroom `/noutati/`'s index carries. A document row is a
+   * link, not a fetch, so this count does not grow with the number of
+   * documents.
+   */
+  'pastorale/index.html': 12,
+  /*
+   * The index is the document plus one cover per album; an album page is the
+   * document plus one image per photograph. MEASURED ON THE TASK 6 BUILD: the
+   * index 13 (5 in the document + 8 @font-face), the album pages 20 (nine
+   * images) and 26 (fifteen). The plan's 6 for the index forgot the fixed
+   * chrome - 11 requests on every page - so the honest limits are the measured
+   * counts plus room: 16 is three more album covers, 32 is six more
+   * photographs.
+   */
+  'galerie/index.html': 16,
+  'galerie/*': 32,
+  /*
+   * The events index is the document plus the fixed chrome: MEASURED ON THE
+   * TASK 7 BUILD, 11 requests (3 in the document + 8 @font-face), the same as
+   * every other page with no image. The card renders no picture on purpose, so
+   * this count does not grow with the number of events. The detail page measures
+   * 12 when it carries its one optional image (4 in the document + 8 @font-face),
+   * which is the schema's maximum - `image` is a single field and the poster is a
+   * link, not a fetch - so 12 is the whole of what this page can ask for. The
+   * plan's 4 and 6 forgot the fixed chrome, as it did for `/galerie/` above.
+   */
+  'evenimente/index.html': 12,
+  'evenimente/*': 12,
   // Measured 14 and 19; 24 is room for five more portraits on either page.
   'parohia/*': 24,
   // Measured 13 on both; 16 is room for three more images.
@@ -295,6 +494,31 @@ const REQUEST_BUDGET = {
   'resurse/*': 48,
   // Measured 12; 16 is room for four more images.
   'servicii-liturgice/index.html': 16,
+  /*
+   * MEASURED ON THE TASK 9 BUILD, and the plan's starting 2 is the fixed-chrome
+   * mistake `/pastorale/` above records: `contact` is 11 - the document, its two
+   * icons and eight @font-face, the same as every page with no image; the old
+   * page's Google Maps iframe did not survive the conversion, so nothing
+   * fetches it - and `doneaza` is 13, the same plus its two migrated
+   * photographs. `contact` gets 12, the measured count plus one, the one-slot
+   * headroom `pastorale` and `/noutati/`'s index carry; `doneaza` gets 16, room
+   * for three more photographs.
+   *
+   * TASK 10 ADDS NO REQUEST, and the measured counts did not move: the three
+   * account blocks fetch nothing and the copy script is inline. `contact` is
+   * still 11 and `doneaza` 13, which is why the two numbers below are the Task
+   * 9 measurements. TASK 11 ADDS NO REQUEST EITHER: the QR-bill is inline SVG
+   * markup rather than an `<img>` or a background, so it is bytes in the
+   * document and not a fetch - the one reason to prefer raw markup over a
+   * referenced file, besides the brief requiring it. TASK 12 ADDS ONE REQUEST,
+   * AND ONLY WHEN THE FORM IS RENDERED: measured on a scratch build with
+   * `PUBLIC_TURNSTILE_SITE_KEY` set, `contact` is 12 - the 11 of the no-key
+   * build plus the external Turnstile script named in `EXTERNAL_SCRIPTS` above,
+   * which the build cannot weigh. The limit stays 12 because that is exactly
+   * what the keyed page asks for; the no-key page asks for 11.
+   */
+  'contact/index.html': 12,
+  'doneaza/index.html': 16,
 };
 
 /*
@@ -327,6 +551,29 @@ const EMITTED_JS_ALLOWED = false;
  */
 const EXCLUDED = ['admin'];
 
+/*
+ * EXTERNAL SCRIPTS THE SITE IS SUPPOSED TO FETCH, NAMED BY URL.
+ *
+ * The contact form's Turnstile script is served by Cloudflare and has no bytes
+ * in this build, so `moduleBytes` cannot read it and the JS budget cannot weigh
+ * it. Before this list existed the build stopped on it, which was right for a
+ * script nobody had decided on and wrong for this one - the list is what keeps
+ * that distinction.
+ *
+ * THE REQUEST IS STILL COUNTED, because the request loop below pushes a
+ * `script src` for every script that has one; what is NOT counted is the
+ * third-party bytes, and that is a real gap stated rather than closed:
+ * Cloudflare decides the script's size, no build here can measure it, and no
+ * LOCAL build ever fetches it, because the form renders only when
+ * `PUBLIC_TURNSTILE_SITE_KEY` is set. Measured on a scratch build with the key
+ * set: `/contact` goes from 11 requests to 12, exactly its limit. Step K of
+ * `docs/handover.md` is what sees the script load for real.
+ *
+ * AN UNKNOWN EXTERNAL SCRIPT STILL STOPS THE BUILD. That is the whole point of
+ * a named list over a rule that waves through any URL.
+ */
+const EXTERNAL_SCRIPTS = new Set(['https://challenges.cloudflare.com/turnstile/v0/api.js']);
+
 let failed = false;
 
 function report(label, value, limit, unit = 'bytes', explanation = '') {
@@ -358,16 +605,24 @@ function report(label, value, limit, unit = 'bytes', explanation = '') {
 const PAGE_EXPLANATION = [
   '          Cel mai probabil NU este o greșeală într-un fișier de program.',
   '          Ori o pagină a căpătat ceva nou (markup, un stil, un script), ori a crescut',
-  '          cu ce s-a publicat. Două pagini cresc de la sine:',
+  '          cu ce s-a publicat. Cinci pagini cresc de la sine:',
   '            · /program/ ține fiecare zi publicată, iar limita se atinge în jurul a 58',
   '              de săptămâni publicate înainte (măsurat pe o săptămână parohială obișnuită);',
-  '            · /noutati/ ține fiecare articol publicat, iar limita se atinge în jurul a 46',
+  '            · /noutati/ ține fiecare articol publicat, iar limita se atinge în jurul a 41',
   '              de articole, pentru că fiecare articol adaugă circa 480 de octeți; dacă fiecare',
-  '              articol ar avea și un rezumat, limita s-ar atinge în jurul a 29 (măsurat la 13',
-  '              articole, apoi socotit).',
-  '          Dacă tocmai ați salvat o zi sau un articol în /admin/: s-a publicat și situl',
-  '          este în regulă. Anunțați persoana care se ocupă de site; nu este ceva de',
-  '          reparat din CMS.',
+  '              articol ar avea și un rezumat, limita s-ar atinge în jurul a 25 (măsurat la 13',
+  '              articole, apoi socotit);',
+  '            · /pastorale/ ține fiecare document publicat, iar limita se atinge în jurul a 129',
+  '              de documente, pentru că fiecare document adaugă circa 418 octeți (măsurat la 87,',
+  '              apoi socotit);',
+  '            · /galerie/ ține fiecare album, iar un album ține toate fotografiile: pagina cu',
+  '              albume crește cu fiecare album nou, iar limita unui album se atinge în jurul a',
+  '              35 de fotografii (socotit de la albumul de 15 fotografii);',
+  '            · /evenimente/ ține fiecare eveniment anunțat, iar limita se atinge în jurul a 13',
+  '              evenimente (măsurat cu un eveniment de probă, apoi socotit).',
+  '          Dacă tocmai ați salvat o zi, un articol, un document, un album sau un eveniment',
+  '          în /admin/: s-a publicat și situl este în regulă. Anunțați persoana care se ocupă',
+  '          de site; nu este ceva de reparat din CMS.',
 ].join('\n');
 
 function stop(message) {
@@ -525,6 +780,10 @@ for (const page of PAGES) {
     }
     const path = inDist(src);
     if (path === null) {
+      if (EXTERNAL_SCRIPTS.has(src)) {
+        details.push(`external ${src} (bytes not weighed - see EXTERNAL_SCRIPTS)`);
+        continue;
+      }
       stop(
         `${page}: <script src="${src}"> does not resolve inside ${DIST}/.\n` +
           'An external script is still JavaScript the visitor downloads.',

@@ -1,0 +1,64 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import EventCard from '../../components/EventCard.astro';
+import { splitEvents } from '../../lib/events';
+import { nowInZurich } from '../../lib/week';
+
+/*
+ * THE CLOCK IS `nowInZurich`'S, and it is read once. The site's dates are plain
+ * `YYYY-MM-DD` strings in Europe/Zurich, so `new Date()` on a build machine in
+ * another timezone would put today's event on the wrong side of the split for
+ * part of every day. `nowInZurich()` is one of the two timezone-aware functions
+ * in the codebase and the split below is a plain string comparison.
+ *
+ * A STATIC SPLIT IS STILL HONEST. This page is rebuilt nightly by the workflow
+ * and on every save, so "upcoming" is as fresh as the deployment; nothing here
+ * claims to update in a browser, and without JavaScript the page is exactly
+ * what it is with it.
+ */
+const { today } = nowInZurich();
+const { upcoming, past } = splitEvents(await getCollection('events'), today);
+---
+
+<Base
+  title="Evenimente"
+  description="Evenimentele Parohiei Ortodoxe Române Sfântul Nicolae din Zürich."
+>
+  <div class="container">
+    <h1 class="page-title">Evenimente</h1>
+
+    {upcoming.length === 0 ? (
+      /* The same shape of sentence `/noutati` uses when nothing has been
+         published: it says what is true without inventing a reason for it.
+         It stays even when past events exist - the section below then holds
+         them, and this sentence is about the period that follows. */
+      <p class="empty">Nu sunt evenimente anunțate pentru perioada următoare.</p>
+    ) : (
+      <ul class="ev-list">
+        {upcoming.map((event) => (
+          <li class="ev-item"><EventCard event={event} /></li>
+        ))}
+      </ul>
+    )}
+
+    {past.length > 0 && (
+      <>
+        <h2 class="past-heading">Trecute</h2>
+        <ul class="ev-list">
+          {past.map((event) => (
+            <li class="ev-item"><EventCard event={event} headingLevel={3} /></li>
+          ))}
+        </ul>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .page-title { margin-top: 2rem; }
+  .empty { color: var(--muted); font-style: italic; }
+  .ev-list { list-style: none; margin: 2rem 0 0; padding: 0; }
+  .ev-item { margin: 0; }
+  .past-heading { margin-top: 3rem; }
+</style>

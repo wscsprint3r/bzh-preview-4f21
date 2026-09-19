@@ -1,0 +1,55 @@
+---
+import { getCollection } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import GalleryGrid from '../../components/GalleryGrid.astro';
+import { dayHeading } from '../../lib/date-ro';
+
+/*
+ * ONE PAGE PER ALBUM, from the raw collection: unlike articles there is no
+ * `published` flag to filter on, so every file in `galerii` is an album the
+ * parish means to show. The entry id is the file name without its extension,
+ * which is the slug the index links to and the directory `build-output.itest.ts`
+ * derives from the same content files.
+ *
+ * NO SORT HERE, deliberately: `getStaticPaths` builds one page per entry and
+ * Astro's output does not depend on the order, so the date-descending order
+ * the index displays lives there, where a visitor can see it, rather than
+ * being written twice.
+ */
+export async function getStaticPaths() {
+  const entries = await getCollection('galerii');
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+interface Props {
+  entry: CollectionEntry<'galerii'>;
+}
+
+const { entry } = Astro.props;
+const { title, date } = entry.data;
+---
+
+<Base title={title} description={`Galerie foto: ${title}.`}>
+  <article class="container">
+    <h1 class="album-title">{title}</h1>
+    <p class="album-meta">
+      <time datetime={date}>{dayHeading(date)} {date.slice(0, 4)}</time>
+    </p>
+    <GalleryGrid gallery={entry} />
+  </article>
+</Base>
+
+<style>
+  .album-title { margin-top: 2rem; }
+  .album-meta {
+    margin: 0;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+</style>

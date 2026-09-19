@@ -41,11 +41,13 @@ import { migrateImages } from './media.mjs';
  * Adding a third stamp would break the 32/13 split the parish's decision is
  * sized from, so the two stamps above are the whole set.
  *
- * RUN IT DIRECTLY: `node migration/articles.mjs` starts the container, writes
- * the files, stops the container and prints the counts. Importing this module
- * starts nothing - `articles.test.mjs` imports it under vitest, where there is
- * no Docker and no dump, and the direct-run block at the bottom is the only
- * code that touches either.
+ * RUN IT DIRECTLY: `node migration/articles.mjs` starts the container, plans
+ * the document redirects (the body's old-host PDF links are rewritten to the
+ * files the document extraction writes, and the plan is what names them),
+ * writes the files, stops the container and prints the counts. Importing this
+ * module starts nothing - `articles.test.mjs` imports it under vitest, where
+ * there is no Docker and no dump, and the direct-run block at the bottom is the
+ * only code that touches either.
  */
 
 /**
@@ -181,9 +183,10 @@ export function fileName(slug, date) {
  * `src/assets/...` is not a relative URL - it would ship as a broken `src`
  * with the image sitting right there in the repository. Articles live two
  * levels under `src/`, so `../../` is exactly `src/`. Task 8 owns the
- * built-output assertion that this shape really renders.
+ * built-output assertion that this shape really renders. `galleries.mjs`
+ * reuses it for the album covers and image lists, which sit at the same depth.
  */
-function markdownPath(repoRelative) {
+export function markdownPath(repoRelative) {
   return `../../${repoRelative.slice('src/'.length)}`;
 }
 
@@ -264,6 +267,61 @@ export function rewriteImageSources(slug, markdown, sources, mapping) {
 }
 
 /**
+ * The old-host URLs a body may carry, as the host plus the path.
+ *
+ * ANCHORED TO THE PARISH'S OWN HOST AND TO `https`, which is what the migrated
+ * WordPress bodies carry. A path on another host is somebody else's file, and a
+ * path on the apex without `www` does not occur; both are left alone rather
+ * than guessed at.
+ *
+ * The character class excludes the delimiters a URL can sit behind: whitespace,
+ * the closing parenthesis and bracket of a Markdown link, and the quotes of an
+ * `href`. `[` is excluded with `]` because neither occurs unencoded in a URL
+ * and a stray one would otherwise run the match into the next link.
+ */
+const OLD_HOST_URL = /https:\/\/www\.bor-zh\.ch(\/[^\s)"'<>\]]*)/g;
+
+/**
+ * Rewrites every old-host URL the document map carries, or stops the run.
+ *
+ * EXACT LOOKUP, ONE PASS, unlike `rewriteImageSources`' longest-first
+ * alternation: the map keys are whole paths, so a path that is a prefix of
+ * another cannot match it. The replacement text is never rescanned, because
+ * `String.replace` with a function does not see its own output.
+ *
+ * A PDF-SHAPED URL THE MAP DOES NOT CARRY STOPS THE RUN BY NAME. The old host
+ * will stop serving these files; a link the map does not cover would keep
+ * pointing at a host that no longer answers, on a green build, and nothing
+ * downstream reads a link's destination. A page link or an image link is left
+ * alone: Phase 4 owns the page redirects, and `rewriteImageSources` owns the
+ * uploads images.
+ *
+ * The QUERY AND FRAGMENT are cut before the lookup and the shape test, because
+ * neither is part of the path a host serves: `/x.pdf?download=1` names the same
+ * file, and without the cut such a link would fall out of the guard silently.
+ *
+ * `map` is `Map<old path, new absolute path>` - the destinations are site
+ * paths (`/documente/<slug>.pdf`), not markdown-relative, because a document is
+ * a download and the route depth of the page that links it must not matter.
+ */
+export function rewriteDocumentLinks(markdown, map) {
+  return markdown.replace(OLD_HOST_URL, (url, path) => {
+    const [pathname] = path.split(/[?#]/);
+    const destination = map.get(pathname);
+    if (destination !== undefined) return destination;
+    if (/\.pdf$/i.test(pathname)) {
+      throw new Error(
+        `${url} is a PDF-shaped link to the old host that the document map does not carry.\n` +
+          '  The old host will stop serving these files, so a link the map does not cover ' +
+          'becomes a dead link on a green build. Either the file was not migrated or the ' +
+          'link names a path the migration never saw - do not ship it.',
+      );
+    }
+    return url;
+  });
+}
+
+/**
  * The category each published post carries, by slug.
  *
  * One query rather than one per post: 45 posts would otherwise mean 45 round
@@ -310,11 +368,23 @@ async function thumbnailsBySlug() {
 /**
  * Every published post, converted and written. Returns the two counts.
  *
+ * `redirects` is what `extractDocuments` returns as its own `redirects`: one
+ * `{ from, to }` per migrated PDF, where `from` is the old path and `to` is the
+ * absolute `/documente/<slug>.pdf` this run writes. The body's old-host PDF
+ * links are rewritten to those destinations, so the posts point at this site's
+ * copies the moment the old host stops serving them.
+ *
+ * THE DEFAULT IS THE EMPTY MAP, AND THAT IS NOT A SILENT PASS: with no
+ * redirects, every PDF-shaped old-host link in the corpus stops the run by name
+ * through `rewriteDocumentLinks`. A caller that forgets the map gets a stopped
+ * run on real content, never a dead link on a green one.
+ *
  * The container must already be running - the direct-run block below is what
  * starts it - so a caller inside a test that has no Docker never reaches a
  * query by accident.
  */
-export async function extractArticles() {
+export async function extractArticles(redirects = []) {
+  const documentMap = new Map(redirects.map(({ from, to }) => [from, to]));
   const posts = await query(
     'SELECT post_name, post_title, DATE(post_date), post_content, post_excerpt ' +
       "FROM wpoi_posts WHERE post_type='post' AND post_status='publish' " +
@@ -393,7 +463,10 @@ export async function extractArticles() {
       ...(doc.featured === undefined ? [] : [doc.featured]),
     ];
     assertImageReferences(doc.slug, allSources, mapping);
-    const body = rewriteImageSources(doc.slug, doc.markdown, doc.bodySources, mapping);
+    const body = rewriteDocumentLinks(
+      rewriteImageSources(doc.slug, doc.markdown, doc.bodySources, mapping),
+      documentMap,
+    );
 
     const isPublished = isDated(doc.date);
     const frontmatter = {
@@ -471,7 +544,12 @@ const invokedDirectly =
 if (invokedDirectly) {
   await start();
   try {
-    await extractArticles();
+    // Dynamic, not a top-level import: `documents.mjs` reaches back through
+    // `galleries.mjs` to this module, and a static edge here would close a
+    // cycle for the sake of the direct run alone. `run.mjs` already has the
+    // redirects and passes them in.
+    const { documentRedirects } = await import('./documents.mjs');
+    await extractArticles(await documentRedirects());
   } finally {
     // The container is disposable and recreated on every run; stopping it here
     // means a failed extraction does not leave `bzh-migration` behind.

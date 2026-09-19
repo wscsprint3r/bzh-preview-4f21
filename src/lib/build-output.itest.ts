@@ -2,9 +2,12 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
+import { pageScripts } from '../../scripts/page-scripts.mjs';
 import type { ArticleEntry } from './articles';
 import { articleSlug, publishedArticles } from './articles';
+import { formatIban } from './accounts';
 import { CEDILLAS, COMMA_BELOW } from './cedilla';
+import { eventSlug } from './events';
 import { INDEXABLE } from './site';
 
 /*
@@ -33,6 +36,9 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const CONTENT = fileURLToPath(new URL('../content/services/', import.meta.url));
 const ARTICLES = fileURLToPath(new URL('../content/articles/', import.meta.url));
 const PAGES_CONTENT = fileURLToPath(new URL('../content/pages/', import.meta.url));
+const SETTINGS = fileURLToPath(new URL('../content/settings/settings.yml', import.meta.url));
+const GALERII = fileURLToPath(new URL('../content/galerii/', import.meta.url));
+const EVENTS = fileURLToPath(new URL('../content/events/', import.meta.url));
 
 /** RFC 5545 §3.1: the line break in an iCalendar stream is CRLF, always. */
 const CRLF = '\r\n';
@@ -148,16 +154,18 @@ function icsReferences(html: string): string[] {
  * not built from `Base.astro`. That is an answer given once, not a weakening
  * of the rule.
  *
- * THE ARTICLE PAGES ARE THE ONE PART THAT IS DERIVED, and the reason is not
- * convenience. One article page exists per published post, so a hand-written
- * list of thirteen would make the next post the parish publishes fail this
- * suite until a developer edits a test - a red build sent to the volunteer
- * who pressed Save, for a page that is not wrong. The COUNT for those pages
- * is still written by hand below (every article page goes through
- * `Base.astro` and the footer, so it carries exactly two), and the set comes
- * from the content files, which is the same subject `articleFiles()` already
- * gives the unpublished guard. A page under `noutati/` that is not a
- * published article's page matches neither and fails.
+ * THE ARTICLE, GALLERY AND EVENT PAGES ARE THE PARTS THAT ARE DERIVED, and the
+ * reason is not convenience. One article page exists per published post, one
+ * gallery page per album and one event page per event, so a hand-written list of
+ * thirteen would make the next post the parish publishes fail this suite until a
+ * developer edits a test - a red build sent to the volunteer who pressed Save,
+ * for a page that is not wrong. The COUNT for those pages is still written by
+ * hand below (every one of them goes through `Base.astro` and the footer, so
+ * each carries exactly two), and the set comes from the content files, which is
+ * the same subject `articleFiles()`, `galleryFiles()` and `eventFiles()` already
+ * give the guards below. A page under `noutati/` that is not a published
+ * article's page, under `galerie/` that is not an album's, or under
+ * `evenimente/` that is not an event's, matches none of them and fails.
  */
 const ICS_REFERENCES: Record<string, number> = {
   // `<link rel="alternate">` in `<head>` + „Abonare la program (.ics)” in the footer.
@@ -172,15 +180,37 @@ const ICS_REFERENCES: Record<string, number> = {
    * subscribes to the calendar from `/program/`, like anyone else.
    */
   'admin/index.html': 0,
-  // The same two as the homepage; the index does not subscribe on its own.
+  // The same two as the homepage; neither index subscribes on its own.
   'noutati/index.html': 2,
+  'galerie/index.html': 2,
   /*
-   * THE NINE PROSE PAGES, named one by one rather than derived, and the
-   * difference from the article entries below is deliberate: the nine are a
-   * fixed contract (the CMS does not create them), so a tenth appearing here
-   * is a decision somebody made rather than a post the parish published.
-   * Each goes through `Base.astro` and the footer like every other visitor
-   * page, so each carries the same two references.
+   * `/pastorale/` goes through `Base.astro` and the footer like every other
+   * visitor page, so it carries the same two references. The documents
+   * themselves are downloads and have no feed.
+   */
+  'pastorale/index.html': 2,
+  /*
+   * The events index carries the same two. Its detail pages are derived from the
+   * content files like the article and album pages above - none exists today,
+   * because the parish has no events, and the first one the parish saves gets
+   * its count here without anybody editing this file. The layout of a detail
+   * page is audited by the picker's fixture build, which is a different build
+   * and not what this set describes.
+   */
+  'evenimente/index.html': 2,
+  /*
+   * THE ELEVEN PROSE PAGES, named one by one rather than derived, and the
+   * difference from the article entries below is deliberate: the eleven are a
+   * fixed contract (the CMS does not create them), so a twelfth appearing here
+   * is a decision somebody made rather than a post the parish published. Each
+   * goes through `Base.astro` and the footer like every other visitor page, so
+   * each carries the same two references.
+   *
+   * `contact` AND `doneaza` JOINED IN TASK 9, and they are `pages` entries like
+   * the nine even though dedicated routes build them - `RESERVED_PATHS` in
+   * `src/lib/routes.ts` is what keeps `[...page].astro` off their URLs. Their
+   * own generated blocks (accounts, the QR-bill, the form) are Tasks 10-12;
+   * today they carry the migrated prose, so the count is the same two.
    */
   'parohia/istoric/index.html': 2,
   'parohia/consiliul/index.html': 2,
@@ -191,10 +221,13 @@ const ICS_REFERENCES: Record<string, number> = {
   'resurse/studii/index.html': 2,
   'resurse/doxologia/index.html': 2,
   'resurse/linkuri/index.html': 2,
+  'contact/index.html': 2,
+  'doneaza/index.html': 2,
 };
 
 /**
- * The hand-written counts plus one entry per published article page.
+ * The hand-written counts plus one entry per published article page, per album
+ * page and per event page.
  *
  * The derivation is by SLUG, the public URL, so it cannot be satisfied by a
  * page whose directory happens to carry the collection id with its date
@@ -205,6 +238,12 @@ function expectedIcsReferences(): Record<string, number> {
   const expected = { ...ICS_REFERENCES };
   for (const f of publishedArticleFiles()) {
     expected[`noutati/${f.slug}/index.html`] = 2;
+  }
+  for (const f of galleryFiles()) {
+    expected[`galerie/${f.slug}/index.html`] = 2;
+  }
+  for (const f of eventFiles()) {
+    expected[`evenimente/${f.slug}/index.html`] = 2;
   }
   return expected;
 }
@@ -268,6 +307,103 @@ function publishedArticleFiles(): { file: string; slug: string; frontmatter: Rec
 }
 
 /**
+ * Every gallery content file, its public slug and its parsed frontmatter.
+ *
+ * THE SAME SUBJECT RULE AS `articleFiles`: the expected set comes from the
+ * CONTENT FILES, not from a walk of `dist/`, which could only ever confirm
+ * what the route already produced. There is no `published` flag on a gallery -
+ * every file in the collection is an album the parish means to show - so the
+ * slug is the file name without its extension, which is the id Astro's loader
+ * gives the entry and the value the route turns into `/galerie/<slug>/`.
+ */
+function galleryFiles(): { file: string; slug: string; frontmatter: Record<string, unknown> }[] {
+  return readdirSync(GALERII)
+    .filter((file) => file.endsWith('.md'))
+    .sort()
+    .map((file) => {
+      const text = readFileSync(GALERII + file, 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, `${file} has no frontmatter block`).not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
+      return { file, slug: file.slice(0, -'.md'.length), frontmatter };
+    });
+}
+
+/**
+ * Every event content file, its public slug and its parsed frontmatter.
+ *
+ * THE SAME SUBJECT RULE AS `articleFiles` AND `galleryFiles`: the expected set
+ * comes from the CONTENT FILES, not from a walk of `dist/`, which could only
+ * ever confirm what the route already produced. There is no `published` flag on
+ * an event, so every file in the collection gets a page, and the slug is the
+ * file name without its extension - the value `eventSlug` returns and the route
+ * turns into `/evenimente/<slug>/`. The collection is empty today, and that is
+ * exactly why the derivation exists rather than a hand-written key: the first
+ * event the parish saves must not be a red build.
+ */
+function eventFiles(): { file: string; slug: string; frontmatter: Record<string, unknown> }[] {
+  return readdirSync(EVENTS)
+    .filter((file) => file.endsWith('.md'))
+    .sort()
+    .map((file) => {
+      const text = readFileSync(EVENTS + file, 'utf8');
+      const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+      expect(block, `${file} has no frontmatter block`).not.toBeNull();
+      const frontmatter = parseYaml((block as RegExpExecArray)[1] as string) as Record<string, unknown>;
+      return { file, slug: eventSlug(file.slice(0, -'.md'.length)), frontmatter };
+    });
+}
+
+/**
+ * Every `<img>`'s alt text, in document order.
+ *
+ * ONE TAG AT A TIME, because Astro serialises an empty alt as the bare boolean
+ * attribute `alt`, not `alt=""` - measured on the Task 6 build. A pattern
+ * looking for `alt="..."` sees every non-empty alt and none of the empty ones,
+ * which is exactly backwards for a policy whose whole point is that they are
+ * empty. The control in "this file's detectors can actually fire" proves both
+ * readings.
+ */
+function altTexts(html: string): string[] {
+  return [...html.matchAll(/<img\b[^>]*>/g)].map((m) => {
+    const tag = m[0] as string;
+    const alt = /\salt(?:="([^"]*)")?(?=[\s>])/.exec(tag);
+    expect(alt, `an <img> with no alt attribute: ${tag}`).not.toBeNull();
+    return alt?.[1] ?? '';
+  });
+}
+
+/**
+ * Every named Markdown link whose destination is the migration's
+ * `../../assets/content/…` shape.
+ *
+ * The negative lookbehind excludes a Markdown IMAGE (`![alt](…)`), which
+ * Astro rewrites itself - the subject here is the link nodes it does not
+ * visit. The name may be empty: `stripEmptyAnchors` removes that shape before
+ * render, so the caller filters those out.
+ */
+function contentAssetLinks(markdown: string): { name: string; target: string }[] {
+  return [...markdown.matchAll(/(?<!!)\[([^\]]*)\]\((\.\.\/\.\.\/assets\/content\/[^)\s]+)\)/g)].map(
+    (m) => ({ name: m[1] as string, target: m[2] as string }),
+  );
+}
+
+/** Every `href` on a built page that still names the unserved content-asset path. */
+function rawContentAssetHrefs(html: string): string[] {
+  return [...html.matchAll(/href="([^"]*assets\/content\/[^"]*)"/g)].map((m) => m[1] as string);
+}
+
+/** Every anchor on a built page whose href is an emitted asset URL. */
+function builtAssetAnchors(html: string): { name: string; href: string }[] {
+  return [...html.matchAll(/<a\b[^>]*\bhref="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
+    .map((m) => ({
+      href: m[1] as string,
+      name: (m[2] as string).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+    }))
+    .filter((a) => a.href.startsWith('/_astro/'));
+}
+
+/**
  * Every prose page content file, its public route and its parsed frontmatter.
  *
  * THE SIBLING OF `articleFiles`, and the subject rule is the same one: the
@@ -315,6 +451,44 @@ describe("this file's detectors can actually fire", () => {
 
   it('reading a file that does not exist fails, rather than passing vacuously', () => {
     expect(() => read('nu-exista-acest-fisier.ics')).toThrow();
+  });
+
+  /*
+   * The alt reader is a detector with a wrong direction available to it: the
+   * build serialises an empty alt as a bare `alt` attribute, so a pattern for
+   * `alt="..."` alone would report the captioned images and miss every
+   * decorative one. Both readings are pinned here, and a tag with no alt at
+   * all is a failure rather than an empty string.
+   */
+  it('reads a bare alt as empty, a written one as its text, and neither as an error', () => {
+    expect(altTexts('<img src="x" alt>')).toEqual(['']);
+    expect(altTexts('<img src="x" alt="">')).toEqual(['']);
+    expect(altTexts('<img alt="Icoană" src="x">')).toEqual(['Icoană']);
+    expect(() => altTexts('<img src="x">')).toThrow();
+  });
+
+  /*
+   * The content-asset detectors, all three directions. A Markdown image with
+   * the same destination must NOT be collected as a link (Astro rewrites that
+   * one itself); the raw-href reader must fire on the shape a broken build
+   * ships and stay quiet on the resolved one; and the built-anchor reader must
+   * name the anchor it found. Without these, "no raw content-asset href" and
+   * "every anchor resolves" could each pass over an empty set.
+   */
+  it('reads a content-asset link, a raw content-asset href and an emitted asset anchor', () => {
+    const md =
+      '[nume](../../assets/content/2024/05/a.jpg) ' +
+      '![alt](../../assets/content/2024/05/a.jpg)';
+    expect(contentAssetLinks(md)).toEqual([
+      { name: 'nume', target: '../../assets/content/2024/05/a.jpg' },
+    ]);
+    expect(rawContentAssetHrefs('<a href="../../assets/content/2024/05/a.jpg">nume</a>')).toEqual([
+      '../../assets/content/2024/05/a.jpg',
+    ]);
+    expect(rawContentAssetHrefs('<a href="/_astro/a.123.jpg">nume</a>')).toEqual([]);
+    expect(builtAssetAnchors('<a class="x" href="/_astro/a.123.jpg">nume</a>')).toEqual([
+      { name: 'nume', href: '/_astro/a.123.jpg' },
+    ]);
   });
 
   it('the collection really does have days and services to compare', () => {
@@ -485,50 +659,85 @@ describe('the news pages', () => {
     }
     process.stdout.write(`\nArticle body images:\n${measured.map((m) => `  ${m}`).join('\n')}\n`);
   });
+
+  it('a frontmatter image on a published article reaches the page as a real file', () => {
+    const withImage = publishedArticleFiles().filter((f) => Boolean(f.frontmatter.image));
+    for (const f of withImage) {
+      const html = read(`noutati/${f.slug}/index.html`);
+      const match = html.match(/<img[^>]+src="(\/_astro\/[^"]+)"/);
+      expect(match, `${f.slug} has a frontmatter image but no built image on its page`).not.toBeNull();
+      expect(existsSync(`dist${match![1]}`), `${match![1]} is missing from dist/`).toBe(true);
+    }
+
+    /*
+     * WHY THERE IS NO `length > 0` CONTROL ABOVE, and the corpus fact it rests
+     * on: the three articles that carry a frontmatter image are all archived
+     * (`published: false` - the import destroyed their dates), and an archived
+     * post has no page, which the guard above proves. A non-zero control would
+     * therefore be a red build over the corpus rather than over a defect, and
+     * the parish dating and publishing one of the three must not be the thing
+     * that turns it red. The subject is derived from the content, so the loop
+     * above starts checking the day that happens. The half that can fire today
+     * is the other direction, below: a published article whose frontmatter
+     * carries no image must render no wrapper at all.
+     */
+    const without = publishedArticleFiles().filter((f) => !f.frontmatter.image);
+    expect(without.length, 'no published article without a frontmatter image - the control would prove nothing')
+      .toBeGreaterThan(0);
+    for (const f of without) {
+      expect(read(`noutati/${f.slug}/index.html`), `${f.slug} renders an image its frontmatter does not carry`)
+        .not.toContain('class="article-image"');
+    }
+  });
 });
 
 /*
- * THE NINE PROSE PAGES, FROM ONE ROUTE. `[...page].astro` builds a page per
- * entry in the `pages` collection; these assertions are the joint between the
- * content files and what was written to dist.
+ * THE PROSE PAGES, FROM ONE ROUTE PLUS THE TWO RESERVED ONES. `[...page].astro`
+ * builds a page per entry in the `pages` collection that is not reserved;
+ * `contact.astro` and `doneaza.astro` build the reserved ones. These assertions
+ * are the joint between the content files and what was written to dist.
  */
 describe('the prose pages', () => {
   it('every page in the collection has exactly one built file', () => {
     /*
-     * The expected set comes from the CONTENT FILES, which the route cannot
+     * The expected set comes from the CONTENT FILES, which the routes cannot
      * edit - not from walking `dist/`, which would only ever confirm what the
-     * route already produced.
+     * routes already produced.
      *
-     * NINE IS A CONTRACT, not a corpus count: the nine prose pages are fixed
-     * (the CMS does not create them), so pinning the number is what makes an
-     * emptied collection a failure rather than a loop over nothing. Posts are
-     * the other case - they grow every time the parish publishes - and their
-     * guards hold properties instead.
+     * ELEVEN IS A CONTRACT, not a corpus count: the prose pages are fixed (the
+     * CMS does not create them), so pinning the number is what makes an
+     * emptied collection a failure rather than a loop over nothing. It was nine
+     * for Phase 2, and Task 9 raised it by the two reserved pages (`contact`,
+     * `doneaza`) whose content files the migration now writes - an explicit
+     * contract change, recorded here so the next raise is a decision too.
+     * Posts are the other case - they grow every time the parish publishes -
+     * and their guards hold properties instead.
      */
     const paths = pageFiles().map((f) => f.slug);
-    expect(paths.length, 'no page - the guard would prove nothing').toBe(9);
+    expect(paths.length, 'no page - the guard would prove nothing').toBe(11);
     for (const path of paths) {
       expect(existsSync(`${DIST}${path}/index.html`), `missing /${path}/`).toBe(true);
     }
   });
 
   /*
-   * REACHABILITY, WHICH "A FILE EXISTS" DOES NOT CHECK. The nine routes were
-   * exactly that - routes. On the Phase 2 build, seven of them had no inbound
-   * link on any built page: `getStaticPaths` had built them, every guard above
-   * found their files, and a page nobody can navigate to looks identical to one
-   * everybody can. The footer's `Pagini` menu is the sitewide answer, and this
-   * asserts the property rather than the component: every prose page is linked
-   * from every visitor page.
+   * REACHABILITY, WHICH "A FILE EXISTS" DOES NOT CHECK. The nine Phase 2 routes
+   * were exactly that - routes. On the Phase 2 build, seven of them had no
+   * inbound link on any built page: `getStaticPaths` had built them, every
+   * guard above found their files, and a page nobody can navigate to looks
+   * identical to one everybody can. The footer's `Pagini` menu is the sitewide
+   * answer, and this asserts the property rather than the component: every
+   * prose page is linked from every visitor page - the two Task 9 pages
+   * included, through the collection rather than a hand-written link.
    *
-   * The subject is the CONTENT FILES (nine fixed pages), not a walk of `dist/`.
-   * The universal is `builtPages()` minus `admin/`, which is the CMS and carries
-   * no site chrome; that set is the footer's reach, so a page the footer is
-   * missing from fails here rather than being silently excluded.
+   * The subject is the CONTENT FILES (eleven fixed pages), not a walk of
+   * `dist/`. The universal is `builtPages()` minus `admin/`, which is the CMS
+   * and carries no site chrome; that set is the footer's reach, so a page the
+   * footer is missing from fails here rather than being silently excluded.
    */
   it('every prose page is linked from every visitor page', () => {
     const paths = pageFiles().map((f) => f.slug);
-    expect(paths.length, 'no page - the guard would prove nothing').toBe(9);
+    expect(paths.length, 'no page - the guard would prove nothing').toBe(11);
     const visitorPages = builtPages().filter((p) => !p.startsWith('admin/'));
     expect(
       visitorPages.length,
@@ -620,6 +829,416 @@ describe('the prose pages', () => {
       `\nProse page body images: ${imagesChecked} over ${withImages.length} page(s):\n` +
         `${measured.map((m) => `  ${m}`).join('\n')}\n`,
     );
+  });
+
+  /*
+   * THE LINKS THE MIGRATION REWROTE, CHECKED WHERE THEY LAND. `rewriteDocumentLinks`
+   * turns a PDF link into `/documente/<slug>.pdf` and `rewriteLinkedImages`
+   * turns an uploads-image anchor into a link at the migrated asset; both run in
+   * `extractArticles`/`extractPages`, and neither is visible in the source
+   * Markdown as an old-host URL any more. What could still ship is an old-host
+   * file href the rewrite did not reach - a shape `linkImagesIn` did not
+   * collect, a URL with a host spelling the pattern does not know - and nothing
+   * else on the site reads a link's destination. So every built page is read
+   * and every `href` at `https://www.bor-zh.ch/…` with a file extension is
+   * collected; the assertion is that there are none.
+   *
+   * THE EXTENSION LIST IS THE FILES WE NOW HOST: the 87 PDFs and the migrated
+   * images. `.doc` is deliberately outside it: `studii.md` links eight of them
+   * and the migration never copies a `.doc` (the spec's ruling), so those links
+   * stay on the old host and are Phase 4's to rule on - naming them here would
+   * make this assertion say something it does not mean.
+   */
+  it('the migrated prose no longer links at the old host for a file we now host', () => {
+    const hosted = builtPages().map((page) => readFileSync(DIST + page, 'utf8')).join('\n');
+    const dead = [...hosted.matchAll(/href="https:\/\/www\.bor-zh\.ch\/[^"]+\.(?:pdf|jpg|jpeg|png)"/g)]
+      .map((m) => m[0]);
+    expect(dead, `links to files the old host no longer needs to serve:\n${dead.join('\n')}`)
+      .toEqual([]);
+  });
+
+  /*
+   * THE CONTENT-ASSET ANCHORS, PROVEN TO RESOLVE. `cursuri-de-pictura`'s
+   * gallery is eleven named links at the migrated full-size images, written by
+   * the migration as `[name](../../assets/content/…)`. Astro rewrites markdown
+   * IMAGES, not link nodes, so on the d73b49e build the page shipped all
+   * eleven hrefs verbatim - resolving to `/assets/content/…`, where
+   * `dist/assets/` does not exist, and three of the eleven originals were in
+   * the build only as `.webp` derivatives, unreachable from those hrefs. The
+   * route's `resolveContentAssetLinks` now imports every content asset with
+   * `?url` and rewrites each href to the emitted URL; this is the joint that
+   * proves it, because no unit test can see `dist/`.
+   *
+   * THE SUBJECT IS THE CONTENT FILES, and the count is pinned: the eleven prose
+   * pages are a fixed contract and the migration is deterministic, so a count
+   * that moves is a migration change that needs a human, not a corpus that
+   * grows the way posts do. Every expected link is then matched to a built
+   * anchor by NAME and followed to a file - the name is what makes the match
+   * about this link rather than about any anchor at an asset.
+   */
+  it('every content-asset anchor on a prose page resolves to a real file in dist/', () => {
+    const expected = pageFiles().flatMap((f) =>
+      contentAssetLinks(readFileSync(PAGES_CONTENT + f.file, 'utf8'))
+        .filter((link) => link.name.trim() !== '')
+        .map((link) => ({ ...link, slug: f.slug })),
+    );
+    expect(
+      expected.length,
+      'the prose corpus does not carry the measured 11 content-asset links',
+    ).toBe(11);
+
+    const measured: string[] = [];
+    for (const link of expected) {
+      const html = read(`${link.slug}/index.html`);
+      const anchor = builtAssetAnchors(html).find((a) => a.name === link.name);
+      expect(
+        anchor,
+        `/${link.slug}/ does not render "${link.name}" as an anchor at an emitted asset`,
+      ).toBeDefined();
+      const href = (anchor as { href: string }).href;
+      // Root-relative, or `DIST + path` is not the file the host serves.
+      expect(href.startsWith('/'), `${href} on /${link.slug}/ is not root-relative`).toBe(true);
+      const path = (href.split(/[?#]/)[0] as string).slice(1);
+      expect(existsSync(DIST + path), `${href} on /${link.slug}/ does not resolve inside dist/`)
+        .toBe(true);
+      measured.push(`/${link.slug}/ -> ${href}`);
+    }
+    process.stdout.write(
+      `\nProse content-asset anchors: ${measured.length} of ${expected.length} resolved:\n` +
+        `${measured.map((m) => `  ${m}`).join('\n')}\n`,
+    );
+  });
+
+  /*
+   * THE OTHER DIRECTION, SITE-WIDE: the unserved shape must appear nowhere in
+   * `dist/`. The guard above reads the pages the content files know about; this
+   * one reads every built page, so a hardcoded or future anchor the migration
+   * shape does not describe still fails. Its detector has a positive control in
+   * "this file's detectors can actually fire" - the old-host assertion above
+   * has none, and that weakness is not copied.
+   */
+  it('no built page carries an unserved content-asset href', () => {
+    const pages = builtPages();
+    expect(pages.length, 'no built page - the guard would prove nothing').toBeGreaterThan(0);
+    const hits = pages.flatMap((page) =>
+      rawContentAssetHrefs(readFileSync(DIST + page, 'utf8')).map((href) => `${page} -> ${href}`),
+    );
+    expect(
+      hits,
+      `built pages link at assets/content/, which the host does not serve:\n${hits.join('\n')}`,
+    ).toEqual([]);
+  });
+});
+
+/*
+ * THE ACCOUNT BLOCKS, AGAINST THE SETTINGS SINGLETON. `/contact` and
+ * `/doneaza` render `settings.accounts`, and no unit test sees that joint:
+ * the IBAN is formatted by `formatIban` at render time, the block order is
+ * the file's order, and each copy button carries the raw value. A page that
+ * lost a block, or paired one account's label with another's IBAN, looks
+ * completely correct.
+ *
+ * THE SUBJECT IS THE SETTINGS FILE, not a walk of `dist/`, for the same
+ * reason `articleFiles()` is: the file is what the parish edits, and an
+ * account added there must be checked without editing this test. The count is
+ * asserted to be non-zero so the loops below cannot pass over nothing.
+ */
+function accountEntries(): {
+  label: string;
+  iban: string;
+  holder: string;
+  bank: string;
+  qr_bill?: boolean;
+}[] {
+  const settings = parseYaml(readFileSync(SETTINGS, 'utf8')) as {
+    accounts?: { label: string; iban: string; holder: string; bank: string; qr_bill?: boolean }[];
+  };
+  return settings.accounts ?? [];
+}
+
+describe('the account blocks', () => {
+  const ACCOUNT_PAGES = ['contact/index.html', 'doneaza/index.html'] as const;
+
+  it('renders every account, in order, with its formatted IBAN and copy value', () => {
+    const accounts = accountEntries();
+    expect(accounts.length, 'no account in the settings file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    for (const page of ACCOUNT_PAGES) {
+      const html = read(page);
+      const copyValues = [...html.matchAll(/<button\b[^>]*\bdata-copy="([^"]*)"/g)]
+        .map((m) => m[1] as string);
+      expect(copyValues, `${page} does not carry one copy button per account`).toEqual(
+        accounts.map((account) => account.iban),
+      );
+      for (const account of accounts) {
+        expect(html, `${page} is missing the label "${account.label}"`).toContain(account.label);
+        expect(html, `${page} does not print the IBAN of "${account.label}"`).toContain(
+          formatIban(account.iban),
+        );
+        expect(html, `${page} is missing the holder`).toContain(account.holder);
+        expect(html, `${page} is missing the bank`).toContain(account.bank);
+      }
+    }
+    process.stdout.write(
+      `\nAccount blocks: ${accounts.length} account(s) on ${ACCOUNT_PAGES.length} pages.\n`,
+    );
+  });
+
+  /*
+   * THE NO-JS STATE IS THE IBAN TEXT ALONE. The button ships `hidden` and the
+   * script unhides it; a build where the attribute went missing would show a
+   * dead control to every visitor without JavaScript, and nothing else in the
+   * suite would notice. The IBAN text itself is asserted above, in the same
+   * tag-free form a no-JS visitor reads.
+   */
+  it('ships every copy button hidden', () => {
+    const accounts = accountEntries();
+    expect(accounts.length, 'no account - the guard would prove nothing').toBeGreaterThan(0);
+    for (const page of ACCOUNT_PAGES) {
+      const tags = [...read(page).matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
+      const copyTags = tags.filter((tag) => tag.includes('data-copy'));
+      expect(copyTags, `${page} copy buttons`).toHaveLength(accounts.length);
+      for (const tag of copyTags) {
+        expect(/\shidden(?=[\s>])/.test(tag), `${page}: ${tag} is not hidden`).toBe(true);
+      }
+    }
+  });
+
+  /*
+   * ONE SCRIPT PER PAGE, AFTER THE LAST BLOCK. Two things would break the copy
+   * silently: a second emission (which `unexpectedInlineScripts` refuses, but
+   * this says it from the page side) and an emission placed before the buttons
+   * exist, where `querySelectorAll` finds nothing and every button stays
+   * hidden. The script's position is compared against the last copy BUTTON, so
+   * the `data-copy` occurrences inside the script itself cannot stand in for
+   * it.
+   */
+  it('emits the copy script once per page, after the last account block', () => {
+    for (const page of ACCOUNT_PAGES) {
+      const html = read(page);
+      const copyScripts = pageScripts(html).filter(
+        (s) => s.src === null && s.kind === 'executed' && s.content.includes('data-copy'),
+      );
+      expect(copyScripts, `${page} does not emit exactly one copy script`).toHaveLength(1);
+      const content = copyScripts[0].content as string;
+      expect(
+        html.indexOf(content),
+        `${page}: the copy script runs before the last button exists`,
+      ).toBeGreaterThan(html.lastIndexOf('data-copy="'));
+    }
+  });
+
+  /*
+   * THE QR-BILL, ON THE PAGE. `qr-bill.test.ts` proves the mapping and the
+   * rendering; nothing there can see whether the route ever embedded the
+   * result, and a page without the bill looks completely correct. The marker
+   * is the bill's own dimensions: nothing else in the site draws a 210x105mm
+   * SVG, and the library's outer element carries exactly that pair.
+   *
+   * THE FLAGGED ACCOUNT IS A CONTRACT HERE, like the eleven prose pages: the
+   * page's whole point is that a donor can scan the building fund's bill, so a
+   * settings edit that unflags the account is a decision this test asks about
+   * rather than a content change it waves through. The bill region is cut out
+   * of the page so the assertions are about the bill and not about the account
+   * block above it, which prints the same IBAN.
+   */
+  it('embeds the QR-bill once, for the flagged account, on /doneaza only', () => {
+    const accounts = accountEntries();
+    const flagged = accounts.filter((a) => a.qr_bill === true);
+    expect(
+      flagged,
+      'no account carries qr_bill: true - the QR-bill guard would prove nothing',
+    ).toHaveLength(1);
+    const billAccount = flagged[0]!;
+
+    const html = read('doneaza/index.html');
+    const markers = [...html.matchAll(/<svg[^>]*width="210mm" height="105mm"/g)];
+    expect(markers, '/doneaza/ does not embed the QR-bill exactly once').toHaveLength(1);
+
+    // The bill region: from the outer <svg> to the copy script that follows the
+    // last account block, ending at the region's last </svg> - the outer
+    // element's own close, not one of the nested ones.
+    const markerAt = html.indexOf('width="210mm" height="105mm"');
+    const svgStart = html.lastIndexOf('<svg', markerAt);
+    const scriptAt = html.indexOf('<script', svgStart);
+    const region = html.slice(svgStart, scriptAt === -1 ? undefined : scriptAt);
+    const svg = region.slice(0, region.lastIndexOf('</svg>') + '</svg>'.length);
+
+    /*
+     * THE BILL'S RENDERED TEXT, not its markup. The library breaks a long
+     * creditor name across `<tspan>` lines - "Rumänisch-Orthodoxe Kirchgemeinde "
+     * and "St. Nikolaus" are two elements - so a `toContain` on the name would
+     * fail against a bill that prints it perfectly. Stripping tags and
+     * collapsing whitespace is what a reader (and a scanner's printed copy)
+     * sees, and it is the same reading `altTexts` does elsewhere in this file.
+     */
+    const billText = svg.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    expect(billText, 'the bill does not print the flagged account').toContain(
+      formatIban(billAccount.iban),
+    );
+    expect(billText, 'the bill does not print the holder').toContain(billAccount.holder);
+    for (const other of accounts.filter((a) => a.qr_bill !== true)) {
+      expect(billText, `the bill prints "${other.label}", which is not the flagged account`)
+        .not.toContain(formatIban(other.iban));
+    }
+    // No script in the embedded markup: the page's CSP names one inline script,
+    // and a second one hidden inside an SVG would be refused at run time.
+    expect(svg, 'the embedded bill carries a script').not.toMatch(/<script/i);
+
+    // The other account page carries no bill at all, which is the positive
+    // control for the marker: if it matched everywhere, "once on /doneaza"
+    // would mean nothing.
+    expect(read('contact/index.html'), '/contact/ embeds a QR-bill').not.toContain(
+      'width="210mm" height="105mm"',
+    );
+  });
+});
+
+/*
+ * THE TWO PHOTO ALBUMS, FROM ONE ROUTE. `[slug].astro` builds a page per entry
+ * in the `galerii` collection; these assertions are the joint between the
+ * content files and what was written to dist, and they are the only place the
+ * alt/caption policy - a description is the visible caption, every alt is
+ * empty, and an image without a description has no caption either - is checked
+ * against a built page.
+ */
+describe('the gallery pages', () => {
+  it('every album in the collection has a page of its own', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guards below would prove nothing')
+      .toBeGreaterThan(0);
+    for (const f of albums) {
+      expect(existsSync(`${DIST}galerie/${f.slug}/index.html`), `missing /galerie/${f.slug}/`)
+        .toBe(true);
+    }
+  });
+
+  /*
+   * REACHABILITY, WHICH "A FILE EXISTS" DOES NOT CHECK. An album page no link
+   * points at is a page nobody can navigate to, and it looks exactly like one
+   * everybody can - the lesson the prose pages paid for. The subject is the
+   * content files, so a new album is checked here the moment the parish saves
+   * it.
+   */
+  it('links every album from the index, with its title, and renders each cover', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    const html = read('galerie/index.html');
+    const covers = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1] as string);
+    // Count equality, not "at least one": the index's only `<img>`s are the
+    // covers (the site chrome carries none), so a lost cover fails here.
+    expect(covers.length, `the index renders ${covers.length} covers, not ${albums.length}`)
+      .toBe(albums.length);
+    for (const src of covers) {
+      expect(src.startsWith('/'), `${src} on /galerie/ is not root-relative`).toBe(true);
+      const path = (src.split(/[?#]/)[0] as string).slice(1);
+      expect(existsSync(DIST + path), `${src} on /galerie/ does not resolve inside dist/`).toBe(true);
+    }
+    for (const f of albums) {
+      expect(html, `the index does not link /galerie/${f.slug}/`)
+        .toContain(`href="/galerie/${f.slug}/"`);
+      expect(html, `the index does not show the title of ${f.slug}`)
+        .toContain(String(f.frontmatter.title ?? ''));
+    }
+  });
+
+  it('renders every image of the album, each resolving to a real file in dist/', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    let imagesChecked = 0;
+    for (const f of albums) {
+      const html = read(`galerie/${f.slug}/index.html`);
+      const images = (f.frontmatter.images ?? []) as { file?: string; description?: string }[];
+      expect(images.length, `${f.file} lists no image - the count below would prove nothing`)
+        .toBeGreaterThan(0);
+      const srcs = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1] as string);
+      expect(srcs.length, `${f.slug} renders ${srcs.length} images, not ${images.length}`)
+        .toBe(images.length);
+      for (const src of srcs) {
+        imagesChecked += 1;
+        expect(src.startsWith('/'), `${src} on /galerie/${f.slug}/ is not root-relative`).toBe(true);
+        const path = (src.split(/[?#]/)[0] as string).slice(1);
+        expect(existsSync(DIST + path), `${src} on /galerie/${f.slug}/ does not resolve inside dist/`)
+          .toBe(true);
+      }
+    }
+    expect(imagesChecked, 'no gallery image in any built album').toBeGreaterThan(0);
+    process.stdout.write(
+      `\nGallery images: ${imagesChecked} over ${albums.length} album page(s).\n`,
+    );
+  });
+
+  it('writes each description as the caption and leaves every alt empty', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    let captioned = 0;
+    let decorative = 0;
+    for (const f of albums) {
+      const html = read(`galerie/${f.slug}/index.html`);
+      const images = (f.frontmatter.images ?? []) as { file?: string; description?: string }[];
+      /*
+       * EVERY ALT IS EMPTY, and that is the measured policy rather than an
+       * oversight: the caption is the text alternative, and carrying the same
+       * sentence in `alt` made axe's `image-redundant-alt` fire on all nine
+       * captioned images of the legacy album in the default-width browser
+       * pass. The assertion still has teeth - an `alt` that came back carrying
+       * the description, or the album title, fails it - and `altTexts` has its
+       * own positive control above, because a pattern for `alt="..."` would
+       * report only the non-empty ones.
+       *
+       * THE CAPTIONS ARE THE EXACT SEQUENCE, in frontmatter order: the grid
+       * maps the array and renders one caption per described entry, so a
+       * dropped or reordered one changes this array. The paragraph is matched
+       * with `[^>]*` because Astro adds its scoping attribute to the rendered
+       * `<p>`.
+       */
+      expect(altTexts(html), `${f.slug} alt texts`).toEqual(images.map(() => ''));
+      const captions = [...html.matchAll(/<p class="gg-caption"[^>]*>([\s\S]*?)<\/p>/g)]
+        .map((m) => (m[1] as string).trim());
+      expect(captions, `${f.slug} captions`)
+        .toEqual(images.filter((i) => i.description).map((i) => i.description));
+      captioned += images.filter((i) => i.description).length;
+      decorative += images.filter((i) => !i.description).length;
+    }
+    // Printed, not asserted: both arms are exercised by today's corpus (the
+    // legacy album captions all nine of its images, the Easter album none), but
+    // a parish that captions everything would be doing the right thing, and a
+    // build must not go red over it.
+    process.stdout.write(
+      `\nGallery captions: ${captioned} captioned, ${decorative} uncaptioned.\n`,
+    );
+  });
+});
+
+/*
+ * THE EVENTS INDEX, AGAINST THE COLLECTION. The parish has no events today, so
+ * the branch that fires now is the empty state - and it is written as a branch
+ * rather than pinned to "there are none", because the first event the parish
+ * saves is not a defect. The content files decide which branch should run, and
+ * the subject comes from them rather than from the page.
+ *
+ * WHAT THIS DOES NOT COVER: the detail layout, which no real build can render
+ * while the collection is empty. That is the picker's fixture build, and its
+ * own check fails if the fixture stops producing those pages.
+ */
+describe('the events pages', () => {
+  it('renders every event in the collection, or says there are none', () => {
+    const events = eventFiles();
+    const html = read('evenimente/index.html');
+    if (events.length === 0) {
+      expect(html, 'the index must say so when the collection is empty')
+        .toContain('Nu sunt evenimente anunțate pentru perioada următoare.');
+      return;
+    }
+    for (const f of events) {
+      expect(html, `the index does not link /evenimente/${f.slug}/`)
+        .toContain(`href="/evenimente/${f.slug}/"`);
+      expect(html, `the index does not show the title of ${f.slug}`)
+        .toContain(String(f.frontmatter.title ?? ''));
+    }
   });
 });
 

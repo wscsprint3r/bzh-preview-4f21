@@ -6,6 +6,7 @@ import {
   categoryFor,
   fileName,
   isDated,
+  rewriteDocumentLinks,
   rewriteImageSources,
 } from './articles.mjs';
 
@@ -172,5 +173,70 @@ describe('rewriting image sources', () => {
     expect(caught).toBeInstanceOf(Error);
     expect(caught).not.toBeInstanceOf(TypeError);
     expect(caught?.message).toMatch(/un-post.*dead\.jpg/s);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The old-host file links. The document map is the old path -> the file this
+// run's document extraction writes; a PDF-shaped URL the map does not carry
+// stops the run rather than keeping a link to a host that stops serving it.
+// ---------------------------------------------------------------------------
+
+describe('rewriting the old-host document links', () => {
+  it('rewrites a mapped PDF to its absolute /documente/ path', () => {
+    // Absolute, not markdown-relative: a document is a download and the route
+    // depth of the page that links it must not matter.
+    const map = new Map([['/revista/doxologia_18_2019.pdf', '/documente/doxologia-18-2019.pdf']]);
+    expect(
+      rewriteDocumentLinks(
+        '[Revista](https://www.bor-zh.ch/revista/doxologia_18_2019.pdf)',
+        map,
+      ),
+    ).toBe('[Revista](/documente/doxologia-18-2019.pdf)');
+  });
+
+  it('rewrites every occurrence, a bare URL included', () => {
+    const map = new Map([['/files/SfLiturgie.pdf', '/documente/sfliturgie.pdf']]);
+    const body =
+      'a [x](https://www.bor-zh.ch/files/SfLiturgie.pdf) b ' +
+      'https://www.bor-zh.ch/files/SfLiturgie.pdf c';
+    expect(rewriteDocumentLinks(body, map)).toBe(
+      'a [x](/documente/sfliturgie.pdf) b /documente/sfliturgie.pdf c',
+    );
+  });
+
+  it('looks through a query string to the path, so a decorated link still maps', () => {
+    // WordPress links carry `?download=1` shapes; without cutting the query,
+    // the map lookup misses and a PDF-shaped link falls out of the guard.
+    const map = new Map([['/files/SfLiturgie.pdf', '/documente/sfliturgie.pdf']]);
+    expect(
+      rewriteDocumentLinks('[x](https://www.bor-zh.ch/files/SfLiturgie.pdf?download=1)', map),
+    ).toBe('[x](/documente/sfliturgie.pdf)');
+  });
+
+  it('leaves a non-PDF old-host page link alone', () => {
+    // Phase 4 owns the page redirects; this function is only about files the
+    // document extraction wrote.
+    const url = 'https://www.bor-zh.ch/scrisoarea-pastorala-a-mitropolitului-iosif/';
+    expect(rewriteDocumentLinks(`[x](${url})`, new Map())).toBe(`[x](${url})`);
+  });
+
+  it('leaves an old-host image link alone', () => {
+    // `rewriteImageSources` owns every uploads image, and it has already run by
+    // the time this function sees the body.
+    const url = 'https://www.bor-zh.ch/wp-content/uploads/2024/05/a.jpg';
+    expect(rewriteDocumentLinks(`![x](${url})`, new Map())).toBe(`![x](${url})`);
+  });
+
+  it('POSITIVE CONTROL: an unmapped PDF-shaped link stops the run naming it', () => {
+    // The failure this exists for: the old host stops serving the file, the
+    // page keeps the link, and nothing else notices.
+    const url = 'https://www.bor-zh.ch/revista/unmapped.pdf';
+    expect(() => rewriteDocumentLinks(`[x](${url})`, new Map())).toThrow(/unmapped\.pdf/);
+  });
+
+  it('POSITIVE CONTROL: the PDF test looks through a query string too', () => {
+    const url = 'https://www.bor-zh.ch/revista/unmapped.pdf?download=1';
+    expect(() => rewriteDocumentLinks(`[x](${url})`, new Map())).toThrow(/unmapped\.pdf/);
   });
 });

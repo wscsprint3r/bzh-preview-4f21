@@ -31,15 +31,23 @@ import { pickSettings } from '../lib/settings';
 const settings = pickSettings(await getCollection('settings'));
 
 /*
- * THE FOOTER CARRIES THE FULL PAGE MENU, and it is here rather than in the
- * header because the header's five links cannot hold nine pages without
- * wrapping into a second row on a phone. `order` is the field the CMS labels
- * "Ordinea în meniu" (10, 20, 30 …), so the sequence is the parish's rather
- * than this file's. Before this menu the nine prose routes existed and seven
- * had no inbound link anywhere on the site: built, tested and unreachable, the
- * shape `build-output.itest.ts` now fails on.
+ * THE FOOTER CARRIES THE FULL SITEMAP, and it is here rather than in the header
+ * because the header is the primary navigation rather than the index. The
+ * `Pagini` menu is the eleven prose pages, ordered by the parish's own `order`
+ * field (the CMS labels it "Ordinea în meniu"); the fixed `Site` list beside it
+ * carries the routes that are not `pages` entries. Before this menu the nine
+ * Phase 2 prose routes existed and seven had no inbound link anywhere on the
+ * site: built, tested and unreachable, the shape `build-output.itest.ts` now
+ * fails on.
  */
 const pages = (await getCollection('pages')).sort((a, b) => a.data.order - b.data.order);
+const siteLinks = [
+  { href: '/program/', text: 'Program' },
+  { href: '/noutati/', text: 'Noutăți' },
+  { href: '/evenimente/', text: 'Evenimente' },
+  { href: '/galerie/', text: 'Galerie' },
+  { href: '/pastorale/', text: 'Pastorale' },
+];
 const path = Astro.url.pathname;
 ---
 
@@ -60,6 +68,19 @@ const path = Astro.url.pathname;
       <p class="eyebrow">Calendar</p>
       <p><a href="/program.ics">Abonare la program (.ics)</a></p>
     </div>
+    <nav class="sf-nav" aria-label="Site">
+      <p class="eyebrow">Site</p>
+      <ul>
+        {siteLinks.map((link) => (
+          <li>
+            <a
+              href={link.href}
+              aria-current={path === link.href ? 'page' : undefined}
+            >{link.text}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
     <nav class="sf-nav" aria-label="Pagini">
       <p class="eyebrow">Pagini</p>
       <ul>

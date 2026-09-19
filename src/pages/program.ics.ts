@@ -16,7 +16,7 @@
  */
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
-import { generateIcs } from '../lib/ics';
+import { generateIcs, feedStamp } from '../lib/ics';
 import { pickSettings } from '../lib/settings';
 
 export const GET: APIRoute = async () => {
@@ -65,20 +65,16 @@ export const GET: APIRoute = async () => {
   const days = entries.map((e) => ({ ...e.data, date: e.id }));
 
   /*
-   * THIS CALL SITE OWNS THE CORRECTNESS OF THIS STRING. `generateIcs` takes
-   * `dtstamp` as a parameter and does not validate it — that is deliberate, so
-   * its own tests get deterministic output — so nothing downstream will notice
-   * if what arrives is not an RFC 5545 §3.3.5 UTC date-time. It must be exactly
-   * YYYYMMDDTHHMMSSZ, and a malformed DTSTAMP is the kind of defect that makes
-   * a strict parser reject the whole calendar rather than one event.
-   *
-   * `toISOString` is specified to return exactly `YYYY-MM-DDTHH:mm:ss.sssZ` for
-   * every year this site will see, so dropping the separators and cutting at 15
-   * characters is a slice of a fixed-width string rather than a parse. The
-   * property is asserted against the built feed in `build-output.itest.ts`,
-   * which is where it can be checked rather than merely asserted by comment.
+   * THIS CALL SITE USED TO OWN THE CORRECTNESS OF THIS STRING, and now the
+   * helper does. `generateIcs` still takes `dtstamp` as a parameter and does
+   * not validate it - that is deliberate, so its own tests get deterministic
+   * output - but `feedStamp` derives the value from the feed's own latest day
+   * instead of from `new Date()`, which is what made two builds of an
+   * unchanged tree differ in exactly one file. `feedStamp`'s tests pin the
+   * format (YYYYMMDDTHHMMSSZ, RFC 5545 §3.3.5) and the derivation; the
+   * property is asserted against the built feed in `build-output.itest.ts`.
    */
-  const dtstamp = `${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`;
+  const dtstamp = feedStamp(days);
 
   /*
    * The headers are honoured by `astro dev` and `astro preview`. A static build

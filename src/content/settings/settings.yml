@@ -2,3 +2,25 @@ name: "Parohia Ortodoxă Română Sfântul Nicolae"
 address: "Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich"
 phone: "076 512 04 52"
 email: "contact@bor-zh.ch"
+accounts:
+  - label: "Donații pentru susținerea parohiei"
+    iban: "CH54 0021 5215 3048 5501 P"
+    holder: "Rumänisch-Orthodoxe Kirchgemeinde St. Nikolaus"
+    bank: "UBS (Schweiz) AG"
+    qr_bill: false
+  - label: "Donații pentru un spațiu mai încăpător"
+    iban: "CH11 0021 5215 3048 5502 K"
+    holder: "Rumänisch-Orthodoxe Kirchgemeinde St. Nikolaus"
+    bank: "UBS (Schweiz) AG"
+    qr_bill: true
+  - label: "Plăți pentru serviciile liturgice"
+    iban: "CH85 0483 5035 8248 3100 0"
+    holder: "Rumänisch-Orthodoxe Kirchgemeinde St. Nikolaus"
+    bank: "Credit Suisse (Schweiz) AG"
+    qr_bill: false
+creditor_address:
+  street: "Wehntalerstrasse"
+  house_number: "451"
+  postal_code: "8046"
+  town: "Zürich"
+  country: "CH"

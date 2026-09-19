@@ -183,7 +183,7 @@ describe('the CMS form, checked against the schemas the build enforces', () => {
   });
 
   it('every collection has a label and a description in Romanian', () => {
-    for (const name of ['articles', 'pages', 'settings']) {
+    for (const name of ['articles', 'pages', 'settings', 'events', 'galerii', 'documente']) {
       const c = collection(name);
       expect(c.label, `${name} has no label`).toBeTruthy();
       expect(c.label).not.toMatch(/^[a-z_]+$/); // not the raw key
@@ -200,6 +200,47 @@ describe('the CMS form, checked against the schemas the build enforces', () => {
     for (const field of ['title', 'date', 'published', 'category']) {
       expect(collectionField('articles', field).required).not.toBe(false);
     }
+  });
+
+  it('the new collections require their schema-required fields', () => {
+    for (const field of ['title', 'start_date', 'location']) {
+      expect(collectionField('events', field).required).not.toBe(false);
+    }
+    for (const field of ['title', 'date', 'cover', 'images']) {
+      expect(collectionField('galerii', field).required).not.toBe(false);
+    }
+    for (const field of ['title', 'date', 'file']) {
+      expect(collectionField('documente', field).required).not.toBe(false);
+    }
+  });
+
+  it('offers the accounts as a list and keeps no second IBAN field', () => {
+    const settings = collection('settings').files?.[0];
+    expect(settings, 'settings has no file block').toBeDefined();
+    const names = (settings?.fields ?? []).map((f) => f.name);
+    expect(names).toContain('accounts');
+    expect(names).toContain('creditor_address');
+    expect(names).not.toContain('iban');
+    expect(names).not.toContain('iban2');
+  });
+
+  /*
+   * THE CREDITOR ADDRESS'S OWN FIELDS, because the group existing is not the
+   * same as the volunteer being able to fill it in. `settingsSchema` requires
+   * five keys; the names are written out here by hand rather than read off the
+   * schema, so a field the schema requires and the form does not offer fails
+   * here instead of at the next Save.
+   */
+  it('offers every creditor_address field the schema requires', () => {
+    // Addressed through the `files` block, not `collectionField`: `settings` is
+    // a files collection, so its fields live under `files[0].fields` and a
+    // lookup on the collection itself would find nothing and pass for nothing.
+    const settings = collection('settings').files?.[0];
+    const field = (settings?.fields ?? []).find((f) => f.name === 'creditor_address');
+    expect(field, 'settings has no creditor_address field').toBeDefined();
+    expect(field?.widget).toBe('object');
+    const names = (field?.fields ?? []).map((f) => f.name).sort();
+    expect(names).toEqual(['country', 'house_number', 'postal_code', 'street', 'town']);
   });
 
   /*

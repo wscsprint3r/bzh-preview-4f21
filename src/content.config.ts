@@ -1,7 +1,7 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { idFromFilename, daySchema } from './lib/schema';
-import { articleSchema, pageSchema, settingsSchema } from './lib/content-schema';
+import { articleSchema, documentSchema, eventSchema, gallerySchema, pageSchema, settingsSchema } from './lib/content-schema';
 
 const services = defineCollection({
   loader: glob({
@@ -55,4 +55,19 @@ const settings = defineCollection({
   schema: settingsSchema,
 });
 
-export const collections = { services, articles, pages, settings };
+const events = defineCollection({
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/events' }),
+  schema: eventSchema,
+});
+
+const galerii = defineCollection({
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/galerii' }),
+  schema: gallerySchema,
+});
+
+const documente = defineCollection({
+  loader: glob({ pattern: ['**/*.md'], base: './src/content/documente' }),
+  schema: documentSchema,
+});
+
+export const collections = { services, articles, pages, settings, events, galerii, documente };

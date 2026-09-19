@@ -14,9 +14,12 @@ import { PAGES } from './pages.mjs';
  * THE 32 UNPUBLISHED POSTS ARE IN THE MAP ON PURPOSE. Their old URLs exist and
  * will be linked from elsewhere for years; a redirect to a page that does not
  * exist yet is better than a 404, and it is why the unpublished posts keep
- * their slugs. The real arithmetic is 9 pages + 45 posts + the two fixed rows
+ * their slugs. The real arithmetic is 11 pages + 45 posts + the two fixed rows
  * below, minus the one post row superseded under the page-wins collision rule
- * documented on `redirectRows` = 55 rows.
+ * documented on `redirectRows`, plus one row per migrated PDF = 144 rows.
+ * The document rows come from `extractDocuments`, which owns both the old path
+ * as the old site served it and the new `/documente/<slug>.pdf`; a PDF's old
+ * path cannot collide with a page or a post, because neither ever ends `.pdf`.
  *
  * SORTED BY OLD PATH, LF endings, no BOM: the file is byte-identical across
  * runs, which the repeatability check reads as a `diff` exit code rather than
@@ -27,7 +30,7 @@ import { PAGES } from './pages.mjs';
 const URL_MAP = 'docs/url-map.csv';
 
 /**
- * The two rows that are neither one of the nine pages nor a post.
+ * The two rows that are neither one of the eleven pages nor a post.
  *
  * `/program-liturgic/` is the live site's name for the weekly programme page;
  * the new route is `/program/`. `/feed/` is the WordPress RSS feed; the new
@@ -56,13 +59,21 @@ const FIXED_REDIRECTS = [
  * A ROW WHOSE TWO PATHS ARE EQUAL NEEDS NO RULE. `/servicii-liturgice/` is both
  * the old slug and the new route, so Phase 4 emits nothing for it: the old URL
  * already serves the page. The row stays, because the map is the contract of
- * every old path that keeps working, and 55 is its count.
+ * every old path that keeps working, and 144 is its count.
+ *
+ * DOCUMENT ROWS ARRIVE LAST and are passed in rather than read here: the old
+ * path is the legacy absolute path (`/revista/doxologia_18_2019.pdf`) or the
+ * uploads path as the site served it (`/wp-content/uploads/2025/03/….pdf`),
+ * and only `extractDocuments` knows both ends. They are ordinary rows to this
+ * function; the precedence rule above does not apply to them because nothing
+ * else claims a `.pdf` path.
  */
-export function redirectRows(pages, postSlugs) {
+export function redirectRows(pages, postSlugs, documents = []) {
   const rows = [
     ...pages.map((page) => [`/${page.slug}/`, `/${page.path}/`]),
     ...FIXED_REDIRECTS,
     ...postSlugs.map((slug) => [`/${slug}/`, `/noutati/${slug}/`]),
+    ...documents.map(({ from, to }) => [from, to]),
   ];
   const seen = new Set();
   return rows.filter(([oldPath]) => {
@@ -75,10 +86,13 @@ export function redirectRows(pages, postSlugs) {
 /**
  * Writes the CSV and returns the number of redirect rows.
  *
- * The container must already be running - `run.mjs` starts it once for both
- * extractors and this step - so importing this module starts nothing.
+ * `documents` is what `extractDocuments` returned as `redirects`: one
+ * `{ from, to }` per migrated PDF, appended to the pages, the two fixed rows
+ * and the posts. The container must already be running - `run.mjs` starts it
+ * once for every extractor and this step - so importing this module starts
+ * nothing.
  */
-export async function writeUrlMap() {
+export async function writeUrlMap(documents = []) {
   const posts = await query(
     "SELECT post_name FROM wpoi_posts WHERE post_type='post' AND post_status='publish'",
   );
@@ -87,7 +101,7 @@ export async function writeUrlMap() {
   // path is the tiebreak so the order is total even if a duplicate ever
   // survives the precedence rule above - the file must not depend on the
   // engine's sort stability for its bytes.
-  const rows = redirectRows(PAGES, posts.map(([slug]) => slug)).sort((a, b) => {
+  const rows = redirectRows(PAGES, posts.map(([slug]) => slug), documents).sort((a, b) => {
     if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;
     return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0;
   });
