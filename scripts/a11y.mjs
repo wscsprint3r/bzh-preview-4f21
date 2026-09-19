@@ -1608,50 +1608,36 @@ export function readingColumnProblems(measurements) {
  * template went unmeasured there. `--masura` is resolved in the column's own
  * font through a hidden probe, so the guard follows the token rather than a
  * second copy of "68ch".
+ *
+ * A TEMPLATE TAKES THE FIRST MATCH THAT CARRIES A BODY, because the event
+ * fixtures include one deliberately without a body - an event a volunteer left
+ * without details is a legitimate page, and it was measured and failed as `no
+ * .prose p` on the first run of this guard in the picker pass. An entry with no
+ * measurable body is judged by its own `requireOne`: an article without a body
+ * is a defect, an event without one is the designed state.
  */
 async function measureReadingColumns(driver, url, toAudit, log) {
   const { targets, problems, skipped } = selectTablePages(READING_COLUMN_PAGES, toAudit);
   for (const page of skipped) log(`  reading column ${page}: no page in this build`);
   const measurements = [];
   for (const target of targets) {
-    const page = target.matches[0];
-    const selectors = target.selectors;
-    await driver.get(url(page));
-    const measurement = await driver.executeScript(`
-      const selectors = ${JSON.stringify(selectors)};
-      const rect = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, width: r.width }; };
-      const column = document.querySelector('.reading-column');
-      const text = document.querySelector('.prose p');
-      let measurePx = null;
-      let gutter = null;
-      if (column !== null) {
-        const cs = getComputedStyle(column);
-        gutter = parseFloat(cs.paddingLeft);
-        const probe = document.createElement('span');
-        probe.style.position = 'absolute';
-        probe.style.visibility = 'hidden';
-        probe.style.width = getComputedStyle(document.documentElement).getPropertyValue('--masura').trim();
-        probe.style.fontFamily = cs.fontFamily;
-        probe.style.fontSize = cs.fontSize;
-        probe.style.fontWeight = cs.fontWeight;
-        document.body.append(probe);
-        const width = probe.getBoundingClientRect().width;
-        probe.remove();
-        measurePx = width > 0 ? width : null;
+    const isTemplate = target.page.includes('*');
+    let measurement = null;
+    for (const page of target.matches) {
+      await driver.get(url(page));
+      const candidate = await measureReadingColumn(driver, page, target.selectors);
+      if (candidate.text !== null || !isTemplate) {
+        measurement = candidate;
+        break;
       }
-      return {
-        page: ${JSON.stringify(page)},
-        clientWidth: document.documentElement.clientWidth,
-        column: column === null ? null : rect(column),
-        gutter,
-        text: text === null ? null : rect(text),
-        measurePx,
-        elements: selectors.map((selector) => {
-          const el = document.querySelector(selector);
-          return { selector, rect: el === null ? null : rect(el) };
-        }),
-      };
-    `);
+      log(`  reading column ${page}: no .prose p - trying the next matching page`);
+    }
+    if (measurement === null) {
+      const reason = `${target.page}: none of ${target.matches.length} matching page(s) carries a .prose p`;
+      if (target.requireOne) problems.push(`${reason} - the template is unguarded.`);
+      else log(`  reading column ${target.page}: ${reason} - not measured in this build`);
+      continue;
+    }
     measurements.push(measurement);
     const where =
       measurement.text === null
@@ -1660,9 +1646,47 @@ async function measureReadingColumns(driver, url, toAudit, log) {
     const blocks = measurement.elements
       .map((e) => `${e.selector} ${e.rect === null ? 'MISSING' : `at ${Math.round(e.rect.left)}`}`)
       .join(', ');
-    log(`  reading column ${page}: text ${where}${blocks === '' ? '' : ` · ${blocks}`}`);
+    log(`  reading column ${measurement.page}: text ${where}${blocks === '' ? '' : ` · ${blocks}`}`);
   }
   return [...problems, ...readingColumnProblems(measurements)];
+}
+
+async function measureReadingColumn(driver, page, selectors) {
+  return await driver.executeScript(`
+    const selectors = ${JSON.stringify(selectors)};
+    const rect = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, width: r.width }; };
+    const column = document.querySelector('.reading-column');
+    const text = document.querySelector('.prose p');
+    let measurePx = null;
+    let gutter = null;
+    if (column !== null) {
+      const cs = getComputedStyle(column);
+      gutter = parseFloat(cs.paddingLeft);
+      const probe = document.createElement('span');
+      probe.style.position = 'absolute';
+      probe.style.visibility = 'hidden';
+      probe.style.width = getComputedStyle(document.documentElement).getPropertyValue('--masura').trim();
+      probe.style.fontFamily = cs.fontFamily;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      document.body.append(probe);
+      const width = probe.getBoundingClientRect().width;
+      probe.remove();
+      measurePx = width > 0 ? width : null;
+    }
+    return {
+      page: ${JSON.stringify(page)},
+      clientWidth: document.documentElement.clientWidth,
+      column: column === null ? null : rect(column),
+      gutter,
+      text: text === null ? null : rect(text),
+      measurePx,
+      elements: selectors.map((selector) => {
+        const el = document.querySelector(selector);
+        return { selector, rect: el === null ? null : rect(el) };
+      }),
+    };
+  `);
 }
 
 /**
