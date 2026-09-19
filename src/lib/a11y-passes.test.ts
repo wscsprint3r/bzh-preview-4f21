@@ -23,6 +23,7 @@ import {
   svgTextIncompletes,
   readingColumnProblems,
   READING_COLUMN_PAGES,
+  selectTablePages,
 } from '../../scripts/a11y.mjs';
 import { CLEARED_COLLECTIONS, FIXTURE_SWAPS, writeFixtureFiles } from '../../scripts/a11y-picker.mjs';
 import * as fixtures from './fixtures';
@@ -979,6 +980,39 @@ describe('the reading column predicate', () => {
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain('578');
     expect(problems[0]).toContain('506');
+    expect(problems[0]).toContain('narrower');
+  });
+
+  /*
+   * THE REGRESSION THIS GUARD EXISTS FOR, in the shape it was measured in.
+   * Restoring `max-width: var(--masura)` gives a 578px column at the audit's
+   * default width; a threshold taken from that column thinks there is no room
+   * for the 574px measure and skips the assertion, so the pre-fix build printed
+   * `text 513px at 114` and exited 0. The room question is the viewport's.
+   */
+  it('catches the old max-width even though the column is narrower than its own threshold', () => {
+    const before = {
+      page: 'servicii-liturgice/index.html',
+      clientWidth: 741,
+      column: { left: 81.5, width: 578 },
+      gutter: 30.24,
+      text: { left: 111.5, width: 513 },
+      measurePx: 574,
+      elements: [],
+    };
+    const problems = readingColumnProblems([before]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('513');
+    expect(problems[0]).toContain('574');
+    expect(problems[0]).toContain('narrower');
+  });
+
+  it('names a text box wider than the token as wider, not as the gutter bug', () => {
+    const bad = { ...GOOD_COLUMN, text: { left: 711, width: 681 } };
+    const problems = readingColumnProblems([bad]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('wider');
+    expect(problems[0]).not.toContain('gutter');
   });
 
   it('catches a block on a different axis, and names it with the offset', () => {
@@ -1029,11 +1063,62 @@ describe('the reading column predicate', () => {
   });
 
   it('has a table that names pages and selectors', () => {
-    const entries = Object.entries(READING_COLUMN_PAGES);
-    expect(entries.length).toBeGreaterThan(0);
-    for (const [page, selectors] of entries) {
-      expect(page.endsWith('/index.html'), page).toBe(true);
-      expect(selectors.length, page).toBeGreaterThan(0);
+    expect(READING_COLUMN_PAGES.length).toBeGreaterThan(0);
+    for (const entry of READING_COLUMN_PAGES) {
+      expect(entry.page.endsWith('/index.html'), entry.page).toBe(true);
+      expect(entry.selectors.length, entry.page).toBeGreaterThan(0);
     }
+  });
+});
+
+/*
+ * THE TABLE AGAINST A BUILD. A `*` entry names a template, not a page: it must
+ * match at least one page when the build is meant to have one, it must not
+ * match the collection's index, and the page it measures must be the same one
+ * on every run - the first in sorted order - or two machines could disagree
+ * about what passed.
+ */
+describe('selecting the reading-column pages from a build', () => {
+  const TABLE = [
+    { page: 'servicii-liturgice/index.html', selectors: ['.prose p'] },
+    { page: 'noutati/*/index.html', selectors: ['.prose p'], requireOne: true },
+    { page: 'evenimente/*/index.html', selectors: ['.prose p'], requireOne: false },
+  ];
+  const BUILD = [
+    'noutati/index.html',
+    'noutati/2024-08-25-update-august/index.html',
+    'noutati/hramul-parohiei-2024/index.html',
+    'servicii-liturgice/index.html',
+  ];
+
+  it('measures the first sorted match of a pattern and never the index page', () => {
+    const { targets, problems, skipped } = selectTablePages(TABLE, BUILD);
+    expect(problems).toEqual([]);
+    expect(skipped).toEqual(['evenimente/*/index.html']);
+    expect(targets.map((t) => [t.page, t.matches[0]])).toEqual([
+      ['servicii-liturgice/index.html', 'servicii-liturgice/index.html'],
+      ['noutati/*/index.html', 'noutati/2024-08-25-update-august/index.html'],
+    ]);
+  });
+
+  it('fails a required pattern with no page, naming the template', () => {
+    const { problems } = selectTablePages(TABLE, ['noutati/index.html', 'servicii-liturgice/index.html']);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('noutati/*/index.html');
+    expect(problems[0]).toContain('unguarded');
+  });
+
+  it('skips an optional pattern with no page instead of failing it', () => {
+    const { problems, skipped } = selectTablePages(
+      [{ page: 'evenimente/*/index.html', selectors: ['.prose p'], requireOne: false }],
+      ['noutati/index.html'],
+    );
+    expect(problems).toEqual([]);
+    expect(skipped).toEqual(['evenimente/*/index.html']);
+  });
+
+  it('fails an exact page the build does not have', () => {
+    const { problems } = selectTablePages(TABLE, ['noutati/index.html']);
+    expect(problems.some((p) => p.includes('servicii-liturgice/index.html'))).toBe(true);
   });
 });

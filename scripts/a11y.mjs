@@ -1471,28 +1471,73 @@ export function svgTextIncompletes(rule) {
  * THE PAGE TABLE IS HAND-WRITTEN, and a page named here that is missing from
  * the build is a FAILURE, not a skip: a table that quietly follows the artifact
  * can only check what it recognised, which is how the footer's reach and the
- * breakpoint bands both went blind. The slug in `noutati/` is a published post;
- * if the parish unpublishes it, this table must be updated, and the failure
- * says so. The event detail template is not in the table because no event page
- * exists in `dist/` - the picker's fixture build renders one, and its axe pass
- * covers it, but the column on that template is unguarded and this comment is
- * the record of that gap.
+ * breakpoint bands both went blind. A glob entry names a template's pages
+ * instead of one page - the article entry must match at least one published
+ * post, and the FIRST match in sorted order is measured, so a volunteer
+ * unpublishing a post moves the guard to the next one instead of reddening the
+ * build, while an empty collection still fails naming the template. The event
+ * template is `requireOne: false` on purpose: `dist/` has no event because the
+ * parish has none, and the picker pass's own fixture check already fails if its
+ * event page disappears, so the entry cannot rot silently - it is measured in
+ * the one build where the page exists.
  *
  * WHAT IT ASSERTS, per page: the column exists; the text box is centered in
- * the viewport; when the viewport leaves room for the full column the text box
+ * the viewport; when the VIEWPORT leaves room for the full column the text box
  * equals `--masura` resolved in the column's own font (578px at 17px - the
  * number that was 506px while the gutter sat inside the max-width); and every
  * named block shares the text's left edge within a pixel. On a viewport too
  * narrow for the column only the alignment is asserted, because the width there
  * is the phone's, not the token's.
  */
-export const READING_COLUMN_PAGES = {
-  'servicii-liturgice/index.html': ['.prose p', '.prose img'],
-  'parohia/istoric/index.html': ['.prose p', '.prose img'],
-  'contact/index.html': ['.prose p', '.cf', '.ab'],
-  'doneaza/index.html': ['.prose p', '.ab', '.qr-bill-svg svg'],
-  'noutati/hramul-parohiei-2024/index.html': ['.prose p', 'h1'],
-};
+export const READING_COLUMN_PAGES = [
+  { page: 'servicii-liturgice/index.html', selectors: ['.prose p', '.prose img'] },
+  { page: 'parohia/istoric/index.html', selectors: ['.prose p', '.prose img'] },
+  { page: 'contact/index.html', selectors: ['.prose p', '.cf', '.ab'] },
+  { page: 'doneaza/index.html', selectors: ['.prose p', '.ab', '.qr-bill-svg svg'] },
+  { page: 'noutati/*/index.html', selectors: ['.prose p', 'h1'], requireOne: true },
+  { page: 'evenimente/*/index.html', selectors: ['.prose p', 'h1'], requireOne: false },
+];
+
+/*
+ * Expands the table against the pages a build really contains. Something must
+ * stand where the glob's star is - the collection's own index page is the list,
+ * not the detail template the entry is about - which is the length test below.
+ */
+export function selectTablePages(entries, pages) {
+  const targets = [];
+  const problems = [];
+  const skipped = [];
+  for (const entry of entries) {
+    const star = entry.page.indexOf('*');
+    if (star === -1) {
+      if (pages.includes(entry.page)) targets.push({ ...entry, matches: [entry.page] });
+      else {
+        problems.push(
+          `${entry.page}: named in READING_COLUMN_PAGES but not in this build - update the entry or restore the page.`,
+        );
+      }
+      continue;
+    }
+    const prefix = entry.page.slice(0, star);
+    const suffix = entry.page.slice(star + 1);
+    const matches = pages
+      .filter((page) => page.startsWith(prefix) && page.endsWith(suffix) && page.length > prefix.length + suffix.length)
+      .sort();
+    if (matches.length === 0) {
+      if (entry.requireOne) {
+        problems.push(
+          `${entry.page}: no page matches - the template is unguarded. Publish a page of that kind, or remove the ` +
+            'entry only if the collection is meant to stay empty.',
+        );
+      } else {
+        skipped.push(entry.page);
+      }
+      continue;
+    }
+    targets.push({ ...entry, matches });
+  }
+  return { targets, problems, skipped };
+}
 
 export function readingColumnProblems(measurements) {
   const problems = [];
@@ -1516,11 +1561,25 @@ export function readingColumnProblems(measurements) {
           `centered ${Math.round(m.column.width)}px column would start.`,
       );
     }
-    const roomForMeasure = m.column.width + 1 >= m.measurePx + 2 * m.gutter;
+    const roomForMeasure = m.clientWidth >= m.measurePx + 2 * m.gutter;
     if (roomForMeasure && Math.abs(m.text.width - m.measurePx) > 1) {
+      /*
+       * THE VIEWPORT, NOT THE COLUMN, DECIDES, and the direction of the failure
+       * is named. A threshold taken from the column's own width cannot see the
+       * bug this guard exists for: with the gutter inside the max-width the
+       * column shrinks below its own threshold, the assertion is skipped, and
+       * the pass prints `text 513px` and exits 0 - measured by restoring
+       * `max-width: var(--masura)` and running the audit. Both messages used to
+       * say "the gutter is inside the max-width", which named the cause a
+       * too-wide text box cannot have.
+       */
+      const cause =
+        m.text.width < m.measurePx
+          ? 'narrower than the measure - the gutter is inside the max-width again'
+          : 'wider than the measure - the max-width is not what the token declares';
       problems.push(
-        `${m.page}: --masura resolves to ${Math.round(m.measurePx)}px but the text box is ` +
-          `${Math.round(m.text.width)}px - the gutter is inside the max-width again.`,
+        `${m.page}: the text box is ${Math.round(m.text.width)}px against the ` +
+          `${Math.round(m.measurePx)}px --masura - ${cause}.`,
       );
     }
     for (const element of m.elements) {
@@ -1540,20 +1599,23 @@ export function readingColumnProblems(measurements) {
 }
 
 /*
- * The browser half of `readingColumnProblems`. One navigation per table page,
- * at whatever condition the driver is in - the caller runs it at the measured
- * default width, before the condition loop. `--masura` is resolved in the
- * column's own font through a hidden probe, so the guard follows the token
- * rather than a second copy of "68ch".
+ * The browser half of `readingColumnProblems`. One navigation per selected
+ * table page, at whatever condition the driver is in - the caller runs it at
+ * the measured default width, before the condition loop. `selectTablePages`
+ * expands the patterns against this build and returns the table's own problems;
+ * a `requireOne: false` entry with no page is printed as a skip, because the
+ * build without that page is a legitimate state and the honesty is that the
+ * template went unmeasured there. `--masura` is resolved in the column's own
+ * font through a hidden probe, so the guard follows the token rather than a
+ * second copy of "68ch".
  */
 async function measureReadingColumns(driver, url, toAudit, log) {
+  const { targets, problems, skipped } = selectTablePages(READING_COLUMN_PAGES, toAudit);
+  for (const page of skipped) log(`  reading column ${page}: no page in this build`);
   const measurements = [];
-  for (const [page, selectors] of Object.entries(READING_COLUMN_PAGES)) {
-    if (!toAudit.includes(page)) {
-      measurements.push({ page, clientWidth: 0, column: null, gutter: null, text: null, measurePx: null, elements: [] });
-      log(`  reading column ${page}: NOT IN THIS BUILD`);
-      continue;
-    }
+  for (const target of targets) {
+    const page = target.matches[0];
+    const selectors = target.selectors;
     await driver.get(url(page));
     const measurement = await driver.executeScript(`
       const selectors = ${JSON.stringify(selectors)};
@@ -1600,7 +1662,7 @@ async function measureReadingColumns(driver, url, toAudit, log) {
       .join(', ');
     log(`  reading column ${page}: text ${where}${blocks === '' ? '' : ` · ${blocks}`}`);
   }
-  return readingColumnProblems(measurements);
+  return [...problems, ...readingColumnProblems(measurements)];
 }
 
 /**
