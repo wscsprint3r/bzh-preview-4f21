@@ -166,3 +166,27 @@ than restate them:
 - The privacy statement being one sentence rather than a page.
 - Everything unverifiable from this repository: the Turnstile/Resend round trip, the
   QR-bill test transfer, the Cloudflare rate-limit rule, PDF response headers.
+
+---
+
+## Decisions taken 2026-09-19, at plan time
+
+| Question | Ruling |
+|---|---|
+| `?p=<id>` short links | Extend `migration/` to emit an ID→slug map and add functions/index.ts; see the plan's Task 3. |
+| The 8 `.doc` links | Convert once to PDF, gate through `pdf-gate.mjs`, host under `/documente/`; Task 4. |
+| `/sitemap-index.xml` and `robots.txt` | Custom routes, emitted only when `INDEXABLE = true`; Task 5. |
+| Per-day "Adaugă în calendar" | Rejected; spec §8 amended; no code. |
+| Lighthouse rows | Deferred to Phase 5; spec §13 amended. |
+| The two stock images (B5) | Replaced with parish photographs; Task 9. |
+| Romanian failure notice (C3) | The GitHub annotation is built (Task 13); the Romanian e-mail is deferred until K2's Resend domain exists and is recorded in the handover as a gap. |
+| Privacy statement | Stays the paragraph on `/contact/`; recorded, not a page. |
+| C6 footer duplicate | Fixed in Task 11. |
+| A4 `/noutati` thumbnails | Recorded as a decision, not an omission — the request cap of 12 cannot carry one per card. |
+| C7 open questions | Parish decisions, listed in the handover; names stay published until the parish answers. |
+
+## Deferred to Phase 5
+
+- Lighthouse performance ≥ 95 / accessibility 100: automate or keep manual (spec §13 note).
+- The Romanian build-failure e-mail itself, once K2's `send.bor-zh.ch` is verified.
+- `?p=` short links for post types outside `post`/`page` (attachments, old calendar events).
