@@ -1257,7 +1257,7 @@ Add `extractDocuments()` after `extractGalleries()`; summary gains `documents wr
 node migration/run.mjs
 ```
 
-Expected: `documents written: 87`, `PDFs skipped: 0`; `docs/url-map.csv` grows by 87 rows (55 → 142; assert the printed redirects count matches `55 + 87` before continuing).
+Expected: `documents written: 87`, `PDFs skipped: 0`; `docs/url-map.csv` grows by 87 rows (55 → 142 at this step; Task 9's two new pages take the committed file to the measured 144; assert the printed redirects count matches `55 + 87` before continuing).
 
 - [ ] **Step 8: Committed-artefact guard, and the sweeps it needs**
 

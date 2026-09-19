@@ -73,7 +73,9 @@ const albums = (await getCollection('galerii')).sort((a, b) =>
   }
   .album-item { margin: 0; }
   .album-link { display: block; text-decoration: none; }
-  .album-link img { border: 1px solid var(--rule); }
+  /* `:global(img)` for the same reason `GalleryGrid.astro` documents: the
+     `<img>` is `ContentImage.astro`'s, not this page's. */
+  .album-link :global(img) { border: 1px solid var(--rule); }
   /* No `color` here: the title keeps global.css's `h2` oxblood, and the link's
      hover is expressed on the title rather than by recolouring it - the trap
      `ArticleCard.astro` documents. */

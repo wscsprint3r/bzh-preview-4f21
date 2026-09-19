@@ -389,10 +389,16 @@ up, and what to hand Phase 4.
   `src/lib/cms.test.ts` asserts the pair and `src/lib/binaries.itest.ts` decodes every
   committed upload. They are served as uploaded — no Astro AVIF/WebP variants — unlike the
   migrated media under `src/assets/content/`.
-- **`docs/url-map.csv`** — 55 data rows, one per old path, emitted by
-  `migration/url-map.mjs`. **Nothing serves it yet**; it is Phase 4's input for
-  `_redirects`. The 32 held-back posts keep their rows, so an old link reaches
-  `/noutati/<slug>/` and 404s until the parish dates and publishes that post.
+- **A page's `image` field is stored but not rendered.** The CMS offers **Imagine** on a
+  **Pagină** and `pageSchema` accepts it, but no route reads it: `[...page].astro` renders
+  the title and the prose only. No page sets it today. This is a pre-existing Phase 2 gap,
+  recorded rather than discovered later — a page meant to carry a hero image needs the
+  render added first.
+- **`docs/url-map.csv`** — 55 data rows at the end of Phase 2, one per old path, emitted by
+  `migration/url-map.mjs` (section L carries the current count, 144). **Nothing serves it
+  yet**; it is Phase 4's input for `_redirects`. The 32 held-back posts keep their rows, so
+  an old link reaches `/noutati/<slug>/` and 404s until the parish dates and publishes that
+  post.
 
 **Adding a post.** `/admin/` → **Articole** → **Create New Entry**, then title, date,
 category, text and optionally an image. `Save` is the only button and it commits.
@@ -576,6 +582,10 @@ and what to hand Phase 4.
   carries no WordPress IDs, `_redirects` cannot match a query string, and the dump that
   could supply the IDs lives outside this repository. Phase 4 needs a Pages Function
   for them, or an explicit recorded decision to let those links die.
+- **`/sitemap-index.xml` does not exist.** Spec §5's IA lists it beside the routes, and
+  the build emits no sitemap; it was recorded as out of Phase 3's spec §19 scope. Phase 4
+  decides whether to emit one — Astro's sitemap integration or a route of our own — and
+  submits it to Search Console (spec §14 step 5).
 
 **Unverified until it is deployed.**
 

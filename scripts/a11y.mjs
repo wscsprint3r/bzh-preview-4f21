@@ -443,10 +443,12 @@ export const PASSES = {
 export const NO_JS_REASONS = {
   fixture: [
     'the picker bar exists only with scripts on: the component ships it `hidden` and the script',
-    'reveals it, so with JS off the fixture build has no state of its own to audit — it renders',
-    'exactly what `dist` renders, every week visible, and `checkPickerBar` returns early for',
-    '`condition.js === false` anyway. The no-JS state of these pages is covered by the passes',
-    'over `dist`, which really do have one.',
+    'reveals it, so with JS off the fixture build has no picker state of its own to audit, and',
+    '`checkPickerBar` returns early for `condition.js === false` anyway. The fixture also renders',
+    'the event detail pages `dist` never renders — `FIXTURE_EVENTS` gives the parish a first',
+    'event — but those pages carry no script at all, so their scripts-off rendering is identical',
+    'to their scripts-on one: there is no second state for a no-JS pass to audit. The no-JS state',
+    'of the shared pages is covered by the passes over `dist`, which really do have one.',
   ].join('\n      '),
 };
 

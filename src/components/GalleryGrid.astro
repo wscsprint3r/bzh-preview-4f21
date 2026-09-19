@@ -52,7 +52,11 @@ const { gallery } = Astro.props;
     .gg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   .gg-item { margin: 0; }
-  .gg-item img { border: 1px solid var(--rule); }
+  /* `:global(img)`: the `<img>` comes from `ContentImage.astro` and carries no
+     scope attribute of this component, so `.gg-item img` would compile to a
+     double-scoped selector that never matches - a border that silently never
+     renders. `scoped-image-styles.test.ts` fails on the shape. */
+  .gg-item :global(img) { border: 1px solid var(--rule); }
   .gg-caption {
     margin: 0.4rem 0 0;
     font-size: 0.8125rem;

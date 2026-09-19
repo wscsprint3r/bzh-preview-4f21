@@ -869,7 +869,7 @@ describe('the prose pages', () => {
    * `?url` and rewrites each href to the emitted URL; this is the joint that
    * proves it, because no unit test can see `dist/`.
    *
-   * THE SUBJECT IS THE CONTENT FILES, and the count is pinned: the nine prose
+   * THE SUBJECT IS THE CONTENT FILES, and the count is pinned: the eleven prose
    * pages are a fixed contract and the migration is deterministic, so a count
    * that moves is a migration change that needs a human, not a corpus that
    * grows the way posts do. Every expected link is then matched to a built

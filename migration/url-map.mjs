@@ -14,9 +14,9 @@ import { PAGES } from './pages.mjs';
  * THE 32 UNPUBLISHED POSTS ARE IN THE MAP ON PURPOSE. Their old URLs exist and
  * will be linked from elsewhere for years; a redirect to a page that does not
  * exist yet is better than a 404, and it is why the unpublished posts keep
- * their slugs. The real arithmetic is 9 pages + 45 posts + the two fixed rows
+ * their slugs. The real arithmetic is 11 pages + 45 posts + the two fixed rows
  * below, minus the one post row superseded under the page-wins collision rule
- * documented on `redirectRows`, plus one row per migrated PDF = 142 rows.
+ * documented on `redirectRows`, plus one row per migrated PDF = 144 rows.
  * The document rows come from `extractDocuments`, which owns both the old path
  * as the old site served it and the new `/documente/<slug>.pdf`; a PDF's old
  * path cannot collide with a page or a post, because neither ever ends `.pdf`.
@@ -30,7 +30,7 @@ import { PAGES } from './pages.mjs';
 const URL_MAP = 'docs/url-map.csv';
 
 /**
- * The two rows that are neither one of the nine pages nor a post.
+ * The two rows that are neither one of the eleven pages nor a post.
  *
  * `/program-liturgic/` is the live site's name for the weekly programme page;
  * the new route is `/program/`. `/feed/` is the WordPress RSS feed; the new
@@ -59,7 +59,7 @@ const FIXED_REDIRECTS = [
  * A ROW WHOSE TWO PATHS ARE EQUAL NEEDS NO RULE. `/servicii-liturgice/` is both
  * the old slug and the new route, so Phase 4 emits nothing for it: the old URL
  * already serves the page. The row stays, because the map is the contract of
- * every old path that keeps working, and 55 is its count.
+ * every old path that keeps working, and 144 is its count.
  *
  * DOCUMENT ROWS ARRIVE LAST and are passed in rather than read here: the old
  * path is the legacy absolute path (`/revista/doxologia_18_2019.pdf`) or the

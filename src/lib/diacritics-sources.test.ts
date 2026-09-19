@@ -32,7 +32,7 @@ import { ALLOWED_EXTENSIONS } from '../../migration/media.mjs';
  *
  * WHY ONLY THIS QUESTION HERE. `diacritics.itest.ts` also asks the stronger one -
  * is every non-ASCII character one this project expects - against a list of
- * twenty-eight, of which the output's measured inventory uses twenty-five. That works over
+ * twenty-eight, of which the output's measured inventory uses twenty-six. That works over
  * `dist/`, whose whole vocabulary is Romanian copy
  * plus a handful of typographic marks. It does not transfer: the tracked sources
  * carry over thirty distinct non-ASCII characters between English prose, Romanian

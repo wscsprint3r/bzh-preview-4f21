@@ -265,10 +265,12 @@ const PAGE_BUDGET = {
   'evenimente/index.html': 20 * 1024,
   'evenimente/*': 20 * 1024,
   /*
-   * THE NINE PROSE PAGES, three groups and one exact key. They are a fixed
-   * contract - the CMS does not create them - so a pattern per URL group is
-   * the honest shape: the pages inside a group are the same kind of document,
-   * and a tenth would be a decision somebody made.
+   * THE NINE PHASE 2 PROSE PAGES, three groups and one exact key. The two
+   * Phase 3 pages have their own exact keys in the block below, and together
+   * the eleven are a fixed contract - the CMS does not create them - so a
+   * pattern per URL group is the honest shape: the pages inside a group are
+   * the same kind of document, and a new page in a group would be a decision
+   * somebody made.
    *
    * MEASURED ON THE FINAL PHASE 2 BUILD (Task 12), all nine:
    *   parohia/istoric        13,338    parohia/consiliul      10,384
@@ -593,16 +595,24 @@ function report(label, value, limit, unit = 'bytes', explanation = '') {
 const PAGE_EXPLANATION = [
   '          Cel mai probabil NU este o greșeală într-un fișier de program.',
   '          Ori o pagină a căpătat ceva nou (markup, un stil, un script), ori a crescut',
-  '          cu ce s-a publicat. Două pagini cresc de la sine:',
+  '          cu ce s-a publicat. Cinci pagini cresc de la sine:',
   '            · /program/ ține fiecare zi publicată, iar limita se atinge în jurul a 58',
   '              de săptămâni publicate înainte (măsurat pe o săptămână parohială obișnuită);',
   '            · /noutati/ ține fiecare articol publicat, iar limita se atinge în jurul a 41',
   '              de articole, pentru că fiecare articol adaugă circa 480 de octeți; dacă fiecare',
   '              articol ar avea și un rezumat, limita s-ar atinge în jurul a 25 (măsurat la 13',
-  '              articole, apoi socotit).',
-  '          Dacă tocmai ați salvat o zi sau un articol în /admin/: s-a publicat și situl',
-  '          este în regulă. Anunțați persoana care se ocupă de site; nu este ceva de',
-  '          reparat din CMS.',
+  '              articole, apoi socotit);',
+  '            · /pastorale/ ține fiecare document publicat, iar limita se atinge în jurul a 129',
+  '              de documente, pentru că fiecare document adaugă circa 418 octeți (măsurat la 87,',
+  '              apoi socotit);',
+  '            · /galerie/ ține fiecare album, iar un album ține toate fotografiile: pagina cu',
+  '              albume crește cu fiecare album nou, iar limita unui album se atinge în jurul a',
+  '              35 de fotografii (socotit de la albumul de 15 fotografii);',
+  '            · /evenimente/ ține fiecare eveniment anunțat, iar limita se atinge în jurul a 13',
+  '              evenimente (măsurat cu un eveniment de probă, apoi socotit).',
+  '          Dacă tocmai ați salvat o zi, un articol, un document, un album sau un eveniment',
+  '          în /admin/: s-a publicat și situl este în regulă. Anunțați persoana care se ocupă',
+  '          de site; nu este ceva de reparat din CMS.',
 ].join('\n');
 
 function stop(message) {

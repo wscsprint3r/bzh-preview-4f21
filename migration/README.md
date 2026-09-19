@@ -241,7 +241,7 @@ produced byte-identical output: a `sha256` manifest over `src/content`,
 `public/documente`, `src/assets/content` and `docs/url-map.csv` was identical
 across both, 320 files. The migration writes `public/documente/<slug>.pdf`, one
 `src/content/documente/<slug>.md` per file, and one `docs/url-map.csv` row per
-old path (55 → 142 rows).
+old path (55 → 144 rows).
 
 Titles come from a **closed table of measured filename shapes** in
 `documents.mjs`, one rule per shape, each with an example asserted in

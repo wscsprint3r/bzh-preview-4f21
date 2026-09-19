@@ -22,10 +22,11 @@ import { migrateImages } from './media.mjs';
  * integer rather than a position: tens leave room to insert a page between two
  * others without renumbering the files.
  *
- * TEN OF THE ELEVEN ARE BUILT BY `[...page].astro`; `contact` AND `doneaza` ARE
- * NOT. They are reserved paths - `src/lib/routes.ts` is the one list both sides
- * import - because each grows generated blocks (accounts, the QR-bill, the
- * form) that a generic prose route has no business knowing about. Their entries
+ * NINE OF THE ELEVEN ARE BUILT BY `[...page].astro`; `contact` AND `doneaza` ARE
+ * NOT. They are reserved paths - `src/lib/routes.ts` is the one list
+ * `[...page].astro` and `routes.test.ts` import - because each grows generated
+ * blocks (accounts, the QR-bill, the form) that a generic prose route has no
+ * business knowing about. Their entries
  * still live in this table, so the URL map, the title guard and the footer's
  * `Pagini` menu treat them like every other page.
  *

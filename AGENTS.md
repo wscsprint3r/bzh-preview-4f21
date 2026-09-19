@@ -65,7 +65,7 @@ produce, and the rules win on any conflict.
   build the way it did.
   It asks two questions of each file: "is this one of the four wrong characters?", and the
   stronger "is every non-ASCII character one this project expects?" against a list of
-  twenty-eight, of which the output's measured inventory uses twenty-five. The second
+  twenty-eight, of which the output's measured inventory uses twenty-six. The second
   exists because a stray U+5DEE once passed every scan the first could make. A new
   character in the output fails until somebody names it.
 - **Identifiers are English; Romanian is only for what a person reads.** Variables,
@@ -124,7 +124,7 @@ settings singleton. Four rules came with it:
   "unpublished" would mean "reachable by anyone with the link". 32 of the 45 migrated
   posts are unpublished because a bulk import destroyed their dates.
 - **`docs/url-map.csv` is Phase 4's input, not a running redirect.** It maps every old
-  path to its new one — 55 data rows, emitted by `migration/url-map.mjs` — and nothing
+  path to its new one — 144 data rows, emitted by `migration/url-map.mjs` — and nothing
   serves it yet. The 32 unpublished posts keep their rows, so an old link reaches a 404
   until the parish dates and publishes that post; the file's own header says so.
 

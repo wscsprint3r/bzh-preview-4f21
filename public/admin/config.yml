@@ -330,10 +330,10 @@ collections:
         widget: markdown
 
   # ---------------------------------------------------------------------------
-  # PAGES — the nine prose pages, each addressed by its own `path` field.
+  # PAGES — the eleven prose pages, each addressed by its own `path` field.
   #
-  # `create: false` and `delete: false` are deliberate: the nine files exist,
-  # each has a route built from its `path`, and a tenth page is a route
+  # `create: false` and `delete: false` are deliberate: the eleven files exist,
+  # each has a route built from its `path`, and a twelfth page is a route
   # decision — a new file would build, but nothing would link to it. The
   # volunteer edits the text; the structure is the developer's.
   # ---------------------------------------------------------------------------
@@ -351,7 +351,7 @@ collections:
         field: order
         direction: ascending
     description: >
-      Cele nouă pagini de text ale site-ului. Calea este adresa paginii și se
+      Cele unsprezece pagini de text ale site-ului. Calea este adresa paginii și se
       schimbă rar, cu grijă.
     fields:
       - name: title
