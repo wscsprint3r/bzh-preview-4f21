@@ -81,6 +81,17 @@ img { max-width: 100%; height: auto; display: block; }
   padding-inline: var(--gutter);
 }
 
+/* A MEASURE COLUMN, and the one place `--masura` becomes pixels. `--masura` is
+   68 characters; an element that also carries `--gutter` padding must add it to
+   the box, or the text ships 59.5ch and the token lies. Measured at 2000px:
+   with `max-width: var(--masura)` the text box was 506px; with this rule it is
+   578px and the column 650px. Prose, generated blocks and article bodies all
+   carry it, so their left edges coincide; the list pages keep the full
+   `.container` width. */
+.container.reading-column {
+  max-width: calc(var(--masura) + 2 * var(--gutter));
+}
+
 .eyebrow {
   font-size: 0.6875rem;
   letter-spacing: 0.22em;

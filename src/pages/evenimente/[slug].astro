@@ -58,7 +58,7 @@ const { Content } = await render({ ...entry, rendered });
 ---
 
 <Base title={title} description={description}>
-  <article class="container">
+  <article class="container reading-column">
     <h1 class="event-title">{title}</h1>
     <p class="event-meta">
       <time datetime={start_date}>{dates.start}</time>
@@ -85,7 +85,15 @@ const { Content } = await render({ ...entry, rendered });
 </Base>
 
 <style>
-  .event-title { margin-top: 2rem; max-width: var(--masura); }
+  /*
+   * THE COLUMN IS `.container.reading-column` ON THE ARTICLE, and the children
+   * need no measure of their own: the column's content box is exactly
+   * `--masura`, so title, image, body and poster share one centered axis. The
+   * per-child `max-width: var(--masura)` the title used to carry was dead
+   * anyway - `ch` is relative to the element's own font, and 68ch at the h1's
+   * 34px is wider than the container it sat in.
+   */
+  .event-title { margin-top: 2rem; }
   .event-meta {
     display: flex;
     flex-wrap: wrap;
@@ -98,20 +106,21 @@ const { Content } = await render({ ...entry, rendered });
   }
   .event-time { color: var(--oxblood); }
   .event-location { margin: 0 0 1.75rem; color: var(--muted); }
-  .event-description { max-width: var(--masura); margin: 0 0 1.75rem; }
-  .event-image { margin: 0 0 1.75rem; max-width: var(--masura); border: 1px solid var(--rule); }
+  .event-description { margin: 0 0 1.75rem; }
+  .event-image { margin: 0 0 1.75rem; border: 1px solid var(--rule); }
   /*
    * The prose treatment mirrors `noutati/[slug].astro`, which carries the
-   * measurements behind each rule: the measure is `--masura`, headings step
-   * down the display face, the blockquote is a rule rather than a colour, and
-   * `pre-wrap` is what keeps a long code line from scrolling a phone sideways.
+   * measurements behind each rule: headings step down the display face, the
+   * blockquote is a rule rather than a colour, and `pre-wrap` is what keeps a
+   * long code line from scrolling a phone sideways. The measure and the
+   * centering are NOT here - they live on `.container.reading-column` in
+   * `global.css`, which the article carries.
    * NO `color` FOR `a`, deliberately: global.css's `a`/`a:hover` pair already
    * colours body links, and a scoped colour here would ship at (0,3,1) and
    * silently defeat the hover - the trap `SiteHeader.astro` documents. Nothing
    * here declares `outline`, so the global `:focus-visible` ring reaches these
    * links too.
    */
-  .prose { max-width: var(--masura); }
   .prose :global(p) { margin: 0 0 1.25rem; }
   .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
   .prose :global(h3) { font-size: 1.25rem; margin-block: 1.75rem 0.5rem; }

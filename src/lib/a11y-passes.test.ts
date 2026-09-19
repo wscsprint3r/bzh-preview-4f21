@@ -21,6 +21,8 @@ import {
   checkBreakpoints,
   checkPasses,
   svgTextIncompletes,
+  readingColumnProblems,
+  READING_COLUMN_PAGES,
 } from '../../scripts/a11y.mjs';
 import { CLEARED_COLLECTIONS, FIXTURE_SWAPS, writeFixtureFiles } from '../../scripts/a11y-picker.mjs';
 import * as fixtures from './fixtures';
@@ -941,5 +943,97 @@ describe('svgTextIncompletes', () => {
   it('does not touch a rule that is not color-contrast', () => {
     expect(svgTextIncompletes({ id: 'link-in-text-block', nodes: [SVG_TEXT_NODE] })).toEqual([]);
     expect(svgTextIncompletes({ id: 'color-contrast' })).toEqual([]);
+  });
+});
+
+/*
+ * THE READING COLUMN'S PREDICATE. The browser half cannot be unit-tested - it
+ * is five page loads - but every way it can fail is a shape of measurement, and
+ * those are tested here so a wrong table is found before a Chrome launch.
+ * Measured shapes: the /contact/ build of 2026-09-19 gives text.left 740 with
+ * .ab at 485, and the prose box ships 506px against a 578px token because the
+ * gutter sits inside the max-width. Both must be red; the viewport-limited
+ * phone case must not be.
+ */
+const GOOD_COLUMN = {
+  page: 'contact/index.html',
+  clientWidth: 2000,
+  column: { left: 675, width: 650 },
+  gutter: 36,
+  text: { left: 711, width: 578 },
+  measurePx: 578,
+  elements: [
+    { selector: '.cf', rect: { left: 711, width: 578 } },
+    { selector: '.ab', rect: { left: 711, width: 578 } },
+  ],
+};
+
+describe('the reading column predicate', () => {
+  it('accepts a centered column whose text box is the token and whose blocks share its edge', () => {
+    expect(readingColumnProblems([GOOD_COLUMN])).toEqual([]);
+  });
+
+  it('catches the gutter being inside the max-width', () => {
+    const bad = { ...GOOD_COLUMN, text: { left: 711, width: 506 } };
+    const problems = readingColumnProblems([bad]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('578');
+    expect(problems[0]).toContain('506');
+  });
+
+  it('catches a block on a different axis, and names it with the offset', () => {
+    const bad = {
+      ...GOOD_COLUMN,
+      elements: [
+        { selector: '.cf', rect: { left: 711, width: 578 } },
+        { selector: '.ab', rect: { left: 485, width: 578 } },
+      ],
+    };
+    const problems = readingColumnProblems([bad]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('.ab');
+    expect(problems[0]).toContain('-226');
+  });
+
+  it('catches a page that is not centered', () => {
+    const bad = { ...GOOD_COLUMN, column: { left: 485, width: 650 } };
+    const problems = readingColumnProblems([bad]);
+    expect(problems.some((p) => p.includes('centered'))).toBe(true);
+  });
+
+  it('catches a missing column, a missing text box and a missing selector - a check must prove it read something', () => {
+    expect(readingColumnProblems([{ ...GOOD_COLUMN, column: null }])[0]).toContain('.reading-column');
+    expect(readingColumnProblems([{ ...GOOD_COLUMN, text: null }])[0]).toContain('.prose p');
+    const missing = {
+      ...GOOD_COLUMN,
+      elements: [{ selector: '.qr-bill-svg svg', rect: null }],
+    };
+    expect(readingColumnProblems([missing])[0]).toContain('.qr-bill-svg svg');
+  });
+
+  it('does not complain about the width on a viewport-limited phone, only about alignment', () => {
+    const phone = {
+      ...GOOD_COLUMN,
+      clientWidth: 390,
+      column: { left: 0, width: 390 },
+      gutter: 16,
+      text: { left: 16, width: 358 },
+      elements: [{ selector: '.ab', rect: { left: 16, width: 358 } }],
+    };
+    expect(readingColumnProblems([phone])).toEqual([]);
+  });
+
+  it('names the page in every problem, so a red build points at one', () => {
+    const problems = readingColumnProblems([{ ...GOOD_COLUMN, column: null }]);
+    expect(problems[0]).toContain('contact/index.html');
+  });
+
+  it('has a table that names pages and selectors', () => {
+    const entries = Object.entries(READING_COLUMN_PAGES);
+    expect(entries.length).toBeGreaterThan(0);
+    for (const [page, selectors] of entries) {
+      expect(page.endsWith('/index.html'), page).toBe(true);
+      expect(selectors.length, page).toBeGreaterThan(0);
+    }
   });
 });

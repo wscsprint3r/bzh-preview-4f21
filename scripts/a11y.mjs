@@ -1459,6 +1459,150 @@ export function svgTextIncompletes(rule) {
   });
 }
 
+/*
+ * THE READING COLUMN, CHECKED BY THE ONLY THING THAT CAN SEE IT.
+ *
+ * The column's property is geometric - one centered axis, a text box that is
+ * the measure the token declares - so a static reading of the CSS cannot check
+ * it and axe cannot either. This is measured in the browser, once per pass at
+ * the measured default width, and the numbers are printed rather than only the
+ * verdict.
+ *
+ * THE PAGE TABLE IS HAND-WRITTEN, and a page named here that is missing from
+ * the build is a FAILURE, not a skip: a table that quietly follows the artifact
+ * can only check what it recognised, which is how the footer's reach and the
+ * breakpoint bands both went blind. The slug in `noutati/` is a published post;
+ * if the parish unpublishes it, this table must be updated, and the failure
+ * says so. The event detail template is not in the table because no event page
+ * exists in `dist/` - the picker's fixture build renders one, and its axe pass
+ * covers it, but the column on that template is unguarded and this comment is
+ * the record of that gap.
+ *
+ * WHAT IT ASSERTS, per page: the column exists; the text box is centered in
+ * the viewport; when the viewport leaves room for the full column the text box
+ * equals `--masura` resolved in the column's own font (578px at 17px - the
+ * number that was 506px while the gutter sat inside the max-width); and every
+ * named block shares the text's left edge within a pixel. On a viewport too
+ * narrow for the column only the alignment is asserted, because the width there
+ * is the phone's, not the token's.
+ */
+export const READING_COLUMN_PAGES = {
+  'servicii-liturgice/index.html': ['.prose p', '.prose img'],
+  'parohia/istoric/index.html': ['.prose p', '.prose img'],
+  'contact/index.html': ['.prose p', '.cf', '.ab'],
+  'doneaza/index.html': ['.prose p', '.ab', '.qr-bill-svg svg'],
+  'noutati/hramul-parohiei-2024/index.html': ['.prose p', 'h1'],
+};
+
+export function readingColumnProblems(measurements) {
+  const problems = [];
+  for (const m of measurements) {
+    if (m.column === null) {
+      problems.push(`${m.page}: no .reading-column element - the page does not use the shared column.`);
+      continue;
+    }
+    if (m.text === null) {
+      problems.push(`${m.page}: no .prose p - the column was not measured.`);
+      continue;
+    }
+    if (m.measurePx === null) {
+      problems.push(`${m.page}: --masura did not resolve to a length - nothing to compare the text box against.`);
+      continue;
+    }
+    const centered = Math.abs(m.column.left - (m.clientWidth - m.column.width) / 2);
+    if (centered > 1) {
+      problems.push(
+        `${m.page}: the column is not centered - its left edge is ${Math.round(centered)}px from where a ` +
+          `centered ${Math.round(m.column.width)}px column would start.`,
+      );
+    }
+    const roomForMeasure = m.column.width + 1 >= m.measurePx + 2 * m.gutter;
+    if (roomForMeasure && Math.abs(m.text.width - m.measurePx) > 1) {
+      problems.push(
+        `${m.page}: --masura resolves to ${Math.round(m.measurePx)}px but the text box is ` +
+          `${Math.round(m.text.width)}px - the gutter is inside the max-width again.`,
+      );
+    }
+    for (const element of m.elements) {
+      if (element.rect === null) {
+        problems.push(`${m.page}: ${element.selector} is not on the page - this check would prove nothing about it.`);
+        continue;
+      }
+      const offset = element.rect.left - m.text.left;
+      if (Math.abs(offset) > 1) {
+        problems.push(
+          `${m.page}: ${element.selector} sits ${Math.round(offset)}px from the text column's left edge.`,
+        );
+      }
+    }
+  }
+  return problems;
+}
+
+/*
+ * The browser half of `readingColumnProblems`. One navigation per table page,
+ * at whatever condition the driver is in - the caller runs it at the measured
+ * default width, before the condition loop. `--masura` is resolved in the
+ * column's own font through a hidden probe, so the guard follows the token
+ * rather than a second copy of "68ch".
+ */
+async function measureReadingColumns(driver, url, toAudit, log) {
+  const measurements = [];
+  for (const [page, selectors] of Object.entries(READING_COLUMN_PAGES)) {
+    if (!toAudit.includes(page)) {
+      measurements.push({ page, clientWidth: 0, column: null, gutter: null, text: null, measurePx: null, elements: [] });
+      log(`  reading column ${page}: NOT IN THIS BUILD`);
+      continue;
+    }
+    await driver.get(url(page));
+    const measurement = await driver.executeScript(`
+      const selectors = ${JSON.stringify(selectors)};
+      const rect = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, width: r.width }; };
+      const column = document.querySelector('.reading-column');
+      const text = document.querySelector('.prose p');
+      let measurePx = null;
+      let gutter = null;
+      if (column !== null) {
+        const cs = getComputedStyle(column);
+        gutter = parseFloat(cs.paddingLeft);
+        const probe = document.createElement('span');
+        probe.style.position = 'absolute';
+        probe.style.visibility = 'hidden';
+        probe.style.width = getComputedStyle(document.documentElement).getPropertyValue('--masura').trim();
+        probe.style.fontFamily = cs.fontFamily;
+        probe.style.fontSize = cs.fontSize;
+        probe.style.fontWeight = cs.fontWeight;
+        document.body.append(probe);
+        const width = probe.getBoundingClientRect().width;
+        probe.remove();
+        measurePx = width > 0 ? width : null;
+      }
+      return {
+        page: ${JSON.stringify(page)},
+        clientWidth: document.documentElement.clientWidth,
+        column: column === null ? null : rect(column),
+        gutter,
+        text: text === null ? null : rect(text),
+        measurePx,
+        elements: selectors.map((selector) => {
+          const el = document.querySelector(selector);
+          return { selector, rect: el === null ? null : rect(el) };
+        }),
+      };
+    `);
+    measurements.push(measurement);
+    const where =
+      measurement.text === null
+        ? 'no text box'
+        : `${Math.round(measurement.text.width)}px at ${Math.round(measurement.text.left)}`;
+    const blocks = measurement.elements
+      .map((e) => `${e.selector} ${e.rect === null ? 'MISSING' : `at ${Math.round(e.rect.left)}`}`)
+      .join(', ');
+    log(`  reading column ${page}: text ${where}${blocks === '' ? '' : ` · ${blocks}`}`);
+  }
+  return readingColumnProblems(measurements);
+}
+
 /**
  * Runs the audit and returns true when everything passed.
  *
@@ -1558,6 +1702,14 @@ export async function runAudit({ dist, pass, extraCheck = null, log = console.lo
     const { lines, failures } = checkBreakpoints(breakpointsFromCss(dist, toAudit), measuredDefaultWidth, definition.pages);
     for (const line of lines) log(`  ${line}`);
     for (const problem of failures) fail(`  ${problem}`);
+
+    /*
+     * THE COLUMN IS MEASURED ONCE PER PASS, at the default width, before the
+     * condition loop - the property is a geometry, not a per-width behaviour,
+     * and the default width is the one every pass shares.
+     */
+    const columnProblems = await measureReadingColumns(driver, url, toAudit, log);
+    for (const problem of columnProblems) fail(`  ${problem}`);
 
     for (const condition of conditions) {
       log(`\n--- ${condition.label} ---`);
