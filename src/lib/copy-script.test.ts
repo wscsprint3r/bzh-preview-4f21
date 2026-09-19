@@ -34,6 +34,27 @@ describe('the copy script', () => {
   });
 
   /*
+   * A REVEALED BUTTON THAT CANNOT COPY IS WORSE THAN NO BUTTON. The unhide and
+   * the click both check for the API, and the write's rejection is caught: an
+   * absent `navigator.clipboard` (insecure context, old browser) must leave the
+   * button hidden rather than throw a `TypeError` under a visitor's finger.
+   */
+  it('unhides and copies only where the clipboard API exists, and catches its refusal', () => {
+    expect(COPY_SCRIPT).toContain('navigator.clipboard');
+    expect(COPY_SCRIPT).toContain('.catch(');
+  });
+
+  /*
+   * A SECOND CLICK INSIDE THE WINDOW USED TO STICK THE LABEL. The original text
+   * is captured once on the button and the timer is restarted, not stacked, so
+   * "Copiat" cannot become the label that is restored.
+   */
+  it('remembers the original label and restarts its timer', () => {
+    expect(COPY_SCRIPT).toContain('dataset.label');
+    expect(COPY_SCRIPT).toContain('clearTimeout');
+  });
+
+  /*
    * The inline script is classic JavaScript: `is:inline` means Astro passes it
    * through untouched, so an `import` would reach the browser as a syntax error
    * and the button would simply never work - the same silent-fallback shape the

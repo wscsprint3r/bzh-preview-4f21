@@ -16,8 +16,10 @@
  * the adapter rather than of this file.
  *
  * NO SUBMISSION IS STORED ANYWHERE (spec §10). This module turns a form into
- * one email and forgets it; `ip` rides along in the payload only because the
- * Function reads it from the request.
+ * one email and forgets it. The visitor's IP is used for the siteverify call
+ * and for nothing else: it is not carried into the payload, because nothing
+ * downstream reads it and an address in an inbox is one more copy of something
+ * that does not need to exist.
  */
 
 /**
@@ -28,6 +30,20 @@
  * written for a person rather than for a parser. The boundary is tested.
  */
 export const MESSAGE_MIN_LENGTH = 10;
+
+/*
+ * HOW LONG ANYTHING MAY BE, and the server side is the only side that counts.
+ * Without these, a submission of any size is forwarded to Resend verbatim - the
+ * form's `maxlength` attributes are a courtesy to a person and no obstacle to a
+ * script, so `validateContact` refuses the same lengths the inputs declare.
+ *
+ * The numbers are the conventions rather than taste: 254 is RFC 5321's forward
+ * path limit, 100 is what every name field on the web uses, and 5,000 is a long
+ * pastoral letter and still two orders of magnitude under Resend's own limit.
+ */
+export const NAME_MAX_LENGTH = 100;
+export const EMAIL_MAX_LENGTH = 254;
+export const MESSAGE_MAX_LENGTH = 5000;
 
 /** The `fetch` this module needs, so every caller and test can inject its own. */
 export type FetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -71,9 +87,16 @@ function asText(value: unknown): string {
  * The honeypot branch returns a single generic error and no field names: the
  * bot that filled the hidden input must not be told which input it was, and
  * neither does a person who somehow tabbed into it.
+ *
+ * THE NAME LOSES ITS LINE BREAKS BEFORE IT REACHES THE SUBJECT. `name` is
+ * interpolated into the e-mail subject, and a value carrying CR or LF is a
+ * header-injection attempt wherever it lands; whether Resend's encoder would
+ * neutralise it is not something this repository can verify, so the question is
+ * removed here instead of left open. A person's name never needs a newline; a
+ * paste that has one becomes spaces.
  */
 export function validateContact(fields: ContactFields): ContactValidation {
-  const name = asText(fields.name).trim();
+  const name = asText(fields.name).replace(/[\r\n]+/g, ' ').trim();
   const email = asText(fields.email).trim();
   const message = asText(fields.message).trim();
 
@@ -83,9 +106,17 @@ export function validateContact(fields: ContactFields): ContactValidation {
 
   const errors: ContactErrors = {};
   if (name === '') errors.name = 'Vă rugăm să scrieți numele dumneavoastră.';
+  else if (name.length > NAME_MAX_LENGTH) {
+    errors.name = `Numele poate avea cel mult ${NAME_MAX_LENGTH} de caractere.`;
+  }
   if (!EMAIL.test(email)) errors.email = 'Vă rugăm să scrieți o adresă de e-mail validă.';
+  else if (email.length > EMAIL_MAX_LENGTH) {
+    errors.email = `Adresa de e-mail poate avea cel mult ${EMAIL_MAX_LENGTH} de caractere.`;
+  }
   if (message.length < MESSAGE_MIN_LENGTH) {
     errors.message = `Vă rugăm să scrieți mesajul (cel puțin ${MESSAGE_MIN_LENGTH} caractere).`;
+  } else if (message.length > MESSAGE_MAX_LENGTH) {
+    errors.message = `Mesajul poate avea cel mult ${MESSAGE_MAX_LENGTH} de caractere.`;
   }
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, values: { name, email, message } };
@@ -118,10 +149,8 @@ export async function verifyTurnstile(
   }
 }
 
-/** One validated submission plus the address the Function saw it from. */
-export interface ContactPayload extends ContactValues {
-  ip: string;
-}
+/** One validated submission. The IP is not carried: nothing downstream reads it. */
+export interface ContactPayload extends ContactValues {}
 
 export interface EmailConfig {
   apiKey: string;
@@ -153,6 +182,12 @@ function escapeHtml(text: string): string {
  * parish may read either half, and escaping the plain-text one would print
  * `&lt;` to a person. The subject carries the name because the inbox shows the
  * subject before the body.
+ *
+ * THE BODY NAMES THE SENDER TOO, in both halves. `reply_to` is what makes an
+ * answer one click, but a forwarded copy, a client that drops `reply_to`, or a
+ * printed message would otherwise carry a message with nobody to answer: the
+ * name is in the subject and the address nowhere. The `mailto` link is the
+ * same string escaped like every other value that reaches the HTML half.
  */
 export async function sendEmail(
   payload: ContactPayload,
@@ -171,8 +206,11 @@ export async function sendEmail(
         to: config.to,
         reply_to: payload.email,
         subject: `Formular de contact — ${payload.name}`,
-        text: payload.message,
-        html: `<p>${escapeHtml(payload.message).replace(/\n/g, '<br>')}</p>`,
+        text: `Nume: ${payload.name}\nE-mail: ${payload.email}\n\n${payload.message}`,
+        html:
+          `<p>Nume: ${escapeHtml(payload.name)}<br>E-mail: ` +
+          `<a href="mailto:${escapeHtml(payload.email)}">${escapeHtml(payload.email)}</a></p>` +
+          `<p>${escapeHtml(payload.message).replace(/\n/g, '<br>')}</p>`,
       }),
     });
     return { ok: response.ok, status: response.status };

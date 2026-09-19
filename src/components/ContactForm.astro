@@ -13,7 +13,8 @@
  * variable would make the expected set depend on the environment, and a no-key
  * build would fail for a script that is correctly absent. The script attaches
  * to the form when one exists and returns otherwise, so a no-key page ships it
- * and runs nothing.
+ * and runs nothing. Its text lives in `src/lib/contact-script.mjs`, with its
+ * own tests, the same split as the copy button's script.
  *
  * IT IS `is:inline` AND THEREFORE NOT BUNDLED. Astro bundles a plain `<script>`
  * and emits it as a module, which the CSP would then name by hash; `is:inline`
@@ -36,6 +37,9 @@
  * in-place result message; the page navigation it replaces is the fallback, not
  * the design.
  */
+import { EMAIL_MAX_LENGTH, MESSAGE_MAX_LENGTH, NAME_MAX_LENGTH } from '../lib/contact';
+import { CONTACT_SCRIPT } from '../lib/contact-script.mjs';
+
 interface Props {
   phone: string;
   address: string;
@@ -43,45 +47,6 @@ interface Props {
 
 const { phone, address } = Astro.props;
 const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
-
-/*
- * The client side of the form. Single quotes throughout: this is a template
- * literal, so a backtick or a `${` inside would end it.
- *
- * `role="status"` on the element this writes into is what announces the result
- * to a screen reader; the element lives outside the form so hiding the form on
- * success does not hide the sentence that says so.
- */
-const CONTACT_SCRIPT = `
-const form = document.querySelector('[data-contact-form]');
-if (form) {
-  const status = document.querySelector('[data-contact-status]');
-  const button = form.querySelector('button[type="submit"]');
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    button.disabled = true;
-    status.textContent = 'Se trimite…';
-    fetch(form.action, { method: 'POST', body: new FormData(form) })
-      .then((response) => response.json().then((body) => ({ response, body })))
-      .then(({ response, body }) => {
-        if (response.ok && body.ok) {
-          form.hidden = true;
-          status.textContent = 'Mesajul a fost trimis. Vă mulțumim!';
-          return;
-        }
-        button.disabled = false;
-        status.textContent =
-          body.error ||
-          Object.values(body.errors || {})[0] ||
-          'Mesajul nu a putut fi trimis. Vă rugăm să încercați din nou sau să ne sunați.';
-      })
-      .catch(() => {
-        button.disabled = false;
-        status.textContent = 'Mesajul nu a putut fi trimis. Vă rugăm să încercați din nou sau să ne sunați.';
-      });
-  });
-}
-`;
 ---
 
 <section class="cf" aria-labelledby="cf-heading">
@@ -92,15 +57,15 @@ if (form) {
         <form method="post" action="/api/contact" data-contact-form>
           <p class="cf-field">
             <label for="cf-name">Nume</label>
-            <input id="cf-name" name="name" type="text" autocomplete="name" required />
+            <input id="cf-name" name="name" type="text" autocomplete="name" maxlength={NAME_MAX_LENGTH} required />
           </p>
           <p class="cf-field">
             <label for="cf-email">E-mail</label>
-            <input id="cf-email" name="email" type="email" autocomplete="email" required />
+            <input id="cf-email" name="email" type="email" autocomplete="email" maxlength={EMAIL_MAX_LENGTH} required />
           </p>
           <p class="cf-field">
             <label for="cf-message">Mesaj</label>
-            <textarea id="cf-message" name="message" rows="6" required></textarea>
+            <textarea id="cf-message" name="message" rows="6" maxlength={MESSAGE_MAX_LENGTH} required></textarea>
           </p>
           {/*
             The honeypot: hidden from sight and from assistive technology, out
@@ -121,6 +86,18 @@ if (form) {
             folosi, sunați-ne la {phone}.
           </p>
         </noscript>
+        {/*
+          THE INFORMATION DUTY, IN ONE SENTENCE. The form collects a name, an
+          address and free text and forwards them through an e-mail processor;
+          saying what they are for, where they go and that nothing is kept is
+          the minimum a person should be able to read before typing. A full
+          privacy statement is the parish's text to write, and the handover
+          records it as one.
+        */}
+        <p class="cf-privacy">
+          Datele trimise sunt folosite doar pentru a vă răspunde și ajung la parohie printr-un
+          serviciu de e-mail. Nu sunt stocate pe acest site.
+        </p>
         <script
           is:inline
           src="https://challenges.cloudflare.com/turnstile/v0/api.js"
@@ -183,6 +160,7 @@ if (form) {
   }
   .cf-status { margin: 0.75rem 0 0; font-size: 0.9375rem; }
   .cf-status:empty { margin: 0; }
+  .cf-privacy { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--muted); }
   .cf-noscript,
   .cf-fallback { margin: 0.75rem 0 0; color: var(--muted); }
 </style>

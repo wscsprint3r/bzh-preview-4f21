@@ -12,8 +12,16 @@
  * pretended otherwise: `docs/handover.md` step K is where it is settled.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { onRequestPost } from '../../functions/api/contact';
-import { MESSAGE_MIN_LENGTH, sendEmail, validateContact, verifyTurnstile } from './contact';
+import { onRequest, onRequestPost } from '../../functions/api/contact';
+import {
+  EMAIL_MAX_LENGTH,
+  MESSAGE_MAX_LENGTH,
+  MESSAGE_MIN_LENGTH,
+  NAME_MAX_LENGTH,
+  sendEmail,
+  validateContact,
+  verifyTurnstile,
+} from './contact';
 
 const VALID = {
   name: 'Ion Popescu',
@@ -32,7 +40,6 @@ const PAYLOAD = {
   name: 'Ion Popescu',
   email: 'ion.popescu@example.com',
   message: 'Un mesaj de probă.',
-  ip: '203.0.113.7',
 };
 
 const ENV = {
@@ -109,6 +116,55 @@ describe('validateContact', () => {
   });
 
   /*
+   * THE CEILING, WITH BOTH SIDES OF IT. `maxlength` on the inputs is a courtesy
+   * to a person; a script posts whatever it likes, so the server refuses the
+   * same lengths and the boundary is pinned in both directions.
+   */
+  it(`refuses a name past ${NAME_MAX_LENGTH} characters and accepts the boundary`, () => {
+    const over = validateContact({ ...VALID, name: 'x'.repeat(NAME_MAX_LENGTH + 1) });
+    expect(over.ok).toBe(false);
+    if (over.ok) throw new Error('unreachable');
+    expect(over.errors.name).toBeDefined();
+
+    const boundary = validateContact({ ...VALID, name: 'x'.repeat(NAME_MAX_LENGTH) });
+    expect(boundary.ok).toBe(true);
+  });
+
+  it(`refuses an e-mail past ${EMAIL_MAX_LENGTH} characters and accepts the boundary`, () => {
+    const boundaryAddress = `${'a'.repeat(EMAIL_MAX_LENGTH - 5)}@x.co`;
+    const over = validateContact({ ...VALID, email: `a${boundaryAddress}` });
+    expect(over.ok).toBe(false);
+    if (over.ok) throw new Error('unreachable');
+    expect(over.errors.email).toBeDefined();
+
+    const boundary = validateContact({ ...VALID, email: boundaryAddress });
+    expect(boundary.ok).toBe(true);
+  });
+
+  it(`refuses a message past ${MESSAGE_MAX_LENGTH} characters and accepts the boundary`, () => {
+    const over = validateContact({ ...VALID, message: 'x'.repeat(MESSAGE_MAX_LENGTH + 1) });
+    expect(over.ok).toBe(false);
+    if (over.ok) throw new Error('unreachable');
+    expect(over.errors.message).toBeDefined();
+
+    const boundary = validateContact({ ...VALID, message: 'x'.repeat(MESSAGE_MAX_LENGTH) });
+    expect(boundary.ok).toBe(true);
+  });
+
+  /*
+   * THE NAME CANNOT CARRY A NEWLINE INTO THE SUBJECT. It is interpolated into
+   * the e-mail subject, and CR or LF there is a header-injection attempt; the
+   * value that comes out of validation has neither, whatever the input held.
+   */
+  it('removes line breaks from the name before it can reach a subject', () => {
+    const result = validateContact({ ...VALID, name: 'Ion\r\nBcc: victim@example.com' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.values.name).not.toMatch(/[\r\n]/);
+    expect(result.values.name).toBe('Ion Bcc: victim@example.com');
+  });
+
+  /*
    * THE HONEYPOT IS A TRAP, SO THE REPLY MUST NOT SPRING IT BACK. The error
    * names no field: a bot that reads the response body must not learn which
    * input gave it away, and a person who somehow filled the hidden field gets
@@ -169,7 +225,14 @@ describe('sendEmail', () => {
     expect(body.to).toBe('parohie@example.com');
     expect(body.reply_to).toBe('ion.popescu@example.com');
     expect(body.subject).toBe('Formular de contact — Ion Popescu');
-    expect(body.text).toBe(PAYLOAD.message);
+    /*
+     * THE BODY NAMES THE SENDER. `reply_to` is the one-click path; the body is
+     * the one that survives a forwarded copy, and it must carry both halves.
+     */
+    expect(body.text).toContain(PAYLOAD.message);
+    expect(body.text).toContain(`Nume: ${PAYLOAD.name}`);
+    expect(body.text).toContain(`E-mail: ${PAYLOAD.email}`);
+    expect(body.html).toContain(`mailto:${PAYLOAD.email}`);
   });
 
   /*
@@ -285,5 +348,47 @@ describe('the Pages Function', () => {
 
     expect(response.status).toBe(400);
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  /*
+   * A MALFORMED BODY IS A 400, NOT CLOUDFLARE'S 500. `request.formData()`
+   * throws on anything that is not form-encoded - a scanner's JSON POST, a
+   * probe with no body - and the endpoint is public, so the error it returns
+   * has to be the one it means.
+   */
+  it('answers a body that is not a form with 400, before touching the network', async () => {
+    const fetchFn = vi.fn();
+    vi.stubGlobal('fetch', fetchFn);
+    const request = new Request('https://bor-zh.ch/api/contact', {
+      method: 'POST',
+      body: '{"name":"Ion"}',
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const response = await onRequestPost({ request, env: ENV });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: expect.any(String) });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('answers a Resend refusal with 502 and does not claim success', async () => {
+    const fetchFn = fakeFetch((url) => {
+      if (url.includes('siteverify')) return jsonResponse(200, { success: true });
+      return jsonResponse(422, { message: 'rejected' });
+    });
+    vi.stubGlobal('fetch', fetchFn);
+
+    const response = await onRequestPost({ request: contactRequest(VALID), env: ENV });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: expect.any(String) });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('answers every method that is not POST with 405', () => {
+    const response = onRequest();
+
+    expect(response.status).toBe(405);
   });
 });

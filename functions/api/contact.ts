@@ -37,12 +37,25 @@ export const onRequestPost = async ({
   request: Request;
   env: Env;
 }): Promise<Response> => {
-  const form = await request.formData();
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },
     });
+
+  /*
+   * A BODY THAT IS NOT A FORM IS A 400, NOT A 500. `request.formData()` throws
+   * on a body whose content type is not form-encoded - a scanner's JSON POST,
+   * a probe with no body - and an uncaught throw here is Cloudflare's generic
+   * 500, which says "we broke" about a request that was simply malformed. The
+   * endpoint is public; the error it returns should be the one it means.
+   */
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return json(400, { ok: false, error: 'Cererea nu a putut fi citită.' });
+  }
 
   const result = validateContact({
     name: form.get('name'),
@@ -59,7 +72,7 @@ export const onRequestPost = async ({
   }
 
   const sent = await sendEmail(
-    { ...result.values, ip },
+    result.values,
     {
       apiKey: env.RESEND_API_KEY,
       to: env.CONTACT_TO,
