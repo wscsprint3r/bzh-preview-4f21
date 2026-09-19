@@ -26,4 +26,4 @@ Hramul parohiei - Sfântul Ierarh Nicolae-6 decembrie - împreună cu marile Pra
 
 Fie ca Milostivul Dumnezeu să reverse pururea harul și darurile Sale cele bogate peste întreaga comunitate.
 
-![](../../assets/content/2024/05/Captura-de-ecran-din-2024-05-14-la-15.25.58.png) ![](../../assets/content/2024/05/icoana-Sfantul-Nicolae-scaled-e1717407098424.jpg) ![](../../assets/content/2024/05/Captura-de-ecran-din-2024-05-14-la-15.25.58.png)
+![](../../assets/content/2024/05/fbac9ffd-709b-4e9c-ab78-8f88862fdbee.jpg) ![](../../assets/content/2024/05/icoana-Sfantul-Nicolae-scaled-e1717407098424.jpg) ![](../../assets/content/2024/05/d137c008-87ff-423a-a95f-5da44b9f1534.jpg)

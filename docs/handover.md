@@ -598,6 +598,12 @@ and what to hand Phase 4.
   is used only to answer, and that nothing is stored; a full statement (revDSG, the
   e-mail processor, retention) is the parish's text to write, and Phase 4 should decide
   whether it becomes a page rather than a paragraph.
+- **One portrait is still the old placeholder.** `src/content/pages/consiliul-parohial.md`
+  carries `Captura-de-ecran-din-2024-05-14-la-15.25.58.png` — a white-background ornament
+  from the old site — under **Eduard Gabriel Bazavan**, where every other member has a
+  photograph, and on the parchment ground it reads as an empty slab. The parish is
+  waiting for his picture; replace the reference when it arrives, and do not delete the
+  placeholder before then.
 
 **Unverified until it is deployed.**
 
