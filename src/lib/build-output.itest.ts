@@ -363,6 +363,36 @@ function altTexts(html: string): string[] {
 }
 
 /**
+ * Every named Markdown link whose destination is the migration's
+ * `../../assets/content/…` shape.
+ *
+ * The negative lookbehind excludes a Markdown IMAGE (`![alt](…)`), which
+ * Astro rewrites itself - the subject here is the link nodes it does not
+ * visit. The name may be empty: `stripEmptyAnchors` removes that shape before
+ * render, so the caller filters those out.
+ */
+function contentAssetLinks(markdown: string): { name: string; target: string }[] {
+  return [...markdown.matchAll(/(?<!!)\[([^\]]*)\]\((\.\.\/\.\.\/assets\/content\/[^)\s]+)\)/g)].map(
+    (m) => ({ name: m[1] as string, target: m[2] as string }),
+  );
+}
+
+/** Every `href` on a built page that still names the unserved content-asset path. */
+function rawContentAssetHrefs(html: string): string[] {
+  return [...html.matchAll(/href="([^"]*assets\/content\/[^"]*)"/g)].map((m) => m[1] as string);
+}
+
+/** Every anchor on a built page whose href is an emitted asset URL. */
+function builtAssetAnchors(html: string): { name: string; href: string }[] {
+  return [...html.matchAll(/<a\b[^>]*\bhref="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
+    .map((m) => ({
+      href: m[1] as string,
+      name: (m[2] as string).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+    }))
+    .filter((a) => a.href.startsWith('/_astro/'));
+}
+
+/**
  * Every prose page content file, its public route and its parsed frontmatter.
  *
  * THE SIBLING OF `articleFiles`, and the subject rule is the same one: the
@@ -424,6 +454,30 @@ describe("this file's detectors can actually fire", () => {
     expect(altTexts('<img src="x" alt="">')).toEqual(['']);
     expect(altTexts('<img alt="Icoană" src="x">')).toEqual(['Icoană']);
     expect(() => altTexts('<img src="x">')).toThrow();
+  });
+
+  /*
+   * The content-asset detectors, all three directions. A Markdown image with
+   * the same destination must NOT be collected as a link (Astro rewrites that
+   * one itself); the raw-href reader must fire on the shape a broken build
+   * ships and stay quiet on the resolved one; and the built-anchor reader must
+   * name the anchor it found. Without these, "no raw content-asset href" and
+   * "every anchor resolves" could each pass over an empty set.
+   */
+  it('reads a content-asset link, a raw content-asset href and an emitted asset anchor', () => {
+    const md =
+      '[nume](../../assets/content/2024/05/a.jpg) ' +
+      '![alt](../../assets/content/2024/05/a.jpg)';
+    expect(contentAssetLinks(md)).toEqual([
+      { name: 'nume', target: '../../assets/content/2024/05/a.jpg' },
+    ]);
+    expect(rawContentAssetHrefs('<a href="../../assets/content/2024/05/a.jpg">nume</a>')).toEqual([
+      '../../assets/content/2024/05/a.jpg',
+    ]);
+    expect(rawContentAssetHrefs('<a href="/_astro/a.123.jpg">nume</a>')).toEqual([]);
+    expect(builtAssetAnchors('<a class="x" href="/_astro/a.123.jpg">nume</a>')).toEqual([
+      { name: 'nume', href: '/_astro/a.123.jpg' },
+    ]);
   });
 
   it('the collection really does have days and services to compare', () => {
@@ -785,6 +839,78 @@ describe('the prose pages', () => {
       .map((m) => m[0]);
     expect(dead, `links to files the old host no longer needs to serve:\n${dead.join('\n')}`)
       .toEqual([]);
+  });
+
+  /*
+   * THE CONTENT-ASSET ANCHORS, PROVEN TO RESOLVE. `cursuri-de-pictura`'s
+   * gallery is eleven named links at the migrated full-size images, written by
+   * the migration as `[name](../../assets/content/…)`. Astro rewrites markdown
+   * IMAGES, not link nodes, so on the d73b49e build the page shipped all
+   * eleven hrefs verbatim - resolving to `/assets/content/…`, where
+   * `dist/assets/` does not exist, and three of the eleven originals were in
+   * the build only as `.webp` derivatives, unreachable from those hrefs. The
+   * route's `resolveContentAssetLinks` now imports every content asset with
+   * `?url` and rewrites each href to the emitted URL; this is the joint that
+   * proves it, because no unit test can see `dist/`.
+   *
+   * THE SUBJECT IS THE CONTENT FILES, and the count is pinned: the nine prose
+   * pages are a fixed contract and the migration is deterministic, so a count
+   * that moves is a migration change that needs a human, not a corpus that
+   * grows the way posts do. Every expected link is then matched to a built
+   * anchor by NAME and followed to a file - the name is what makes the match
+   * about this link rather than about any anchor at an asset.
+   */
+  it('every content-asset anchor on a prose page resolves to a real file in dist/', () => {
+    const expected = pageFiles().flatMap((f) =>
+      contentAssetLinks(readFileSync(PAGES_CONTENT + f.file, 'utf8'))
+        .filter((link) => link.name.trim() !== '')
+        .map((link) => ({ ...link, slug: f.slug })),
+    );
+    expect(
+      expected.length,
+      'the prose corpus does not carry the measured 11 content-asset links',
+    ).toBe(11);
+
+    const measured: string[] = [];
+    for (const link of expected) {
+      const html = read(`${link.slug}/index.html`);
+      const anchor = builtAssetAnchors(html).find((a) => a.name === link.name);
+      expect(
+        anchor,
+        `/${link.slug}/ does not render "${link.name}" as an anchor at an emitted asset`,
+      ).toBeDefined();
+      const href = (anchor as { href: string }).href;
+      // Root-relative, or `DIST + path` is not the file the host serves.
+      expect(href.startsWith('/'), `${href} on /${link.slug}/ is not root-relative`).toBe(true);
+      const path = (href.split(/[?#]/)[0] as string).slice(1);
+      expect(existsSync(DIST + path), `${href} on /${link.slug}/ does not resolve inside dist/`)
+        .toBe(true);
+      measured.push(`/${link.slug}/ -> ${href}`);
+    }
+    process.stdout.write(
+      `\nProse content-asset anchors: ${measured.length} of ${expected.length} resolved:\n` +
+        `${measured.map((m) => `  ${m}`).join('\n')}\n`,
+    );
+  });
+
+  /*
+   * THE OTHER DIRECTION, SITE-WIDE: the unserved shape must appear nowhere in
+   * `dist/`. The guard above reads the pages the content files know about; this
+   * one reads every built page, so a hardcoded or future anchor the migration
+   * shape does not describe still fails. Its detector has a positive control in
+   * "this file's detectors can actually fire" - the old-host assertion above
+   * has none, and that weakness is not copied.
+   */
+  it('no built page carries an unserved content-asset href', () => {
+    const pages = builtPages();
+    expect(pages.length, 'no built page - the guard would prove nothing').toBeGreaterThan(0);
+    const hits = pages.flatMap((page) =>
+      rawContentAssetHrefs(readFileSync(DIST + page, 'utf8')).map((href) => `${page} -> ${href}`),
+    );
+    expect(
+      hits,
+      `built pages link at assets/content/, which the host does not serve:\n${hits.join('\n')}`,
+    ).toEqual([]);
   });
 });
 

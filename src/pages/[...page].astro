@@ -3,7 +3,7 @@ import { getCollection, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import { normalizeHeadingLevels } from '../lib/markdown-headings';
-import { stripEmptyAnchors } from '../lib/markdown-links';
+import { resolveContentAssetLinks, stripEmptyAnchors } from '../lib/markdown-links';
 
 /*
  * ONE DYNAMIC ROUTE FOR THE NINE PROSE PAGES, not nine near-identical files.
@@ -29,7 +29,7 @@ const { entry } = Astro.props;
 const { title, description } = entry.data;
 
 /*
- * Two transforms on the migrated body, both before `render` and both for
+ * Three transforms on the migrated body, all before `render` and all for
  * defects the migration can reintroduce:
  *
  * 1. Heading levels are shifted so the shallowest is an `<h2>` under the
@@ -43,17 +43,30 @@ const { title, description } = entry.data;
  *    WordPress gallery - invisible to a sighted visitor, unnamed for everyone
  *    else, and a red `link-name` axe pass. `markdown-links.ts` states the rule
  *    and why it is conservative.
+ * 3. Content-asset anchors are resolved. The migration turned that same
+ *    gallery's eleven full-size images into `[name](../../assets/content/…)`
+ *    links; Astro rewrites markdown IMAGES, not link nodes, so without this
+ *    the built page emitted `href="../../assets/content/…"` - measured on the
+ *    d73b49e build, resolving to `/assets/content/…` where `dist/assets/`
+ *    does not exist, and three of the eleven originals were in the build only
+ *    as `.webp` derivatives, unreachable from those hrefs. The helper imports
+ *    every content asset with `?url`, so the originals are emitted and each
+ *    href names one; a named anchor it cannot resolve stops the build rather
+ *    than shipping a 404. It runs AFTER the strip, so an empty anchor to a
+ *    missing file is still removed rather than made fatal.
  *
  * A COPY, not a mutation: `entry` is the object `getStaticPaths` handed in,
  * and `render` reads `entry.rendered` (the loader renders collection entries
  * eagerly), so the transformed body is passed in its place and the original is
- * left alone. Image references survive because neither transform touches
+ * left alone. Image references survive because none of the transforms touches
  * `<img>`, and `render` does its asset rewriting after this.
  */
 const rendered = entry.rendered
   ? {
       ...entry.rendered,
-      html: stripEmptyAnchors(normalizeHeadingLevels(entry.rendered.html)),
+      html: resolveContentAssetLinks(
+        stripEmptyAnchors(normalizeHeadingLevels(entry.rendered.html)),
+      ),
     }
   : entry.rendered;
 const { Content } = await render({ ...entry, rendered });
