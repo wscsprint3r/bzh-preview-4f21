@@ -14,6 +14,25 @@
 @import '@fontsource/cormorant-garamond/latin-400-italic.css';
 @import '@fontsource/cormorant-garamond/latin-ext-400-italic.css';
 
+/*
+ * THE FALLBACK'S METRICS ARE ADJUSTED TO SPECTRAL'S, because the measure is in
+ * `ch` and `font-display: swap` (the @fontsource files above) means the
+ * fallback draws first. Measured in the built page at 17px: 68ch is 578px in
+ * Spectral and 709.52px in Georgia, so on a machine with Georgia the reading
+ * column rendered 131px wider until the webfont arrived and then snapped - and
+ * since the column, that snap moves the whole page, not only the prose.
+ * 578 / 709.52 = 81.46%. A machine without Georgia keeps the next fallback in
+ * the stack, which measured 578px here. The display face is left alone: a
+ * heading is not a measure.
+ */
+@font-face {
+  font-family: 'Spectral Fallback';
+  src: local('Georgia');
+  font-weight: 400;
+  font-style: normal;
+  size-adjust: 81.46%;
+}
+
 /* Transcribed from cssTokens() in src/lib/tokens.ts; tokens.test.ts asserts
    the two agree in value, and that every token used for text clears 4.5:1. */
 :root {
@@ -30,7 +49,7 @@
   --faint: #7E6C52;
 
   --display: 'Cormorant Garamond', Georgia, serif;
-  --body: 'Spectral', Georgia, serif;
+  --body: 'Spectral', 'Spectral Fallback', Georgia, serif;
   --gutter: clamp(1rem, 4vw, 2.25rem);
   --masura: 68ch;
 }
