@@ -7,14 +7,15 @@ import {
   assertPagesFound,
   linkImagesIn,
   rewriteLinkedImages,
+  stripAccountBlocks,
 } from './pages.mjs';
 import { redirectRows } from './url-map.mjs';
 import { pageSchema } from '../src/lib/content-schema.ts';
 import { imagesIn } from './html-md.mjs';
 
-describe('the nine pages', () => {
-  it('are exactly nine', () => {
-    expect(PAGES).toHaveLength(9);
+describe('the eleven pages', () => {
+  it('are exactly eleven', () => {
+    expect(PAGES).toHaveLength(11);
   });
 
   it('every path passes the schema, so every route will build', () => {
@@ -28,8 +29,8 @@ describe('the nine pages', () => {
   });
 
   it('has no two pages on the same path or the same slug', () => {
-    expect(new Set(PAGES.map((p) => p.path)).size).toBe(9);
-    expect(new Set(PAGES.map((p) => p.slug)).size).toBe(9);
+    expect(new Set(PAGES.map((p) => p.path)).size).toBe(11);
+    expect(new Set(PAGES.map((p) => p.slug)).size).toBe(11);
   });
 
   it('the order is in tens, so one can be inserted between two others', () => {
@@ -215,6 +216,53 @@ describe('the image-link guard', () => {
 });
 
 // ---------------------------------------------------------------------------
+// The account paragraphs. `contact` and `doneaza` each print one IBAN in one
+// paragraph of their WordPress body; Task 10 renders accounts from
+// `settings.accounts`, and two copies of an IBAN is the duplication this
+// project has already paid for. `servicii-liturgice` is NOT stripped: its
+// account is not one the generated blocks render, so its prose stays as it is.
+// Measured 2026-09-19 over the three: contact one paragraph, doneaza one,
+// servicii-liturgice zero - its bank details sit between `<br>`s rather than
+// in a `<p>`, which is exactly why an undeclared page must come back untouched
+// rather than be judged against a count it cannot satisfy.
+// ---------------------------------------------------------------------------
+
+describe('the account blocks', () => {
+  const WITH_IBAN =
+    '<p>Înainte de slujbă</p>' +
+    '<p>Donații în contul: <b>CH00 0000 0000 0000 0000 0</b></p>' +
+    '<p>După slujbă</p>';
+
+  it('removes the paragraph carrying an IBAN and keeps the directions around it', () => {
+    const out = stripAccountBlocks(WITH_IBAN, 'contact');
+    expect(out).not.toContain('CH00');
+    expect(out).toContain('Înainte de slujbă');
+    expect(out).toContain('După slujbă');
+  });
+
+  it('leaves an undeclared page untouched, IBAN and all', () => {
+    // servicii-liturgice carries its own account and is deliberately not
+    // stripped. This is the positive control for the declaration itself: a
+    // function that stripped every page would pass the case above and fail
+    // here.
+    expect(stripAccountBlocks(WITH_IBAN, 'servicii-liturgice')).toBe(WITH_IBAN);
+  });
+
+  it('POSITIVE CONTROL: stops the run when a declared page has no IBAN paragraph', () => {
+    // The "a guard must find its subject" rule: a strip that silently removed
+    // nothing would let the IBAN ship in the prose beside the generated block.
+    expect(() => stripAccountBlocks('<p>Fără cont aici</p>', 'contact'))
+      .toThrow(/contact\.md.*removed 0/s);
+  });
+
+  it('POSITIVE CONTROL: stops the run when a declared page has two IBAN paragraphs', () => {
+    const two = `${WITH_IBAN}<p>Alt cont: <b>CH11 0021 5215 3048 5502 K</b></p>`;
+    expect(() => stripAccountBlocks(two, 'doneaza'))
+      .toThrow(/doneaza\.md.*removed 2/s);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The URL map's one collision, ruled 2026-09-18: `/scoala-parohiala/` is both
 // a page and a held-back post in the dump, and the PAGE wins. The post row
 // would land on `/noutati/scoala-parohiala/`, which has no page while the post
@@ -235,12 +283,13 @@ describe('the URL map', () => {
       .toEqual([['/scoala-parohiala/', '/comunitate/scoala/']]);
   });
 
-  it('has no duplicate old path, and totals 55 for the real corpus shape', () => {
-    // 9 pages + 45 posts + `/program-liturgic/` + `/feed/`, minus the one post
-    // row the page collision absorbs. The plan's 56 predates the collision.
+  it('has no duplicate old path, and totals 57 for the real corpus shape', () => {
+    // 11 pages + 45 posts + `/program-liturgic/` + `/feed/`, minus the one post
+    // row the page collision absorbs. The plan's 56 predates the collision and
+    // the two Phase 3 pages (`contact`, `doneaza`) that Task 9 added.
     const rows = redirectRows(PAGES, POST_SLUGS);
-    expect(rows).toHaveLength(55);
-    expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(55);
+    expect(rows).toHaveLength(57);
+    expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(57);
   });
 
   it('keeps a document row, and totals pages + fixed + posts + documents', () => {
@@ -252,11 +301,11 @@ describe('the URL map', () => {
       { from: '/revista/doxologia_18_2019.pdf', to: '/documente/doxologia-18-2019.pdf' },
     ];
     const rows = redirectRows(PAGES, POST_SLUGS, documents);
-    expect(rows).toHaveLength(56);
+    expect(rows).toHaveLength(58);
     expect(rows).toContainEqual([
       '/revista/doxologia_18_2019.pdf',
       '/documente/doxologia-18-2019.pdf',
     ]);
-    expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(56);
+    expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(58);
   });
 });

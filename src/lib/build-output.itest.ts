@@ -196,12 +196,18 @@ const ICS_REFERENCES: Record<string, number> = {
    */
   'evenimente/index.html': 2,
   /*
-   * THE NINE PROSE PAGES, named one by one rather than derived, and the
-   * difference from the article entries below is deliberate: the nine are a
-   * fixed contract (the CMS does not create them), so a tenth appearing here
-   * is a decision somebody made rather than a post the parish published.
-   * Each goes through `Base.astro` and the footer like every other visitor
-   * page, so each carries the same two references.
+   * THE ELEVEN PROSE PAGES, named one by one rather than derived, and the
+   * difference from the article entries below is deliberate: the eleven are a
+   * fixed contract (the CMS does not create them), so a twelfth appearing here
+   * is a decision somebody made rather than a post the parish published. Each
+   * goes through `Base.astro` and the footer like every other visitor page, so
+   * each carries the same two references.
+   *
+   * `contact` AND `doneaza` JOINED IN TASK 9, and they are `pages` entries like
+   * the nine even though dedicated routes build them - `RESERVED_PATHS` in
+   * `src/lib/routes.ts` is what keeps `[...page].astro` off their URLs. Their
+   * own generated blocks (accounts, the QR-bill, the form) are Tasks 10-12;
+   * today they carry the migrated prose, so the count is the same two.
    */
   'parohia/istoric/index.html': 2,
   'parohia/consiliul/index.html': 2,
@@ -212,6 +218,8 @@ const ICS_REFERENCES: Record<string, number> = {
   'resurse/studii/index.html': 2,
   'resurse/doxologia/index.html': 2,
   'resurse/linkuri/index.html': 2,
+  'contact/index.html': 2,
+  'doneaza/index.html': 2,
 };
 
 /**
@@ -681,47 +689,52 @@ describe('the news pages', () => {
 });
 
 /*
- * THE NINE PROSE PAGES, FROM ONE ROUTE. `[...page].astro` builds a page per
- * entry in the `pages` collection; these assertions are the joint between the
- * content files and what was written to dist.
+ * THE PROSE PAGES, FROM ONE ROUTE PLUS THE TWO RESERVED ONES. `[...page].astro`
+ * builds a page per entry in the `pages` collection that is not reserved;
+ * `contact.astro` and `doneaza.astro` build the reserved ones. These assertions
+ * are the joint between the content files and what was written to dist.
  */
 describe('the prose pages', () => {
   it('every page in the collection has exactly one built file', () => {
     /*
-     * The expected set comes from the CONTENT FILES, which the route cannot
+     * The expected set comes from the CONTENT FILES, which the routes cannot
      * edit - not from walking `dist/`, which would only ever confirm what the
-     * route already produced.
+     * routes already produced.
      *
-     * NINE IS A CONTRACT, not a corpus count: the nine prose pages are fixed
-     * (the CMS does not create them), so pinning the number is what makes an
-     * emptied collection a failure rather than a loop over nothing. Posts are
-     * the other case - they grow every time the parish publishes - and their
-     * guards hold properties instead.
+     * ELEVEN IS A CONTRACT, not a corpus count: the prose pages are fixed (the
+     * CMS does not create them), so pinning the number is what makes an
+     * emptied collection a failure rather than a loop over nothing. It was nine
+     * for Phase 2, and Task 9 raised it by the two reserved pages (`contact`,
+     * `doneaza`) whose content files the migration now writes - an explicit
+     * contract change, recorded here so the next raise is a decision too.
+     * Posts are the other case - they grow every time the parish publishes -
+     * and their guards hold properties instead.
      */
     const paths = pageFiles().map((f) => f.slug);
-    expect(paths.length, 'no page - the guard would prove nothing').toBe(9);
+    expect(paths.length, 'no page - the guard would prove nothing').toBe(11);
     for (const path of paths) {
       expect(existsSync(`${DIST}${path}/index.html`), `missing /${path}/`).toBe(true);
     }
   });
 
   /*
-   * REACHABILITY, WHICH "A FILE EXISTS" DOES NOT CHECK. The nine routes were
-   * exactly that - routes. On the Phase 2 build, seven of them had no inbound
-   * link on any built page: `getStaticPaths` had built them, every guard above
-   * found their files, and a page nobody can navigate to looks identical to one
-   * everybody can. The footer's `Pagini` menu is the sitewide answer, and this
-   * asserts the property rather than the component: every prose page is linked
-   * from every visitor page.
+   * REACHABILITY, WHICH "A FILE EXISTS" DOES NOT CHECK. The nine Phase 2 routes
+   * were exactly that - routes. On the Phase 2 build, seven of them had no
+   * inbound link on any built page: `getStaticPaths` had built them, every
+   * guard above found their files, and a page nobody can navigate to looks
+   * identical to one everybody can. The footer's `Pagini` menu is the sitewide
+   * answer, and this asserts the property rather than the component: every
+   * prose page is linked from every visitor page - the two Task 9 pages
+   * included, through the collection rather than a hand-written link.
    *
-   * The subject is the CONTENT FILES (nine fixed pages), not a walk of `dist/`.
-   * The universal is `builtPages()` minus `admin/`, which is the CMS and carries
-   * no site chrome; that set is the footer's reach, so a page the footer is
-   * missing from fails here rather than being silently excluded.
+   * The subject is the CONTENT FILES (eleven fixed pages), not a walk of
+   * `dist/`. The universal is `builtPages()` minus `admin/`, which is the CMS
+   * and carries no site chrome; that set is the footer's reach, so a page the
+   * footer is missing from fails here rather than being silently excluded.
    */
   it('every prose page is linked from every visitor page', () => {
     const paths = pageFiles().map((f) => f.slug);
-    expect(paths.length, 'no page - the guard would prove nothing').toBe(9);
+    expect(paths.length, 'no page - the guard would prove nothing').toBe(11);
     const visitorPages = builtPages().filter((p) => !p.startsWith('admin/'));
     expect(
       visitorPages.length,

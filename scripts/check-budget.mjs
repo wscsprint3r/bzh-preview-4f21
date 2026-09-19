@@ -262,6 +262,23 @@ const PAGE_BUDGET = {
   'comunitate/*': 24 * 1024,
   'resurse/*': 30 * 1024,
   'servicii-liturgice/index.html': 30 * 1024,
+  /*
+   * THE TWO PHASE 3 PAGES, `contact` and `doneaza`. They are `pages` entries
+   * built by dedicated routes (`RESERVED_PATHS` in `src/lib/routes.ts`), and
+   * they are one group because they are the same kind of page: migrated prose
+   * plus the generated blocks Tasks 10-12 add below it.
+   *
+   * MEASURED ON THE TASK 9 BUILD: `contact` 12,732 bytes, `doneaza` 13,228 -
+   * the prose alone, with no account block, QR-bill or form yet. 24 KiB is
+   * 1.86x the larger, inside the 1.4-1.9x range the prose pages state. The
+   * plan's starting limits (24 KiB and 32 KiB) were written before any
+   * measurement; the 32 would have been 2.48x, above the range, so it is
+   * lowered to the same 24 as its sibling rather than copied. Tasks 10-12 add
+   * bounded features - three account blocks, a QR-bill image, the form - and
+   * each measures again rather than assuming this headroom still fits.
+   */
+  'contact/index.html': 24 * 1024,
+  'doneaza/index.html': 24 * 1024,
 };
 
 /**
@@ -385,6 +402,20 @@ const REQUEST_BUDGET = {
   'resurse/*': 48,
   // Measured 12; 16 is room for four more images.
   'servicii-liturgice/index.html': 16,
+  /*
+   * MEASURED ON THE TASK 9 BUILD, and the plan's starting 2 is the fixed-chrome
+   * mistake `/pastorale/` above records: `contact` is 11 - the document, its two
+   * icons and eight @font-face, the same as every page with no image; the old
+   * page's Google Maps iframe did not survive the conversion, so nothing
+   * fetches it - and `doneaza` is 13, the same plus its two migrated
+   * photographs. `contact` gets 12, the measured count plus one, the one-slot
+   * headroom `pastorale` and `/noutati/`'s index carry; `doneaza` gets 16, room
+   * for three more photographs. Task 12's Turnstile adds an external script
+   * request and that task measures it; an unrelated request appearing before
+   * then is still a red build.
+   */
+  'contact/index.html': 12,
+  'doneaza/index.html': 16,
 };
 
 /*

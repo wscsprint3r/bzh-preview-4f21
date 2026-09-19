@@ -14,13 +14,27 @@ import { imagesIn, toMarkdown } from './html-md.mjs';
 import { migrateImages } from './media.mjs';
 
 /**
- * The nine WordPress pages that become this site's prose pages.
+ * The eleven WordPress pages that become this site's prose pages.
  *
  * THE TABLE IS THE ROUTE CONTRACT AND THE URL MAP'S SOURCE OF TRUTH. Each entry
  * pairs the old WordPress slug (the from-side of a redirect) with the new route
  * (without slashes; `[...page].astro` builds `/${path}/`). `order` is a spaced
  * integer rather than a position: tens leave room to insert a page between two
- * others without renumbering nine files.
+ * others without renumbering the files.
+ *
+ * TEN OF THE ELEVEN ARE BUILT BY `[...page].astro`; `contact` AND `doneaza` ARE
+ * NOT. They are reserved paths - `src/lib/routes.ts` is the one list both sides
+ * import - because each grows generated blocks (accounts, the QR-bill, the
+ * form) that a generic prose route has no business knowing about. Their entries
+ * still live in this table, so the URL map, the title guard and the footer's
+ * `Pagini` menu treat them like every other page.
+ *
+ * `stripAccounts` MARKS THE TWO WHOSE PROSE PRINTS AN IBAN. Those paragraphs
+ * are removed by `stripAccountBlocks` before conversion, because Task 10 renders
+ * the accounts from `settings.accounts`, and two copies of an IBAN is the one
+ * duplication this project has already paid for. `servicii-liturgice` is NOT
+ * marked: its account is not one the generated blocks render, so its prose
+ * stays as it is.
  *
  * THE TITLES COME FROM `wpoi_posts.post_title`, NORMALISED, NOT FROM THE PLAN'S
  * TABLE, which spells them without diacritics because the plan document is
@@ -31,7 +45,8 @@ import { migrateImages } from './media.mjs';
  * `revista-doxologia` is "Revista doxologică" (not "Revista Doxologia") and
  * `scoala-parohiala` is "Școala parohială". `extractPages` reads the database's
  * own title and stops the run when it does not equal the one here, so this
- * table cannot quietly disagree with what is written.
+ * table cannot quietly disagree with what is written. The two Phase 3 pages
+ * were measured 2026-09-19: "Contact", and "Donează" with U+0103.
  *
  * THE FOURTH PAGE IN THE PLAN'S OLD ORDERING IS GONE, and that is on purpose:
  * the user ruled that the ninth page's route is `resurse/linkuri` (from the
@@ -47,6 +62,8 @@ export const PAGES = [
   { slug: 'studii', path: 'resurse/studii', title: 'Studii', order: 70 },
   { slug: 'revista-doxologia', path: 'resurse/doxologia', title: 'Revista doxologică', order: 80 },
   { slug: 'link-uri-utile', path: 'resurse/linkuri', title: 'Link-uri utile', order: 90 },
+  { slug: 'contact', path: 'contact', title: 'Contact', order: 100, stripAccounts: true },
+  { slug: 'doneaza', path: 'doneaza', title: 'Donează', order: 110, stripAccounts: true },
 ];
 
 /** Where the migrated pages land, relative to the repository root. */
@@ -82,10 +99,10 @@ export function assertPagesFound(pages, bySlug) {
  * the only thing that can. Comparing NORMALISED titles on purpose: `normalize`
  * is the one filter for the cedilla forms, so a dump title that still carried
  * one would compare equal to the table rather than stopping the run on an
- * encoding difference. Measured 2026-09-18 over the nine: all titles are clean
- * already (`scoala-parohiala` holds U+0218, comma below), where three of the
- * 45 post titles needed the same normalisation. Pure, for the same reason as
- * `assertPagesFound`.
+ * encoding difference. Measured 2026-09-19 over the eleven: all titles are
+ * clean already (`scoala-parohiala` holds U+0218, comma below), where three of
+ * the 45 post titles needed the same normalisation. Pure, for the same reason
+ * as `assertPagesFound`.
  */
 export function assertPageTitles(pages, titlesBySlug) {
   for (const page of pages) {
@@ -107,8 +124,9 @@ export function assertPageTitles(pages, titlesBySlug) {
  * shape `imagesIn` cannot see - a lazy-load `data-src` with no `src`, an
  * unquoted `src` - is a documented limit of `imagesIn`, not behaviour it
  * handles. The equality turns either into a stopped run instead of a silently
- * missing picture. Measured 2026-09-18 over the nine pages: 63 tags, 63 srcs,
- * zero disagreement. Pure, so the positive control needs no database; the
+ * missing picture. Measured 2026-09-19 over the eleven pages: 65 tags, 65 srcs,
+ * zero disagreement (the nine measured 63 on 2026-09-18; `doneaza` adds two and
+ * `contact` none). Pure, so the positive control needs no database; the
  * `<img data-src>` fixture is the shape that fires it.
  */
 export function assertImageTagCount(slug, html, sources) {
@@ -122,10 +140,65 @@ export function assertImageTagCount(slug, html, sources) {
 }
 
 /**
+ * The paragraph shape WordPress writes, and the account number inside it.
+ *
+ * THE NUMBER IS MATCHED BY SHAPE, NOT BY VALUE: `CH` plus two check digits
+ * plus at least seventeen more characters of digits, spaces and capitals. A
+ * hardcoded list of the two real IBANs would pass the day somebody rotates an
+ * account and would say nothing about a third page that started printing one.
+ * The class deliberately excludes `<` and `>`, so a match cannot run past the
+ * end of a tag and swallow the element after it.
+ */
+const PARAGRAPH = /<p\b[^>]*>[\s\S]*?<\/p>/gi;
+const IBAN = /CH\d{2}[0-9A-Z ]{17,}/;
+
+/**
+ * Removes the paragraph that prints an IBAN, for the pages that declare one.
+ *
+ * WHY THE PROSE IS STRIPPED. `contact` and `doneaza` each print an account
+ * number in a WordPress paragraph; Task 10 renders the accounts from
+ * `settings.accounts`, and a second copy of an IBAN is the duplication this
+ * project has already paid for - the copy in prose cannot be updated from the
+ * CMS, so the two drift the first time an account changes.
+ *
+ * THE COUNT IS THE GUARD. A declared page must lose exactly one paragraph: a
+ * page whose IBAN moved out of the paragraph shape would otherwise strip
+ * nothing and ship the number beside the generated block, and two would mean
+ * somebody edited the corpus in a way this rule does not understand. The throw
+ * names the file and the count, the same "a guard must find its subject" rule
+ * as the title and image-count guards. A page that does not declare
+ * `stripAccounts` comes back byte for byte: `servicii-liturgice` carries its
+ * own account and is deliberately not stripped, so this cannot become a
+ * function that strips every page it is handed.
+ *
+ * Pure and exported, so both throws and the untouched arm have positive
+ * controls that need no database.
+ */
+export function stripAccountBlocks(html, slug) {
+  const page = PAGES.find((candidate) => candidate.slug === slug);
+  if (!page?.stripAccounts) return html;
+  let removed = 0;
+  const result = html.replace(PARAGRAPH, (match) => {
+    if (!IBAN.test(match)) return match;
+    removed += 1;
+    return '';
+  });
+  if (removed !== 1) {
+    throw new Error(
+      `${PAGES_DIR}/${slug}.md: stripAccounts is declared, but removed ${removed} ` +
+        'paragraph(s) carrying an IBAN; expected exactly 1. A number that moved out of ' +
+        'the paragraph shape would ship beside the generated block, and two mean the ' +
+        'corpus changed in a way this rule does not understand.',
+    );
+  }
+  return result;
+}
+
+/**
  * The uploads-image href this migration can rewrite, anchored to the parish's
  * own host the way `media.mjs` anchors its own sources.
  *
- * Measured over the nine pages, 2026-09-19: 11 anchors with an uploads-image
+ * Measured over the eleven pages, 2026-09-19: 11 anchors with an uploads-image
  * href, all on `cursuri-de-pictura`, all `https://www.bor-zh.ch`, all `.jpg`.
  * The host is part of the shape because a foreign uploads path is somebody
  * else's file: `migrateImages` would skip it as foreign, and collecting it here
@@ -178,7 +251,9 @@ function linkName(title, href) {
  * "NO VISIBLE TEXT" IS TAGS-STRIPPED, so an anchor wrapping an `<img>` counts
  * as textless and is collected; the rewrite below cannot name that shape, and
  * `assertImageLinkCount` is what stops the run on it rather than letting it
- * keep an old-host href. Measured: 0 such anchors on the nine pages.
+ * keep an old-host href. Measured 2026-09-19: 0 such anchors on the eleven
+ * pages (the count of collectable ones is still 11, all on
+ * `cursuri-de-pictura`).
  *
  * Pure and exported, so the positive control - an anchor with no image href -
  * needs no database.
@@ -286,7 +361,7 @@ export function assertImageLinkCount(slug, html, rewritten) {
 }
 
 /**
- * The nine prose pages, converted and written. Returns the counts.
+ * The eleven prose pages, converted and written. Returns the counts.
  *
  * `redirects` is what `extractDocuments` returns as its own `redirects`; the
  * bodies' old-host PDF links are rewritten to the `/documente/<slug>.pdf` files
@@ -298,8 +373,8 @@ export function assertImageLinkCount(slug, html, rewritten) {
  * Importing this module starts nothing.
  *
  * NO PREAMBLE IS STRIPPED HERE, and that is a deliberate absence: `toMarkdown`
- * already calls `stripPreamble`, and the nine pages are the only documents that
- * have a preamble, so this is the one place where calling it a second time
+ * already calls `stripPreamble`, and the eleven pages are the only documents
+ * that have a preamble, so this is the one place where calling it a second time
  * could eat real content that happens to look preamble-shaped.
  */
 export async function extractPages(redirects = []) {
@@ -319,6 +394,10 @@ export async function extractPages(redirects = []) {
     const { content } = bySlug.get(page.slug);
     const bodySources = imagesIn(content);
     assertImageTagCount(page.slug, content, bodySources);
+    // Before `toMarkdown`: the account paragraph is removed from the HTML the
+    // converter sees, so the number never reaches the Markdown at all. The
+    // guards above read the RAW html, which the strip does not change.
+    const stripped = stripAccountBlocks(content, page.slug);
     documents.push({
       page,
       // Kept for `assertImageLinkCount`: the guard counts the RAW html's
@@ -327,11 +406,11 @@ export async function extractPages(redirects = []) {
       title: titlesBySlug.get(page.slug),
       bodySources,
       linkSources: linkImagesIn(content),
-      markdown: toMarkdown(content, page.slug),
+      markdown: toMarkdown(stripped, page.slug),
     });
   }
 
-  // ONE `migrateImages` CALL OVER EVERY PAGE, so a picture the nine share
+  // ONE `migrateImages` CALL OVER EVERY PAGE, so a picture the pages share
   // (`istoric`, `consiliul-parohial` and `revista-doxologia` all carry the same
   // screenshot) is decoded and written exactly once. The cursuri gallery's
   // full-size files are in the same call: they are referenced only by an

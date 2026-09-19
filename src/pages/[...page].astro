@@ -4,21 +4,31 @@ import type { CollectionEntry } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import { normalizeHeadingLevels } from '../lib/markdown-headings';
 import { resolveContentAssetLinks, stripEmptyAnchors } from '../lib/markdown-links';
+import { RESERVED_PATHS } from '../lib/routes';
 
 /*
- * ONE DYNAMIC ROUTE FOR THE NINE PROSE PAGES, not nine near-identical files.
- * They differ only in their content, and nine copies of this page would be
- * nine places to fix a heading level, a measure or a link treatment.
+ * ONE DYNAMIC ROUTE FOR THE PROSE PAGES, not one near-identical file each.
+ * They differ only in their content, and a copy of this page per route would
+ * be a place per route to fix a heading level, a measure or a link treatment.
  *
- * `getStaticPaths` reads the collection and builds `/${path}/` for each. The
- * path is `pageSchema`'s `path` field - `parohia/istoric`, not the file name
- * `istoric.md` - which is why the route is the single place the two are tied
- * together. The schema already rejects a leading or trailing slash, so the
- * `//istoric//` a stored slash would produce cannot reach here.
+ * `getStaticPaths` reads the collection and builds `/${path}/` for each, minus
+ * the RESERVED_PATHS - `/contact` and `/doneaza` are built by dedicated files
+ * that carry generated blocks this route has no business knowing about. The
+ * list is imported rather than copied so the two sides cannot disagree; a page
+ * built here and there at once is a route collision, and one skipped by both
+ * is a page in the CMS with no page on the site. `routes.test.ts` pins both
+ * directions.
+ *
+ * The path is `pageSchema`'s `path` field - `parohia/istoric`, not the file
+ * name `istoric.md` - which is why the route is the single place the two are
+ * tied together. The schema already rejects a leading or trailing slash, so
+ * the `//istoric//` a stored slash would produce cannot reach here.
  */
 export async function getStaticPaths() {
   const pages = await getCollection('pages');
-  return pages.map((entry) => ({ params: { page: entry.data.path }, props: { entry } }));
+  return pages
+    .filter((entry) => !RESERVED_PATHS.has(entry.data.path))
+    .map((entry) => ({ params: { page: entry.data.path }, props: { entry } }));
 }
 
 interface Props {

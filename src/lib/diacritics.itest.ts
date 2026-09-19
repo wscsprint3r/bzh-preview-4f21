@@ -70,11 +70,12 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
  *
  * So the same files are asked the inverse question against the list below.
  * It is affordable because the answer is small: the entire non-ASCII inventory
- * of this site's own output is twenty-five distinct characters, measured, and
- * the list holds twenty-eight - the three extras are letters that no page
- * happens to use today (the capital Â and Ă and the capital Ț), and keeping
- * them legal is what stops a heading that starts with one from being a build
- * failure the day it appears.
+ * of this site's own output is twenty-six distinct characters, measured on the
+ * Task 9 build, and the list holds twenty-eight - the two extras are letters
+ * that no page happens to use today (the capital Â and the capital Ț), and
+ * keeping them legal is what stops a heading that starts with one from being a
+ * build failure the day it appears. The capital Ă stopped being an extra when
+ * `/contact` arrived: the priest's name is ROMICĂ-NICOLAE ENOIU.
  *
  * BUILT FROM NUMBERS, like everything else here. An escape sequence of the form
  * backslash-u-then-four-hex-digits does not survive being written to disk in
