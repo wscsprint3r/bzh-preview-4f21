@@ -554,6 +554,35 @@ collections:
                 label: Cod QR pe pagina Donează
                 widget: boolean
                 default: false
+          # The holder's address as the QR-bill prints it. Separate from
+          # `address` above on purpose: that one is prose for the footer, this
+          # one is structured data the payment part needs line by line.
+          - name: creditor_address
+            label: Adresa titularului (pentru factura QR)
+            widget: object
+            hint: >
+              Adresa completă a titularului contului, așa cum apare pe factura
+              QR. Completați fiecare rând; factura nu poate fi plătită fără ele.
+            fields:
+              - name: street
+                label: Strada
+                widget: string
+                hint: Numele străzii, fără număr.
+              - name: house_number
+                label: Numărul
+                widget: string
+                required: false
+                hint: Lăsați gol dacă adresa nu are număr.
+              - name: postal_code
+                label: Codul poștal
+                widget: string
+              - name: town
+                label: Localitatea
+                widget: string
+              - name: country
+                label: Codul țării
+                widget: string
+                hint: Două litere, de exemplu CH.
           - name: visiting_hours
             label: Program de vizite
             widget: text

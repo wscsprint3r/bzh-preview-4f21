@@ -219,8 +219,28 @@ describe('the CMS form, checked against the schemas the build enforces', () => {
     expect(settings, 'settings has no file block').toBeDefined();
     const names = (settings?.fields ?? []).map((f) => f.name);
     expect(names).toContain('accounts');
+    expect(names).toContain('creditor_address');
     expect(names).not.toContain('iban');
     expect(names).not.toContain('iban2');
+  });
+
+  /*
+   * THE CREDITOR ADDRESS'S OWN FIELDS, because the group existing is not the
+   * same as the volunteer being able to fill it in. `settingsSchema` requires
+   * five keys; the names are written out here by hand rather than read off the
+   * schema, so a field the schema requires and the form does not offer fails
+   * here instead of at the next Save.
+   */
+  it('offers every creditor_address field the schema requires', () => {
+    // Addressed through the `files` block, not `collectionField`: `settings` is
+    // a files collection, so its fields live under `files[0].fields` and a
+    // lookup on the collection itself would find nothing and pass for nothing.
+    const settings = collection('settings').files?.[0];
+    const field = (settings?.fields ?? []).find((f) => f.name === 'creditor_address');
+    expect(field, 'settings has no creditor_address field').toBeDefined();
+    expect(field?.widget).toBe('object');
+    const names = (field?.fields ?? []).map((f) => f.name).sort();
+    expect(names).toEqual(['country', 'house_number', 'postal_code', 'street', 'town']);
   });
 
   /*

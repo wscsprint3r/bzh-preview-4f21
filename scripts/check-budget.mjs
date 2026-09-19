@@ -282,9 +282,28 @@ const PAGE_BUDGET = {
    * inside the 1.4-1.9x range the prose pages state, so the limit does not
    * move. Tasks 11-12 add the QR-bill image and the form, and each measures
    * again rather than assuming this headroom still fits.
+   *
+   * MEASURED ON THE TASK 11 BUILD: `contact` 15,331 bytes (unchanged), `doneaza`
+   * 231,705. The QR-bill alone is 215,310 bytes of that - the library's SVG,
+   * embedded once as raw markup, 1,629 `<rect>` elements of it the QR modules
+   * drawn at full floating-point precision, plus the viewBox `renderQrBillSvg`
+   * sets from the library's own mm pair so the bill scales instead of being
+   * clipped. The 24 KiB limit was written for
+   * prose plus small generated blocks and cannot hold a payment instrument, so
+   * `doneaza` moves to 256 KiB, 1.13x the measured page. THIS IS NOT THE
+   * CONTENT-GROWTH CASE the other limits are written against, and the
+   * difference is why the raise is legitimate here: nothing the parish
+   * publishes or edits changes the bill's size, which is fixed by the
+   * specification and by the library's renderer. 256 KiB is tight on purpose -
+   * it leaves room for prose edits, and a second embedded artifact even half
+   * this size is a red build asking whether it belongs inline. The
+   * alternatives were considered and rejected: an external SVG referenced by
+   * `<img>` would cost a request and is not "raw markup", and rounding the
+   * library's coordinates would modify a payment instrument that spec §9 has
+   * not yet validated with a real transfer. `contact` stays at 24 KiB.
    */
   'contact/index.html': 24 * 1024,
-  'doneaza/index.html': 24 * 1024,
+  'doneaza/index.html': 256 * 1024,
 };
 
 /**
@@ -429,9 +448,12 @@ const REQUEST_BUDGET = {
    * TASK 10 ADDS NO REQUEST, and the measured counts did not move: the three
    * account blocks fetch nothing and the copy script is inline. `contact` is
    * still 11 and `doneaza` 13, which is why the two numbers below are the Task
-   * 9 measurements. Task 12's Turnstile adds an external script request and
-   * that task measures it; an unrelated request appearing before then is still
-   * a red build.
+   * 9 measurements. TASK 11 ADDS NO REQUEST EITHER: the QR-bill is inline SVG
+   * markup rather than an `<img>` or a background, so it is bytes in the
+   * document and not a fetch - the one reason to prefer raw markup over a
+   * referenced file, besides the brief requiring it. Task 12's Turnstile adds
+   * an external script request and that task measures it; an unrelated request
+   * appearing before then is still a red build.
    */
   'contact/index.html': 12,
   'doneaza/index.html': 16,

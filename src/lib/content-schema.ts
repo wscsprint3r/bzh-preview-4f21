@@ -360,6 +360,36 @@ export const settingsSchema = z
         .pipe(z.email({ message: 'A doua adresă de e-mail nu este validă.' }))
         .optional(),
       accounts: z.array(accountSchema),
+      /*
+       * THE HOLDER'S ADDRESS, FOR THE QR-BILL ALONE. The bill's payment part
+       * prints the creditor's name and address as separate lines, and the
+       * library takes them as `address` (street), `buildingNumber`, `zip`,
+       * `city` and `country` - not as one line, which is why this is a block
+       * rather than a reuse of `address` above. `address` is prose for the
+       * footer ("Capela Sf. Katharina, Wehntalerstrasse 451, 8046 Zürich");
+       * this is structured data a payment must carry exactly.
+       *
+       * REQUIRED, like `accounts`: the QR-bill is generated at build time from
+       * it, so a missing block would either stop the build (if read) or ship a
+       * bill without an address (if defaulted). Neither is a thing a volunteer
+       * should discover after a donor has tried to pay.
+       */
+      creditor_address: z.strictObject(
+        {
+          street: nonEmptyText(
+            'Adresa completă a titularului trebuie să aibă strada.',
+            'Strada nu poate fi goală.',
+          ),
+          house_number: z.string().trim().optional(),
+          postal_code: nonEmptyText('Codul poștal lipsește.', 'Codul poștal nu poate fi gol.'),
+          town: nonEmptyText('Localitatea lipsește.', 'Localitatea nu poate fi goală.'),
+          country: z
+            .string()
+            .trim()
+            .length(2, { message: 'Codul țării are două litere, de exemplu CH.' }),
+        },
+        strictKeys,
+      ),
       visiting_hours: z.string().trim().optional(),
       /*
        * HTTPS REQUIRED BY NAME, not just "a URL". A plain `z.url()` accepts

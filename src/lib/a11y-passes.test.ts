@@ -20,6 +20,7 @@ import {
   conditionFeatures,
   checkBreakpoints,
   checkPasses,
+  svgTextIncompletes,
 } from '../../scripts/a11y.mjs';
 import { CLEARED_COLLECTIONS, FIXTURE_SWAPS, writeFixtureFiles } from '../../scripts/a11y-picker.mjs';
 import * as fixtures from './fixtures';
@@ -843,5 +844,102 @@ describe('the event fixtures the rendered body comes from', () => {
       withoutBody.length,
       'no fixture event is body-less - the empty-body control would be gone',
     ).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * THE SVG-TEXT GAP, MADE A FUNCTION INSTEAD OF A SILENCE.
+ *
+ * axe can never resolve a background for text drawn inside an inline `<svg>`
+ * (its `elementHasImage` treats any SVG node as a graphic), so every run over
+ * `/doneaza` reports one `color-contrast` incomplete per `<tspan>` in the
+ * QR-bill. `scripts/a11y.mjs` fails on every incomplete by design, and its own
+ * HONEST SCOPE header already declared SVG `<text>` out of reach - the checker
+ * and the declaration disagreed, and `svgTextIncompletes` is the reconciliation.
+ *
+ * THE CASES BELOW ARE THE CONTRACT, and the first one is not invented: it is
+ * the exact shape axe reported on the Task 11 build, node and check, copied
+ * from the probe. The rest are the fail-closed half - a node the classifier
+ * cannot place inside an SVG stays in scope, and an in-scope incomplete still
+ * fails the pass. An exemption is a decision, so every way of being ambiguous
+ * keeps the failure.
+ */
+
+/** The node axe reported for the QR-bill's `<tspan>Empfangsschein</tspan>`. */
+const SVG_TEXT_NODE = {
+  target: ['tspan[font-size="11pt"][y="0"][dy="11pt"]'],
+  html: '<tspan x="0" y="0" dy="11pt" font-family="Arial" font-weight="bold" font-size="11pt">Empfangsschein</tspan>',
+  any: [
+    {
+      id: 'color-contrast',
+      impact: 'serious',
+      message: "Element's background color could not be determined because element contains an image node",
+      data: { bgColor: null, contrastRatio: 0, messageKey: 'imgNode' },
+      relatedNodes: [{ html: '<svg x="5mm" y="5mm">', target: ['svg[x="5mm"][y="5mm"]'] }],
+    },
+  ],
+};
+
+/*
+ * THE OTHER SHAPE THE SAME RUN REPORTED, and the reason the classifier keys on
+ * the target rather than on axe's message: the bill's `<text>` element whose
+ * contrast failed because it is overlapped by another element. It is still SVG
+ * text, which is the whole subject of the declared gap, so it is classified
+ * the same way - the audit could never have judged it, whatever the reason.
+ */
+const SVG_TEXT_OVERLAP_NODE = {
+  target: ['text[font-size="11pt"][y="0"]'],
+  html: '<text x="0" y="0" font-family="Arial" font-weight="bold" font-size="11pt">Zahlteil</text>',
+  any: [
+    {
+      id: 'color-contrast',
+      impact: 'serious',
+      message: "Element's background color could not be determined because it is overlapped by another element",
+      data: { bgColor: null, messageKey: 'bgOverlap' },
+      relatedNodes: [],
+    },
+  ],
+};
+
+/** A `color-contrast` incomplete carrying one node. */
+const incompleteOf = (node: Record<string, unknown>) => ({ id: 'color-contrast', nodes: [node] });
+
+/** The same node with one field replaced, for the fail-closed cases. */
+const withNode = (patch: Record<string, unknown>) => incompleteOf({ ...SVG_TEXT_NODE, ...patch });
+
+describe('svgTextIncompletes', () => {
+  it('classifies the node axe actually reported inside the QR-bill', () => {
+    const rule = incompleteOf(SVG_TEXT_NODE);
+    expect(svgTextIncompletes(rule)).toEqual(rule.nodes);
+  });
+
+  it('classifies an SVG <text> whose contrast failed for the overlap reason', () => {
+    const rule = incompleteOf(SVG_TEXT_OVERLAP_NODE);
+    expect(svgTextIncompletes(rule)).toEqual(rule.nodes);
+  });
+
+  it('classifies a chain that ends in an SVG text element', () => {
+    const rule = withNode({ target: ['svg > text > tspan'] });
+    expect(svgTextIncompletes(rule)).toEqual(rule.nodes);
+  });
+
+  /*
+   * THE IN-SCOPE DIRECTION. An incomplete on an HTML element must keep failing
+   * the pass: the exemption is for SVG text, not for "could not determine".
+   */
+  it('leaves an HTML element in scope, whatever axe could not determine', () => {
+    const rule = withNode({ target: ['p'] });
+    expect(svgTextIncompletes(rule)).toEqual([]);
+  });
+
+  it('fails closed when the target is missing, empty or not selectors', () => {
+    for (const target of [undefined, [], ['p'], [42], ['tspan', 'p']]) {
+      expect(svgTextIncompletes(withNode({ target })), JSON.stringify(target)).toEqual([]);
+    }
+  });
+
+  it('does not touch a rule that is not color-contrast', () => {
+    expect(svgTextIncompletes({ id: 'link-in-text-block', nodes: [SVG_TEXT_NODE] })).toEqual([]);
+    expect(svgTextIncompletes({ id: 'color-contrast' })).toEqual([]);
   });
 });

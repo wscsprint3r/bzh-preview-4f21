@@ -943,9 +943,15 @@ describe('the prose pages', () => {
  * account added there must be checked without editing this test. The count is
  * asserted to be non-zero so the loops below cannot pass over nothing.
  */
-function accountEntries(): { label: string; iban: string; holder: string; bank: string }[] {
+function accountEntries(): {
+  label: string;
+  iban: string;
+  holder: string;
+  bank: string;
+  qr_bill?: boolean;
+}[] {
   const settings = parseYaml(readFileSync(SETTINGS, 'utf8')) as {
-    accounts?: { label: string; iban: string; holder: string; bank: string }[];
+    accounts?: { label: string; iban: string; holder: string; bank: string; qr_bill?: boolean }[];
   };
   return settings.accounts ?? [];
 }
@@ -1020,6 +1026,71 @@ describe('the account blocks', () => {
         `${page}: the copy script runs before the last button exists`,
       ).toBeGreaterThan(html.lastIndexOf('data-copy="'));
     }
+  });
+
+  /*
+   * THE QR-BILL, ON THE PAGE. `qr-bill.test.ts` proves the mapping and the
+   * rendering; nothing there can see whether the route ever embedded the
+   * result, and a page without the bill looks completely correct. The marker
+   * is the bill's own dimensions: nothing else in the site draws a 210x105mm
+   * SVG, and the library's outer element carries exactly that pair.
+   *
+   * THE FLAGGED ACCOUNT IS A CONTRACT HERE, like the eleven prose pages: the
+   * page's whole point is that a donor can scan the building fund's bill, so a
+   * settings edit that unflags the account is a decision this test asks about
+   * rather than a content change it waves through. The bill region is cut out
+   * of the page so the assertions are about the bill and not about the account
+   * block above it, which prints the same IBAN.
+   */
+  it('embeds the QR-bill once, for the flagged account, on /doneaza only', () => {
+    const accounts = accountEntries();
+    const flagged = accounts.filter((a) => a.qr_bill === true);
+    expect(
+      flagged,
+      'no account carries qr_bill: true - the QR-bill guard would prove nothing',
+    ).toHaveLength(1);
+    const billAccount = flagged[0]!;
+
+    const html = read('doneaza/index.html');
+    const markers = [...html.matchAll(/<svg[^>]*width="210mm" height="105mm"/g)];
+    expect(markers, '/doneaza/ does not embed the QR-bill exactly once').toHaveLength(1);
+
+    // The bill region: from the outer <svg> to the copy script that follows the
+    // last account block, ending at the region's last </svg> - the outer
+    // element's own close, not one of the nested ones.
+    const markerAt = html.indexOf('width="210mm" height="105mm"');
+    const svgStart = html.lastIndexOf('<svg', markerAt);
+    const scriptAt = html.indexOf('<script', svgStart);
+    const region = html.slice(svgStart, scriptAt === -1 ? undefined : scriptAt);
+    const svg = region.slice(0, region.lastIndexOf('</svg>') + '</svg>'.length);
+
+    /*
+     * THE BILL'S RENDERED TEXT, not its markup. The library breaks a long
+     * creditor name across `<tspan>` lines - "Rumänisch-Orthodoxe Kirchgemeinde "
+     * and "St. Nikolaus" are two elements - so a `toContain` on the name would
+     * fail against a bill that prints it perfectly. Stripping tags and
+     * collapsing whitespace is what a reader (and a scanner's printed copy)
+     * sees, and it is the same reading `altTexts` does elsewhere in this file.
+     */
+    const billText = svg.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    expect(billText, 'the bill does not print the flagged account').toContain(
+      formatIban(billAccount.iban),
+    );
+    expect(billText, 'the bill does not print the holder').toContain(billAccount.holder);
+    for (const other of accounts.filter((a) => a.qr_bill !== true)) {
+      expect(billText, `the bill prints "${other.label}", which is not the flagged account`)
+        .not.toContain(formatIban(other.iban));
+    }
+    // No script in the embedded markup: the page's CSP names one inline script,
+    // and a second one hidden inside an SVG would be refused at run time.
+    expect(svg, 'the embedded bill carries a script').not.toMatch(/<script/i);
+
+    // The other account page carries no bill at all, which is the positive
+    // control for the marker: if it matched everywhere, "once on /doneaza"
+    // would mean nothing.
+    expect(read('contact/index.html'), '/contact/ embeds a QR-bill').not.toContain(
+      'width="210mm" height="105mm"',
+    );
   });
 });
 

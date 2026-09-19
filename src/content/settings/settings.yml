@@ -18,3 +18,9 @@ accounts:
     holder: "Rumänisch-Orthodoxe Kirchgemeinde St. Nikolaus"
     bank: "Credit Suisse (Schweiz) AG"
     qr_bill: false
+creditor_address:
+  street: "Wehntalerstrasse"
+  house_number: "451"
+  postal_code: "8046"
+  town: "Zürich"
+  country: "CH"

@@ -48,6 +48,19 @@ const MINIMAL_ARTICLE = {
 
 const MINIMAL_PAGE = { title: 'Istoric', path: 'parohia/istoric', order: 10 };
 
+/*
+ * The holder's address for the QR-bill, and the same values the shipped file
+ * carries. A separate constant because the cases below delete one inner field
+ * at a time, the way the top-level cases delete one setting at a time.
+ */
+const MINIMAL_CREDITOR = {
+  street: 'Wehntalerstrasse',
+  house_number: '451',
+  postal_code: '8046',
+  town: 'Zürich',
+  country: 'CH',
+};
+
 const MINIMAL_SETTINGS = {
   name: 'Parohia Ortodoxă Română Sfântul Nicolae',
   address: 'Wehntalerstrasse 451, 8046 Zürich',
@@ -62,6 +75,7 @@ const MINIMAL_SETTINGS = {
       qr_bill: false,
     },
   ],
+  creditor_address: MINIMAL_CREDITOR,
 };
 
 /** The same value, without one field - without damaging the original. */
@@ -396,6 +410,79 @@ describe('settingsSchema', () => {
     expect(settingsSchema.parse({ ...MINIMAL_SETTINGS, map_url: 'https://maps.example.ch/x' }).map_url).toBe(
       'https://maps.example.ch/x',
     );
+  });
+
+  /*
+   * THE CREDITOR ADDRESS, WHICH THE QR-BILL PRINTS. Its fields are what the
+   * library puts on the payment part, so a wrong one is a bill a donor cannot
+   * pay - and unlike a page, the bill is not something anybody proofreads
+   * before it is scanned. Every required inner field is checked twice: gone
+   * altogether, and present but blank. Those are the two shapes a volunteer
+   * produces in the CMS, and the two messages differ.
+   */
+  describe('creditor_address', () => {
+    it('accepts the address and carries every field', () => {
+      const s = settingsSchema.parse(MINIMAL_SETTINGS);
+      expect(s.creditor_address).toEqual(MINIMAL_CREDITOR);
+    });
+
+    it('requires the whole block, not only its fields', () => {
+      // Zod's own message, and it is not Romanian - the block is an object
+      // rather than a text field, and `accounts` is guarded the same way. The
+      // path names the field, which is what the failure has to do.
+      expect(() => settingsSchema.parse(without(MINIMAL_SETTINGS, 'creditor_address'))).toThrow(
+        /creditor_address/,
+      );
+    });
+
+    it('accepts a missing house number', () => {
+      const s = settingsSchema.parse({
+        ...MINIMAL_SETTINGS,
+        creditor_address: without(MINIMAL_CREDITOR, 'house_number'),
+      });
+      expect(s.creditor_address.house_number).toBeUndefined();
+    });
+
+    const REQUIRED_INNER: [string, RegExp, RegExp][] = [
+      ['street', /Adresa completă a titularului trebuie să aibă strada\./, /Strada nu poate fi goală\./],
+      ['postal_code', /Codul poștal lipsește\./, /Codul poștal nu poate fi gol\./],
+      ['town', /Localitatea lipsește\./, /Localitatea nu poate fi goală\./],
+    ];
+    for (const [field, missing, empty] of REQUIRED_INNER) {
+      it(`requires the field ${field}`, () => {
+        const address = without(MINIMAL_CREDITOR, field);
+        expect(() =>
+          settingsSchema.parse({ ...MINIMAL_SETTINGS, creditor_address: address }),
+        ).toThrow(missing);
+      });
+
+      it(`says which field is empty for ${field}`, () => {
+        expect(() =>
+          settingsSchema.parse({
+            ...MINIMAL_SETTINGS,
+            creditor_address: { ...MINIMAL_CREDITOR, [field]: '   ' },
+          }),
+        ).toThrow(empty);
+      });
+    }
+
+    it('requires a two-letter country code', () => {
+      expect(() =>
+        settingsSchema.parse({
+          ...MINIMAL_SETTINGS,
+          creditor_address: { ...MINIMAL_CREDITOR, country: 'Elveția' },
+        }),
+      ).toThrow(/Codul țării are două litere/);
+    });
+
+    it('rejects a misspelled key inside the address', () => {
+      expect(() =>
+        settingsSchema.parse({
+          ...MINIMAL_SETTINGS,
+          creditor_address: { ...MINIMAL_CREDITOR, oras: 'Zürich' },
+        }),
+      ).toThrow(/Câmp necunoscut: oras\./);
+    });
   });
 });
 
