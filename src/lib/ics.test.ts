@@ -3,7 +3,7 @@ import type { ServiceDay } from './schema';
 import { SERVICE_NAMES } from './schema';
 import { FIXTURE_DAYS } from './fixtures';
 import { servicesInOrder } from './schedule';
-import { generateIcs } from './ics';
+import { generateIcs, feedStamp } from './ics';
 import { cedillasIn } from './cedilla';
 
 function day(date: string, services: Array<[string, string]>, extra: Partial<ServiceDay> = {}): ServiceDay {
@@ -532,5 +532,36 @@ describe('cancellation', () => {
     const out = ics([day('2026-09-23', [['18:30', 'Acatist']], { cancelled: true })]);
     expect(out).toContain('SUMMARY:ANULAT: Acatist');
     expect(out).toContain('STATUS:CANCELLED');
+  });
+});
+/*
+ * THE STAMP IS DERIVED FROM THE FEED, NOT FROM THE CLOCK. `new Date()` made
+ * every build of an unchanged tree produce a different calendar feed; these
+ * tests pin the replacement's two halves - it follows the content, and it is
+ * always a well-formed RFC 5545 UTC date-time.
+ */
+describe('feedStamp', () => {
+  it('takes the latest day the feed carries, whatever the order', () => {
+    const days = [
+      day('2026-09-16', [['18:30', 'Acatist']]),
+      day('2026-10-04', [['10:00', 'Sfânta Liturghie']]),
+      day('2026-09-20', [['10:00', 'Sfânta Liturghie']]),
+    ];
+    expect(feedStamp(days)).toBe('20261004T000000Z');
+  });
+
+  it('does not depend on the clock: two calls agree', () => {
+    const days = week();
+    expect(feedStamp(days)).toBe(feedStamp(days));
+  });
+
+  it('stamps an empty feed with the epoch rather than inventing a date', () => {
+    expect(feedStamp([])).toBe('19700101T000000Z');
+  });
+
+  it('always produces the RFC 5545 §3.3.5 shape', () => {
+    for (const days of [[], week()]) {
+      expect(feedStamp(days)).toMatch(/^\d{8}T\d{6}Z$/);
+    }
   });
 });

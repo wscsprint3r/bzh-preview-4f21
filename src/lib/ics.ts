@@ -145,6 +145,26 @@ const VTIMEZONE = [
   'END:VTIMEZONE',
 ];
 
+/**
+ * The DTSTAMP a whole feed shares, derived from the feed's own content.
+ *
+ * THE BUILD CLOCK MADE EVERY BUILD A DIFFERENT FILE. `DTSTAMP` used to be
+ * `new Date()` at build time, so two builds of an unchanged tree produced two
+ * different `dist/program.ics` - the one file blocking a byte-identical
+ * rebuild, and a difference invisible in a diff of the calendar's meaning.
+ * RFC 5545 calls the stamp "when the object was created"; a static feed has no
+ * honest creation moment, and taking the latest day the feed carries is
+ * deterministic, moves only when the content moves, and is a date a subscriber
+ * can recognise.
+ *
+ * An empty feed still needs a stamp, and `19700101T000000Z` is the Unix epoch
+ * in this format - a value that says "no content" rather than inventing one.
+ */
+export function feedStamp(days: ServiceDay[]): string {
+  const latest = [...days].map((d) => d.date).sort(compareDates).at(-1);
+  return `${(latest ?? '1970-01-01').replace(/-/g, '')}T000000Z`;
+}
+
 export function generateIcs(
   days: ServiceDay[],
   opts: { dtstamp: string; location: string },
