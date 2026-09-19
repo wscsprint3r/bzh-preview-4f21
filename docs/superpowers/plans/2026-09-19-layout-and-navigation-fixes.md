@@ -42,7 +42,7 @@
 
 - [ ] **Step 1: Write the failing unit tests for the pure predicate**
 
-Append to `src/lib/a11y-passes.test.ts` (add `readingColumnProblems` and `READING_COLUMN_PAGES` to the existing import from `../../scripts/a11y.mjs`):
+Append to `src/lib/a11y-passes.test.ts` (add `readingColumnProblems` and `READING_COLUMN_PAGES` to the existing import from `scripts/a11y.mjs`):
 
 ```ts
 /*
