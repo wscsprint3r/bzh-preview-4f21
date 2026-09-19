@@ -1,8 +1,11 @@
 ---
-import { getEntry, render } from 'astro:content';
+import { getCollection, getEntry, render } from 'astro:content';
+import AccountBlock from '../components/AccountBlock.astro';
+import { COPY_SCRIPT } from '../lib/copy-script.mjs';
 import Base from '../layouts/Base.astro';
 import { normalizeHeadingLevels } from '../lib/markdown-headings';
 import { resolveContentAssetLinks, stripEmptyAnchors } from '../lib/markdown-links';
+import { pickSettings } from '../lib/settings';
 
 /*
  * `/doneaza` IS BUILT HERE, NOT BY `[...page].astro`, and `RESERVED_PATHS` in
@@ -41,6 +44,14 @@ const rendered = entry.rendered
     }
   : entry.rendered;
 const { Content } = await render({ ...entry, rendered });
+
+/*
+ * Every account the settings singleton publishes, rendered below the prose.
+ * `pickSettings` stops the build naming the file when it is missing or
+ * doubled. Task 11 adds the QR-bill block from the one account whose
+ * `qr_bill` flag is set; this route renders all of them regardless.
+ */
+const settings = pickSettings(await getCollection('settings'));
 ---
 
 <Base title={title} description={description}>
@@ -52,6 +63,19 @@ const { Content } = await render({ ...entry, rendered });
     </p>
     <Content />
   </div>
+
+  {/*
+    One block per account, then the copy script ONCE per page. The script lives
+    here rather than in `AccountBlock.astro` on purpose: this page renders
+    three blocks, and a script inside the component would be emitted three
+    times with identical bytes - which `EXPECTED_INLINE` in
+    `scripts/csp-hash.mjs` refuses. The emission is after the last block, so
+    the controls exist by the time it runs.
+  */}
+  <div class="container">
+    {settings.accounts.map((account) => <AccountBlock account={account} />)}
+  </div>
+  <script is:inline set:html={COPY_SCRIPT}></script>
 </Base>
 
 <style>

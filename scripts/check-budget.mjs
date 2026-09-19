@@ -8,7 +8,7 @@
  * WHY THIS READS THE PAGES RATHER THAN THE FILES IN `dist/_astro/`.
  *
  * The obvious JS check is to add up `dist/**\/*.js`. Task 10 proved that check
- * cannot work here: at 2,988 bytes - the figure every run prints below, which is
+ * cannot work here: at 2,010 bytes - the figure every run prints below, which is
  * the one to trust if this sentence ever disagrees with it - the week picker lands
  * under Vite's 4 KB inline threshold, so Astro writes it INTO the document and
  * emits no `.js` file at all. A file-walking check reports `0 / 3800 OK` and is
@@ -273,9 +273,15 @@ const PAGE_BUDGET = {
    * 1.86x the larger, inside the 1.4-1.9x range the prose pages state. The
    * plan's starting limits (24 KiB and 32 KiB) were written before any
    * measurement; the 32 would have been 2.48x, above the range, so it is
-   * lowered to the same 24 as its sibling rather than copied. Tasks 10-12 add
-   * bounded features - three account blocks, a QR-bill image, the form - and
-   * each measures again rather than assuming this headroom still fits.
+   * lowered to the same 24 as its sibling rather than copied.
+   *
+   * MEASURED ON THE TASK 10 BUILD: `contact` 15,331 bytes, `doneaza` 15,827.
+   * The +2,599 on each is three account blocks - label, formatted IBAN, holder
+   * and bank, one hidden copy button apiece - plus the 422-byte copy script
+   * that `csp-hash.mjs` names once per page. 24 KiB is 1.55x the larger page,
+   * inside the 1.4-1.9x range the prose pages state, so the limit does not
+   * move. Tasks 11-12 add the QR-bill image and the form, and each measures
+   * again rather than assuming this headroom still fits.
    */
   'contact/index.html': 24 * 1024,
   'doneaza/index.html': 24 * 1024,
@@ -317,6 +323,14 @@ function budgetFor(table, page) {
  * makes the correct architecture uncomfortable gets met by moving rendering back
  * into the browser - which is the thing this budget exists to prevent. Kept in
  * step with the plan and the spec; do not lower it without changing those too.
+ *
+ * THE CEILING IS PER PAGE AND TASK 10'S COPY SCRIPT SHARES IT. Measured on the
+ * Task 10 build, that script is 422 bytes on `/contact/` and `/doneaza/` - a
+ * ninth of this ceiling - so it needs no limit of its own; what matters is that
+ * the run prints it per page, where a page that grew a second copy would show
+ * 844. Unlike the picker it is `is:inline` in the route, so Vite's 4,096-byte
+ * threshold never sees it: only the picker's bundle can flip to a file, and
+ * `EMITTED_JS_ALLOWED` below is what refuses that.
  */
 const JS_BUDGET = 3800;
 
@@ -410,9 +424,14 @@ const REQUEST_BUDGET = {
    * fetches it - and `doneaza` is 13, the same plus its two migrated
    * photographs. `contact` gets 12, the measured count plus one, the one-slot
    * headroom `pastorale` and `/noutati/`'s index carry; `doneaza` gets 16, room
-   * for three more photographs. Task 12's Turnstile adds an external script
-   * request and that task measures it; an unrelated request appearing before
-   * then is still a red build.
+   * for three more photographs.
+   *
+   * TASK 10 ADDS NO REQUEST, and the measured counts did not move: the three
+   * account blocks fetch nothing and the copy script is inline. `contact` is
+   * still 11 and `doneaza` 13, which is why the two numbers below are the Task
+   * 9 measurements. Task 12's Turnstile adds an external script request and
+   * that task measures it; an unrelated request appearing before then is still
+   * a red build.
    */
   'contact/index.html': 12,
   'doneaza/index.html': 16,

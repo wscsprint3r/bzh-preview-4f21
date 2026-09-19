@@ -2,8 +2,10 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
+import { pageScripts } from '../../scripts/page-scripts.mjs';
 import type { ArticleEntry } from './articles';
 import { articleSlug, publishedArticles } from './articles';
+import { formatIban } from './accounts';
 import { CEDILLAS, COMMA_BELOW } from './cedilla';
 import { eventSlug } from './events';
 import { INDEXABLE } from './site';
@@ -34,6 +36,7 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const CONTENT = fileURLToPath(new URL('../content/services/', import.meta.url));
 const ARTICLES = fileURLToPath(new URL('../content/articles/', import.meta.url));
 const PAGES_CONTENT = fileURLToPath(new URL('../content/pages/', import.meta.url));
+const SETTINGS = fileURLToPath(new URL('../content/settings/settings.yml', import.meta.url));
 const GALERII = fileURLToPath(new URL('../content/galerii/', import.meta.url));
 const EVENTS = fileURLToPath(new URL('../content/events/', import.meta.url));
 
@@ -924,6 +927,99 @@ describe('the prose pages', () => {
       hits,
       `built pages link at assets/content/, which the host does not serve:\n${hits.join('\n')}`,
     ).toEqual([]);
+  });
+});
+
+/*
+ * THE ACCOUNT BLOCKS, AGAINST THE SETTINGS SINGLETON. `/contact` and
+ * `/doneaza` render `settings.accounts`, and no unit test sees that joint:
+ * the IBAN is formatted by `formatIban` at render time, the block order is
+ * the file's order, and each copy button carries the raw value. A page that
+ * lost a block, or paired one account's label with another's IBAN, looks
+ * completely correct.
+ *
+ * THE SUBJECT IS THE SETTINGS FILE, not a walk of `dist/`, for the same
+ * reason `articleFiles()` is: the file is what the parish edits, and an
+ * account added there must be checked without editing this test. The count is
+ * asserted to be non-zero so the loops below cannot pass over nothing.
+ */
+function accountEntries(): { label: string; iban: string; holder: string; bank: string }[] {
+  const settings = parseYaml(readFileSync(SETTINGS, 'utf8')) as {
+    accounts?: { label: string; iban: string; holder: string; bank: string }[];
+  };
+  return settings.accounts ?? [];
+}
+
+describe('the account blocks', () => {
+  const ACCOUNT_PAGES = ['contact/index.html', 'doneaza/index.html'] as const;
+
+  it('renders every account, in order, with its formatted IBAN and copy value', () => {
+    const accounts = accountEntries();
+    expect(accounts.length, 'no account in the settings file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    for (const page of ACCOUNT_PAGES) {
+      const html = read(page);
+      const copyValues = [...html.matchAll(/<button\b[^>]*\bdata-copy="([^"]*)"/g)]
+        .map((m) => m[1] as string);
+      expect(copyValues, `${page} does not carry one copy button per account`).toEqual(
+        accounts.map((account) => account.iban),
+      );
+      for (const account of accounts) {
+        expect(html, `${page} is missing the label "${account.label}"`).toContain(account.label);
+        expect(html, `${page} does not print the IBAN of "${account.label}"`).toContain(
+          formatIban(account.iban),
+        );
+        expect(html, `${page} is missing the holder`).toContain(account.holder);
+        expect(html, `${page} is missing the bank`).toContain(account.bank);
+      }
+    }
+    process.stdout.write(
+      `\nAccount blocks: ${accounts.length} account(s) on ${ACCOUNT_PAGES.length} pages.\n`,
+    );
+  });
+
+  /*
+   * THE NO-JS STATE IS THE IBAN TEXT ALONE. The button ships `hidden` and the
+   * script unhides it; a build where the attribute went missing would show a
+   * dead control to every visitor without JavaScript, and nothing else in the
+   * suite would notice. The IBAN text itself is asserted above, in the same
+   * tag-free form a no-JS visitor reads.
+   */
+  it('ships every copy button hidden', () => {
+    const accounts = accountEntries();
+    expect(accounts.length, 'no account - the guard would prove nothing').toBeGreaterThan(0);
+    for (const page of ACCOUNT_PAGES) {
+      const tags = [...read(page).matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
+      const copyTags = tags.filter((tag) => tag.includes('data-copy'));
+      expect(copyTags, `${page} copy buttons`).toHaveLength(accounts.length);
+      for (const tag of copyTags) {
+        expect(/\shidden(?=[\s>])/.test(tag), `${page}: ${tag} is not hidden`).toBe(true);
+      }
+    }
+  });
+
+  /*
+   * ONE SCRIPT PER PAGE, AFTER THE LAST BLOCK. Two things would break the copy
+   * silently: a second emission (which `unexpectedInlineScripts` refuses, but
+   * this says it from the page side) and an emission placed before the buttons
+   * exist, where `querySelectorAll` finds nothing and every button stays
+   * hidden. The script's position is compared against the last copy BUTTON, so
+   * the `data-copy` occurrences inside the script itself cannot stand in for
+   * it.
+   */
+  it('emits the copy script once per page, after the last account block', () => {
+    for (const page of ACCOUNT_PAGES) {
+      const html = read(page);
+      const copyScripts = pageScripts(html).filter(
+        (s) => s.src === null && s.kind === 'executed' && s.content.includes('data-copy'),
+      );
+      expect(copyScripts, `${page} does not emit exactly one copy script`).toHaveLength(1);
+      const content = copyScripts[0].content as string;
+      expect(
+        html.indexOf(content),
+        `${page}: the copy script runs before the last button exists`,
+      ).toBeGreaterThan(html.lastIndexOf('data-copy="'));
+    }
   });
 });
 
