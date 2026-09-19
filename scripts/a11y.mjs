@@ -181,6 +181,15 @@ const NO_AXE = Object.keys(NO_AXE_REASONS);
  * fetch next, which is the one thing this check exists to notice: a Sveltia
  * upgrade reaching for a new origin from the page that holds a credential.
  *
+ * THE TURNSTILE ORIGINS ARE NOT HERE BECAUSE NO AUDIT CAN REACH THEM. The
+ * form's `script-src` and `frame-src https://challenges.cloudflare.com` in
+ * `public/_headers` are never exercised by this file: every pass builds and
+ * audits without `PUBLIC_TURNSTILE_SITE_KEY`, so the form is not rendered, the
+ * widget never loads and no refusal for those origins can appear. That is a
+ * declared gap, not a green - step K of `docs/handover.md` checks them against
+ * the deployed site, where the key is set. If a future pass ever builds with a
+ * site key, a refusal for either origin belongs in this list, with its reason.
+ *
  * Keyed `directive <- blockedURI`, which is what Chrome reports.
  */
 const CSP_EXPECTED = {

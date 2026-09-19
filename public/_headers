@@ -29,7 +29,7 @@
 # script hash costs about 52 characters.
 
 /*
-  Content-Security-Policy: default-src 'self'; img-src 'self' data: https://avatars.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' {{script-hashes}}; connect-src 'self' https://api.github.com; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: https://avatars.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' https://challenges.cloudflare.com {{script-hashes}}; frame-src https://challenges.cloudflare.com; connect-src 'self' https://api.github.com; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
@@ -75,6 +75,17 @@
 # `inlineStylesheets: 'always'`, so every page's CSS is an inline `<style>`.
 # Hashing those too is possible and was not done: a stylesheet cannot execute,
 # and the hashes would be several per page rather than one.
+#
+# TURNSTILE ADDS TWO ORIGINS, AND NO LOCAL AUDIT EVER REACHES THEM. The contact
+# form's widget loads its script from `https://challenges.cloudflare.com` and
+# draws itself in an iframe from the same origin, so `script-src` names the
+# origin - the script is `src`-bearing, which is what `scripts/csp-hash.mjs`
+# skips, and a hash cannot admit a URL - and `frame-src` names it for the
+# widget. The audits in `scripts/a11y.mjs` run with no
+# `PUBLIC_TURNSTILE_SITE_KEY`, so the form is not rendered and neither origin is
+# ever requested; `CSP_EXPECTED` there carries the same note. Step K of
+# `docs/handover.md` is what checks them against the deployed site, where the
+# key is set.
 # ---------------------------------------------------------------------------
 
 # LOAD-BEARING, AND UNVERIFIABLE FROM THIS REPOSITORY. A static build discards
@@ -130,7 +141,7 @@
 #                                                         `blob:` in `img-src`
 #                                                         is the fix.
 #
-# `CSP_ASTEPTAT` in `scripts/a11y.mjs` holds that list as the EXPECTED set and
+# `CSP_EXPECTED` in `scripts/a11y.mjs` holds that list as the EXPECTED set and
 # fails when a sixth appears, so a CMS upgrade that reaches for a new origin
 # cannot do it quietly. It also fails when an expected one STOPS appearing,
 # which is what catches an audit that measured nothing.

@@ -461,6 +461,61 @@ git tag -a phase-2 -m "Phase 2: the migrated content"
 git push --tags
 ```
 
+## K — the contact form
+
+The form on `/contact/` is the only server-side code on the site: a Cloudflare
+Pages Function at `functions/api/contact.ts`, which verifies Turnstile and forwards the
+message through Resend. Nothing in this repository can reach either service — the pure
+logic is tested with an injected `fetch` — so every step here is one only a deployed
+site and a real inbox can answer. Until they are done, the form's script is shipped and
+its endpoint is live; what is missing is the configuration that makes it work.
+
+**K1. The Turnstile widget.** In the Cloudflare dashboard → **Turnstile** → **Add
+widget**, create one for the Pages project's hostname (`<project>.pages.dev` is enough
+while testing; add `www.bor-zh.ch` before the launch). Put the **site key** in the Pages
+project's **build** environment as `PUBLIC_TURNSTILE_SITE_KEY` and the **secret key** in
+its **runtime** environment (Settings → Variables and Secrets → Production) as
+`TURNSTILE_SECRET_KEY`. A build with no site key renders the form's fallback paragraph
+instead of the form — that is the designed state, not a failure.
+
+*Good answer:* the deployed `/contact/` renders the form, the widget draws inside it, and
+a submission with the widget unsolved comes back with
+„Verificarea de securitate a eșuat.”
+
+**K2. Resend.** Add `send.bor-zh.ch` as a sending domain in Resend and add the SPF, DKIM
+and DMARC records it shows **on that subdomain only**. Never edit the root domain's MX
+or SPF: parish mail is served elsewhere, and the whole point of the subdomain is that
+setting up the form cannot break it (spec §10). Create an API key and set
+`RESEND_API_KEY` and `CONTACT_TO` in the Pages project's runtime environment.
+`CONTACT_FROM` defaults to `contact@send.bor-zh.ch`; set it only if the verified sender
+changes.
+
+*Good answer:* Resend reports the domain **Verified**; `dig txt send.bor-zh.ch` shows the
+records it asked for; the root domain's own records are untouched.
+
+**K3. The IP rate limit.** Add a Cloudflare WAF rate-limiting rule on `/api/contact`
+(for example: more than 5 POSTs per minute from one IP → block for a minute). Resend's
+free tier allows 100 messages a day, and this rule is what keeps a scripted sender from
+spending them.
+
+*Good answer:* the rule exists and fires — Security → Events shows the block when it
+does.
+
+**K4. One real round trip.** From the deployed site, send one message with a real
+address in the form. Then reply to the message from the parish inbox.
+
+*Good answer:* the message arrives at `CONTACT_TO`; its **Reply-To** is the sender's
+address, so the reply lands with the sender rather than at
+`contact@send.bor-zh.ch`. Nothing is stored anywhere — the Function forwards and
+forgets (spec §10).
+
+**K5. The security origins, live.** The deployed page is the only place the Turnstile
+origins in `public/_headers` are exercised: every local audit builds without a site key,
+so the widget never loads there. Open the browser console on `/contact/` and submit once.
+
+*Good answer:* no Content-Security-Policy violation for
+`https://challenges.cloudflare.com` in the console, and the K4 message arrives.
+
 ## What still cannot be verified from this repository
 
 Say "unverified" about these, not "should work".

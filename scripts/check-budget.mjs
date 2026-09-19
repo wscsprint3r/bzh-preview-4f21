@@ -301,6 +301,15 @@ const PAGE_BUDGET = {
    * `<img>` would cost a request and is not "raw markup", and rounding the
    * library's coordinates would modify a payment instrument that spec §9 has
    * not yet validated with a real transfer. `contact` stays at 24 KiB.
+   *
+   * MEASURED ON THE TASK 12 BUILD: `contact` 18,400 bytes with no site key -
+   * the form's fallback paragraph, the 1,132-byte inline handler that
+   * `EXPECTED_INLINE` names and the component's inlined CSS - and 19,662 with
+   * a key, where the form renders and the external Turnstile script is one more
+   * reference. THE LIMIT DOES NOT MOVE: the page is at 0.75x of it, and the
+   * 1.4-1.9x band the prose pages state is how a limit is chosen from a
+   * measurement, not a floor a measurement has to reach. `doneaza` is unchanged
+   * by Task 12.
    */
   'contact/index.html': 24 * 1024,
   'doneaza/index.html': 256 * 1024,
@@ -350,6 +359,13 @@ function budgetFor(table, page) {
  * 844. Unlike the picker it is `is:inline` in the route, so Vite's 4,096-byte
  * threshold never sees it: only the picker's bundle can flip to a file, and
  * `EMITTED_JS_ALLOWED` below is what refuses that.
+ *
+ * TASK 12'S FORM HANDLER IS THE SECOND INLINE SCRIPT ON `/contact/`, 1,132
+ * bytes, so that page's visitor JS measures 1,554 (the handler plus the copy
+ * script) - still under half this ceiling. It is `is:inline` in the component
+ * for the same reason, and the external Turnstile script is NOT part of this
+ * number: it is third-party bytes no build here can weigh, named in
+ * `EXTERNAL_SCRIPTS` above.
  */
 const JS_BUDGET = 3800;
 
@@ -451,9 +467,12 @@ const REQUEST_BUDGET = {
    * 9 measurements. TASK 11 ADDS NO REQUEST EITHER: the QR-bill is inline SVG
    * markup rather than an `<img>` or a background, so it is bytes in the
    * document and not a fetch - the one reason to prefer raw markup over a
-   * referenced file, besides the brief requiring it. Task 12's Turnstile adds
-   * an external script request and that task measures it; an unrelated request
-   * appearing before then is still a red build.
+   * referenced file, besides the brief requiring it. TASK 12 ADDS ONE REQUEST,
+   * AND ONLY WHEN THE FORM IS RENDERED: measured on a scratch build with
+   * `PUBLIC_TURNSTILE_SITE_KEY` set, `contact` is 12 - the 11 of the no-key
+   * build plus the external Turnstile script named in `EXTERNAL_SCRIPTS` above,
+   * which the build cannot weigh. The limit stays 12 because that is exactly
+   * what the keyed page asks for; the no-key page asks for 11.
    */
   'contact/index.html': 12,
   'doneaza/index.html': 16,
@@ -488,6 +507,29 @@ const EMITTED_JS_ALLOWED = false;
  * exclusion has to come before any extension test rather than after it.
  */
 const EXCLUDED = ['admin'];
+
+/*
+ * EXTERNAL SCRIPTS THE SITE IS SUPPOSED TO FETCH, NAMED BY URL.
+ *
+ * The contact form's Turnstile script is served by Cloudflare and has no bytes
+ * in this build, so `moduleBytes` cannot read it and the JS budget cannot weigh
+ * it. Before this list existed the build stopped on it, which was right for a
+ * script nobody had decided on and wrong for this one - the list is what keeps
+ * that distinction.
+ *
+ * THE REQUEST IS STILL COUNTED, because the request loop below pushes a
+ * `script src` for every script that has one; what is NOT counted is the
+ * third-party bytes, and that is a real gap stated rather than closed:
+ * Cloudflare decides the script's size, no build here can measure it, and no
+ * LOCAL build ever fetches it, because the form renders only when
+ * `PUBLIC_TURNSTILE_SITE_KEY` is set. Measured on a scratch build with the key
+ * set: `/contact` goes from 11 requests to 12, exactly its limit. Step K of
+ * `docs/handover.md` is what sees the script load for real.
+ *
+ * AN UNKNOWN EXTERNAL SCRIPT STILL STOPS THE BUILD. That is the whole point of
+ * a named list over a rule that waves through any URL.
+ */
+const EXTERNAL_SCRIPTS = new Set(['https://challenges.cloudflare.com/turnstile/v0/api.js']);
 
 let failed = false;
 
@@ -687,6 +729,10 @@ for (const page of PAGES) {
     }
     const path = inDist(src);
     if (path === null) {
+      if (EXTERNAL_SCRIPTS.has(src)) {
+        details.push(`external ${src} (bytes not weighed - see EXTERNAL_SCRIPTS)`);
+        continue;
+      }
       stop(
         `${page}: <script src="${src}"> does not resolve inside ${DIST}/.\n` +
           'An external script is still JavaScript the visitor downloads.',

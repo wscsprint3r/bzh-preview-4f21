@@ -1,6 +1,7 @@
 ---
 import { getCollection, getEntry, render } from 'astro:content';
 import AccountBlock from '../components/AccountBlock.astro';
+import ContactForm from '../components/ContactForm.astro';
 import { COPY_SCRIPT } from '../lib/copy-script.mjs';
 import Base from '../layouts/Base.astro';
 import { normalizeHeadingLevels } from '../lib/markdown-headings';
@@ -11,8 +12,8 @@ import { pickSettings } from '../lib/settings';
  * `/contact` IS BUILT HERE, NOT BY `[...page].astro`, and `RESERVED_PATHS` in
  * `src/lib/routes.ts` is the one list that keeps the two from both claiming it.
  * The page is prose like the other nine; the dedicated route exists because it
- * grows generated blocks below the prose - the account blocks Task 10 adds and,
- * later, the contact form - which the generic route has no business knowing
+ * grows generated blocks below the prose - the contact form, then the account
+ * blocks Task 10 adds - which the generic route has no business knowing
  * about.
  *
  * THE BODY'S TRANSFORM PIPELINE IS `[...page].astro`'s, in the same order and
@@ -62,6 +63,17 @@ const settings = pickSettings(await getCollection('settings'));
       indicațiile pentru a ajunge la ea.
     </p>
     <Content />
+  </div>
+
+  {/*
+    The form, then the accounts. The form is the page's action; the accounts
+    answer the donation question the migrated prose raises, and both read the
+    settings singleton the route already loaded. `ContactForm` emits its own
+    inline script unconditionally - see the comment there - so nothing about
+    the form's script is decided here.
+  */}
+  <div class="container">
+    <ContactForm phone={settings.phone} address={settings.address} />
   </div>
 
   {/*

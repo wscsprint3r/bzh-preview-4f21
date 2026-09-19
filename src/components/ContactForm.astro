@@ -1,0 +1,188 @@
+---
+/*
+ * THE CONTACT FORM, AND THE ONE SCRIPT THAT MAKES IT PLEASANT TO USE.
+ *
+ * THE FORM APPEARS ONLY WHEN A SITE KEY WAS PRESENT AT BUILD TIME. Without
+ * `PUBLIC_TURNSTILE_SITE_KEY` the visitor gets the parish's phone and address
+ * and a sentence saying the form is coming - which is the state every local
+ * build and every preview is in, and a designed state rather than a failure.
+ *
+ * THE INLINE SCRIPT IS EMITTED UNCONDITIONALLY, key or no key, and that is not
+ * tidiness. `EXPECTED_INLINE` in `scripts/csp-hash.mjs` is a static set checked
+ * at `astro:build:done`: a script whose presence followed a deploy-time
+ * variable would make the expected set depend on the environment, and a no-key
+ * build would fail for a script that is correctly absent. The script attaches
+ * to the form when one exists and returns otherwise, so a no-key page ships it
+ * and runs nothing.
+ *
+ * IT IS `is:inline` AND THEREFORE NOT BUNDLED. Astro bundles a plain `<script>`
+ * and emits it as a module, which the CSP would then name by hash; `is:inline`
+ * passes this text through untouched, and the hash of exactly these bytes is
+ * what `scripts/csp-hash.mjs` writes into `script-src` - the `data-contact-form`
+ * marker below is what names the script to `EXPECTED_INLINE`.
+ *
+ * THE EXTERNAL TURNSTILE SCRIPT IS NOT HASHED, because it carries a `src`. The
+ * `script-src` origin `https://challenges.cloudflare.com` in `public/_headers`
+ * is what admits it, and `frame-src` of the same origin admits the widget's
+ * iframe. No local audit exercises either - the audits run without a site key,
+ * so the widget never loads - and step K of `docs/handover.md` is where they are
+ * checked live.
+ *
+ * PROGRESSIVE ENHANCEMENT IS THE CONTRACT, WITH ONE HONEST EXCEPTION. The form
+ * is a plain POST and would submit without the inline script, but Turnstile
+ * cannot produce a token without JavaScript, so the Function refuses the
+ * submission - which is why the `<noscript>` paragraph names the phone rather
+ * than promising the form will work. The script's own enhancement is the
+ * in-place result message; the page navigation it replaces is the fallback, not
+ * the design.
+ */
+interface Props {
+  phone: string;
+  address: string;
+}
+
+const { phone, address } = Astro.props;
+const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+
+/*
+ * The client side of the form. Single quotes throughout: this is a template
+ * literal, so a backtick or a `${` inside would end it.
+ *
+ * `role="status"` on the element this writes into is what announces the result
+ * to a screen reader; the element lives outside the form so hiding the form on
+ * success does not hide the sentence that says so.
+ */
+const CONTACT_SCRIPT = `
+const form = document.querySelector('[data-contact-form]');
+if (form) {
+  const status = document.querySelector('[data-contact-status]');
+  const button = form.querySelector('button[type="submit"]');
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    button.disabled = true;
+    status.textContent = 'Se trimite…';
+    fetch(form.action, { method: 'POST', body: new FormData(form) })
+      .then((response) => response.json().then((body) => ({ response, body })))
+      .then(({ response, body }) => {
+        if (response.ok && body.ok) {
+          form.hidden = true;
+          status.textContent = 'Mesajul a fost trimis. Vă mulțumim!';
+          return;
+        }
+        button.disabled = false;
+        status.textContent =
+          body.error ||
+          Object.values(body.errors || {})[0] ||
+          'Mesajul nu a putut fi trimis. Vă rugăm să încercați din nou sau să ne sunați.';
+      })
+      .catch(() => {
+        button.disabled = false;
+        status.textContent = 'Mesajul nu a putut fi trimis. Vă rugăm să încercați din nou sau să ne sunați.';
+      });
+  });
+}
+`;
+---
+
+<section class="cf" aria-labelledby="cf-heading">
+  <h2 id="cf-heading">Scrieți-ne</h2>
+  {
+    siteKey ? (
+      <>
+        <form method="post" action="/api/contact" data-contact-form>
+          <p class="cf-field">
+            <label for="cf-name">Nume</label>
+            <input id="cf-name" name="name" type="text" autocomplete="name" required />
+          </p>
+          <p class="cf-field">
+            <label for="cf-email">E-mail</label>
+            <input id="cf-email" name="email" type="email" autocomplete="email" required />
+          </p>
+          <p class="cf-field">
+            <label for="cf-message">Mesaj</label>
+            <textarea id="cf-message" name="message" rows="6" required></textarea>
+          </p>
+          {/*
+            The honeypot: hidden from sight and from assistive technology, out
+            of the tab order, and never `required`. A person cannot fill it; a
+            bot that fills every input it finds can.
+          */}
+          <p class="hp" aria-hidden="true">
+            <label for="cf-website">Nu completați acest câmp</label>
+            <input id="cf-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+          </p>
+          <div class="cf-turnstile" data-sitekey={siteKey}></div>
+          <button type="submit">Trimite</button>
+        </form>
+        <p class="cf-status" role="status" data-contact-status></p>
+        <noscript>
+          <p class="cf-noscript">
+            Formularul are nevoie de JavaScript ca să poată fi trimis. Dacă nu îl puteți
+            folosi, sunați-ne la {phone}.
+          </p>
+        </noscript>
+        <script
+          is:inline
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          async
+          defer></script>
+      </>
+    ) : (
+      <p class="cf-fallback">
+        Formularul va fi disponibil în curând. Ne puteți suna la {phone} sau ne puteți scrie
+        la adresa {address}.
+      </p>
+    )
+  }
+</section>
+
+<script is:inline set:html={CONTACT_SCRIPT}></script>
+
+<style>
+  /*
+   * The colours are tokens only - no hex literal, the rule `stylesheet.itest.ts`
+   * enforces. `outline` is never declared, so the global `:focus-visible` ring
+   * reaches every control here, and no `color` is declared for links: the
+   * global `a`/`a:hover` pair already carries them.
+   */
+  .cf { max-width: var(--masura); margin-top: 2.5rem; }
+  .cf h2 { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
+  .cf-field { margin: 0 0 1rem; }
+  .cf-field label { display: block; font-size: 0.9375rem; margin-bottom: 0.35rem; }
+  .cf-field input,
+  .cf-field textarea {
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    font-family: var(--body);
+    font-size: 1rem;
+    color: var(--ink);
+    background: var(--raised);
+    border: 1px solid var(--rule);
+  }
+  .cf-field textarea { resize: vertical; }
+  .cf button {
+    background: var(--raised);
+    color: var(--oxblood);
+    border: 1px solid var(--oxblood);
+    font-family: var(--body);
+    font-size: 1rem;
+    padding: 0.5rem 1.1rem;
+    cursor: pointer;
+  }
+  .cf button:hover { color: var(--oxblood-dk); border-color: var(--oxblood-dk); }
+  .cf button:disabled { color: var(--muted); border-color: var(--rule); cursor: default; }
+  /* The honeypot is off-screen, not `display: none`: a bot that reads CSS is
+     exactly the visitor this is for, and one that never renders CSS is not. */
+  .hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    margin: 0;
+  }
+  .cf-status { margin: 0.75rem 0 0; font-size: 0.9375rem; }
+  .cf-status:empty { margin: 0; }
+  .cf-noscript,
+  .cf-fallback { margin: 0.75rem 0 0; color: var(--muted); }
+</style>

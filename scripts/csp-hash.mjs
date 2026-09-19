@@ -58,23 +58,27 @@ export const PLACEHOLDER = '{{script-hashes}}';
  * policy allow-listed the injection. Measured on this project: appending
  * `<script>window.__pwned=1</script>` to a post's markdown put that script in
  * the built page and its SHA-256 in `script-src`. The set is tiny and fixed -
- * three today: the homepage week picker, and Task 10's copy script emitted
- * once on each of the two account pages - so it is declared here and anything
- * else stops the build.
+ * four today: the homepage week picker, Task 10's copy script emitted once on
+ * each of the two account pages, and the contact form's handler on `/contact` -
+ * so it is declared here and anything else stops the build.
  *
  * `marker` is a string literal the script keeps through minification
  * (`data-picker-label` is the element the picker writes into, `data-copy` is
- * the attribute the copy buttons and their script share), so an entry names
+ * the attribute the copy buttons and their script share, `data-contact-form` is
+ * the attribute the form handler's first line queries for), so an entry names
  * the script without pinning its changing bytes. The two copy entries share
  * their bytes - one source string, emitted on two routes - and are matched by
  * PAGE and marker together, so a build that lost only one page's copy still
- * fails rather than letting the identical other copy stand in for it. A new
- * island is a deliberate addition to this list; content that injects a script
- * is refused.
+ * fails rather than letting the identical other copy stand in for it. The two
+ * `/contact/` entries need the same treatment for the same reason: they share a
+ * route and differ only by marker, so the page half alone would let either one
+ * stand in for the other. A new island is a deliberate addition to this list;
+ * content that injects a script is refused.
  */
 export const EXPECTED_INLINE = [
   { page: 'index.html', marker: 'data-picker-label' },
   { page: 'contact/index.html', marker: 'data-copy' },
+  { page: 'contact/index.html', marker: 'data-contact-form' },
   { page: 'doneaza/index.html', marker: 'data-copy' },
 ];
 

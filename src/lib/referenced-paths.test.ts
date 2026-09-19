@@ -88,7 +88,6 @@ const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
   ],
   'historical: a design this project dropped, a workflow it renamed, or a filename quoted as a fragment': [
     'data.json',
-    'functions/api/contact.ts',
     'nightly.yml',
     'test.ts',
     'web/.github/workflows/nightly.yml',
