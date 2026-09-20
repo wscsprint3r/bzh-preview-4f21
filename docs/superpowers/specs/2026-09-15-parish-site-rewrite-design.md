@@ -403,6 +403,13 @@ Plus a deliberate set of **410 Gone** rules for `/wp-admin/*`, `/wp-login.php`, 
 > actually returns for `/wp-content/anything`. If the platform ignores them, the block
 > needs another mechanism — a Pages Function or a Cloudflare rule — a deferred item, not
 > part of this build.
+>
+> **Also 2026-09-20: the apex→www redirect is not a `_redirects` rule.** The same
+> reference defines a source as a file path and marks domain-level redirects unsupported —
+> `https://bor-zh.ch/* https://www.bor-zh.ch/:splat` is the reference's own example of
+> what cannot match. The decision lives in `functions/_middleware.ts`: `apexRedirectTarget`
+> in `src/lib/apex.ts` is pure and unit-tested, and the Function 301s the apex host to www
+> with its path and query string. A zone-level Redirect Rule is the alternative.
 
 Well under the 2,000-redirect free-tier limit.
 

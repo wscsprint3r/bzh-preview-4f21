@@ -271,6 +271,20 @@ rather than a change to this build. Record the status and the `location` line: "
 file applied" (does the first request redirect at all?) and "is 410 honoured" are two
 separate answers, and the second is the one nobody has measured.
 
+**F6. The apex redirect, once DNS has moved.** `functions/_middleware.ts` is the only
+thing that can send `bor-zh.ch` to `www.bor-zh.ch`: a `_redirects` rule cannot match a
+host, which is why the old rule was inert. **Do not run this before the cutover** — while
+the apex still answers with the old WordPress install, the same command returns a page
+and reads like a pass while proving nothing. After the nameservers move:
+
+```bash
+curl -sI http://bor-zh.ch/ | grep -i -E 'HTTP/|location'
+```
+
+*Good answer:* a `301` whose `location` is `https://www.bor-zh.ch/`. A `200` means the
+Function is not deployed with the site; a `301` to another host means it is deciding off
+the wrong name.
+
 ## G — the first sign-in (the one thing nothing here could reach)
 
 **Open the console (F12) BEFORE pressing "Sign In with GitHub", and keep it open until you
@@ -431,10 +445,10 @@ up, and what Phase 4 did with them.
   data rows at the end of Phase 2, **152** now (section L carries the current total).
   Phase 4 serves it: `scripts/redirects.mjs` turns every row that needs one into a rule
   in `dist/_redirects` at build time — 149 of the 152 today, because three rows map a
-  path to itself and are skipped. The 32 held-back posts keep their rows, so 31 old links
-  reach a `/noutati/<slug>/` target that has no page and 404 until the parish dates and
-  publishes that post; the 32nd, `/scoala-parohiala/`, has a page row that wins over its
-  post row and resolves to the published `/comunitate/scoala/`.
+  path to itself and are skipped. The held-back posts keep their rows, so an old link to
+  one reaches a `/noutati/<slug>/` target that has no page and 404s until the parish dates
+  and publishes that post. `/scoala-parohiala/` is held back too, but has a page row that
+  wins over its post row and resolves to the published `/comunitate/scoala/`.
 
 **Adding a post.** `/admin/` → **Articole** → **Create New Entry**, then title, date,
 category, text and optionally an image. `Save` is the only button and it commits.
@@ -613,7 +627,7 @@ and what Phase 4 changed.
   so the donor fills in the sum in their banking app.
 - **The contact form** on `/contact/`; its configuration is section K.
 - **`docs/url-map.csv`** now carries **152 data rows**, 95 of them the PDFs, and it is
-  served: `scripts/redirects.mjs` writes `dist/_redirects` at build time — 157 rules on
+  served: `scripts/redirects.mjs` writes `dist/_redirects` at build time — 156 rules on
   the current build, printed by the build log — with every specific upload 301 above the
   four 410s (section F has the live check).
 
@@ -633,9 +647,11 @@ and what Phase 4 changed.
   so the old album content cannot also redirect there; the legacy static album and the
   old Events Calendar URLs were never CSV rows. `scripts/redirects.mjs` carries them in
   `EXTRA_RULES`: `/galerie.html` → `/galerie/`, `/event/*` and `/events/*` →
-  `/evenimente/`, and `https://bor-zh.ch/*` → `https://www.bor-zh.ch/:splat`. They are
-  tested beside the CSV's rules, and they are why the map's row count is not the rule
-  count.
+  `/evenimente/`. They are tested beside the CSV's rules, and they are why the map's
+  row count is not the rule count. **The apex→www redirect is not a rule and cannot be
+  one**: Cloudflare's reference marks domain-level redirects unsupported, so
+  `functions/_middleware.ts` makes that decision from the request's hostname, and F6 is
+  the live check.
 - **The eight `.doc` studies are PDFs now, and their links point at `/documente/`.** The
   spec's "never migrate `.doc`" ruling stands as written: the conversion is one
   maintainer step outside `run.mjs`, done once by `migration/doc-convert.mjs` (section I
@@ -715,6 +731,9 @@ and what Phase 4 changed.
    *Good answer:* a `301` whose `location` is the mapped page or post. An id the map does
    not carry falls through to the homepage, which is the same answer as with no Function
    at all.
+6. **The apex→www redirect** — `functions/_middleware.ts`, whose decision is unit-tested
+   in `src/lib/apex.test.ts`. Nothing in this repository can reach a Pages Function, so
+   F6 is the first proof, and it can only be run after the DNS cutover.
 
 **A declared gap, not an open question.** Text contrast inside the QR-bill's inline SVG
 cannot be judged by axe: it treats any SVG node as a graphic and returns an
@@ -755,10 +774,11 @@ Say "unverified" about these, not "should work".
    chromedriver's download skipped.
 6. **Lighthouse scores.** Step H8.
 7. **The six-hourly rebuild firing.** Step E3.
-8. **Everything Phases 3 and 4 added that a deployment decides.** Section L's five
+8. **Everything Phases 3 and 4 added that a deployment decides.** Section L's six
    unverified items — the form's round trip, the QR-bill's test transfer, the rate-limit
-   rule, the PDFs' response headers and the `?p=<id>` short links — plus the QR-bill's
-   SVG text, which axe cannot judge. Section L is where each is written out.
+   rule, the PDFs' response headers, the `?p=<id>` short links and the apex→www redirect
+   — plus the QR-bill's SVG text, which axe cannot judge. Section L is where each is
+   written out.
 9. **Whether Cloudflare honours `410` in `_redirects` at all.** Its `_redirects`
    reference lists 301, 302, 303, 307 and 308 as supported and marks other status codes
    unsupported, so the four `/wp-admin/*`, `/wp-login.php`, `/xmlrpc.php` and
