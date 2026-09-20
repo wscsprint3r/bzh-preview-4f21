@@ -62,6 +62,9 @@ apăsa din nou **`Save`**.
 - **Data** așază articolul în listă, cel mai nou primul, și apare sub titlu. Ea
   nu se schimbă singură: dacă ați greșit-o, corectați-o și salvați.
 
+**Ghidul complet pentru editare** — programul săptămânii, noutățile, pozele și datele de
+contact — este în `docs/ghid-editor.md`.
+
 ## Dezvoltare
 
 ```bash
