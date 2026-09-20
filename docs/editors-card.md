@@ -9,8 +9,9 @@
   apoi **`Save`**.
 - **Data este și numele fișierului și nu se schimbă singură.** Dacă o zi publicată are data
   greșită, ștergeți ziua și adăugați-o din nou; nu o corectați schimbând data în formular.
-- **Slujbe anulate:** păstrați orele și bifați „Slujbele sunt anulate”; dacă ștergeți
-  rândurile, cei abonați la calendar rămân cu vechiul program și nu află de anulare.
+- **Slujbe anulate:** păstrați orele și bifați „Slujbele sunt anulate”; în calendarul
+  publicat, evenimentele zilei poartă `STATUS:CANCELLED` și încep cu **ANULAT:**.
+  O zi ștearsă lasă calendarul fără nicio urmă a anulării.
 - **Fără bifa `Publicat`, un articol nu apare nicăieri:** fără pagină proprie, fără intrare
   în listă, fără element în feed. Bifați și salvați din nou.
 - **Miniaturile din biblioteca media pot apărea goale** (browserul blochează `blob:`);
