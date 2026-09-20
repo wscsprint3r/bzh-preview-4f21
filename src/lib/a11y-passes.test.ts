@@ -21,6 +21,7 @@ import {
   checkBreakpoints,
   checkPasses,
   svgTextIncompletes,
+  heroTextIncompletes,
   readingColumnProblems,
   READING_COLUMN_PAGES,
   selectTablePages,
@@ -1120,5 +1121,89 @@ describe('selecting the reading-column pages from a build', () => {
   it('fails an exact page the build does not have', () => {
     const { problems } = selectTablePages(TABLE, ['noutati/index.html']);
     expect(problems.some((p) => p.includes('servicii-liturgice/index.html'))).toBe(true);
+  });
+});
+
+/*
+ * ===========================================================================
+ * THE HERO'S PHOTOGRAPHED GROUND, EXEMPTED FROM axe AND MEASURED IN PIXELS.
+ *
+ * The homepage hero is text over a photograph under an oxblood scrim. axe
+ * cannot determine that background and returns a `color-contrast` incomplete,
+ * which this project fails on; `heroTextIncompletes` recognises exactly the
+ * hero's nodes and `measureHeroContrast` in `scripts/a11y.mjs` is the judgement
+ * that replaces axe's, on the pixels the browser really paints.
+ *
+ * THE FIRST THREE CASES ARE THE BRIEFED CONTRACT. The last three are the nodes
+ * axe REALLY reported on the Task 6 build, captured with a probe before the
+ * matcher was written: the h1's target is a bare `h1` (axe picks the shortest
+ * unique selector, and a class added to the h1 does not change it — measured),
+ * and the handle that places it inside the hero is the check's own evidence:
+ * `messageKey: 'pseudoContent'` with the scrim's owner, `.hero`, named in
+ * `relatedNodes`. The fail-closed direction is asserted from the other side: a
+ * bare `h1` without that evidence stays in scope, and so does one whose
+ * relatedNodes name anything but the hero.
+ * ===========================================================================
+ */
+describe('the hero contrast exemption', () => {
+  it('exempts a node whose every selector chain names the hero', () => {
+    const rule = {
+      id: 'color-contrast',
+      nodes: [{ target: ['section.hero > div.hero-in > h1'] }],
+    };
+    expect(heroTextIncompletes(rule)).toHaveLength(1);
+  });
+
+  it('keeps a node that is not clearly the hero in scope', () => {
+    const rule = {
+      id: 'color-contrast',
+      nodes: [{ target: ['section.hero > h1'] }, { target: ['main p'] }],
+    };
+    expect(heroTextIncompletes(rule)).toHaveLength(1);
+  });
+
+  it('returns nothing for another rule, or a target it cannot read', () => {
+    expect(heroTextIncompletes({ id: 'image-alt', nodes: [{ target: ['section.hero > h1'] }] })).toEqual([]);
+    expect(heroTextIncompletes({ id: 'color-contrast', nodes: [{ target: [] }] })).toEqual([]);
+  });
+
+  /*
+   * The node axe reported for the hero's h1 on the Task 6 build: target `h1`,
+   * the scrim's pseudo element named through `relatedNodes: [{ target: ['.hero'] }]`.
+   */
+  const HERO_H1_NODE = {
+    target: ['h1'],
+    html: '<h1 data-astro-cid-lcdefpme="">Bine ați venit</h1>',
+    any: [
+      {
+        id: 'color-contrast',
+        impact: 'serious',
+        message: "Element's background color could not be determined due to a pseudo element",
+        data: { expectedContrastRatio: '4.5:1', fontSize: '12.7pt (16.872px)', messageKey: 'pseudoContent' },
+        relatedNodes: [{ html: '<section class="hero" data-astro-cid-lcdefpme="">', target: ['.hero'] }],
+      },
+    ],
+  };
+
+  it('classifies the h1 node axe really reported, which no selector chain places in the hero', () => {
+    const rule = incompleteOf(HERO_H1_NODE);
+    expect(heroTextIncompletes(rule)).toEqual(rule.nodes);
+  });
+
+  it('keeps a bare h1 in scope when no check names the hero as the obstruction', () => {
+    expect(heroTextIncompletes(incompleteOf({ ...HERO_H1_NODE, any: [] }))).toEqual([]);
+  });
+
+  it('keeps a node in scope when its related nodes are not the hero, or the reason is not the scrim', () => {
+    const elsewhere = {
+      ...HERO_H1_NODE,
+      any: [{ ...HERO_H1_NODE.any[0], relatedNodes: [{ target: ['main'] }] }],
+    };
+    expect(heroTextIncompletes(incompleteOf(elsewhere))).toEqual([]);
+    const otherReason = {
+      ...HERO_H1_NODE,
+      any: [{ ...HERO_H1_NODE.any[0], data: { messageKey: 'imgNode' } }],
+    };
+    expect(heroTextIncompletes(incompleteOf(otherReason))).toEqual([]);
   });
 });

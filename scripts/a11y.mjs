@@ -56,7 +56,10 @@
  *   - text over a gradient or a background-image. axe reports those as
  *     `incomplete` rather than as a pass, so this script fails on any
  *     `incomplete` for color-contrast and prints the selector. "Could not
- *     determine" is a decision someone makes, not a silence.
+ *     determine" is a decision someone makes, not a silence. THE ONE EXCEPTION
+ *     IS THE HOMEPAGE HERO: `heroTextIncompletes` recognises its nodes,
+ *     `measureHeroContrast` below judges the same pixels against WCAG, and
+ *     every other incomplete still fails — see the block above that function.
  *   - text drawn inside an inline `<svg>`, which axe can never resolve a
  *     background for: `elementHasImage` treats every SVG node as a graphic, so
  *     the `color-contrast` rule returns `incomplete` for each `<text>`/`<tspan>`
@@ -98,7 +101,9 @@ import { pathToFileURL } from 'node:url';
 import { Builder } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome.js';
 import chromedriver from 'chromedriver';
+import sharp from 'sharp';
 import { headersForPath, parseHeaders } from './headers.mjs';
+import { heroContrastProblems } from '../src/lib/hero-contrast.ts';
 
 const AXE = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
 
@@ -1460,6 +1465,63 @@ export function svgTextIncompletes(rule) {
 }
 
 /*
+ * THE HERO'S DECLARED GAP, RECONCILED THE SAME WAY AS THE SVG TEXT. axe cannot
+ * resolve a background image, so the hero's h1 and verse arrive as
+ * `color-contrast` incompletes whatever their real contrast is. They are
+ * exempted here and judged by `measureHeroContrast` below, on the pixels. The
+ * matcher is fail-closed: every selector chain in a target must contain
+ * `.hero`, or the node stays in scope and fails.
+ *
+ * THE h1 ARRIVES AS A BARE `h1`, AND THAT IS WHY THE SECOND BRANCH EXISTS.
+ * Measured on the Task 6 build with a probe, not assumed: axe reports the
+ * shortest unique selector, so the verse is `.hero-verse` but the h1 — which
+ * has no class of its own — is just `h1`, and adding a class to it does NOT
+ * change that (measured both ways; axe still prints `h1`). The first branch
+ * therefore catches the verse and misses the h1, and a matcher that stopped
+ * there would leave the pass red for ever.
+ *
+ * The handle is in the check axe itself attaches: the undetermined background
+ * is the scrim, `.hero::after`, and the check says so —
+ * `data.messageKey: 'pseudoContent'` with the pseudo element's owner,
+ * `.hero`, named in `relatedNodes`. A node is exempted on that evidence only
+ * when EVERY related node is the hero and the reason is the scrim's pseudo
+ * content; a bare `h1` with no such check, or with related nodes that name
+ * anything else, stays in scope and keeps failing. The real node shapes are
+ * pinned in `src/lib/a11y-passes.test.ts`.
+ */
+export function heroTextIncompletes(rule) {
+  if (rule?.id !== 'color-contrast') return [];
+  return (rule.nodes ?? []).filter((node) => {
+    const chains = node?.target;
+    if (
+      Array.isArray(chains) &&
+      chains.length > 0 &&
+      chains.every((chain) => typeof chain === 'string' && chain.includes('.hero'))
+    ) {
+      return true;
+    }
+    const checks = node?.any;
+    if (!Array.isArray(checks)) return false;
+    return checks.some((check) => {
+      if (check?.data?.messageKey !== 'pseudoContent') return false;
+      const related = check?.relatedNodes;
+      return (
+        Array.isArray(related) &&
+        related.length > 0 &&
+        related.every((relatedNode) => {
+          const targets = relatedNode?.target;
+          return (
+            Array.isArray(targets) &&
+            targets.length > 0 &&
+            targets.every((chain) => typeof chain === 'string' && chain.includes('.hero'))
+          );
+        })
+      );
+    });
+  });
+}
+
+/*
  * THE READING COLUMN, CHECKED BY THE ONLY THING THAT CAN SEE IT.
  *
  * The column's property is geometric - one centered axis, a text box that is
@@ -1687,6 +1749,91 @@ async function measureReadingColumn(driver, page, selectors) {
       }),
     };
   `);
+}
+
+/*
+ * The hero, measured the way a reader sees it. One navigation to `/`, the
+ * text's rects and computed colours read from the DOM, the text hidden with an
+ * injected style, one clipped screenshot of the hero, then the pixels judged
+ * by `heroContrastProblems`. The style is removed in a `finally`, so a failure
+ * cannot leave the page altered for the axe pass that follows.
+ *
+ * IT FAILS WHEN IT FINDS NOTHING TO MEASURE. A `.hero` with no text, or a
+ * screenshot that comes back empty, is a guard that measured nothing and must
+ * not report a pass — the same rule every file-reading guard in this project
+ * follows.
+ *
+ * THE SCREENSHOT COMES BACK THROUGH `sendAndGetDevToolsCommand`, NOT
+ * `sendDevToolsCommand`. The latter is what the rest of this file uses for the
+ * emulation commands, and it DISCARDS the CDP result — it resolves to nothing,
+ * so `result.data` on it is a null dereference. Measured on this driver
+ * (selenium-webdriver 4.44): the same call that returns void from
+ * `sendDevToolsCommand` returns `{ data: <base64 png> }` from the
+ * `_and_get_result` variant. This is the only call here that needs the reply.
+ */
+async function measureHeroContrast(driver, url, log) {
+  await driver.get(url('index.html'));
+  const hero = await driver.executeScript(`
+    const section = document.querySelector('.hero');
+    if (section === null) return null;
+    const r = section.getBoundingClientRect();
+    const texts = [...section.querySelectorAll('h1, p')].map((el) => {
+      const b = el.getBoundingClientRect();
+      return {
+        selector: el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).split(' ').join('.') : ''),
+        rect: { left: b.left, top: b.top, width: b.width, height: b.height },
+        color: getComputedStyle(el).color,
+      };
+    });
+    return { hero: { left: r.left, top: r.top, width: r.width, height: r.height }, texts };
+  `);
+  if (hero === null) return ['the homepage has no .hero section — the contrast guard measured nothing.'];
+  if (hero.texts.length === 0) return ['the .hero section has no text — the contrast guard measured nothing.'];
+  const problems = [];
+  let shot = null;
+  try {
+    await driver.executeScript(`
+      const style = document.createElement('style');
+      style.id = 'hero-contrast-probe';
+      style.textContent = '.hero h1, .hero p { visibility: hidden !important; }';
+      document.head.append(style);
+    `);
+    const result = await driver.sendAndGetDevToolsCommand('Page.captureScreenshot', {
+      format: 'png',
+      clip: { x: hero.hero.left, y: hero.hero.top, width: hero.hero.width, height: hero.hero.height, scale: 1 },
+    });
+    shot = await sharp(Buffer.from(result.data, 'base64')).raw().toBuffer({ resolveWithObject: true });
+  } finally {
+    await driver.executeScript("document.getElementById('hero-contrast-probe')?.remove()");
+  }
+  const texts = hero.texts.map((t) => ({
+    ...t,
+    rect: {
+      left: t.rect.left - hero.hero.left,
+      top: t.rect.top - hero.hero.top,
+      width: t.rect.width,
+      height: t.rect.height,
+    },
+  }));
+  const measured = [];
+  problems.push(
+    ...heroContrastProblems({
+      texts,
+      shot: { width: shot.info.width, height: shot.info.height, channels: shot.info.channels, data: shot.data },
+      /*
+       * The RATIO, not only the verdict: `index.astro`'s scrim percentage is
+       * justified by this number, and a green run is exactly where a later
+       * reader would want to check it. Printed from the measurement the guard
+       * judged rather than recomputed for display.
+       */
+      report: (selector, worst) =>
+        measured.push(
+          `  hero contrast ${selector}: worst ${worst.toFixed(2)}:1 over ${shot.info.width}x${shot.info.height} px`,
+        ),
+    }),
+  );
+  for (const line of measured) log(line);
+  return problems;
 }
 
 /**
@@ -1927,14 +2074,21 @@ export async function runAudit({ dist, pass, extraCheck = null, log = console.lo
         for (const undecided of audit.incomplete ?? []) {
           if (undecided.id !== 'color-contrast') continue;
           /*
-           * THE EXEMPTION IS VISIBLE, NOT SILENT. The SVG-text nodes are
-           * printed with a label naming the declared gap; only the in-scope
-           * incompletes fail. `svgTextIncompletes` returns nothing for anything
-           * it cannot clearly place inside an inline SVG, so a node it is
-           * unsure about lands in `inScope` and the pass fails - which is the
+           * THE EXEMPTIONS ARE VISIBLE, NOT SILENT, AND EACH NAMES ITS GAP.
+           * Two declared gaps arrive here: the SVG text axe can never resolve a
+           * background for, and the homepage hero's photographed ground, which
+           * arrives as an incomplete because axe cannot resolve a photograph
+           * either but is judged on the pixels by `measureHeroContrast` above.
+           * Only the in-scope incompletes fail. Both classifiers fail closed:
+           * `svgTextIncompletes` returns nothing for anything it cannot clearly
+           * place inside an inline SVG, and `heroTextIncompletes` returns
+           * nothing for a node it cannot tie to the hero — so a node either is
+           * unsure about lands in `inScope` and the pass fails, which is the
            * direction that must stay.
            */
-          const exempt = svgTextIncompletes(undecided);
+          const svgExempt = svgTextIncompletes(undecided);
+          const heroExempt = heroTextIncompletes(undecided);
+          const exempt = [...svgExempt, ...heroExempt];
           const inScope = (undecided.nodes ?? []).filter((node) => !exempt.includes(node));
           const printNodes = (nodes) => {
             for (const node of nodes) {
@@ -1947,17 +2101,35 @@ export async function runAudit({ dist, pass, extraCheck = null, log = console.lo
             fail(`  ${page}: contrast undetermined (usually text over a gradient or an image):`);
             printNodes(inScope);
           }
-          if (exempt.length > 0) {
+          if (svgExempt.length > 0) {
             log(
-              `    ${page}: ${exempt.length} contrast incomplete(s) exempted as the declared ` +
+              `    ${page}: ${svgExempt.length} contrast incomplete(s) exempted as the declared ` +
                 'SVG-text gap (HONEST SCOPE at the top of this file), printed rather than failed:',
             );
-            printNodes(exempt);
+            printNodes(svgExempt);
+          }
+          if (heroExempt.length > 0) {
+            log(
+              `    ${page}: ${heroExempt.length} contrast incomplete(s) exempted as the declared hero ` +
+                'gap — text over the photograph, judged in pixels by measureHeroContrast above ' +
+                '(HONEST SCOPE at the top of this file), printed rather than failed:',
+            );
+            printNodes(heroExempt);
           }
         }
 
         // `runAxe` re-enabled script execution to run axe; put the
         // condition back before the next page loads.
+        await prepare(driver, condition);
+      }
+
+      /*
+       * The hero's crop differs by width (16:6 at desk, 3:2 at phone), so this
+       * runs per condition, not once per pass like the reading column.
+       */
+      if (toAudit.includes('index.html')) {
+        const heroProblems = await measureHeroContrast(driver, url, log);
+        for (const problem of heroProblems) fail(`  ${problem}`);
         await prepare(driver, condition);
       }
 

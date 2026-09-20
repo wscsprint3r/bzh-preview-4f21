@@ -165,13 +165,16 @@ const articles = publishedArticles(await getCollection('articles'));
    * with no test to notice. The percentage is the one measured by the pixel
    * guard in a11y.mjs (Task 7) — do not lower it without re-measuring, and do
    * not raise it to make the picture "read better"; the guard's number is the
-   * requirement.
+   * requirement. MEASURED when Task 7 landed: 78% gave the verse 4.42:1 against
+   * its 4.5:1 minimum, on the pure-white highlight the crop puts under it; 82%
+   * measures 4.97:1 there. The guard prints the worst ratio it measured on
+   * every run, so this sentence is checkable rather than authoritative.
    */
   .hero::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: color-mix(in srgb, var(--oxblood) 78%, transparent);
+    background: color-mix(in srgb, var(--oxblood) 82%, transparent);
   }
   .hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 42%; }
   /* The phone crop lands on the altar and the icons, not the floor. */
