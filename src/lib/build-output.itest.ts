@@ -405,6 +405,20 @@ function builtAssetAnchors(html: string): { name: string; href: string }[] {
 }
 
 /**
+ * The markup inside every `.page-image` wrapper on a built page, in order.
+ *
+ * `[...page].astro` renders `entry.data.image` inside one such wrapper, and
+ * the wrapper is what makes the claim checkable: an `<img>` anywhere else on
+ * the page - a body image, a future generated block's picture - is not this
+ * field. The class match allows Astro's scoping attribute after the name,
+ * which is how the built `<div>` is serialised.
+ */
+function pageImages(html: string): string[] {
+  return [...html.matchAll(/<div\b[^>]*\bclass="page-image(?:\s[^"]*)?"[^>]*>([\s\S]*?)<\/div>/g)]
+    .map((m) => m[1] as string);
+}
+
+/**
  * Every prose page content file, its public route and its parsed frontmatter.
  *
  * THE SIBLING OF `articleFiles`, and the subject rule is the same one: the
@@ -490,6 +504,20 @@ describe("this file's detectors can actually fire", () => {
     expect(builtAssetAnchors('<a class="x" href="/_astro/a.123.jpg">nume</a>')).toEqual([
       { name: 'nume', href: '/_astro/a.123.jpg' },
     ]);
+  });
+
+  /*
+   * The `.page-image` reader, both directions. It must find the wrapper Astro
+   * actually serialises - the scoping attribute follows the class name, as it
+   * does on the built page - and it must stay quiet on markup that has none.
+   * Without the first, a "no wrapper" assertion over a page without an image
+   * would be true of a pattern that matches nothing at all.
+   */
+  it('reads a .page-image wrapper and stays quiet without one', () => {
+    expect(
+      pageImages('<div class="page-image astro-x"><img src="/_astro/a.webp" alt="Istoric"></div>'),
+    ).toEqual(['<img src="/_astro/a.webp" alt="Istoric">']);
+    expect(pageImages('<div class="prose"><p>text</p></div>')).toEqual([]);
   });
 
   it('the collection really does have days and services to compare', () => {
@@ -780,6 +808,54 @@ describe('the prose pages', () => {
       const text = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
       expect(text.length, `/${f.slug}/ looks empty`).toBeGreaterThan(100);
     }
+  });
+
+  /*
+   * THE FRONTMATTER IMAGE, FROM THE FIELD TO THE PAGE. `pageSchema.image` and
+   * `ContentImage` both existed before this route rendered either: the CMS
+   * offered the field, the schema validated it and nothing read it, which
+   * looks exactly like a working feature from the CMS and from the content
+   * files. `/parohia/istoric/` is the chosen page that carries one, and the
+   * assertion is the whole rendering: exactly one wrapper, exactly one `<img>`
+   * inside it, the page title as its alt, and a src that resolves inside
+   * `dist/` - because an `<img>` at a path the host does not serve 404s with
+   * no other symptom.
+   */
+  it('renders the chosen hero image on /parohia/istoric/, exactly one, resolving inside dist/', () => {
+    const wrappers = pageImages(read('parohia/istoric/index.html'));
+    expect(wrappers, '/parohia/istoric/ does not render exactly one .page-image wrapper')
+      .toHaveLength(1);
+    const images = [...(wrappers[0] as string).matchAll(/<img\b[^>]*>/g)].map((m) => m[0] as string);
+    expect(images, 'the .page-image wrapper does not hold exactly one <img>').toHaveLength(1);
+    // The alt is the page title: a CMS image on a prose page is a lead picture,
+    // not an ornament, and an empty field is how a volunteer asks for none.
+    expect(images[0], 'the hero image does not carry the page title as its alt')
+      .toContain('alt="Istoric"');
+    const src = /<img\b[^>]*\bsrc="([^"]+)"/.exec(images[0] as string)?.[1];
+    expect(src, 'the hero image has no src').toBeDefined();
+    expect((src as string).startsWith('/'), `${src} is not root-relative`).toBe(true);
+    const path = (src as string).split(/[?#]/)[0] as string;
+    expect(existsSync(DIST + path.slice(1)), `${src} does not resolve inside dist/`).toBe(true);
+  });
+
+  /*
+   * THE OTHER DIRECTION, AND ITS POSITIVE CONTROL. `/parohia/consiliul/` is
+   * the page the pick left text-only - its photographs are portraits beside
+   * names, not a lead picture - so its built HTML must carry no `.page-image`
+   * wrapper at all. `read()` is the first control: a missing or empty page
+   * fails before the detector is asked. The second is the same detector run
+   * over the istoric page's HTML, a real page that really does carry one
+   * wrapper, so the empty array below is a statement about this page rather
+   * than about a pattern that matches nothing.
+   */
+  it('renders no hero image on a prose page whose frontmatter carries none', () => {
+    const html = read('parohia/consiliul/index.html');
+    expect(
+      pageImages(read('parohia/istoric/index.html')),
+      'the positive control page does not fire the .page-image detector',
+    ).toHaveLength(1);
+    expect(pageImages(html), '/parohia/consiliul/ renders an image its frontmatter does not carry')
+      .toHaveLength(0);
   });
 
   /*

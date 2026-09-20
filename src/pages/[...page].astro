@@ -2,6 +2,7 @@
 import { getCollection, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import Base from '../layouts/Base.astro';
+import ContentImage from '../components/ContentImage.astro';
 import { normalizeHeadingLevels } from '../lib/markdown-headings';
 import { resolveContentAssetLinks, stripEmptyAnchors } from '../lib/markdown-links';
 import { RESERVED_PATHS } from '../lib/routes';
@@ -85,6 +86,16 @@ const { Content } = await render({ ...entry, rendered });
 <Base title={title} description={description}>
   <div class="container prose reading-column">
     <h1>{title}</h1>
+    {entry.data.image && (
+      <div class="page-image">
+        <ContentImage
+          image={entry.data.image}
+          alt={title}
+          sizes="(max-width: 34rem) 90vw, 68ch"
+          loading="eager"
+        />
+      </div>
+    )}
     <Content />
   </div>
 </Base>
@@ -105,6 +116,7 @@ const { Content } = await render({ ...entry, rendered });
    * the global `:focus-visible` ring reaches these links too.
    */
   .prose h1 { margin-top: 2rem; margin-bottom: 1.25rem; }
+  .page-image { margin: 0 0 1.75rem; border: 1px solid var(--rule); }
   .prose :global(p) { margin: 0 0 1.25rem; }
   .prose :global(h2) { font-size: 1.5rem; margin-block: 2rem 0.75rem; }
   .prose :global(h3) { font-size: 1.25rem; margin-block: 1.75rem 0.5rem; }

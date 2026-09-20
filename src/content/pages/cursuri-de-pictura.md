@@ -2,6 +2,7 @@
 title: "Cursuri de pictură"
 path: "comunitate/pictura"
 order: 50
+image: "../../assets/content/2026/03/PHOTO-2026-02-20-20-04-27-1.jpg"
 ---
 
 ## Curs Pictura Icoane Pe Lemn

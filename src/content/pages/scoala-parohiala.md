@@ -2,6 +2,7 @@
 title: "Școala parohială"
 path: "comunitate/scoala"
 order: 40
+image: "../../assets/content/2024/05/166876765_1270252473370992_732141221062061775_n.jpg"
 ---
 
 ## Scopul școlii noastre
