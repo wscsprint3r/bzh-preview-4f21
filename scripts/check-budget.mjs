@@ -86,6 +86,7 @@ import { dirname, join, posix } from 'node:path';
  * designed fallback. One classification, one place.
  */
 import { ATTRIBUTE, pageScripts } from './page-scripts.mjs';
+import { budgetAnnotation } from './annotations.mjs';
 
 const DIST = 'dist';
 
@@ -586,9 +587,23 @@ const EXTERNAL_SCRIPTS = new Set(['https://challenges.cloudflare.com/turnstile/v
 
 let failed = false;
 
+const failedPages = new Set();
+
 function report(label, value, limit, unit = 'bytes', explanation = '') {
   const ok = value <= limit;
-  if (!ok) failed = true;
+  if (!ok) {
+    failed = true;
+    /*
+     * The labels are not all page paths: the JS report is called as
+     * `  visitor JS on <page>` and the request report as
+     * `  requests (upper bound) for <page>`. Normalise both to the page path,
+     * so the annotation names pages a volunteer can recognise rather than a
+     * sentence fragment.
+     */
+    failedPages.add(
+      label.trim().replace(/^(?:visitor JS on|requests \(upper bound\) for)\s+/, ''),
+    );
+  }
   console.log(`${ok ? 'OK      ' : 'TOO BIG '} ${label}: ${value} / ${limit} ${unit}`);
   if (!ok && explanation !== '') console.log(explanation);
 }
@@ -899,6 +914,9 @@ if (!EMITTED_JS_ALLOWED && filesSeen.size > 0) {
 }
 
 if (failed) {
+  if (process.env.GITHUB_ACTIONS) {
+    process.stdout.write(`\n${budgetAnnotation([...failedPages], PAGE_EXPLANATION)}\n`);
+  }
   console.error('\nThe performance budget was exceeded (spec §13).');
   process.exit(1);
 }
