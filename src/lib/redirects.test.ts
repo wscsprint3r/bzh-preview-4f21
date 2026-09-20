@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { EXTRA_RULES, GONE_RULES, redirectRules, renderRedirects } from '../../scripts/redirects.mjs';
+import { EXTRA_RULES, redirectRules, renderRedirects } from '../../scripts/redirects.mjs';
 import { parseUrlMap } from './url-map';
 
 const ROWS: Array<[string, string]> = [
