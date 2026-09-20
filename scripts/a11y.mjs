@@ -1752,15 +1752,37 @@ async function measureReadingColumn(driver, page, selectors) {
 }
 
 /*
- * The hero, measured the way a reader sees it. One navigation to `/`, the
- * text's rects and computed colours read from the DOM, the text hidden with an
- * injected style, one clipped screenshot of the hero, then the pixels judged
- * by `heroContrastProblems`. The style is removed in a `finally`, so a failure
- * cannot leave the page altered for the axe pass that follows.
+ * The hero, measured the way a reader sees it. One navigation to `/`, every
+ * text's rect and computed colour read from the DOM, the text hidden with an
+ * injected style, ONE full-page screenshot with `captureBeyondViewport`, then
+ * each `.hero`'s region extracted from it and judged by `heroContrastProblems`.
+ * The style and the marks are removed in a `finally`, so a failure cannot leave
+ * the page altered for the axe pass that follows.
  *
- * IT FAILS WHEN IT FINDS NOTHING TO MEASURE. A `.hero` with no text, or a
- * screenshot that comes back empty, is a guard that measured nothing and must
- * not report a pass — the same rule every file-reading guard in this project
+ * IT MEASURES EVERY TEXT-BEARING DESCENDANT OF EVERY `.hero`, NOT `h1, p`. The
+ * exemption in `heroTextIncompletes` exempts any hero text axe cannot judge, so
+ * the measurement has to cover whatever the exemption can reach. The subject is
+ * therefore every element under a `.hero` with a DIRECT non-whitespace text
+ * node (`script`/`style` excluded) — a `.hero-link`, a span or a button added
+ * later is measured the run it appears, without anyone remembering to widen a
+ * selector list here. And EVERY `.hero` on the page is measured, not only the
+ * first: `querySelector` would have left a second hero exempted and unmeasured.
+ * Each measured element is marked with `data-hero-contrast-text`, which is what
+ * the injected style hides for the screenshot.
+ *
+ * THE FULL-PAGE CAPTURE IS WHY, AND IT WAS MEASURED. A per-hero clipped
+ * screenshot silently captures the WRONG PIXELS when the hero extends past the
+ * viewport: probed with a second hero whose bottom sat ~98px below the 413px
+ * viewport, the clip came back as the parchment page below it (mean
+ * `[188,152,148]`) while one full-page capture with `captureBeyondViewport:
+ * true`, extracted at the hero's page coordinates, returned the scrim for both
+ * heroes (`[120,51,51]`, `[119,51,50]`). The extraction region is rounded once
+ * and the text rects are mapped against THAT rounded origin, so the sampled
+ * pixels and the reported coordinates cannot disagree.
+ *
+ * IT FAILS WHEN IT FINDS NOTHING TO MEASURE. A page with no `.hero` section, or
+ * with no text in any of them, is a guard that measured nothing and must not
+ * report a pass — the same rule every file-reading guard in this project
  * follows.
  *
  * THE SCREENSHOT COMES BACK THROUGH `sendAndGetDevToolsCommand`, NOT
@@ -1773,65 +1795,116 @@ async function measureReadingColumn(driver, page, selectors) {
  */
 async function measureHeroContrast(driver, url, log) {
   await driver.get(url('index.html'));
-  const hero = await driver.executeScript(`
-    const section = document.querySelector('.hero');
-    if (section === null) return null;
-    const r = section.getBoundingClientRect();
-    const texts = [...section.querySelectorAll('h1, p')].map((el) => {
-      const b = el.getBoundingClientRect();
-      return {
-        selector: el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).split(' ').join('.') : ''),
-        rect: { left: b.left, top: b.top, width: b.width, height: b.height },
-        color: getComputedStyle(el).color,
-      };
+  const page = await driver.executeScript(`
+    const sections = [...document.querySelectorAll('.hero')];
+    const heroes = sections.map((section, index) => {
+      const r = section.getBoundingClientRect();
+      const texts = [...section.querySelectorAll('*')]
+        .filter((el) => {
+          const tag = el.tagName.toLowerCase();
+          if (tag === 'script' || tag === 'style') return false;
+          return [...el.childNodes].some(
+            (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '',
+          );
+        })
+        .map((el) => {
+          el.setAttribute('data-hero-contrast-text', '');
+          const b = el.getBoundingClientRect();
+          const className = typeof el.className === 'string' ? el.className.trim() : '';
+          return {
+            selector:
+              (sections.length > 1 ? '.hero[' + index + '] ' : '') +
+              el.tagName.toLowerCase() +
+              (className === '' ? '' : '.' + className.split(/\\s+/).join('.')),
+            rect: { left: b.left, top: b.top, width: b.width, height: b.height },
+            color: getComputedStyle(el).color,
+          };
+        });
+      return { rect: { left: r.left, top: r.top, width: r.width, height: r.height }, texts };
     });
-    return { hero: { left: r.left, top: r.top, width: r.width, height: r.height }, texts };
+    return {
+      heroes,
+      scrollWidth: document.documentElement.scrollWidth,
+      scrollHeight: document.documentElement.scrollHeight,
+    };
   `);
-  if (hero === null) return ['the homepage has no .hero section — the contrast guard measured nothing.'];
-  if (hero.texts.length === 0) return ['the .hero section has no text — the contrast guard measured nothing.'];
+  if (page.heroes.length === 0) {
+    return ['the homepage has no .hero section — the contrast guard measured nothing.'];
+  }
+  if (page.heroes.every((hero) => hero.texts.length === 0)) {
+    return ['the .hero section has no text — the contrast guard measured nothing.'];
+  }
   const problems = [];
-  let shot = null;
+  const measured = [];
   try {
     await driver.executeScript(`
       const style = document.createElement('style');
       style.id = 'hero-contrast-probe';
-      style.textContent = '.hero h1, .hero p { visibility: hidden !important; }';
+      style.textContent = '[data-hero-contrast-text] { visibility: hidden !important; }';
       document.head.append(style);
     `);
     const result = await driver.sendAndGetDevToolsCommand('Page.captureScreenshot', {
       format: 'png',
-      clip: { x: hero.hero.left, y: hero.hero.top, width: hero.hero.width, height: hero.hero.height, scale: 1 },
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width: page.scrollWidth, height: page.scrollHeight, scale: 1 },
     });
-    shot = await sharp(Buffer.from(result.data, 'base64')).raw().toBuffer({ resolveWithObject: true });
+    const full = Buffer.from(result.data, 'base64');
+    const fullShot = await sharp(full).raw().toBuffer({ resolveWithObject: true });
+    for (const [index, hero] of page.heroes.entries()) {
+      const label = page.heroes.length > 1 ? `.hero[${index}]` : '.hero';
+      const region = {
+        left: Math.max(0, Math.round(hero.rect.left)),
+        top: Math.max(0, Math.round(hero.rect.top)),
+        width: Math.round(hero.rect.width),
+        height: Math.round(hero.rect.height),
+      };
+      region.width = Math.min(region.width, fullShot.info.width - region.left);
+      region.height = Math.min(region.height, fullShot.info.height - region.top);
+      if (region.width <= 0 || region.height <= 0) {
+        problems.push(`${label}: the hero box is outside the screenshot — nothing was measured.`);
+        continue;
+      }
+      const heroShot = await sharp(full).extract(region).raw().toBuffer({ resolveWithObject: true });
+      const texts = hero.texts.map((t) => ({
+        ...t,
+        rect: {
+          left: t.rect.left - region.left,
+          top: t.rect.top - region.top,
+          width: t.rect.width,
+          height: t.rect.height,
+        },
+      }));
+      problems.push(
+        ...heroContrastProblems({
+          texts,
+          shot: {
+            width: heroShot.info.width,
+            height: heroShot.info.height,
+            channels: heroShot.info.channels,
+            data: heroShot.data,
+          },
+          /*
+           * The RATIO, not only the verdict: `index.astro`'s scrim percentage
+           * is justified by this number, and a green run is exactly where a
+           * later reader would want to check it. Printed from the measurement
+           * the guard judged rather than recomputed for display.
+           */
+          report: (selector, worst) =>
+            measured.push(
+              `  hero contrast ${selector}: worst ${worst.toFixed(2)}:1 over ` +
+                `${heroShot.info.width}x${heroShot.info.height} px`,
+            ),
+        }),
+      );
+    }
   } finally {
-    await driver.executeScript("document.getElementById('hero-contrast-probe')?.remove()");
+    await driver.executeScript(`
+      document.getElementById('hero-contrast-probe')?.remove();
+      for (const el of document.querySelectorAll('[data-hero-contrast-text]')) {
+        el.removeAttribute('data-hero-contrast-text');
+      }
+    `);
   }
-  const texts = hero.texts.map((t) => ({
-    ...t,
-    rect: {
-      left: t.rect.left - hero.hero.left,
-      top: t.rect.top - hero.hero.top,
-      width: t.rect.width,
-      height: t.rect.height,
-    },
-  }));
-  const measured = [];
-  problems.push(
-    ...heroContrastProblems({
-      texts,
-      shot: { width: shot.info.width, height: shot.info.height, channels: shot.info.channels, data: shot.data },
-      /*
-       * The RATIO, not only the verdict: `index.astro`'s scrim percentage is
-       * justified by this number, and a green run is exactly where a later
-       * reader would want to check it. Printed from the measurement the guard
-       * judged rather than recomputed for display.
-       */
-      report: (selector, worst) =>
-        measured.push(
-          `  hero contrast ${selector}: worst ${worst.toFixed(2)}:1 over ${shot.info.width}x${shot.info.height} px`,
-        ),
-    }),
-  );
   for (const line of measured) log(line);
   return problems;
 }

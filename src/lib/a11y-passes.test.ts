@@ -1168,8 +1168,15 @@ describe('the hero contrast exemption', () => {
   });
 
   /*
-   * The node axe reported for the hero's h1 on the Task 6 build: target `h1`,
-   * the scrim's pseudo element named through `relatedNodes: [{ target: ['.hero'] }]`.
+   * The node axe reported for the hero's h1 on the Task 6 build, captured with
+   * a probe at the 756px default: target `h1`, the scrim's pseudo element named
+   * through `relatedNodes: [{ target: ['.hero'] }]`, and the CHECK DATA IS THE
+   * h1's OWN — `3:1` expected for large text, `28.3pt (37.8px)`. The first
+   * version of this fixture carried the VERSE's check data (`4.5:1`,
+   * `12.7pt`), which is not what axe reports for an h1 at
+   * `clamp(1.875rem, 5vw, 2.75rem)`. The fixture keeps the fields the matcher
+   * reads (`target`, `any[].data.messageKey`, `any[].relatedNodes[].target`)
+   * plus the captured check data, and nothing here is invented.
    */
   const HERO_H1_NODE = {
     target: ['h1'],
@@ -1179,7 +1186,12 @@ describe('the hero contrast exemption', () => {
         id: 'color-contrast',
         impact: 'serious',
         message: "Element's background color could not be determined due to a pseudo element",
-        data: { expectedContrastRatio: '4.5:1', fontSize: '12.7pt (16.872px)', messageKey: 'pseudoContent' },
+        data: {
+          expectedContrastRatio: '3:1',
+          fontSize: '28.3pt (37.8px)',
+          fontWeight: 'normal',
+          messageKey: 'pseudoContent',
+        },
         relatedNodes: [{ html: '<section class="hero" data-astro-cid-lcdefpme="">', target: ['.hero'] }],
       },
     ],

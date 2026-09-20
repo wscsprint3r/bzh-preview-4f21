@@ -65,6 +65,14 @@ export function contrastRatio(a: [number, number, number], b: [number, number, n
  * project's rule is to print what was measured rather than only the verdict.
  * The texts that produced no measurement — an unparseable colour, a rect
  * outside the screenshot — report nothing, because nothing was measured.
+ *
+ * A SCREENSHOT WHOSE BYTES DO NOT FILL ITS DECLARED DIMENSIONS IS A PROBLEM,
+ * not a smaller screenshot. The sampler indexes `data` by
+ * `(y * width + x) * channels`; when the data is short, every read past the end
+ * yields `undefined` -> `NaN`, and `NaN < worst` is false — so the missing
+ * pixels are dropped and the measurement silently covers less than it claims.
+ * The test helper once built exactly that shape and the whole suite stayed
+ * green; this check is what makes the shape loud.
  */
 export function heroContrastProblems({
   texts,
@@ -77,6 +85,13 @@ export function heroContrastProblems({
   min?: number;
   report?: (selector: string, worst: number) => void;
 }): string[] {
+  const expectedBytes = shot.width * shot.height * shot.channels;
+  if (shot.data.length !== expectedBytes) {
+    return [
+      `the screenshot is inconsistent: ${shot.data.length} bytes for ${shot.width}x${shot.height} ` +
+        `at ${shot.channels} channel(s), which needs ${expectedBytes} — nothing was measured.`,
+    ];
+  }
   const problems: string[] = [];
   for (const text of texts) {
     const colour = parseRgb(text.color);
