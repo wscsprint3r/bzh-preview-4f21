@@ -45,12 +45,23 @@ describe('the redirect rules', () => {
     expect(text.endsWith('\n')).toBe(true);
   });
 
-  it('maps the old album, the calendar URLs and the apex', () => {
+  it('maps the old album and the calendar URLs, and emits no host-based rule', () => {
     const froms = EXTRA_RULES.map(([from]) => from);
     expect(froms).toContain('/galerie.html');
     expect(froms).toContain('/event/*');
     expect(froms).toContain('/events/*');
-    expect(froms).toContain('https://bor-zh.ch/*');
+    /*
+     * THE APEX RULE USED TO BE HERE AND COULD NEVER MATCH. Cloudflare's
+     * `_redirects` reference defines a source as a file path and marks
+     * domain-level redirects unsupported — its own unsupported example is
+     * `https://bor-zh.ch/*`. The apex→www decision lives in
+     * `functions/_middleware.ts` now (`src/lib/apex.ts` is the tested part),
+     * and nothing this file emits may carry a host.
+     */
+    for (const rule of redirectRules(ROWS)) {
+      expect(rule.from.startsWith('/'), `${rule.from} is not a path`).toBe(true);
+      expect(rule.to.startsWith('/'), `${rule.to} is not a path`).toBe(true);
+    }
   });
 
   it('holds over the real map: every non-equal row becomes one 301, none duplicated', () => {

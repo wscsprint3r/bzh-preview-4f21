@@ -21,10 +21,12 @@
  * the live behaviour is unmeasured; handover F5 records what actually comes
  * back, and a Pages Function or a Cloudflare rule is the deferred fallback.
  *
- * WHAT THE FILE CANNOT DO, named: `_redirects` matches paths, not query
- * strings, so the WordPress `?p=<id>` short links are the Task 3 Pages
- * Function's job (functions/index.ts, written without backticks until it
- * exists), and the 2,000-rule free-tier limit is far away at this size.
+ * WHAT THE FILE CANNOT DO, named: `_redirects` matches paths, not query strings
+ * and not hosts. The WordPress `?p=<id>` short links are `functions/index.ts`'s
+ * job, and the apex→www redirect is `functions/_middleware.ts`'s: Cloudflare's
+ * reference defines a source as a file path and marks domain-level redirects
+ * unsupported, so a `https://bor-zh.ch/*` rule here would be inert. The
+ * 2,000-rule free-tier limit is far away at this size.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -39,7 +41,6 @@ export const EXTRA_RULES = [
   ['/galerie.html', '/galerie/', 301],
   ['/event/*', '/evenimente/', 301],
   ['/events/*', '/evenimente/', 301],
-  ['https://bor-zh.ch/*', 'https://www.bor-zh.ch/:splat', 301],
 ];
 
 /**
