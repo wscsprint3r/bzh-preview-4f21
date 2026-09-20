@@ -9,10 +9,17 @@
  * build time, so the file and its input cannot disagree.
  *
  * THE ORDER IS THE FILE'S CONTENT, NOT A FORMATTING CHOICE. Cloudflare applies
- * the first matching rule, so the ten specific `/wp-content/uploads/…` 301s
+ * the first matching rule, so the 18 specific `/wp-content/uploads/…` 301s
  * must sit ABOVE the `/wp-content/*` 410 or the wildcard shadows every one of
- * them and ten migrated PDFs stop resolving. Every 301 therefore precedes every
- * 410, and the tests pin it by line index.
+ * them and the PDFs behind them stop resolving. Every 301 therefore precedes
+ * every 410, and the tests pin it by line index.
+ *
+ * THE 410s ARE AN INTENT THE PLATFORM DOES NOT DOCUMENT. Cloudflare's
+ * `_redirects` reference lists 301, 302, 303, 307 and 308 as supported and
+ * marks other status codes unsupported, so these four rules may not produce a
+ * 410 on the deployed site. They stay because spec §12's intent is right and
+ * the live behaviour is unmeasured; handover F5 records what actually comes
+ * back, and a Pages Function or a Cloudflare rule is the deferred fallback.
  *
  * WHAT THE FILE CANNOT DO, named: `_redirects` matches paths, not query
  * strings, so the WordPress `?p=<id>` short links are the Task 3 Pages

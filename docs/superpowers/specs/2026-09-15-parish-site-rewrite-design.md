@@ -395,6 +395,15 @@ Generated into `_redirects`, all 301:
 
 Plus a deliberate set of **410 Gone** rules for `/wp-admin/*`, `/wp-login.php`, `/xmlrpc.php` and `/wp-content/*`. Bots will keep probing these for years; 410 tells them to stop, and keeps the logs readable.
 
+> **Amendment, 2026-09-20: `_redirects` does not document 410 as supported.** Cloudflare
+> Pages' `_redirects` reference lists 301, 302, 303, 307 and 308 as the supported
+> redirect statuses and marks other status codes unsupported, so the four rules above
+> may not produce a 410 on the deployed site. They stay in `scripts/redirects.mjs`
+> because they encode this section's intent, and handover F5 records what the live site
+> actually returns for `/wp-content/anything`. If the platform ignores them, the block
+> needs another mechanism — a Pages Function or a Cloudflare rule — a deferred item, not
+> part of this build.
+
 Well under the 2,000-redirect free-tier limit.
 
 **Canonical host stays `www.bor-zh.ch`** — every existing backlink and the site's own identity use it. The apex redirects to `www`.

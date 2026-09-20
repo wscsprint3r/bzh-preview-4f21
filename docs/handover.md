@@ -255,11 +255,21 @@ curl -sI https://<project>.pages.dev/wp-content/uploads/2024/12/9-002-2024-PASTO
 curl -sI https://<project>.pages.dev/wp-content/anything | grep -i -E 'HTTP/|location'
 ```
 
-*Good answer:* the first is a `301` with a `location` ending at
-`/documente/9-002-2024-pastorala-nasterea-domnului-ro-2024-site.pdf`; the second is a
-`410`. **If the first is a `410`**, the ordering shipped wrong: the `/wp-content/*` rule
-sits above the 18 specific upload 301s and shadows every one of them, so migrated PDFs
-have stopped resolving. `src/lib/redirects.itest.ts` pins the order in the built file.
+*Good answer, first request:* a `301` with a `location` ending at
+`/documente/9-002-2024-pastorala-nasterea-domnului-ro-2024-site.pdf`. **If it is a
+`410`**, the ordering shipped wrong: the `/wp-content/*` rule sits above the 18 specific
+upload 301s and shadows every one of them, so migrated PDFs have stopped resolving.
+`src/lib/redirects.itest.ts` pins the order in the built file.
+
+*Second request: write down exactly what comes back.* Cloudflare's `_redirects`
+reference lists 301, 302, 303, 307 and 308 as the supported redirect statuses and marks
+other status codes unsupported, so **`410` may not be honoured at all** — the block is
+spec §12's intent, not a documented platform feature. A `410` is the intent; **any other
+answer** — a `302`, a `404`, or the rule never matching — means the 410 block needs
+another mechanism (a Pages Function or a Cloudflare rule), which is a deferred item
+rather than a change to this build. Record the status and the `location` line: "is the
+file applied" (does the first request redirect at all?) and "is 410 honoured" are two
+separate answers, and the second is the one nobody has measured.
 
 ## G — the first sign-in (the one thing nothing here could reach)
 
@@ -418,10 +428,13 @@ up, and what Phase 4 did with them.
   recorded rather than discovered later — a page meant to carry a hero image needs the
   render added first.
 - **`docs/url-map.csv`** — one row per old path, emitted by `migration/url-map.mjs`; 55
-  data rows at the end of Phase 2, **152** now (section L carries the classes). Phase 4
-  serves it: `scripts/redirects.mjs` turns every row into a rule in `dist/_redirects` at
-  build time. The 32 held-back posts keep their rows, so an old link reaches
-  `/noutati/<slug>/` and 404s until the parish dates and publishes that post.
+  data rows at the end of Phase 2, **152** now (section L carries the current total).
+  Phase 4 serves it: `scripts/redirects.mjs` turns every row that needs one into a rule
+  in `dist/_redirects` at build time — 149 of the 152 today, because three rows map a
+  path to itself and are skipped. The 32 held-back posts keep their rows, so 31 old links
+  reach a `/noutati/<slug>/` target that has no page and 404 until the parish dates and
+  publishes that post; the 32nd, `/scoala-parohiala/`, has a page row that wins over its
+  post row and resolves to the published `/comunitate/scoala/`.
 
 **Adding a post.** `/admin/` → **Articole** → **Create New Entry**, then title, date,
 category, text and optionally an image. `Save` is the only button and it commits.
@@ -746,3 +759,10 @@ Say "unverified" about these, not "should work".
    unverified items — the form's round trip, the QR-bill's test transfer, the rate-limit
    rule, the PDFs' response headers and the `?p=<id>` short links — plus the QR-bill's
    SVG text, which axe cannot judge. Section L is where each is written out.
+9. **Whether Cloudflare honours `410` in `_redirects` at all.** Its `_redirects`
+   reference lists 301, 302, 303, 307 and 308 as supported and marks other status codes
+   unsupported, so the four `/wp-admin/*`, `/wp-login.php`, `/xmlrpc.php` and
+   `/wp-content/*` rules may be served as something else or not applied. Step F5 records
+   what the second request actually returns; a non-410 answer means the block needs a
+   Pages Function or a Cloudflare rule, deferred. This is a separate question from item
+   1's "is the file applied at all".

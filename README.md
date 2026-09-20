@@ -95,7 +95,9 @@ construite — la lățimea implicită, la 390px (telefon), la 1100px (peste pra
 de 62rem) și peste o construcție de probă cu mai multe săptămâni, singura în
 care se vede bara selectorului de săptămână; ultima rulează la toate trei
 lățimile, fiindcă rândul de șapte zile al Săptămânii Mari *cu bara vizibilă* nu
-apare în nicio altă construcție.
+apare în nicio altă construcție. La sfârșit, `test:indexable` construiește într-un
+director de probă o copie cu `INDEXABLE` întors și verifică `/sitemap-index.xml` și
+`robots.txt` în ambele stări.
 
 Fiecare trecere servește paginile cu antetele `_headers` **ale construcției pe
 care o auditează** și pică la orice încălcare de Content-Security-Policy
