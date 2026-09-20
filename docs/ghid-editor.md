@@ -53,8 +53,8 @@ dispară fără nicio explicație. O zi ștearsă nu se mai poate explica nimăn
 ## Cum adaug poze
 
 Pozele se încarcă din biblioteca media, cu butonul de încărcare din dreapta câmpului
-**Imagine** al articolului, al paginii sau al albumului. Fișierele ajung în `/uploads/` și
-sunt servite ca atare.
+**Imagine** al articolului, al paginii sau al albumului. Fișierele ajung în `/uploads/`,
+iar site-ul le preia la următoarea reconstrucție.
 
 - **Miniaturile din bibliotecă pot apărea goale.** Browserul refuză, din motive de
   securitate, adresele de tip `blob:` pe care CMS-ul le folosește pentru previzualizări.
