@@ -439,14 +439,24 @@ const JS_BUDGET = 3800;
  *
  * SO THE TABLE IS THE SAME SHAPE AS `PAGE_BUDGET`, exact keys winning and a
  * `*` meaning a prefix, and every page still has a limit - an unmeasured page
- * still stops the build. The homepage keeps the spec's 12, and the final
- * build's upper bound for it is 11. The prose limits are the measured count
+ * still stops the build. The homepage keeps the spec's 12, and the final build's
+ * upper bound for it is 11 before the hero and 12 with it — see the note beside
+ * the entry below. The prose limits are the measured count
  * plus room for three to six more images (stated per group), because the next
  * issue of the magazine is an image like the last one; an unrelated request,
  * like a new script or a stylesheet, is still a red build.
  */
 const REQUEST_BUDGET = {
   // The spec's own budget, and the page it was written about.
+  /*
+   * THE HERO LANDED HERE ON 2026-09-19 and this is the note the backlog asked
+   * for: one photograph, one <img>, 11 -> 12 of the spec's 12. The approved
+   * mockup's two-source <picture> would have measured 14 (each <source> is a
+   * possible fetch, and the counter charges every one), which is why the two
+   * crops are CSS `object-position` on one source. A second image on this page
+   * is a red build; that is the budget asking whether it belongs, not a limit
+   * to raise.
+   */
   'index.html': 12,
   'program/index.html': 12,
   'noutati/index.html': 12,

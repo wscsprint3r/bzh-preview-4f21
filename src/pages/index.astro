@@ -1,4 +1,6 @@
 ---
+import { Image } from 'astro:assets';
+import heroImage from '../assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d.jpg';
 import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import ArticleList from '../components/ArticleList.astro';
@@ -64,6 +66,28 @@ const articles = publishedArticles(await getCollection('articles'));
     do not put a link in it without choosing a colour from that set.
   */}
   <section class="hero">
+    {/*
+      ONE SOURCE, TWO CROPS, AND THE REQUEST COUNT IS WHY. The approved mockup
+      asked for a <picture> with a 16:6 source and a 3:2 source; measured
+      against `check-budget.mjs`, every <source> is a possible fetch and the
+      homepage has exactly one request left (11 of 12 today). Two sources plus
+      the fallback measure 14/12 — a red build with no room to raise the limit.
+      A single 1600×1200 photograph cropped by `object-fit`/`object-position`
+      gives the same two framings for one request: the wide hero box shows the
+      16:6 band, the phone's tall box shows the 3:2 one. The focal points below
+      are the mockup's; adjust them by eye against `npm run dev`, never by a
+      crop algorithm.
+    */}
+    <Image
+      class="hero-img"
+      src={heroImage}
+      alt=""
+      widths={[480, 800, 1200, 1600]}
+      sizes="100vw"
+      loading="eager"
+      fetchpriority="high"
+      decoding="async"
+    />
     <div class="container hero-in">
       <h1>Bine ați venit</h1>
       <p class="hero-verse">„Căutați mai întâi împărăția lui Dumnezeu și dreptatea Lui” — Matei 6:33</p>
@@ -132,8 +156,29 @@ const articles = publishedArticles(await getCollection('articles'));
 </Base>
 
 <style>
-  .hero { background: var(--oxblood); color: var(--parchment); }
-  .hero-in { padding-block: clamp(2.5rem, 7vw, 4.5rem); }
+  .hero { position: relative; background: var(--oxblood); color: var(--parchment); overflow: hidden; }
+  /*
+   * THE SCRIM IS A FLAT WASH, not a gradient: the verse's second line falls on
+   * the photograph's lightest region, and a gradient's thin end is where AA
+   * fails. `color-mix` rather than `rgba(107, 31, 38, …)`: the literal would
+   * restate `--oxblood`'s channels, and a token change would desync the scrim
+   * with no test to notice. The percentage is the one measured by the pixel
+   * guard in a11y.mjs (Task 7) — do not lower it without re-measuring, and do
+   * not raise it to make the picture "read better"; the guard's number is the
+   * requirement.
+   */
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--oxblood) 78%, transparent);
+  }
+  .hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 42%; }
+  /* The phone crop lands on the altar and the icons, not the floor. */
+  @media (max-width: 34rem) { .hero-img { object-position: 50% 62%; } }
+  .hero-in { position: relative; z-index: 1; padding-block: clamp(2.5rem, 7vw, 4.5rem); }
+  /* A 2px gold-lt hairline echoing the feast-row rule. Ornament, never text. */
+  .hero { border-bottom: 2px solid var(--gold-lt); }
   /* Scoped, so this ships at (0,2,1) and defeats global.css's `h1` at (0,0,1).
      That is the intended direction here — the heading must leave the oxblood
      ground it would otherwise inherit from. It is the same mechanism that
