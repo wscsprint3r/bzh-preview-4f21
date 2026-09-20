@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { sanitiseUploads } from '../../scripts/uploads-sanitise.mjs';
@@ -38,27 +39,35 @@ describe('uploads sanitisation', () => {
     expect((await sharp(join(out, '2024/05/tagged.jpg')).metadata()).exif).toBeUndefined();
   });
 
-  it('refuses an SVG by name instead of shipping it or rasterising it silently', async () => {
+  it('refuses an SVG or an SVGZ by name instead of shipping it or rasterising it silently', async () => {
     // Measured on sharp 0.35.4: it DECODES an SVG and writes PNG bytes back
-    // under the `.svg` name, so a sanitiser that only relied on the decode
-    // failing would accept one. The project's ruling is older than this file:
-    // SVG is a script-injection vector and is never re-encoded automatically.
-    const source = join(scratch, 'svg-src');
-    mkdirSync(source, { recursive: true });
-    writeFileSync(
-      join(source, 'logo.svg'),
+    // under the `.svg` name, and it does the same for a gzipped `.svgz`, which
+    // a server would still send as image/svg+xml. The project's ruling is
+    // older than this file: SVG is a script-injection vector and is never
+    // re-encoded automatically.
+    const svg =
       '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4">' +
-        '<rect width="4" height="4" fill="#123456"/></svg>',
-    );
-    await expect(
-      sanitiseUploads({ src: source, out: join(scratch, 'svg-out'), log: () => {} }),
-    ).rejects.toThrow(/logo\.svg/);
+      '<rect width="4" height="4" fill="#123456"/></svg>';
+    for (const name of ['logo.svg', 'logo.svgz']) {
+      const source = join(scratch, `svg-src-${name}`);
+      mkdirSync(source, { recursive: true });
+      writeFileSync(join(source, name), name.endsWith('z') ? gzipSync(svg) : svg);
+      await expect(
+        sanitiseUploads({ src: source, out: join(scratch, `svg-out-${name}`), log: () => {} }),
+      ).rejects.toThrow(new RegExp(`${name.replace('.', '\\.')}\\b`));
+    }
   });
 
   it('every built upload decodes and carries no EXIF', async () => {
     if (!existsSync(DIST_UPLOADS)) return; // no uploads in this build is a legitimate state
-    for (const file of readdirSync(DIST_UPLOADS, { recursive: true }) as string[]) {
-      const full = join(DIST_UPLOADS, file);
+    // `withFileTypes` and `isFile`, because a recursive walk yields the
+    // DIRECTORIES too (measured: ["2024", "2024/05", "2024/05/a.jpg"]), and
+    // sharp on a directory fails as an undecodable upload. The sanitiser
+    // supports nesting on purpose, so the dist side has to as well.
+    for (const entry of readdirSync(DIST_UPLOADS, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const full = join(entry.parentPath, entry.name);
+      const file = relative(DIST_UPLOADS, full);
       const metadata = await sharp(full).metadata();
       expect(metadata.format, `${file} does not decode as an image`).toBeDefined();
       expect(metadata.exif, `${file} still carries EXIF`).toBeUndefined();

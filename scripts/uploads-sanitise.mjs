@@ -52,14 +52,16 @@ export async function sanitiseUploads({ src = UPLOADS_SRC, out = UPLOADS_OUT, lo
     const to = join(out, file);
     /*
      * SVG IS REFUSED BY NAME, BEFORE ANY DECODER SEES IT, and the reason is a
-     * measurement rather than caution: sharp 0.35.4 DECODES an SVG and writes
+     * measurement rather than caution: sharp 0.35.4 DECODES an SVG — and a
+     * gzipped `.svgz`, which a server still sends as image/svg+xml — and writes
      * PNG bytes back, so a sanitiser that relied only on the decode failing
-     * accepted one and wrote it out under the `.svg` name. The project ruled on
-     * SVG in Phase 2 — it is a script-injection vector and is never re-encoded
-     * automatically — and a rasterised-SVG-with-a-.svg-name would be a page
-     * promising a vector and serving a bitmap.
+     * accepted one and wrote it out under the vector's name. The project ruled
+     * on SVG in Phase 2 — it is a script-injection vector and is never
+     * re-encoded automatically — and a rasterised-SVG-with-a-.svg-name would be
+     * a page promising a vector and serving a bitmap.
      */
-    if (file.toLowerCase().endsWith('.svg')) {
+    const lower = file.toLowerCase();
+    if (lower.endsWith('.svg') || lower.endsWith('.svgz')) {
       throw new Error(
         `${from} is an SVG. This build does not accept an SVG upload: sharp can rasterise one, ` +
           'but an SVG is a script-injection vector, and it is refused by name rather than re-encoded.',
@@ -69,10 +71,7 @@ export async function sanitiseUploads({ src = UPLOADS_SRC, out = UPLOADS_OUT, lo
     try {
       buffer = await sharp(from).rotate().toBuffer();
     } catch (error) {
-      throw new Error(
-        `${from} is not an image this build can decode (${error.message}).\n` +
-          'A CMS upload must be a raster image; SVG is not re-encodable and is not accepted here.',
-      );
+      throw new Error(`${from} is not an image this build can decode (${error.message}).`);
     }
     await mkdir(dirname(to), { recursive: true });
     await writeFile(to, buffer);
