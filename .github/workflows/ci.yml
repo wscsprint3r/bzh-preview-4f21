@@ -86,3 +86,12 @@ jobs:
       - run: npm run a11y:mobile
       - run: npm run a11y:wide
       - run: npm run a11y:picker
+
+      # The sitemap's positive control. INDEXABLE is false in the repository, so
+      # the real build must carry neither sitemap-index.xml nor robots.txt - and
+      # a check that only asserted their absence would pass just as well if the
+      # routes never existed. This copies the project into a scratch directory,
+      # flips the one line, builds there, and asserts both files appear with
+      # absolute www URLs and no Disallow; then asserts the real dist/ has
+      # neither. Both states, one run.
+      - run: npm run test:indexable
