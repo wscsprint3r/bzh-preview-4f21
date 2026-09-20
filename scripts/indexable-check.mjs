@@ -34,14 +34,36 @@
  * ---------------------------------------------------------------------------
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 
 const ROOT = process.cwd();
 
 /** The one line both this check and the build turn on. */
 const ASSIGNMENT = /export const INDEXABLE = (true|false);/;
+
+/*
+ * THE SITEMAP'S FIXED ROUTES, WRITTEN OUT BY HAND, copied from `FIXED_PATHS` in
+ * `src/lib/sitemap.ts`. Read from the artifact rather than imported so a fixed
+ * route added to the build without a line here fails the count below — the same
+ * shape as the expected CSP: a copy that follows the artifact cannot notice the
+ * artifact changing.
+ */
+const FIXED_PATHS = [
+  '/',
+  '/program/',
+  '/noutati/',
+  '/evenimente/',
+  '/galerie/',
+  '/pastorale/',
+  '/contact/',
+  '/doneaza/',
+];
+
+/** `articleSlug`'s one rule, so a migrated article's public slug is derived here too. */
+const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}-/;
 
 /** Prints the reason and answers null, which every caller returns onward. */
 function fail(message) {
@@ -49,12 +71,78 @@ function fail(message) {
   return null;
 }
 
+/** One content file's frontmatter, parsed. Fails by name when the block is absent. */
+function frontmatter(file) {
+  const text = readFileSync(file, 'utf8');
+  const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  if (block === null) return fail(`${file} has no frontmatter block.`);
+  return parseYaml(block[1]);
+}
+
+/**
+ * The URL set the scratch project's content produces, or null after printing why
+ * not. This is what the sitemap's `<loc>` list is compared against, so a
+ * sitemap that dropped the `publishedArticles` filter — or one that lost a
+ * route — is named rather than counted.
+ *
+ * `new URL(path, ...)` and a Set, exactly as `sitemapPaths` builds it: two
+ * pages whose `path` is a fixed route (`/contact/`, `/doneaza/`) collapse to one
+ * URL there, and the expected set must collapse them the same way or the count
+ * would be wrong for the right build.
+ */
+function expectedSitemap(project) {
+  const content = (name) => join(project, 'src/content', name);
+  const files = (name) => readdirSync(content(name)).filter((f) => f.endsWith('.md'));
+  const named = [];
+
+  const pageFiles = files('pages');
+  for (const file of pageFiles) {
+    const data = frontmatter(join(content('pages'), file));
+    if (data === null) return null;
+    if (typeof data.path !== 'string') return fail(`${file} has no path frontmatter, so its URL cannot be derived.`);
+    named.push(`/${data.path}/`);
+  }
+
+  const albumFiles = files('galerii');
+  for (const file of albumFiles) named.push(`/galerie/${file.slice(0, -'.md'.length)}/`);
+
+  const eventFiles = files('events');
+  for (const file of eventFiles) named.push(`/evenimente/${file.slice(0, -'.md'.length)}/`);
+
+  const published = [];
+  const unpublished = [];
+  const articleFiles = files('articles');
+  for (const file of articleFiles) {
+    const data = frontmatter(join(content('articles'), file));
+    if (data === null) return null;
+    if (typeof data.published !== 'boolean') {
+      return fail(`${file} has no boolean published field, so the sitemap's filter cannot be checked.`);
+    }
+    const slug = file.slice(0, -'.md'.length).replace(DATE_PREFIX, '');
+    (data.published ? published : unpublished).push(`/noutati/${slug}/`);
+  }
+
+  const expected = new Set([...FIXED_PATHS, ...named, ...published]);
+  return {
+    expected,
+    published,
+    unpublished,
+    counts: {
+      pages: pageFiles.length,
+      albums: albumFiles.length,
+      events: eventFiles.length,
+      articles: articleFiles.length,
+      named: FIXED_PATHS.length + named.length + published.length,
+    },
+  };
+}
+
 /**
  * The scratch build's sitemap and robots, or null after printing why not.
  *
- * Returns the URL count so the verdict can print it. The assertions are the
- * same in both states: the scratch build always runs with the flag true, so it
- * is always the build whose files must be there.
+ * Returns the URL count and its parts so the verdict can print them. The
+ * assertions are the same in both states: the scratch build always runs with
+ * the flag true, so it is always the build whose files must be there.
  */
 function validate(project) {
   const sitemap = join(project, 'dist/sitemap-index.xml');
@@ -67,11 +155,49 @@ function validate(project) {
   if (locs.length < 10 || !locs.every((l) => l.startsWith('https://www.bor-zh.ch/'))) {
     return fail(`the sitemap names ${locs.length} URLs and not all are absolute www URLs.`);
   }
+
+  /*
+   * THE PUBLISHED FILTER, WHICH NOTHING CHECKED BEFORE. The route uses
+   * `publishedArticles`; a sitemap built from `getCollection('articles')` would
+   * advertise every held-back post's URL, and every visible check — the file
+   * exists, the URLs are absolute — would still pass. Both halves are asserted
+   * against the content files themselves: a published slug is present, a
+   * held-back slug is absent, and the whole set is compared so a route lost in
+   * either direction is named.
+   */
+  const expected = expectedSitemap(project);
+  if (expected === null) return null;
+  const url = (path) => new URL(path, 'https://www.bor-zh.ch/').toString();
+  const found = new Set(locs);
+  const missing = [...expected.expected].filter((path) => !found.has(url(path)));
+  const extra = locs.filter((loc) => !expected.expected.has(new URL(loc).pathname));
+  if (missing.length > 0 || extra.length > 0) {
+    return fail(
+      `the sitemap disagrees with the content: missing ${missing.length} ` +
+        `(${missing.slice(0, 4).join(', ') || 'none'}), unexpected ${extra.length} ` +
+        `(${extra.slice(0, 4).join(', ') || 'none'}). A missing /noutati/ URL means the published ` +
+        'list is short; an unexpected one means a held-back article leaked into the sitemap.',
+    );
+  }
+  if (locs.length !== expected.expected.size) {
+    const c = expected.counts;
+    return fail(
+      `the sitemap has ${locs.length} URLs, expected ${expected.expected.size}: ` +
+        `${FIXED_PATHS.length} fixed + ${c.pages} pages + ${c.albums} albums + ${c.events} events + ` +
+        `${expected.published.length} published articles, de-duplicated by path.`,
+    );
+  }
+
   const robotsText = readFileSync(robots, 'utf8');
   if (!robotsText.includes('Sitemap: https://www.bor-zh.ch/sitemap-index.xml') || /Disallow/.test(robotsText)) {
     return fail('robots.txt is missing its Sitemap line, or carries a Disallow that must never exist.');
   }
-  return locs.length;
+  return {
+    count: locs.length,
+    counts: expected.counts,
+    published: expected.published.length,
+    heldBack: expected.unpublished.length,
+  };
 }
 
 async function main() {
@@ -136,21 +262,27 @@ async function main() {
       { stdio: 'inherit', cwd: project },
     );
 
-    const count = validate(project);
-    if (count === null) return false;
+    const result = validate(project);
+    if (result === null) return false;
+    const c = result.counts;
+    const duplicates = c.named - result.count;
+    const breakdown =
+      `${FIXED_PATHS.length} fixed + ${c.pages} pages + ${c.albums} albums + ${c.events} events + ` +
+      `${result.published} published (${result.heldBack} held back), ` +
+      `${duplicates} path${duplicates === 1 ? '' : 's'} de-duplicated`;
 
     if (indexable) {
       for (const name of ['sitemap-index.xml', 'robots.txt']) {
         if (existsSync(join(ROOT, 'dist', name))) continue;
         return fail(`INDEXABLE is true, but the real dist/${name} is missing — the routes are dead.`);
       }
-      console.log(`indexable check: ${count} URLs, robots.txt clean, both present in dist/ (the flag is already true)`);
+      console.log(`indexable check: ${result.count} URLs — ${breakdown}, robots.txt clean, both present in dist/ (the flag is already true)`);
     } else {
       for (const name of ['sitemap-index.xml', 'robots.txt']) {
         if (!existsSync(join(ROOT, 'dist', name))) continue;
         return fail(`dist/${name} exists while INDEXABLE is false — the flag does not gate it.`);
       }
-      console.log(`indexable check: ${count} URLs, robots.txt clean, both absent from dist/`);
+      console.log(`indexable check: ${result.count} URLs — ${breakdown}, robots.txt clean, both absent from dist/`);
     }
     return true;
   } finally {
