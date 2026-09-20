@@ -21,6 +21,13 @@ import { PAGES } from './pages.mjs';
  * as the old site served it and the new `/documente/<slug>.pdf`; a PDF's old
  * path cannot collide with a page or a post, because neither ever ends `.pdf`.
  *
+ * THE EIGHT CONVERTED `.doc` STUDY FILES ADD ONE ROW EACH = 152 ROWS, and they
+ * are a different kind of row from the same module's point of view: they are
+ * static, because the conversion is a one-time step outside `run.mjs` (spec
+ * §11 as amended, `migration/doc-convert.mjs`), and `docRedirects()` owns both
+ * ends. A `.doc` old path collides with nothing for the same reason a `.pdf`
+ * one does not.
+ *
  * SORTED BY OLD PATH, LF endings, no BOM: the file is byte-identical across
  * runs, which the repeatability check reads as a `diff` exit code rather than
  * as a quiet absence of output.
@@ -67,13 +74,19 @@ const FIXED_REDIRECTS = [
  * and only `extractDocuments` knows both ends. They are ordinary rows to this
  * function; the precedence rule above does not apply to them because nothing
  * else claims a `.pdf` path.
+ *
+ * THE CONVERTED ROWS ARE THE SAME SHAPE with `.doc` old paths -
+ * `/wp-content/uploads/2024/05/<file>.doc` -> `/documente/<slug>.pdf`, one per
+ * converted study file. They are passed in from `docRedirects()` by `run.mjs`
+ * and are ordinary rows here too: nothing else claims a `.doc` path.
  */
-export function redirectRows(pages, postSlugs, documents = []) {
+export function redirectRows(pages, postSlugs, documents = [], converted = []) {
   const rows = [
     ...pages.map((page) => [`/${page.slug}/`, `/${page.path}/`]),
     ...FIXED_REDIRECTS,
     ...postSlugs.map((slug) => [`/${slug}/`, `/noutati/${slug}/`]),
     ...documents.map(({ from, to }) => [from, to]),
+    ...converted,
   ];
   const seen = new Set();
   return rows.filter(([oldPath]) => {
@@ -88,11 +101,13 @@ export function redirectRows(pages, postSlugs, documents = []) {
  *
  * `documents` is what `extractDocuments` returned as `redirects`: one
  * `{ from, to }` per migrated PDF, appended to the pages, the two fixed rows
- * and the posts. The container must already be running - `run.mjs` starts it
- * once for every extractor and this step - so importing this module starts
+ * and the posts. `converted` is the static rows from `docRedirects()`: one
+ * `[oldPath, newPath]` per converted `.doc` study file, appended after the
+ * migrated documents. The container must already be running - `run.mjs` starts
+ * it once for every extractor and this step - so importing this module starts
  * nothing.
  */
-export async function writeUrlMap(documents = []) {
+export async function writeUrlMap(documents = [], converted = []) {
   const posts = await query(
     "SELECT post_name FROM wpoi_posts WHERE post_type='post' AND post_status='publish'",
   );
@@ -101,7 +116,7 @@ export async function writeUrlMap(documents = []) {
   // path is the tiebreak so the order is total even if a duplicate ever
   // survives the precedence rule above - the file must not depend on the
   // engine's sort stability for its bytes.
-  const rows = redirectRows(PAGES, posts.map(([slug]) => slug), documents).sort((a, b) => {
+  const rows = redirectRows(PAGES, posts.map(([slug]) => slug), documents, converted).sort((a, b) => {
     if (a[0] !== b[0]) return a[0] < b[0] ? -1 : 1;
     return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0;
   });

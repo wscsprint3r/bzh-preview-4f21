@@ -15,6 +15,10 @@ not part of the site build.
   every PDF reports "pdfinfo could not read it" and the run exits non-zero
   rather than migrating anything. On Debian and Ubuntu it is
   `sudo apt-get install poppler-utils`; `ci.yml` installs it before `npm test`.
+- **LibreOffice** (`soffice`) is needed only for the one-time `.doc` → PDF
+  conversion (`migration/doc-convert.mjs`, below). `run.mjs`, the tests and the
+  site build never need it. On macOS: `brew install --cask libreoffice`; the
+  binary is found on `PATH` or at the app's own path.
 - **The dump is not in this repository, and a fresh clone cannot run this.**
   `DUMP_PATH` points at
   `/Users/stefan/Work/stuff/site-bzh/backup-2026-08-27/database.sql.gz`, a
@@ -252,3 +256,35 @@ content nobody can verify mechanically, so the table refuses to guess.
 `src/lib/documents.itest.ts` re-runs the gate over every committed PDF in
 `npm run test:build`, so a PDF added by hand after the migration cannot bypass
 it. It needs `pdfinfo` from poppler.
+
+## The `.doc` study files, converted once
+
+The eight `.doc` files `studii.md` links are the only part of the old uploads
+tree a reader is sent to open. A reader who clicks a study text should get the
+text, not a download prompt for a format their device may not have. They are
+converted to PDF by `migration/doc-convert.mjs`, gated by the same `pdfinfo`
+gate as every other document, and served from `/documente/<slug>.pdf`.
+
+**The conversion is a one-time manual step, not part of `run.mjs`.** Run it
+once (it needs LibreOffice; see Requirements):
+
+```
+node migration/doc-convert.mjs          # converts only what is missing
+node migration/doc-convert.mjs --force  # re-converts and overwrites
+```
+
+Each output is gated before it is renamed into place; a file the gate refuses
+stops the run by name and is not written. The PDFs are committed like the 87
+the migration copies. `run.mjs` never re-converts, because LibreOffice stamps
+each PDF with a creation time and its output is not byte-reproducible, which
+would break the determinism rule for everything else the run writes. What
+`run.mjs` does carry on every run is the eight redirect rows: `docRedirects()`
+feeds `writeUrlMap`, so `/wp-content/uploads/2024/05/<file>.doc` keeps
+resolving after the old host is gone (144 → 152 rows). The source `.doc` files
+stay in the backups; a fresh clone builds the site from the committed PDFs and
+every test runs, but it cannot re-run the conversion.
+
+**The ninth `.doc` is deliberately not converted.** The 2026-08-22 uploads tree
+holds `Ueber_die_Taufe-1.doc`, a WordPress duplicate of `Ueber_die_Taufe.doc`
+that no page links; `DOC_SOURCES` names only the eight the page links, and the
+ninth has no row in `docs/url-map.csv`.

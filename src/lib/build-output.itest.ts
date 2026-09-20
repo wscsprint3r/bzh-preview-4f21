@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 import { pageScripts } from '../../scripts/page-scripts.mjs';
+import { DOC_SOURCES } from '../../migration/doc-convert.mjs';
 import type { ArticleEntry } from './articles';
 import { articleSlug, publishedArticles } from './articles';
 import { formatIban } from './accounts';
@@ -843,18 +844,53 @@ describe('the prose pages', () => {
    * and every `href` at `https://www.bor-zh.ch/…` with a file extension is
    * collected; the assertion is that there are none.
    *
-   * THE EXTENSION LIST IS THE FILES WE NOW HOST: the 87 PDFs and the migrated
-   * images. `.doc` is deliberately outside it: `studii.md` links eight of them
-   * and the migration never copies a `.doc` (the spec's ruling), so those links
-   * stay on the old host and are Phase 4's to rule on - naming them here would
-   * make this assertion say something it does not mean.
+   * THE EXTENSION LIST IS THE FILES WE NOW HOST: the 95 committed PDFs and the
+   * migrated images. `.doc` JOINED IT IN TASK 4: the eight study files are
+   * converted, gated and served from `/documente/`, so an old-host `.doc` href
+   * is now the same defect as an old-host `.pdf` one. The migration still never
+   * copies a `.doc`; `migration/doc-convert.mjs` owns the one-time conversion,
+   * and the rows in `docs/url-map.csv` keep the old paths working.
    */
   it('the migrated prose no longer links at the old host for a file we now host', () => {
     const hosted = builtPages().map((page) => readFileSync(DIST + page, 'utf8')).join('\n');
-    const dead = [...hosted.matchAll(/href="https:\/\/www\.bor-zh\.ch\/[^"]+\.(?:pdf|jpg|jpeg|png)"/g)]
+    const dead = [...hosted.matchAll(/href="https:\/\/www\.bor-zh\.ch\/[^"]+\.(?:pdf|jpg|jpeg|png|doc)"/g)]
       .map((m) => m[0]);
     expect(dead, `links to files the old host no longer needs to serve:\n${dead.join('\n')}`)
       .toEqual([]);
+  });
+
+  /*
+   * THE EIGHT CONVERTED STUDY FILES, ON THE PAGE AND IN `dist/`. The site-wide
+   * assertion above collects every old-host file href - and a link at
+   * `/documente/<slug>.pdf` that names a file nobody copied looks exactly like
+   * one that works, so this follows each of the eight to its built file. The
+   * expected set is `DOC_SOURCES`, the table the one-time conversion and the
+   * URL map both come from, with its length asserted so an emptied table
+   * cannot make the loop vacuous.
+   */
+  it('the studii page links the eight converted study PDFs, and every one resolves', () => {
+    const html = read('resurse/studii/index.html');
+    // The positive control: the page rendered its study blocks, so "contains no
+    // old host" is a statement about a real page rather than about an empty one.
+    expect(html, 'the studii page did not render - the assertions below would prove nothing')
+      .toContain('Citeste mai mult');
+    expect(html, 'the studii page still links at the old host').not.toContain('www.bor-zh.ch');
+    expect(
+      DOC_SOURCES,
+      'the converted-studies table changed shape - the loop below would prove nothing',
+    ).toHaveLength(8);
+    const measured: string[] = [];
+    for (const { slug } of DOC_SOURCES) {
+      const href = `/documente/${slug}.pdf`;
+      expect(html, `/resurse/studii/ does not link ${href}`).toContain(`href="${href}"`);
+      expect(existsSync(`${DIST}documente/${slug}.pdf`), `${href} does not resolve inside dist/`)
+        .toBe(true);
+      measured.push(href);
+    }
+    process.stdout.write(
+      `\nConverted study PDFs linked from /resurse/studii/: ${measured.length}.\n` +
+        `${measured.map((m) => `  ${m}`).join('\n')}\n`,
+    );
   });
 
   /*

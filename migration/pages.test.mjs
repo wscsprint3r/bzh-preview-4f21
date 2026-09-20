@@ -10,6 +10,7 @@ import {
   stripAccountBlocks,
 } from './pages.mjs';
 import { redirectRows } from './url-map.mjs';
+import { docRedirects } from './doc-convert.mjs';
 import { pageSchema } from '../src/lib/content-schema.ts';
 import { imagesIn } from './html-md.mjs';
 
@@ -307,5 +308,17 @@ describe('the URL map', () => {
       '/documente/doxologia-18-2019.pdf',
     ]);
     expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(58);
+  });
+
+  it('adds one row per converted .doc, and the real count is 65 for the test corpus', () => {
+    const converted = docRedirects();
+    expect(converted).toHaveLength(8);
+    const rows = redirectRows(PAGES, POST_SLUGS, [], converted);
+    expect(rows).toHaveLength(65);
+    expect(new Set(rows.map(([oldPath]) => oldPath)).size).toBe(65);
+    expect(rows).toContainEqual([
+      '/wp-content/uploads/2024/05/Ueber_die_Taufe.doc',
+      '/documente/ueber-die-taufe.pdf',
+    ]);
   });
 });
