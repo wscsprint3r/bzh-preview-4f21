@@ -3,13 +3,15 @@
 Everything in this file needs credentials no agent has, so none of it has been done and
 none of it has been tested.
 
-**Status, 2026-09-18: still none of it.** Every step below is outstanding - A-J, K1-K5,
-and section L's four live checks. The site has never been deployed, so nothing here has
-a live system behind it yet. Phases 1-3 are complete: the schedule, the CMS, the 45 news
-posts, the eleven prose pages, the galleries, the events surface, the 87 PDFs, the
-QR-bill and the contact form all exist in the repository, so deploying now publishes the
-whole site rather than a schedule with no articles on it. Work through it in order;
-each step says what a good answer looks like, because "it did not error" is not one.
+**Status, 2026-09-20: still none of it.** Every step below is outstanding - A-J, K1-K5,
+and the live checks in sections F and L. The site has never been deployed, so nothing
+here has a live system behind it yet. Phases 1-4 are complete: the schedule, the CMS, the
+45 news posts, the eleven prose pages, the galleries, the events surface, the 95 PDFs,
+the QR-bill and the contact form all exist in the repository, along with Phase 4's
+cutover machinery — the redirects, the short-link Function and the gated sitemap — so
+deploying now publishes the whole site rather than a schedule with no articles on it.
+Work through it in order; each step says what a good answer looks like, because "it did
+not error" is not one.
 
 > **Until the DNS cutover the site lives at `https://<project>.pages.dev/`.** `www.bor-zh.ch`
 > still points at the WordPress install that was compromised twice — nothing in this phase
@@ -119,7 +121,9 @@ with no visible symptom, because the page without JavaScript is the designed fal
 **B6. This deployment is deliberately invisible to search engines, and un-hiding it is a
 step of the DNS cutover — not of this checklist.** Every visitor page carries
 `<meta name="robots" content="noindex">` and **no** `rel=canonical`, both decided by
-`INDEXABLE` in `src/lib/site.ts`.
+`INDEXABLE` in `src/lib/site.ts`. The same flag gates `/sitemap-index.xml` and
+`robots.txt`: both are absent while it is `false`, because a sitemap naming
+`https://www.bor-zh.ch/…` today would point every crawler at the old install.
 
 Two things were wrong before that flag existed, and they are worth understanding rather
 than just checking: Cloudflare marks *preview* deployments noindex but not the production
@@ -132,13 +136,14 @@ this page is over there.
 returns the `noindex` meta and **no** canonical link.
 
 > **At the cutover** (spec §15), set `INDEXABLE = true` and redeploy, in the same change
-> that moves DNS. `build-output.itest.ts` asserts the two consequences agree, so the flag
-> cannot be half-flipped — but nothing in this repository can tell that the domain has
-> moved. Leaving it `false` afterwards gives you a site that is live, correct and invisible
-> to every search engine, with nothing failing anywhere. There is deliberately **no**
-> `robots.txt` with `Disallow: /`: disallowing the path stops a crawler fetching the page,
-> so it never reads the `noindex` it was sent to obey, and a URL already known can stay
-> indexed with no content at all.
+> that moves DNS. Flip the flag and the sitemap and `robots.txt` appear; **submit the
+> sitemap** to Search Console (spec §14 step 5). `build-output.itest.ts` asserts the two
+> consequences agree, so the flag cannot be half-flipped — but nothing in this repository
+> can tell that the domain has moved. Leaving it `false` afterwards gives you a site that
+> is live, correct and invisible to every search engine, with nothing failing anywhere.
+> The `robots.txt` that appears carries no `Disallow`: disallowing the path stops a
+> crawler fetching the page, so it never reads the `noindex` it was sent to obey, and a
+> URL already known can stay indexed with no content at all.
 
 ## C — the OAuth Worker and the GitHub app
 
@@ -200,10 +205,11 @@ branch**.
 Scheduled runs are best-effort and can be delayed by GitHub; the first real proof is a
 deployment appearing in Cloudflare around 03:00 Zürich time.
 
-## F — the headers, which are the only thing no test here can see
+## F — the headers and the redirects, the things no test here can see live
 
-`_headers` is parsed by Cloudflare and **never served**, so no request returns it. The only
-evidence is the response headers of some other URL.
+`_headers` and `_redirects` are both parsed by Cloudflare and **never served**, so no
+request returns either. The only evidence is a response header, or a redirect, from some
+other URL.
 
 **F1.**
 
@@ -238,6 +244,22 @@ curl -sI https://<project>.pages.dev/admin/ | grep -i -E 'x-robots-tag|content-s
 
 *Good answer:* **no** `Refused to …` messages. This is the live version of the check
 `npm run a11y` makes locally.
+
+**F5. The redirects, from the old URLs to the new ones.** `dist/_redirects` is generated
+at build time from `docs/url-map.csv` and the rule tables in `scripts/redirects.mjs`;
+Cloudflare parses it and never serves it, so the test is a request to a path it covers.
+One specific old PDF, and one path the wildcard should refuse:
+
+```bash
+curl -sI https://<project>.pages.dev/wp-content/uploads/2024/12/9-002-2024-PASTORALA-NASTEREA-DOMNULUI-RO-2024_site.pdf | grep -i -E 'HTTP/|location'
+curl -sI https://<project>.pages.dev/wp-content/anything | grep -i -E 'HTTP/|location'
+```
+
+*Good answer:* the first is a `301` with a `location` ending at
+`/documente/9-002-2024-pastorala-nasterea-domnului-ro-2024-site.pdf`; the second is a
+`410`. **If the first is a `410`**, the ordering shipped wrong: the `/wp-content/*` rule
+sits above the 18 specific upload 301s and shadows every one of them, so migrated PDFs
+have stopped resolving. `src/lib/redirects.itest.ts` pins the order in the built file.
 
 ## G — the first sign-in (the one thing nothing here could reach)
 
@@ -371,7 +393,7 @@ that a red build which names no file is one to forward to you and forget about.
 
 Phase 2 is complete in the repository. Nothing here needs a new service: the content and
 its routes ship with the site. This section is what to know about them when you bring it
-up, and what to hand Phase 4.
+up, and what Phase 4 did with them.
 
 **What now exists.**
 
@@ -387,18 +409,19 @@ up, and what to hand Phase 4.
   phone, e-mail and IBANs). Labels are Romanian; field keys are English. Uploads go to
   `public/uploads` and are written as `/uploads/…`, an absolute URL the host serves;
   `src/lib/cms.test.ts` asserts the pair and `src/lib/binaries.itest.ts` decodes every
-  committed upload. They are served as uploaded — no Astro AVIF/WebP variants — unlike the
-  migrated media under `src/assets/content/`.
+  committed upload. The build re-encodes every upload on the way into `dist/` (section
+  L), but makes no Astro AVIF/WebP variants — unlike the migrated media under
+  `src/assets/content/`.
 - **A page's `image` field is stored but not rendered.** The CMS offers **Imagine** on a
   **Pagină** and `pageSchema` accepts it, but no route reads it: `[...page].astro` renders
   the title and the prose only. No page sets it today. This is a pre-existing Phase 2 gap,
   recorded rather than discovered later — a page meant to carry a hero image needs the
   render added first.
-- **`docs/url-map.csv`** — 55 data rows at the end of Phase 2, one per old path, emitted by
-  `migration/url-map.mjs` (section L carries the current count, 144). **Nothing serves it
-  yet**; it is Phase 4's input for `_redirects`. The 32 held-back posts keep their rows, so
-  an old link reaches `/noutati/<slug>/` and 404s until the parish dates and publishes that
-  post.
+- **`docs/url-map.csv`** — one row per old path, emitted by `migration/url-map.mjs`; 55
+  data rows at the end of Phase 2, **152** now (section L carries the classes). Phase 4
+  serves it: `scripts/redirects.mjs` turns every row into a rule in `dist/_redirects` at
+  build time. The 32 held-back posts keep their rows, so an old link reaches
+  `/noutati/<slug>/` and 404s until the parish dates and publishes that post.
 
 **Adding a post.** `/admin/` → **Articole** → **Create New Entry**, then title, date,
 category, text and optionally an image. `Save` is the only button and it commits.
@@ -415,10 +438,24 @@ node migration/run.mjs
 ```
 
 It destroys and recreates the `bzh-migration` container, loads the dump, and rewrites
-`src/content/articles/`, `src/content/pages/`, `src/assets/content/` and
-`docs/url-map.csv`. It is deterministic: rerunning must produce byte-identical output
-(spec §11). **Not run here** — this repository does not carry the backups; the command
-is real and `migration/README.md` describes what it needs.
+`src/content/articles/`, `src/content/pages/`, `src/assets/content/`, `docs/url-map.csv`
+and `functions/wp-ids.json`. It is deterministic: rerunning must produce byte-identical
+output (spec §11). Phase 4 ran it to emit the short-link map and refresh the URL map.
+
+**A rerun overwrites every migrated file from the dump, so a hand edit to migrated
+content is reverted silently and the run still reports success.** Measured in Phase 4:
+the run that emitted `functions/wp-ids.json` brought the photographs in
+`src/content/pages/istoric.md` back as the old ornament they had replaced, and the file
+had to be restored from the branch head. **After every run, check `git status` for
+`src/content/` and restore the hand edits before committing.**
+
+**The eight `.doc` studies are a separate, one-time step.** `migration/doc-convert.mjs`
+converted them to PDF with LibreOffice, and each output went through the same gate as the
+copied documents; `run.mjs` carries only the eight redirect rows for them. The conversion
+is not part of `run.mjs` because LibreOffice stamps a creation date into its output and
+the bytes are not reproducible run to run. **Not run from a fresh clone** — this
+repository does not carry the backups; the command is real and `migration/README.md`
+describes what it needs.
 
 **Known content anomalies, left faithful to the old site.** These are the parish's words
 and nobody has edited them; they are for the parish to fix in the CMS:
@@ -430,20 +467,23 @@ and nobody has edited them; they are for the parish to fix in the CMS:
   times, once per magazine cover, because the old page used a heading as a caption. The
   correct shape is one heading with 31 covers under it.
 
-**Old-site links in the migrated prose, for Phase 4.** The markdown carries 53 absolute
-`https://www.bor-zh.ch/` links, none rewritten: 2 in articles and 51 in pages. 28 point
-at PDFs in legacy static directories outside `uploads/` — 26 under `/revista/` (the
-Doxologia issues) and 2 under `/files/` (the study texts). Of the remaining 25, 24 point
-into `wp-content/uploads/`: 11 full-size images on `cursuri-de-pictura`, 8 `.doc` study
-files on `studii` and 5 PDFs (the 2024 pastoral letter and four Doxologia issues). The
-25th is not an upload: it is the old-site page link for the pastoral letter. Phase 4 has
-to decide what all 53 redirect to before the old host goes away.
+**Old-site links in the migrated prose: all rewritten, and the old-host decisions are
+made.** The markdown carried 53 absolute `https://www.bor-zh.ch/` links. The migration
+rewrote 44 of them in `d73b49e` — the 11 full-size images on `cursuri-de-pictura`, the 30
+Doxologia links on `revista-doxologia`, the two PDF links on `studii` and the pastoral
+letter's PDF — and this branch rewrote the last 9: the eight `.doc` study files on
+`studii`, now served as PDFs from `/documente/` (section L), and the pastoral letter's
+old-site page link, now the post's own route under `/noutati/`. Measured at the branch
+head: `src/content` carries no `https://www.bor-zh.ch/` link; the only `bor-zh.ch` string
+left is `contact@bor-zh.ch` in `settings.yml`, an e-mail address. Every one of the 53 now
+resolves on this site.
 
-**`/?p=<id>` short links are covered by nothing here.** The URL map is old-path to
-new-path only and carries no WordPress IDs, `_redirects` cannot match a query string,
-and the dump that could supply the IDs lives outside this repository. Phase 4 needs a
-Pages Function for them, or an explicit recorded decision to let those short links die —
-and that decision is due before the IDs become unrecoverable.
+**`/?p=<id>` short links are a Function now.** The URL map is old-path to new-path only
+and carries no WordPress IDs, and `_redirects` cannot match a query string, so Phase 4
+added `functions/index.ts`: it takes the root path alone and 301s an id found in
+`functions/wp-ids.json`, emitted from the dump by `migration/wp-ids.mjs`. An id the map
+does not carry falls through to the homepage. Section L's unverified list carries the
+live check, because nothing here can run a Pages Function.
 
 **Check it from the repository.**
 
@@ -527,7 +567,7 @@ so the widget never loads there. Open the browser console on `/contact/` and sub
 Phase 3 is complete in the repository. The routes, the collections, the PDFs and the
 QR-bill all ship with the site; the only service it needs beyond Phase 2's is the form's,
 which is section K. This section is what to know about them when you bring the site up,
-and what to hand Phase 4.
+and what Phase 4 changed.
 
 **What now exists.**
 
@@ -545,60 +585,75 @@ and what to hand Phase 4.
   beside Phase 2's three. A gallery's images and an event's image go through the same
   resolver as an article's, so both shapes render: the migration's
   `src/assets/content/…` through Astro's image pipeline, a CMS upload at `/uploads/…`
-  as-is.
-- **87 PDFs** under `public/documente/` (about 197 MiB), copied from the old host by
-  `migration/` behind a gate: each file must open with `pdfinfo`, and its raw bytes are
-  scanned for `/EmbeddedFile` and `/Launch`; "no JavaScript" is judged by
-  `pdfinfo -js`, not by a byte scan. **The gate does not rewrite the bytes** — that
-  ruling, and why the byte scan is narrower than it looks, are in
-  `migration/README.md` and `migration/pdf-gate.mjs`. The files are therefore the old
-  bytes, with a browser's PDF viewer as the execution boundary.
+  served without Astro's variants (the build re-encodes it; section below).
+- **95 PDFs** under `public/documente/` (about 198 MiB): 87 copied from the old host by
+  `migration/` behind a gate, plus the eight `.doc` studies converted once by
+  `migration/doc-convert.mjs` and gated the same way. Each file must open with `pdfinfo`,
+  and its raw bytes are scanned for `/EmbeddedFile` and `/Launch`; "no JavaScript" is
+  judged by `pdfinfo -js`, not by a byte scan. **The gate does not rewrite the bytes** —
+  that ruling, and why the byte scan is narrower than it looks, are in
+  `migration/README.md` and `migration/pdf-gate.mjs`. The copied files are therefore the
+  old bytes, and the converted eight are LibreOffice's output, with a browser's PDF
+  viewer as the execution boundary.
 - **The QR-bill** on `/doneaza/`, generated at build from the account flagged `qr_bill`
   in Setări and embedded as raw SVG. It is an **open** bill: currency CHF, no amount,
   so the donor fills in the sum in their banking app.
 - **The contact form** on `/contact/`; its configuration is section K.
-- **`docs/url-map.csv`** now carries **144 data rows**, 87 of them the PDFs. Nothing
-  serves the file yet: it is Phase 4's input.
+- **`docs/url-map.csv`** now carries **152 data rows**, 95 of them the PDFs, and it is
+  served: `scripts/redirects.mjs` writes `dist/_redirects` at build time — 157 rules on
+  the current build, printed by the build log — with every specific upload 301 above the
+  four 410s (section F has the live check).
 
-**What to hand Phase 4.**
+**What Phase 4 changed, and what is still open.**
 
-- **The 87 PDF redirect rows.** One row per old `/pastorala/…`, `/files/…`,
-  `wp-content/uploads/…` or `/revista/…` path, pointing at `/documente/<slug>.pdf`.
-  The old paths are **percent-encoded per segment**, because that is the form a browser
-  requested; copy each token verbatim and do not re-encode it. Two measured decisions
-  are Phase 4's: the design spec's `/wp-content/*` 410 rules **shadow** the ten uploads
-  301s unless the specific document rows are emitted above the wildcard, and the CSV is
-  sorted by old path, so the ordering in `_redirects` must be deliberate rather than
-  the file's order.
-- **The album and event URL rows, which do not exist and must be decided.** The old
-  photo album was the WordPress page `/evenimente/`, and the legacy static album was
-  `/galerie.html`. `/evenimente/` now serves the events index, so the old album content
-  cannot also redirect there and no row maps it to `/galerie/sfintele-pasti-2024/`;
-  `/galerie.html` has no row either. The old Events Calendar URLs are in the same
-  position. Before the old host goes away, Phase 4 has to decide what each of them
-  does.
-- **Eight `.doc` links** in the migrated `studii` page still point at the old host by
-  design: the spec never migrates `.doc`, and what they should do is Phase 4's ruling.
-- **The `?p=<id>` short links are unchanged from Phase 2** (section I): the URL map
-  carries no WordPress IDs, `_redirects` cannot match a query string, and the dump that
-  could supply the IDs lives outside this repository. Phase 4 needs a Pages Function
-  for them, or an explicit recorded decision to let those links die.
-- **`/sitemap-index.xml` does not exist.** Spec §5's IA lists it beside the routes, and
-  the build emits no sitemap; it was recorded as out of Phase 3's spec §19 scope. Phase 4
-  decides whether to emit one — Astro's sitemap integration or a route of our own — and
-  submits it to Search Console (spec §14 step 5).
-- **CMS uploads keep their metadata.** The migration re-encodes every migrated image
-  through sharp, which is where its EXIF — GPS included — is discarded; the CMS path does
-  not, because `public/uploads/` is committed and served as-is, so a photograph a
-  volunteer uploads ships with whatever the camera wrote into it. Phase 4 should sanitise
-  the tree at build time (re-encode `public/uploads/**` through sharp into `dist/`, the
-  same decode-or-drop shape the migration uses) rather than leave a volunteer's home
-  coordinates in a served file. Until then, editors should be told to strip metadata
-  before uploading.
+- **The PDF redirect rows, now served.** Every old `/pastorala/…`, `/files/…`,
+  `wp-content/uploads/…` or `/revista/…` path has a row pointing at
+  `/documente/<slug>.pdf`; the eight `.doc` rows joined them when the studies were
+  converted. The old paths are **percent-encoded per segment**, because that is the form
+  a browser requested, and `scripts/redirects.mjs` copies each token verbatim without
+  re-encoding it. The ordering is deliberate rather than the file's: the specific
+  `/wp-content/uploads/…` 301s are emitted above the `/wp-content/*` 410, which would
+  otherwise shadow all 18 of them. `src/lib/redirects.itest.ts` pins that order by line
+  index, and F5 is the live check.
+- **The album and event URL rows are hand-written rules now, not CSV rows.** The old
+  photo album was the WordPress page `/evenimente/`, which now serves the events index,
+  so the old album content cannot also redirect there; the legacy static album and the
+  old Events Calendar URLs were never CSV rows. `scripts/redirects.mjs` carries them in
+  `EXTRA_RULES`: `/galerie.html` → `/galerie/`, `/event/*` and `/events/*` →
+  `/evenimente/`, and `https://bor-zh.ch/*` → `https://www.bor-zh.ch/:splat`. They are
+  tested beside the CSV's rules, and they are why the map's row count is not the rule
+  count.
+- **The eight `.doc` studies are PDFs now, and their links point at `/documente/`.** The
+  spec's "never migrate `.doc`" ruling stands as written: the conversion is one
+  maintainer step outside `run.mjs`, done once by `migration/doc-convert.mjs` (section I
+  carries the rule).
+- **The `?p=<id>` short links are a Pages Function now.** `functions/index.ts` takes the
+  root path alone and 301s an id found in `functions/wp-ids.json` — 57 entries emitted
+  from the dump by `migration/wp-ids.mjs`, every target present in `docs/url-map.csv`. An
+  id the map does not carry falls through to the homepage, which is what happens without
+  the Function at all. Nothing in this repository can run a Pages Function, so the check
+  is in "Unverified until it is deployed" below.
+- **`/sitemap-index.xml` and `robots.txt` exist only after the flag flips.** Both are
+  routes gated on `INDEXABLE` in `src/lib/site.ts`: while it is `false` — the state until
+  the DNS cutover — `getStaticPaths` returns an empty array, so the build emits neither
+  file. A sitemap naming `https://www.bor-zh.ch/…` today would point every crawler at the
+  old install, which is why it is gated rather than shipped. The cutover flips the flag
+  and submits the sitemap (B6). `scripts/indexable-check.mjs` builds the flipped site in
+  a scratch directory and asserts both states, and `npm run test:all` runs it.
+- **CMS uploads are re-encoded at build time.** `scripts/uploads-sanitise.mjs` runs at
+  `astro:build:done` and rewrites every file under `public/uploads/` through sharp into
+  `dist/uploads/` — decode, re-encode, no metadata — so EXIF and GPS are gone from what
+  ships while the committed original is untouched. An SVG is refused by name (a
+  script-injection vector sharp can rasterise), and a file that does not decode stops the
+  build naming the file, because a volunteer's page may reference it and a silent drop
+  would 404 a page that looked fine at save time. `public/uploads/` does not exist yet,
+  so the build prints `does not exist — nothing to sanitise`. `docs/ghid-editor.md` still
+  tells editors to strip location before uploading: the committed original and the CMS's
+  own preview keep the metadata, and only the built copy is rewritten.
 - **The privacy statement is one sentence.** The form now says what it collects, that it
   is used only to answer, and that nothing is stored; a full statement (revDSG, the
-  e-mail processor, retention) is the parish's text to write, and Phase 4 should decide
-  whether it becomes a page rather than a paragraph.
+  e-mail processor, retention) is the parish's text to write, and whether it becomes a
+  page rather than a paragraph is still open.
 - **One portrait is still the old placeholder.** `src/content/pages/consiliul-parohial.md`
   carries `Captura-de-ecran-din-2024-05-14-la-15.25.58.png` — a white-background ornament
   from the old site — under **Eduard Gabriel Bazavan**, where every other member has a
@@ -607,9 +662,9 @@ and what to hand Phase 4.
   placeholder before then.
 - **No `@media print` exists anywhere in the repository.** The QR-bill prints inside the
   reading column rather than at its natural 210mm, and the parchment ground prints as-is,
-  so a print stylesheet for `/doneaza/` is a Phase 4 decision — it needs its own visual
-  check, and the bill's correctness is a separate question, measured by the test transfer
-  below.
+  so a print stylesheet for `/doneaza/` is still an open decision — it needs its own
+  visual check, and the bill's correctness is a separate question, measured by the test
+  transfer below.
 
 **Unverified until it is deployed.**
 
@@ -636,6 +691,17 @@ and what to hand Phase 4.
    `x-content-type-options: nosniff`. The cache header is Cloudflare's default —
    nothing in this repository sets one for the PDFs — so write down what you see rather
    than assuming it.
+5. **The `?p=<id>` short links** — `functions/index.ts`. Its map and its target
+   resolution are unit-tested, and no run in this repository can reach a Pages Function.
+   Pick an id out of `functions/wp-ids.json` and follow it once:
+
+   ```bash
+   curl -sI 'https://<project>.pages.dev/?p=<id>' | grep -i -E 'HTTP/|location'
+   ```
+
+   *Good answer:* a `301` whose `location` is the mapped page or post. An id the map does
+   not carry falls through to the homepage, which is the same answer as with no Function
+   at all.
 
 **A declared gap, not an open question.** Text contrast inside the QR-bill's inline SVG
 cannot be judged by axe: it treats any SVG node as a graphic and returns an
@@ -650,15 +716,17 @@ TZ=Europe/Zurich npm run test:all && TZ=Europe/Zurich npm run check
 ```
 
 *Good answer:* both exit 0. The integration tests read the built `dist/` — every new
-route, the collections, the 87 PDFs, the QR-bill and the form's fallback — and the four
-browser passes audit every built page, including the phone and wide widths and the
-picker fixture that renders the week the JavaScript hides.
+route, the collections, the 95 PDFs, the generated `dist/_redirects`, the QR-bill and the
+form's fallback — and the four browser passes audit every built page, including the phone
+and wide widths and the picker fixture that renders the week the JavaScript hides.
+`test:all` also runs `npm run test:indexable`, which builds the flipped site in a scratch
+directory and asserts the sitemap and `robots.txt` in both states.
 
 ## What still cannot be verified from this repository
 
 Say "unverified" about these, not "should work".
 
-1. **That Cloudflare applies `_headers` at all.** Step F1.
+1. **That Cloudflare applies `_headers` and `_redirects` at all.** Steps F1 and F5.
 2. **The `.ics` `Content-Type`.** A static build discards the header
    `src/pages/program.ics.ts` sets, so this rule decides it and nothing else can see it.
    Step F2.
@@ -674,7 +742,7 @@ Say "unverified" about these, not "should work".
    chromedriver's download skipped.
 6. **Lighthouse scores.** Step H8.
 7. **The six-hourly rebuild firing.** Step E3.
-8. **Everything Phase 3 added that a deployment decides.** Section L's four unverified
-   items — the form's round trip, the QR-bill's test transfer, the rate-limit rule and
-   the PDFs' response headers — plus the QR-bill's SVG text, which axe cannot judge.
-   Section L is where each is written out.
+8. **Everything Phases 3 and 4 added that a deployment decides.** Section L's five
+   unverified items — the form's round trip, the QR-bill's test transfer, the rate-limit
+   rule, the PDFs' response headers and the `?p=<id>` short links — plus the QR-bill's
+   SVG text, which axe cannot judge. Section L is where each is written out.
