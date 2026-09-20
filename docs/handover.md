@@ -458,7 +458,7 @@ and the settings singleton — and the browser passes audit every built page.
 ## J — finish
 
 **J1.** Print `docs/editors-card.md` and hand out at the training session. Every row on it
-was read off a running CMS.
+must be read off a running CMS (steps H4, H5, H10, H11) before it is printed.
 
 **J2.**
 

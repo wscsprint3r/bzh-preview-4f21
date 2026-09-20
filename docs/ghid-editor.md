@@ -6,7 +6,7 @@ se ocupă de el.
 
 Un singur gest explică aproape tot: **nu există buton de publicare separat. `Save` salvează
 și publică.** Fiecare salvare pornește o reconstrucție, iar schimbarea apare pe site în
-aproximativ un minut. Zilele și articolele trecute dispar singure de pe prima pagină.
+aproximativ un minut. Zilele trecute dispar singure de pe prima pagină.
 
 ## Cum adaug o știre
 
@@ -21,11 +21,12 @@ aproximativ un minut. Zilele și articolele trecute dispar singure de pe prima p
 **Imaginea** și **Rezumatul** sunt opționale: rezumatul este un text scurt care apare sub
 titlu în liste, iar dacă îl lăsați gol, articolul apare doar cu titlul.
 
-Bifa **Publicat** hotărăște dacă articolul ajunge pe site. Fără bifă, articolul rămâne
-doar în `/admin/`: **nu are pagină proprie, nu apare în lista de noutăți și nu intră în
-feed** — nici dacă cineva are linkul. Îl puteți bifa oricând și apăsa din nou **`Save`**.
+Bifa **Publicat** hotărăște dacă articolul ajunge pe site; **la creare pornește nebifată**.
+Fără bifă, articolul rămâne doar în `/admin/`: **nu are pagină proprie, nu apare în lista
+de noutăți și nu intră în feed** — nici dacă cineva are linkul. Îl puteți bifa oricând și
+apăsa din nou **`Save`**.
 
-La final, apăsați **`Save`**.
+La final, bifați **Publicat** și apăsați **`Save`**.
 
 ## Cum actualizez programul săptămânii
 
@@ -42,13 +43,15 @@ Pentru o săptămână obișnuită, cea mai rapidă cale este să porniți de la
 Meniul **⋮** are patru comenzi: **Duplicate**, **Delete**, **Edit Slug** și
 **Revert All Changes**.
 
-**Data nu se schimbă singură.** Odată ce ziua a fost publicată, numele fișierului rămâne
-cel de la prima salvare; dacă ați greșit data unei zile deja publicate, **ștergeți ziua și
-adăugați-o din nou** cu data bună. Nu încercați să o corectați schimbând data în formular.
+**Data nu se schimbă singură.** Odată ce ziua a fost publicată, numele fișierului rămâne de
+obicei cel de la prima salvare; se poate și să fie redenumit când schimbați data și salvați,
+dar nu vă bizuiți pe asta. Dacă ați greșit data unei zile deja publicate, **ștergeți ziua și
+adăugați-o din nou** cu data bună.
 
 **Dacă slujbele se anulează, păstrați orele și bifați „Slujbele sunt anulate”.** Nu ștergeți
-rândurile: așa ziua rămâne în calendarul celor abonați, cu **ANULAT:** în față, în loc să
-dispară fără nicio explicație. O zi ștearsă nu se mai poate explica nimănui.
+rândurile: așa, în calendarul publicat, evenimentele zilei poartă `STATUS:CANCELLED` și
+încep cu **ANULAT:**, iar programul obișnuit nu rămâne în locul lor. O zi ștearsă lasă
+calendarul fără nicio urmă a anulării.
 
 ## Cum adaug poze
 
@@ -75,15 +78,18 @@ completat.
 
 ## Ce fac dacă ceva nu apare pe site
 
-1. **Așteptați câteva minute.** O reconstrucție durează de obicei sub un minut, dar poate
+1. **Verificați bifa `Publicat`** dacă este vorba de o știre: la creare pornește nebifată,
+   iar fără ea articolul nu are pagină, nu apare în listă și nu intră în feed. Bifați-o și
+   salvați din nou.
+2. **Așteptați câteva minute.** O reconstrucție durează de obicei sub un minut, dar poate
    întârzia.
-2. Dacă nu apare nici după câteva minute, **construcția a eșuat**. Veți primi un e-mail de
+3. Dacă nu apare nici după câteva minute, **construcția a eșuat**. Veți primi un e-mail de
    la GitHub. **E-mailul nu numește niciun fișier** — spune doar că rularea a eșuat și vă
    dă un link.
-3. **Deschideți linkul și citiți partea de sus a paginii rulării.** Dacă acolo apare un
+4. **Deschideți linkul și citiți partea de sus a paginii rulării.** Dacă acolo apare un
    text în românește, acela este explicația; la depășirea limitei de greutate a paginilor,
    textul numește și paginile afectate.
-4. **Dacă nu găsiți nimic care să vă privească, trimiteți e-mailul mai departe persoanei
+5. **Dacă nu găsiți nimic care să vă privească, trimiteți e-mailul mai departe persoanei
    care se ocupă de site.** Nu tot ce înroșește o construcție este o greșeală într-un
    fișier de program: ziua sau articolul pe care tocmai l-ați salvat poate fi perfect în
    regulă și publicat.
