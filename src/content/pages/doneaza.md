@@ -4,8 +4,6 @@ path: "doneaza"
 order: 110
 ---
 
-Donează
-
 ## “Daruind vei dobandi”  
 (Parintele Nicolae Steinhardt)
 
@@ -17,14 +15,10 @@ Ne dorim un mediu primitor și încurajator în care toți membrii comunității
 
 Donatiile pentru achiziționarea unui spațiu mai încăpător pentru Biserica Ortodoxă Română din Zürich se pot face în contul:
 
-**Rumänisch - Orthodoxe Kirchgem, St. Nikolaus ZH Zürich IBAN:** 
-
-**Bank: UBS(Schweiz) AG**
-
 Vă mulțumim pentru generozitatea și sprijinul vostru.
 
 _**Cu recunoștință,**_
 
 Consiliul Parohial al Bisericii Ortodoxe Române „Sfântul Nicolae" Zürich
 
-![](../../assets/content/2025/12/Screenshot-2025-12-11-at-11.23.04.png) ![](../../assets/content/2024/05/istockphoto-1338836802-2048x2048-prelucrata-1.jpg)
+![](../../assets/content/2024/05/d137c008-87ff-423a-a95f-5da44b9f1534.jpg)
