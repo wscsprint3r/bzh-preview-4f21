@@ -13,8 +13,25 @@
  * The alternative — a 404 or a guess — is worse for a visitor with a stale
  * link. `Object.hasOwn` rather than `in`, so `__proto__` and friends cannot
  * resolve to anything.
+ *
+ * A MAP VALUE THAT IS NOT A SINGLE-SLASH PATH IS REFUSED, NOT TRUSTED.
+ * `startsWith('/')` reads as "local" and is not: `//evil.example/x` starts
+ * with a slash and is a protocol-relative URL, which `Response.redirect`
+ * resolves against the request's scheme — an off-site redirect from a
+ * commited data file. The migration emits these values and nothing else can
+ * write them, but the runtime must not depend on that; `isLocalTarget` is the
+ * one place the shape is decided, and the committed map is asserted against
+ * it in the test rather than against the weaker sentence unqualified.
  */
+export const LOCAL_TARGET = /^\/(?!\/)/;
+
+/** True when a map value can only ever address a path on this site. */
+export function isLocalTarget(target: string): boolean {
+  return LOCAL_TARGET.test(target);
+}
+
 export function shortLinkTarget(p: string | null, ids: Record<string, string>): string | null {
   if (p === null || !/^\d+$/.test(p)) return null;
-  return Object.hasOwn(ids, p) ? ids[p] : null;
+  if (!Object.hasOwn(ids, p)) return null;
+  return isLocalTarget(ids[p]) ? ids[p] : null;
 }
