@@ -1,0 +1,5 @@
+services:
+  - time: "17:00"
+    service: Spovedanie
+  - time: "18:30"
+    service: Paraclisul Maicii Domnului
