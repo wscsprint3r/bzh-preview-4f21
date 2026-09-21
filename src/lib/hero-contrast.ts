@@ -1,18 +1,24 @@
 /**
  * The hero's contrast, computed from the pixels a browser really paints.
  *
- * WHY THIS EXISTS AT ALL. The hero is text over a photograph under an oxblood
- * scrim; axe's color-contrast rule cannot determine a background image and
- * returns an `incomplete`, and this project fails on every in-scope incomplete.
- * The exemption in `scripts/a11y.mjs` says "axe cannot judge this"; this module
- * is the judgement that replaces it, on the same pixels.
+ * WHY THIS EXISTS AT ALL. axe's color-contrast rule cannot resolve the hero
+ * text's background and returns an `incomplete` for the h1 and the verse, and
+ * this project fails on every in-scope incomplete. Since Phase 5.1 the text
+ * stands on the oxblood strip BELOW the photograph, not on the picture — but
+ * axe still refuses to judge it, because the wash's `::after` pseudo-element
+ * sits on `.hero` and axe reads a pseudo element as an undeterminable
+ * background whatever it covers ("background color could not be determined due
+ * to a pseudo element", measured 2026-09-21). The exemption in `scripts/a11y.mjs`
+ * says "axe cannot judge this"; this module is the judgement that replaces it,
+ * on the same pixels — which after the split are the strip's solid oxblood
+ * (10.54:1 for the h1, 8.12:1 for the verse, measured on the 2026-09-21 build).
  *
  * THE TEXT IS HIDDEN FOR THE SCREENSHOT. Sampling the hero with the glyphs
  * painted in would include the text's own colour — a 1:1 ratio — and every
  * measurement would fail. The browser half hides the text with a style, takes
  * the screenshot, and restores; the pixels under each text rect are therefore
- * the composited scrim-over-photograph, which is exactly what a reader sees
- * behind the glyphs.
+ * the ground the glyphs really stand on — the strip's oxblood since Phase 5.1,
+ * the scrim-over-photograph before it.
  */
 export interface Rect {
   left: number;
@@ -61,7 +67,7 @@ export function contrastRatio(a: [number, number, number], b: [number, number, n
  *
  * `report`, when given, receives every measured text's worst ratio even when
  * nothing fails. The caller prints that number: a green verdict alone is what a
- * later reader cannot check a claim like "82% gives 4.97:1" against, and this
+ * later reader cannot check a claim like "h1 10.54:1" against, and this
  * project's rule is to print what was measured rather than only the verdict.
  * The texts that produced no measurement — an unparseable colour, a rect
  * outside the screenshot — report nothing, because nothing was measured.

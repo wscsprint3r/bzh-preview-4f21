@@ -67,37 +67,40 @@ const articles = publishedArticles(await getCollection('articles'));
   */}
   <section class="hero">
     {/*
-      ONE SOURCE, TWO CROPS, AND THE REQUEST COUNT IS WHY. The approved mockup
+      ONE SOURCE, TWO BOXES, AND THE REQUEST COUNT IS WHY. The approved mockup
       asked for a <picture> with a 16:6 source and a 3:2 source; measured
       against `check-budget.mjs`, every <source> is a possible fetch and the
       homepage has exactly one request left (11 of 12 today). Two sources plus
       the fallback measure 14/12 — a red build with no room to raise the limit.
-      A single photograph cropped by `object-fit`/`object-position` gives the
-      same two framings for one request: the wide hero box shows the band, the
-      phone's taller box shows nearly the whole frame. The focal points below
-      were re-measured in a browser for this photograph on 2026-09-21 — 50% 8%
-      on the desktop band and 50% 62% in the 34rem phone box keep all four
-      clergy's faces, the cross and the altar table inside at 390, 756 and 1280
-      CSS px wide; adjust them by eye against `npm run dev`, never by a crop
-      algorithm.
+      One photograph in one box per viewport gives two framings for one
+      request: the desktop box is the 3:1 cut itself, and the phone's 2:1 box
+      shows the middle 67% of it.
+
+      THE PHOTOGRAPH IS NOT THE TEXT'S GROUND ANY MORE. Phase 5.1 split the
+      band: the h1 and the verse sit on the oxblood strip BELOW the picture,
+      nothing is printed over the image, and the wash is a 12% tint rather than
+      the 82% scrim that used to be load-bearing. The contrast the guard prints
+      is the strip's; the picture no longer has to be dark enough to carry
+      glyphs.
 
       THE SOURCE IS A DERIVATIVE, `src/assets/content/2025/12/7-hero.jpg`,
-      1600×800, NOT THE ALBUM FILE. The photograph is one of the four in the
+      1600×533, NOT THE ALBUM FILE. The photograph is one of the four in the
       album `sfantul-nicolae-2025`, and cropping that file in place would
       re-frame the gallery too. This one was cut from
       `src/assets/content/2025/12/7.jpg` once, with `sharp(src).resize({ width:
-      1600 }).extract({ left: 0, top: 280, width: 1600, height: 800 }).jpeg({
-      quality: 90 })` — 2:1, keeping the rows the phone crop shows and the band
-      the desk crop shows. The top came from a five-window contact sheet
-      (160/200/240/280/320), compared by eye: top 280 keeps all four clergy,
-      the cross and the altar table whole with the ceiling line above them, and
-      the windows above it add only ceiling. `src/lib/hero-image.itest.ts`
-      holds those bytes to a ceiling: measured through Astro at its default
-      quality, this crop's 1200w candidate is 137,744 B, its 800w 70,706 B and
-      its 480w 28,834 B, while the same source uncropped measures 207,858 B at
-      1200w — over the 180,000 B ceiling, which is why the page gets a crop
-      rather than the album file. Re-cut the derivative rather than adding the
-      1600w candidate back.
+      1600 }).extract({ left: 0, top: 300, width: 1600, height: 533 }).jpeg({
+      quality: 90 })` — 3:1, the desktop box's own ratio, so the box shows the
+      cut whole. Top 300 came from a contact sheet (260/300/340/387) compared
+      by eye against the Phase 5.1 mock's window (387): it moves the frame up
+      so the mitre and the cross have air above them and the balcony enters the
+      frame, while the bottom edge leaves the altar table at its front panel
+      rather than below it — the user's "a bit less Altar and a bit more space
+      above heads". `src/lib/hero-image.itest.ts` holds those bytes to a
+      ceiling: MEASURED 2026-09-21 through Astro at its default quality, this
+      cut's candidates are 480w 21,856 B, 800w 51,936 B, 1200w 98,838 B, and
+      the 1600w `src` fallback — fetched by no browser this site targets —
+      157,508 B, against the 180,000 B ceiling. Re-cut the derivative rather
+      than adding a wider candidate back.
     */}
     <Image
       class="hero-img"
@@ -197,47 +200,56 @@ const articles = publishedArticles(await getCollection('articles'));
 <style>
   .hero { position: relative; background: var(--oxblood); color: var(--parchment); overflow: hidden; }
   /*
-   * THE SCRIM IS A FLAT WASH, not a gradient: the verse's second line falls on
-   * the photograph's lightest region, and a gradient's thin end is where AA
-   * fails. `color-mix` rather than `rgba(107, 31, 38, …)`: the literal would
-   * restate `--oxblood`'s channels, and a token change would desync the scrim
-   * with no test to notice. The percentage is the one measured by the pixel
-   * guard in a11y.mjs (Task 7) — do not lower it without re-measuring, and do
-   * not raise it to make the picture "read better"; the guard's number is the
-   * requirement. MEASURED when Task 7 landed, on the Phase 4 crop this page
-   * used then: 78% gave the verse 4.42:1 against its 4.5:1 minimum, on the
-   * pure-white highlight that crop put under it; 82% measured 4.97:1 there.
-   * RE-MEASURED 2026-09-21 against the cross-procession crop: 82% gives the
-   * verse 5.01:1 over the default pass's 741x190 px box, 5.03:1 over the
-   * phone pass's 375x181 px box (390 CSS px) and 5.01:1 over the wide pass's
-   * 1085x235 px box. The guard prints the worst ratio it measured on every
-   * run, so these sentences are checkable rather than authoritative.
+   * THE WASH IS A TINT, NOT A SCRIM, because nothing is printed on the
+   * photograph any more: the h1 and the verse stand on the oxblood strip below
+   * it, so no glyph's background is the picture and the wash stops being
+   * load-bearing. 12% is the number the approved B-prime mock used; the pixel
+   * guard in a11y.mjs still prints the worst ratio under the hero text every
+   * run, and after the split those pixels are the strip's solid oxblood:
+   * MEASURED 2026-09-21, h1 10.54:1 and verse 8.12:1 over all three passes'
+   * hero boxes (756x376, 390x336, 1100x513 px). axe STILL cannot judge the
+   * text — it reports "background color could not be determined due to a
+   * pseudo element" because this ::after sits on `.hero`, whatever it covers —
+   * so the exemption and the pixel measurement are still what carry the hero,
+   * not dead code. Removing them would need this tint moved off `.hero` first,
+   * with a build proving axe judges the strip; see the Phase 5.1 plan.
+   * `color-mix` rather than `rgba(107, 31, 38, …)`: the literal would restate
+   * `--oxblood`'s channels, and a token change would desync the tint with no
+   * test to notice. THERE IS NO OPAQUE FALLBACK ANY MORE. The first line used
+   * to paint the whole band oxblood for a browser that drops `color-mix`,
+   * which was the safe direction when the band was the text's ground; under
+   * the split it would hide the photograph, and losing a 12% tint is the
+   * harmless failure.
    */
   .hero::after {
     content: '';
     position: absolute;
-    inset: 0;
-    /* THE FIRST LINE IS FOR BROWSERS THAT DO NOT KNOW `color-mix`: they drop
-       the second declaration and would otherwise paint NO scrim, leaving
-       parchment text directly on the photograph — the failing control Task 7
-       measured on the replaced Phase 4 crop at 3.48:1 and 2.66:1. Opaque
-       oxblood is the band the hero shipped before the scrim existed, and it
-       already passed AA. No pass in this repository can see the difference:
-       Chrome supports `color-mix`, so both declarations parse and the second
-       wins. */
-    background: var(--oxblood);
-    background: color-mix(in srgb, var(--oxblood) 82%, transparent);
+    inset-inline: 0;
+    top: 0;
+    aspect-ratio: 3 / 1;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--oxblood) 12%, transparent);
   }
-  .hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 8%; }
-  /* The phone box is 2.10:1 against the crop's 2:1, so nearly the whole frame
-     is visible and object-position moves the window by ~23 of the 800 rows:
-     62% trims the empty ceiling rows first, leaving every face, the cross and
-     the altar table in frame. Measured 2026-09-21 at 390 CSS px through
+  /* The desktop box is the cut's own 3:1, so it shows the cut whole and
+     `object-position`'s 40% moves nothing; it stays as the declared focal point
+     for a future re-cut. */
+  .hero-img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1; object-fit: cover; object-position: 50% 40%; }
+  /* THE PHONE BOX IS 2:1, NOT THE 4:3 THE BACKLOG'S CSS SAID, and the reason is
+     measured: that line was written against the 2:1 source, where a 4:3 box at
+     390 CSS px showed 67% of the frame's width. Against the 3:1 cut the same
+     box shows 44% — the left-centre priest cut mid-torso at the edge and the
+     right priest gone. 2:1 reproduces the approved mock's 67% exactly (cover
+     scale = 195/533, the overflow is horizontal, so the 45% in
+     `object-position` is inert and 50% centres the window on the cross). 4:3
+     was compared beside 16:9 and 3:2 at 390 CSS px through
      `Emulation.setDeviceMetricsOverride` — Chrome clamps a plain window under
      about 500px, so a 390px request by any other route is 500px wide and
      measures a different box. */
-  @media (max-width: 34rem) { .hero-img { object-position: 50% 62%; } }
-  .hero-in { position: relative; z-index: 1; padding-block: clamp(2.5rem, 7vw, 4.5rem); }
+  @media (max-width: 34rem) {
+    .hero-img { aspect-ratio: 2 / 1; object-position: 50% 45%; }
+    .hero::after { aspect-ratio: 2 / 1; }
+  }
+  .hero-in { position: relative; z-index: 1; padding-block: clamp(1.25rem, 2.5vw, 1.75rem); }
   /* A 2px gold-lt hairline echoing the feast-row rule. Ornament, never text. */
   .hero { border-bottom: 2px solid var(--gold-lt); }
   /* Scoped, so this ships at (0,2,1) and defeats global.css's `h1` at (0,0,1).

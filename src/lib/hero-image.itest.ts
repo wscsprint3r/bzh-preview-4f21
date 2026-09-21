@@ -27,10 +27,10 @@ const HTML = readFileSync(join(DIST, 'index.html'), 'utf8');
 
 /*
  * MEASURED 2026-09-21 through Astro at its default quality, against the
- * re-cut 2:1 derivative (`src/assets/content/2025/12/7-hero.jpg`,
+ * Phase 5.1 3:1 derivative (`src/assets/content/2025/12/7-hero.jpg`,
  * `sharp(src).resize({ width: 1600
- * }).extract({ left: 0, top: 280, width: 1600, height: 800 }).jpeg({ quality:
- * 90 })`): 480w = 28,834 B, 800w = 70,706 B, 1200w = 137,744 B. The ceiling
+ * }).extract({ left: 0, top: 300, width: 1600, height: 533 }).jpeg({ quality:
+ * 90 })`): 480w = 21,856 B, 800w = 51,936 B, 1200w = 98,838 B. The ceiling
  * of 180,000 is headroom for a re-encode of this crop, not enough to hide a
  * return to the uncropped album file: put through the same pipeline, that
  * file's 1200w candidate measures 207,858 B — over the ceiling, which is why
