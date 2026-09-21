@@ -818,13 +818,19 @@ describe('the prose pages', () => {
    * CMS and from the content files. The subject is now the CONTENT FILES - the
    * pages whose frontmatter carries an `image:` - rather than the one page the
    * first version happened to name, so a page that gains or loses the field is
-   * followed automatically. Each rendering is the whole claim: exactly one
-   * wrapper, exactly one `<img>`, the page title as its alt, and a src that
+   * followed automatically. The derived set is the pages whose field is a
+   * NON-EMPTY string, matching the route: `[...page].astro` renders the lead
+   * image only when `entry.data.image` is truthy, so `image: ""` is a valid
+   * content state meaning "no image" and counting it would demand a wrapper the
+   * route rightly does not render. Each rendering is the whole claim: exactly
+   * one wrapper, exactly one `<img>`, the page title as its alt, and a src that
    * resolves inside `dist/` - because an `<img>` at a path the host does not
    * serve 404s with no other symptom.
    */
   it('renders the frontmatter image of every page that carries one, exactly once, resolving inside dist/', () => {
-    const pages = pageFiles().filter((f) => typeof f.frontmatter.image === 'string');
+    const pages = pageFiles().filter(
+      (f) => typeof f.frontmatter.image === 'string' && f.frontmatter.image !== '',
+    );
     expect(pages.length, 'no prose page carries an image: field - the guard would prove nothing')
       .toBeGreaterThan(0);
     for (const page of pages) {
