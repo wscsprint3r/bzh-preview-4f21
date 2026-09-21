@@ -89,15 +89,15 @@ const articles = publishedArticles(await getCollection('articles'));
       1600 }).extract({ left: 0, top: 280, width: 1600, height: 800 }).jpeg({
       quality: 90 })` — 2:1, keeping the rows the phone crop shows and the band
       the desk crop shows. The top came from a five-window contact sheet
-      (160/200/240/280/320): the lowest window that keeps every head, the
-      cross and the altar table whole; at 320 the leftmost priest's head is
-      clipped by the frame. `src/lib/hero-image.itest.ts` holds those bytes to
-      a ceiling: measured through Astro at its default quality, this crop's
-      1200w candidate is 137,744 B, its 800w 70,706 B and its 480w 28,834 B,
-      while the same source uncropped measures 207,858 B at 1200w — over the
-      180,000 B ceiling, which is why the page gets a crop rather than the
-      album file. Re-cut the derivative rather than adding the 1600w candidate
-      back.
+      (160/200/240/280/320), compared by eye: top 280 keeps the three priests,
+      the cross and the altar table whole with the ceiling line above them, and
+      the windows above it add only ceiling. `src/lib/hero-image.itest.ts`
+      holds those bytes to a ceiling: measured through Astro at its default
+      quality, this crop's 1200w candidate is 137,744 B, its 800w 70,706 B and
+      its 480w 28,834 B, while the same source uncropped measures 207,858 B at
+      1200w — over the 180,000 B ceiling, which is why the page gets a crop
+      rather than the album file. Re-cut the derivative rather than adding the
+      1600w candidate back.
     */}
     <Image
       class="hero-img"
@@ -204,10 +204,14 @@ const articles = publishedArticles(await getCollection('articles'));
    * with no test to notice. The percentage is the one measured by the pixel
    * guard in a11y.mjs (Task 7) — do not lower it without re-measuring, and do
    * not raise it to make the picture "read better"; the guard's number is the
-   * requirement. MEASURED when Task 7 landed: 78% gave the verse 4.42:1 against
-   * its 4.5:1 minimum, on the pure-white highlight the crop puts under it; 82%
-   * measures 4.97:1 there. The guard prints the worst ratio it measured on
-   * every run, so this sentence is checkable rather than authoritative.
+   * requirement. MEASURED when Task 7 landed, on the Phase 4 crop this page
+   * used then: 78% gave the verse 4.42:1 against its 4.5:1 minimum, on the
+   * pure-white highlight that crop put under it; 82% measured 4.97:1 there.
+   * RE-MEASURED 2026-09-21 against the cross-procession crop: 82% gives the
+   * verse 5.01:1 over the default pass's 741x190 px box, 5.03:1 over the
+   * phone pass's 375x181 px box (390 CSS px) and 5.01:1 over the wide pass's
+   * 1085x235 px box. The guard prints the worst ratio it measured on every
+   * run, so these sentences are checkable rather than authoritative.
    */
   .hero::after {
     content: '';
@@ -215,11 +219,12 @@ const articles = publishedArticles(await getCollection('articles'));
     inset: 0;
     /* THE FIRST LINE IS FOR BROWSERS THAT DO NOT KNOW `color-mix`: they drop
        the second declaration and would otherwise paint NO scrim, leaving
-       parchment text directly on the photograph — the failing control the
-       pixel guard measures at 3.48:1 and 2.66:1. Opaque oxblood is the band
-       the hero shipped before the scrim existed, and it already passed AA.
-       No pass in this repository can see the difference: Chrome supports
-       `color-mix`, so both declarations parse and the second wins. */
+       parchment text directly on the photograph — the failing control Task 7
+       measured on the replaced Phase 4 crop at 3.48:1 and 2.66:1. Opaque
+       oxblood is the band the hero shipped before the scrim existed, and it
+       already passed AA. No pass in this repository can see the difference:
+       Chrome supports `color-mix`, so both declarations parse and the second
+       wins. */
     background: var(--oxblood);
     background: color-mix(in srgb, var(--oxblood) 82%, transparent);
   }
