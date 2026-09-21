@@ -130,14 +130,14 @@ so these are worth more than their size suggests.
       delivers it to anyone. This is the scenario §16 singles out: a volunteer presses
       Save, the build fails, and they see nothing happen.
 
-- [ ] **C4 · The per-day "add to calendar" link (spec §8).** `/program/` offers the
+- [x] **C4 · The per-day "add to calendar" link (spec §8).** `/program/` offers the
       whole-feed subscription only. The spec asks for both: *"Plus a per-day 'Adaugă în
       calendar' link for people who want one service rather than a subscription."*
 
       **Superseded 2026-09-19 — see the decisions table at the end of this file: the
       per-day link is rejected and spec §8 is amended.**
 
-- [ ] **C5 · Lighthouse is in the budget table and nothing runs it.** Spec §13 budgets
+- [x] **C5 · Lighthouse is in the budget table and nothing runs it.** Spec §13 budgets
       performance ≥ 95 and accessibility 100, and LCP on 4G < 1.2s. The byte, request and
       JS budgets are enforced in CI; the Lighthouse rows exist only as manual step **H8**
       on the deployed site. Decide whether Phase 4 automates them or drops them from the

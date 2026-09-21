@@ -219,6 +219,13 @@ curl -sI https://<project>.pages.dev/ | grep -i -E 'content-security-policy|stri
 
 *Good answer:* five headers, and the CSP contains `script-src 'self' 'sha256-…'`. **If
 `script-src` reads just `'self'`, the site's JavaScript is being refused** — go back to B5.
+**A Function fronting the route is a second possible cause, and B5 cannot fix it.**
+`functions/index.ts` answers `/` and `functions/_middleware.ts` runs on every request; a
+response a Function produced is not a static asset response, and the static `_headers`
+policy is not guaranteed to be applied to it. So before changing the policy, fetch the same
+headers from a plain asset URL (F2's `/program.ics` is one) and compare: if the asset
+carries the CSP and `/` does not, the difference is the Function, and the fix is in the
+Function's response rather than in `public/_headers`.
 
 **F2.**
 
