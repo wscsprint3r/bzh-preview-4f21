@@ -7,8 +7,8 @@ import { describe, expect, it } from 'vitest';
  * THE HOMEPAGE HERO IS THE LCP FETCH, AND NOTHING ELSE MEASURES AN ASSET'S
  * BYTES. `check-budget.mjs` measures HTML bytes per page, visitor JavaScript
  * and request count; the hero's one request is argued for in the note beside
- * `'index.html': 12`, but the 343,872 bytes that request used to cost was
- * measured by nothing — and the Lighthouse rows that would have caught it are
+ * `'index.html': 12`, but the bytes it hands the browser were measured by
+ * nothing — and the Lighthouse rows that would have caught them are
  * deferred to Phase 5, so neither half of spec §13 was watching.
  *
  * The guard is scoped to this one image on purpose: a general asset-byte
@@ -26,12 +26,16 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const HTML = readFileSync(join(DIST, 'index.html'), 'utf8');
 
 /*
- * MEASURED 2026-09-21 through Astro at its default quality: the 2:1 crop gives
- * 480w = 33,212 B, 800w = 86,794 B, 1200w = 163,602 B. The ceiling is 180,000
- * — headroom for a re-encode, not enough to hide a return to the 4:3 source,
- * whose 1600w candidate measured 343,872 B and whose 1200w measured 237,602 B.
- * The first draft of this ceiling was 160,000, guessed from a sharp estimate
- * before a build existed; the built number is the one that counts.
+ * MEASURED 2026-09-21 through Astro at its default quality, against the
+ * re-cut 2:1 derivative (`7-hero.jpg`, `sharp(src).resize({ width: 1600
+ * }).extract({ left: 0, top: 280, width: 1600, height: 800 }).jpeg({ quality:
+ * 90 })`): 480w = 28,834 B, 800w = 70,706 B, 1200w = 137,744 B. The ceiling
+ * of 180,000 is headroom for a re-encode of this crop, not enough to hide a
+ * return to the uncropped album file: put through the same pipeline, that
+ * file's 1200w candidate measures 207,858 B — over the ceiling, which is why
+ * the homepage gets a derivative. The first draft of this ceiling was 160,000,
+ * guessed from a sharp estimate before a build existed; the built number is
+ * the one that counts.
  */
 const HERO_BYTES_CEILING = 180_000;
 const HERO_WIDTHS = [480, 800, 1200];

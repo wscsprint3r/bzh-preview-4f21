@@ -1,6 +1,6 @@
 ---
 import { Image } from 'astro:assets';
-import heroImage from '../assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d-hero.jpg';
+import heroImage from '../assets/content/2025/12/7-hero.jpg';
 import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
 import ArticleList from '../components/ArticleList.astro';
@@ -75,20 +75,29 @@ const articles = publishedArticles(await getCollection('articles'));
       A single photograph cropped by `object-fit`/`object-position` gives the
       same two framings for one request: the wide hero box shows the band, the
       phone's taller box shows nearly the whole frame. The focal points below
-      are the mockup's; adjust them by eye against `npm run dev`, never by a
-      crop algorithm.
+      were re-measured in a browser for this photograph on 2026-09-21 — 50% 8%
+      on the desktop band and 50% 62% in the 34rem phone box keep all four
+      clergy's faces, the cross and the altar table inside at 390, 756 and 1280
+      CSS px wide; adjust them by eye against `npm run dev`, never by a crop
+      algorithm.
 
-      THE SOURCE IS A DERIVATIVE, 1600×800, NOT THE ALBUM FILE. The photograph
-      is also the cover of `sfintele-pasti-2024`, and cropping that file in
-      place would re-frame the gallery too. This one was cut from it once,
-      with `sharp(src).extract({ left: 0, top: 240, width: 1600, height: 800
-      }).jpeg({ quality: 90 })` — 2:1, keeping the rows the phone crop shows
-      and the band the desk crop shows. `src/lib/hero-image.itest.ts` holds the
-      bytes to a ceiling: measured through Astro at its default quality, the
-      full 4:3 frame's 1600w candidate was 343,872 B and its 1200w 237,602 B,
-      while this crop's 1200w is 163,602 B and its 800w 86,794 B — the band
-      paints ~190 rows of a 1200-row frame and the rest was decoded and thrown
-      away. Re-cut the derivative rather than adding the 1600w candidate back.
+      THE SOURCE IS A DERIVATIVE, `src/assets/content/2025/12/7-hero.jpg`,
+      1600×800, NOT THE ALBUM FILE. The photograph is one of the four in the
+      album `sfantul-nicolae-2025`, and cropping that file in place would
+      re-frame the gallery too. This one was cut from
+      `src/assets/content/2025/12/7.jpg` once, with `sharp(src).resize({ width:
+      1600 }).extract({ left: 0, top: 280, width: 1600, height: 800 }).jpeg({
+      quality: 90 })` — 2:1, keeping the rows the phone crop shows and the band
+      the desk crop shows. The top came from a five-window contact sheet
+      (160/200/240/280/320): the lowest window that keeps every head, the
+      cross and the altar table whole; at 320 the leftmost priest's head is
+      clipped by the frame. `src/lib/hero-image.itest.ts` holds those bytes to
+      a ceiling: measured through Astro at its default quality, this crop's
+      1200w candidate is 137,744 B, its 800w 70,706 B and its 480w 28,834 B,
+      while the same source uncropped measures 207,858 B at 1200w — over the
+      180,000 B ceiling, which is why the page gets a crop rather than the
+      album file. Re-cut the derivative rather than adding the 1600w candidate
+      back.
     */}
     <Image
       class="hero-img"
@@ -214,11 +223,14 @@ const articles = publishedArticles(await getCollection('articles'));
     background: var(--oxblood);
     background: color-mix(in srgb, var(--oxblood) 82%, transparent);
   }
-  .hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 14%; }
-  /* The phone box is 2.16:1 against the crop's 2:1, so this shifts the visible
-     band down to the rows the 4:3 source showed at 62% — the altar and the
-     icons, not the floor. It is a few percent of the frame, measured against
-     the old screenshot, not guessed. */
+  .hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 8%; }
+  /* The phone box is 2.10:1 against the crop's 2:1, so nearly the whole frame
+     is visible and object-position moves the window by ~23 of the 800 rows:
+     62% trims the empty ceiling rows first, leaving every face, the cross and
+     the altar table in frame. Measured 2026-09-21 at 390 CSS px through
+     `Emulation.setDeviceMetricsOverride` — Chrome clamps a plain window under
+     about 500px, so a 390px request by any other route is 500px wide and
+     measures a different box. */
   @media (max-width: 34rem) { .hero-img { object-position: 50% 62%; } }
   .hero-in { position: relative; z-index: 1; padding-block: clamp(2.5rem, 7vw, 4.5rem); }
   /* A 2px gold-lt hairline echoing the feast-row rule. Ornament, never text. */
