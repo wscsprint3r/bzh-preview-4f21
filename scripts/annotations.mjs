@@ -24,3 +24,26 @@ export function budgetAnnotation(pages, explanation) {
     ['Bugetul de performanță a fost depășit.', named, explanation].filter(Boolean).join('\n'),
   )}`;
 }
+
+/*
+ * The annotation a refused upload prints, before the build stops.
+ *
+ * WHY THE UPLOADS STEP NEEDS ONE AT ALL. The sanitiser fails the build when a
+ * file it cannot decode lands in `public/uploads/` — a volunteer's PDF dragged
+ * into the CMS asset library, say. The throw is right (a silently dropped
+ * upload 404s a page that looked fine at save time) but on its own it reaches
+ * the editor as GitHub's English "run failed", which is the situation spec §16
+ * exists for. This is the same `::error::` channel the budget uses, so the
+ * run page the failure e-mail links to carries the Romanian sentence at its
+ * top. The technical reason stays in the thrown error, for whoever reads the
+ * log.
+ */
+export function uploadAnnotation(file) {
+  return `::error::${escapeAnnotation(
+    [
+      `Fișierul încărcat nu poate fi publicat: ${file}.`,
+      'Site-ul publică doar imagini (JPEG, PNG, WebP, AVIF).',
+      'Ștergeți fișierul din /uploads/ sau înlocuiți-l cu o fotografie, apoi rulați din nou publicarea.',
+    ].join('\n'),
+  )}`;
+}

@@ -16,11 +16,18 @@
  * and a dropped file is a success. An upload is different: it is a volunteer's
  * file, a page may reference it, and silently dropping it would 404 a page
  * that looked fine at save time. Failing names the file and the reason.
+ *
+ * THE EDITOR IS TOLD IN ROMANIAN, ON THE RUN PAGE. The throw above reaches the
+ * volunteer as GitHub's English "run failed"; the annotation is the Romanian
+ * sentence at the top of the page that e-mail links to, the same `::error::`
+ * channel `check-budget.mjs` uses. It is printed only under `GITHUB_ACTIONS`,
+ * because outside Actions the workflow command is noise in a terminal.
  */
 import { readdirSync, statSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import sharp from 'sharp';
+import { uploadAnnotation } from './annotations.mjs';
 
 export const UPLOADS_SRC = 'public/uploads';
 export const UPLOADS_OUT = 'dist/uploads';
@@ -33,6 +40,12 @@ function filesUnder(dir, found = [], base = dir) {
     else found.push(relative(base, path));
   }
   return found;
+}
+
+/** Stops the build, and puts the reason on the editor's run page when there is one. */
+function refuse(file, message) {
+  if (process.env.GITHUB_ACTIONS) process.stdout.write(`\n${uploadAnnotation(file)}\n`);
+  throw new Error(message);
 }
 
 /**
@@ -62,7 +75,8 @@ export async function sanitiseUploads({ src = UPLOADS_SRC, out = UPLOADS_OUT, lo
      */
     const lower = file.toLowerCase();
     if (lower.endsWith('.svg') || lower.endsWith('.svgz')) {
-      throw new Error(
+      refuse(
+        from,
         `${from} is an SVG. This build does not accept an SVG upload: sharp can rasterise one, ` +
           'but an SVG is a script-injection vector, and it is refused by name rather than re-encoded.',
       );
@@ -71,7 +85,7 @@ export async function sanitiseUploads({ src = UPLOADS_SRC, out = UPLOADS_OUT, lo
     try {
       buffer = await sharp(from).rotate().toBuffer();
     } catch (error) {
-      throw new Error(`${from} is not an image this build can decode (${error.message}).`);
+      refuse(from, `${from} is not an image this build can decode (${error.message}).`);
     }
     await mkdir(dirname(to), { recursive: true });
     await writeFile(to, buffer);

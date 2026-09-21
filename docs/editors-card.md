@@ -16,6 +16,9 @@
   în listă, fără element în feed. Bifați și salvați din nou.
 - **Miniaturile din biblioteca media pot apărea goale** (browserul blochează `blob:`);
   fișierele sunt întregi și apar pe site.
+- **Doar imagini (JPEG, PNG, WebP, AVIF).** Un PDF sau un SVG în bibliotecă oprește
+  publicarea; pagina rulării spune în românește care fișier este vinovat. Ștergeți-l și
+  salvați din nou.
 - **Pozele păstrează metadatele camerei până la reconstrucție.** Scoateți locația (GPS) din
   poză înainte de încărcare.
 - **Datele de contact se schimbă în Setări**, la „Datele parohiei” — un singur loc pentru

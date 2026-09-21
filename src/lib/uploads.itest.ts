@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { sanitiseUploads } from '../../scripts/uploads-sanitise.mjs';
 
@@ -72,5 +72,40 @@ describe('uploads sanitisation', () => {
       expect(metadata.format, `${file} does not decode as an image`).toBeDefined();
       expect(metadata.exif, `${file} still carries EXIF`).toBeUndefined();
     }
+  });
+
+  /*
+   * THE FAILURE IS ANNOTATED IN ROMANIAN, AND THE ANNOTATION IS GATED THE WAY
+   * THE BUDGET'S IS. `::error::` is a GitHub Actions workflow command; printed
+   * anywhere else it is noise in a local terminal, so the sanitiser prints it
+   * only under `GITHUB_ACTIONS`, exactly as `check-budget.mjs` does. Both
+   * directions are asserted: with the flag the editor's run page carries the
+   * sentence, without it nothing is printed.
+   */
+  it('prints the Romanian annotation for a refused upload only on the run page', async () => {
+    const source = join(scratch, 'refused-src');
+    const out = join(scratch, 'refused-out');
+    mkdirSync(join(source, '2026/09'), { recursive: true });
+    writeFileSync(join(source, '2026/09/studiu.pdf'), 'not an image');
+    const previous = process.env.GITHUB_ACTIONS;
+    const written: string[] = [];
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      written.push(String(chunk));
+      return true;
+    });
+    try {
+      process.env.GITHUB_ACTIONS = 'true';
+      await expect(
+        sanitiseUploads({ src: source, out, log: () => {} }),
+      ).rejects.toThrow(/studiu\.pdf/);
+    } finally {
+      spy.mockRestore();
+      if (previous === undefined) delete process.env.GITHUB_ACTIONS;
+      else process.env.GITHUB_ACTIONS = previous;
+    }
+    const annotated = written.join('');
+    expect(annotated).toContain('::error::');
+    expect(annotated).toContain('2026/09/studiu.pdf');
+    expect(annotated).toContain('imagini');
   });
 });

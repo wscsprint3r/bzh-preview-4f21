@@ -63,6 +63,10 @@ iar site-ul le preia la următoarea reconstrucție.
   securitate, adresele de tip `blob:` pe care CMS-ul le folosește pentru previzualizări.
   **Fișierele sunt întregi** și apar normal pe site; nu reîncărcați poza din această
   pricină.
+- **În bibliotecă intră doar imagini.** Sunt acceptate JPEG, PNG, WebP și AVIF. Orice alt
+  fișier — un PDF, un SVG, un document — oprește publicarea: site-ul nu îl poate prelucra,
+  iar reconstrucția se oprește și scrie pe pagina rulării, în românește, numele fișierului.
+  Ștergeți fișierul din bibliotecă (sau din `/uploads/`) și salvați din nou.
 - **Scoateți locația din poză înainte de încărcare.** Pozele păstrează metadatele camerei
   până când site-ul este reconstruit; atunci, copia servită pe site este re-encodată fără
   EXIF și fără GPS. Fișierul original rămâne însă în depozit și în previzualizarea din
