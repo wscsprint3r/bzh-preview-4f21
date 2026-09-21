@@ -811,31 +811,61 @@ describe('the prose pages', () => {
   });
 
   /*
-   * THE FRONTMATTER IMAGE, FROM THE FIELD TO THE PAGE. `pageSchema.image` and
-   * `ContentImage` both existed before this route rendered either: the CMS
-   * offered the field, the schema validated it and nothing read it, which
-   * looks exactly like a working feature from the CMS and from the content
-   * files. `/parohia/istoric/` is the chosen page that carries one, and the
-   * assertion is the whole rendering: exactly one wrapper, exactly one `<img>`
-   * inside it, the page title as its alt, and a src that resolves inside
-   * `dist/` - because an `<img>` at a path the host does not serve 404s with
-   * no other symptom.
+   * THE FRONTMATTER IMAGE, FROM THE FIELD TO THE PAGE - FOR EVERY PAGE THAT
+   * CARRIES ONE. `pageSchema.image` and `ContentImage` both existed before this
+   * route rendered either: the CMS offered the field, the schema validated it
+   * and nothing read it, which looks exactly like a working feature from the
+   * CMS and from the content files. The subject is now the CONTENT FILES - the
+   * pages whose frontmatter carries an `image:` - rather than the one page the
+   * first version happened to name, so a page that gains or loses the field is
+   * followed automatically. Each rendering is the whole claim: exactly one
+   * wrapper, exactly one `<img>`, the page title as its alt, and a src that
+   * resolves inside `dist/` - because an `<img>` at a path the host does not
+   * serve 404s with no other symptom.
    */
-  it('renders the chosen hero image on /parohia/istoric/, exactly one, resolving inside dist/', () => {
-    const wrappers = pageImages(read('parohia/istoric/index.html'));
-    expect(wrappers, '/parohia/istoric/ does not render exactly one .page-image wrapper')
-      .toHaveLength(1);
-    const images = [...(wrappers[0] as string).matchAll(/<img\b[^>]*>/g)].map((m) => m[0] as string);
-    expect(images, 'the .page-image wrapper does not hold exactly one <img>').toHaveLength(1);
-    // The alt is the page title: a CMS image on a prose page is a lead picture,
-    // not an ornament, and an empty field is how a volunteer asks for none.
-    expect(images[0], 'the hero image does not carry the page title as its alt')
-      .toContain('alt="Istoric"');
-    const src = /<img\b[^>]*\bsrc="([^"]+)"/.exec(images[0] as string)?.[1];
-    expect(src, 'the hero image has no src').toBeDefined();
-    expect((src as string).startsWith('/'), `${src} is not root-relative`).toBe(true);
-    const path = (src as string).split(/[?#]/)[0] as string;
-    expect(existsSync(DIST + path.slice(1)), `${src} does not resolve inside dist/`).toBe(true);
+  it('renders the frontmatter image of every page that carries one, exactly once, resolving inside dist/', () => {
+    const pages = pageFiles().filter((f) => typeof f.frontmatter.image === 'string');
+    expect(pages.length, 'no prose page carries an image: field - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    for (const page of pages) {
+      const html = read(`${page.slug}/index.html`);
+      const wrappers = pageImages(html);
+      expect(wrappers, `/${page.slug}/ does not render exactly one .page-image wrapper`)
+        .toHaveLength(1);
+      const images = [...(wrappers[0] as string).matchAll(/<img\b[^>]*>/g)].map((m) => m[0] as string);
+      expect(images, `/${page.slug}/'s .page-image wrapper does not hold exactly one <img>`)
+        .toHaveLength(1);
+      expect(images[0], `/${page.slug}/'s image does not carry the page title as its alt`)
+        .toContain(`alt="${String(page.frontmatter.title)}"`);
+      const src = /<img\b[^>]*\bsrc="([^"]+)"/.exec(images[0] as string)?.[1];
+      expect(src, `/${page.slug}/'s image has no src`).toBeDefined();
+      expect((src as string).startsWith('/'), `${src} is not root-relative`).toBe(true);
+      const path = (src as string).split(/[?#]/)[0] as string;
+      expect(existsSync(DIST + path.slice(1)), `${src} does not resolve inside dist/`).toBe(true);
+    }
+    process.stdout.write(`\nFrontmatter images: ${pages.length} page(s) with a lead image.\n`);
+  });
+
+  /*
+   * THE SCHOOL PAGE'S TWO REPLACED PHOTOGRAPHS. The lead image and the body
+   * image both changed on 2026-09-21. The durable half of this is the guard
+   * above plus the body-image guard; this one is the red-first driver,
+   * asserting the page no longer names either file it used to show. The
+   * presence arm is the positive control: a page that rendered no image at all
+   * would satisfy two `not.toContain` checks vacuously.
+   */
+  it('the school page shows the two chosen photographs, not the ones they replaced', () => {
+    const html = read('comunitate/scoala/index.html');
+    for (const old of ['166876765_1270252473370992', '299423305_1614472635615639']) {
+      expect(html, `the school page still renders ${old}`).not.toContain(old);
+    }
+    const srcs = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1] as string);
+    expect(srcs.length, 'the school page renders no image - the absence above proves nothing')
+      .toBeGreaterThanOrEqual(2);
+    for (const src of srcs) {
+      const path = src.split(/[?#]/)[0] as string;
+      expect(existsSync(DIST + path.slice(1)), `${src} does not resolve inside dist/`).toBe(true);
+    }
   });
 
   /*
