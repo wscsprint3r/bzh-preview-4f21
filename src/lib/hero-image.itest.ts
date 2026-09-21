@@ -27,7 +27,8 @@ const HTML = readFileSync(join(DIST, 'index.html'), 'utf8');
 
 /*
  * MEASURED 2026-09-21 through Astro at its default quality, against the
- * re-cut 2:1 derivative (`7-hero.jpg`, `sharp(src).resize({ width: 1600
+ * re-cut 2:1 derivative (`src/assets/content/2025/12/7-hero.jpg`,
+ * `sharp(src).resize({ width: 1600
  * }).extract({ left: 0, top: 280, width: 1600, height: 800 }).jpeg({ quality:
  * 90 })`): 480w = 28,834 B, 800w = 70,706 B, 1200w = 137,744 B. The ceiling
  * of 180,000 is headroom for a re-encode of this crop, not enough to hide a

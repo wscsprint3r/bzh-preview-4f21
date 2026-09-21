@@ -45,7 +45,7 @@ const LEGACY_GALLERY_SUBDIR = 'src/assets/content/galleries/legacy';
 export const ALLOWED_EXTENSIONS = ['jpeg', 'jpg', 'png', 'webp'];
 
 /** The long edge everything is downscaled to. Spec 11. */
-const MAX_EDGE = 2400;
+export const MAX_EDGE = 2400;
 
 /**
  * WordPress writes `name-WIDTHxHEIGHT.ext` for every generated thumbnail.

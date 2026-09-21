@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
+import { MAX_EDGE } from '../../migration/media.mjs';
 
 /*
  * THE COMMITTED PHOTOGRAPHS, AND THE TREATMENT THEY MUST HAVE HAD.
@@ -27,9 +28,6 @@ function walk(dir: string): string[] {
   );
 }
 
-/** The migration's long edge (`MAX_EDGE` in `migration/media.mjs`). */
-const MAX_EDGE = 2400;
-
 describe('the committed photographs', () => {
   it('have all been through the sanitising re-encode: no EXIF, no edge over 2400', async () => {
     const files = walk(CONTENT);
@@ -39,13 +37,16 @@ describe('the committed photographs', () => {
     for (const file of files) {
       const meta = await sharp(file).metadata();
       expect(meta.exif, `${relative(CONTENT, file)} still carries EXIF`).toBeUndefined();
+      expect(meta.icc, `${relative(CONTENT, file)} still carries an ICC profile`).toBeUndefined();
+      expect(meta.xmp, `${relative(CONTENT, file)} still carries XMP`).toBeUndefined();
+      expect(meta.iptc, `${relative(CONTENT, file)} still carries IPTC`).toBeUndefined();
       const edge = Math.max(meta.width ?? 0, meta.height ?? 0);
       longest = Math.max(longest, edge);
       expect(edge, `${relative(CONTENT, file)} is ${meta.width}x${meta.height}, over ${MAX_EDGE}`)
         .toBeLessThanOrEqual(MAX_EDGE);
     }
     process.stdout.write(
-      `\nContent assets: ${files.length} files, none with EXIF, longest edge ${longest}.\n`,
+      `\nContent assets: ${files.length} files, none with EXIF, ICC, XMP or IPTC, longest edge ${longest}.\n`,
     );
   });
 

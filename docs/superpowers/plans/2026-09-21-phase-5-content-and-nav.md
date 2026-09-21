@@ -94,7 +94,7 @@ untracked is green; committing it early reddens that sweep.
 
 | Question | Decision |
 |---|---|
-| Which gallery albums | **Two, by event**, because the capture dates are two events: Sfântul Nicolae (2025-12-06: 5, 6, 7, 10) and Paștele 2026 (2026-04-10/11: 1, 2, 3, 4, 8, 9). The gallery is event-based and date-sorted already. |
+| Which gallery albums | **Two, by event**, because the capture dates are two events: Sfântul Nicolae (2025-12-06: 5, 6, 7, 10) and Paștele 2026 (photographs captured 2026-04-10/11, the album dated to the feast, 2026-04-12: 1, 2, 3, 4, 8, 9). The gallery is event-based and date-sorted already. |
 | Evenimente's removal | **Header link only.** The `/evenimente/` pages stay built, linked from the footer's Site menu and listed in the sitemap; the events collection is untouched. |
 | Where Școala parohială sits | **In Evenimente's slot** — position four, between Noutăți and Servicii liturgice — so the parish's settled order is otherwise unchanged. |
 | Asset names | **The numbered names kept**, in dated folders: the parish refers to these ten by number, and the folders make the names unambiguous. Precedent: `src/assets/content/2026/03/` holds hand-added photographs under their original names. |
@@ -102,8 +102,8 @@ untracked is green; committing it early reddens that sweep.
 | Album order | **The parish's numbering**: 5, 6, 7, 10 and 1, 2, 3, 4, 8, 9. |
 | Album descriptions | **None**, matching the `sfintele-pasti-2024` album; a caption is the text alternative and nobody has written one for these. |
 | School page mapping | **5 as the lead image** (frontmatter, rendered under the h1) and **6 as the body image**. |
-| The hero photograph | **7** — the three priests around the cross at the altar, the parish's own photograph, already in the Sfântul Nicolae 2025 album, so no licence question. |
-| The hero crop | **2:1, chosen by eye from a contact sheet**, keeping the three priests, the cross and the altar table; the derivative is cut from the imported 2400×1800 file, never from the album file in place. |
+| The hero photograph | **7** — the four clergy around the cross at the altar, the parish's own photograph, already in the Sfântul Nicolae 2025 album, so no licence question. |
+| The hero crop | **2:1, chosen by eye from a contact sheet**, keeping the four clergy, the cross and the altar table; the derivative is cut from the imported 2400×1800 file, never from the album file in place. |
 
 ---
 
@@ -111,7 +111,7 @@ untracked is green; committing it early reddens that sweep.
 
 **Files:**
 - Modify: `src/components/SiteHeader.astro`
-- Modify: `src/lib/build-output.itest.ts` (a new `it` in the `the built pages` describe, after
+- Modify: `src/lib/build-output.itest.ts` (a new `it` in the built-pages describe, after
   the homepage-news test that ends around line 1697)
 
 **Interfaces:**
@@ -610,7 +610,9 @@ git commit -m "content(scoala): the two chosen photographs" -- \
   replaced derivative; `src/lib/images.ts` eagerly globs every file under `src/assets/`, so an
   orphaned derivative still ships bytes. The source photograph,
   `src/assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d.jpg`, stays because it is
-  one of the `sfintele-pasti-2024` album's images.
+  one of the `sfintele-pasti-2024` album's images. That deleted path is written without
+  backticks on purpose: it is absent by decision, and `src/lib/referenced-paths.test.ts` sweeps
+  only paths that exist.
 - Modify: `src/pages/index.astro` (the import, the hero comment, `.hero-img` focal points)
 - Modify: `src/lib/hero-image.itest.ts` (the measured numbers in the comment)
 - Create (scratch, git-ignored, deleted after): .superpowers/phase-5-hero-probe.mjs,
@@ -766,9 +768,9 @@ not touch the threshold.
 
 ```bash
 rm .superpowers/phase-5-hero-probe.mjs .superpowers/phase-5-hero-cut.mjs .superpowers/phase-5-hero-shot.mjs
-git add src/assets/content/2025/12/7-hero.jpg src/pages/index.astro src/lib/hero-image.itest.ts
+git add src/assets/content/2025/12/7-hero.jpg src/assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d-hero.jpg src/pages/index.astro src/lib/hero-image.itest.ts
 git commit -m "feat(homepage): the hero becomes the cross procession" -- \
-  src/assets/content/2025/12/7-hero.jpg src/pages/index.astro src/lib/hero-image.itest.ts
+  src/assets/content/2025/12/7-hero.jpg src/assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d-hero.jpg src/pages/index.astro src/lib/hero-image.itest.ts
 ```
 
 ---
