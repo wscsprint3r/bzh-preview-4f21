@@ -429,7 +429,7 @@ const EXTENSIONS_FOR_FORMAT = { jpeg: ['jpg', 'jpeg'], png: ['png'], webp: ['web
  * question only; the bytes come from `source`, which the caller has already
  * proved is inside the tree it belongs to.
  */
-async function reencode(source, relative) {
+export async function reencode(source, relative) {
   const raw = await readFile(source);
   // Decode -> resize -> re-encode. Whatever was appended to, or hidden in, the
   // original does not survive being turned back into pixels and written out
