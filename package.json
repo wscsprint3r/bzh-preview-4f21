@@ -14,12 +14,13 @@
     "test:watch": "vitest",
     "astro": "astro",
     "test:build": "astro build && vitest run --config vitest.itest.config.ts && node scripts/a11y.mjs && node scripts/check-budget.mjs",
-    "test:all": "npm run test && npm run test:build && npm run a11y:mobile && npm run a11y:wide && npm run a11y:picker",
+    "test:all": "npm run test && npm run test:build && npm run a11y:mobile && npm run a11y:wide && npm run a11y:picker && npm run test:indexable",
     "a11y": "astro build && node scripts/a11y.mjs",
     "budget": "node scripts/check-budget.mjs",
     "a11y:mobile": "astro build && node scripts/a11y.mjs --mobile",
     "a11y:wide": "astro build && node scripts/a11y.mjs --wide",
-    "a11y:picker": "node scripts/a11y-picker.mjs"
+    "a11y:picker": "node scripts/a11y-picker.mjs",
+    "test:indexable": "node scripts/indexable-check.mjs"
   },
   "dependencies": {
     "@fontsource-variable/material-symbols-outlined": "5.3.1",

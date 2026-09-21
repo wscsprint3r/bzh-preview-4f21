@@ -2,6 +2,7 @@
 title: "Cursuri de pictură"
 path: "comunitate/pictura"
 order: 50
+image: "../../assets/content/2026/03/PHOTO-2026-02-20-20-04-27-1.jpg"
 ---
 
 ## Curs Pictura Icoane Pe Lemn
@@ -23,7 +24,7 @@ Pentru mai multe detalii și înscrieri, vă rugăm să luați legătura direct 
 
 Vom anunța pe website-ul parohiei data următorului curs imediat ce aceasta va fi stabilită.
 
-![Icoane Bizantine](../../assets/content/2026/03/PHOTO-2026-02-20-20-04-27-1.jpg) ![](../../assets/content/2026/03/PHOTO-2026-02-20-20-57-29.jpg)
+![](../../assets/content/2026/03/PHOTO-2026-02-20-20-57-29.jpg)
 
 ## Galerie
 

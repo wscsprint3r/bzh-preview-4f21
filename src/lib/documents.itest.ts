@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 import { PDF_GATE, gatePdf, gateVerdict } from '../../migration/pdf-gate.mjs';
+import { DOC_SOURCES } from '../../migration/doc-convert.mjs';
 
 /*
  * WHAT THIS PROVES: every PDF this repository ships is one the gate would pass
@@ -39,11 +40,27 @@ const DOCUMENTS = fileURLToPath(new URL('../../public/documente/', import.meta.u
 const CONTENT = fileURLToPath(new URL('../content/documente/', import.meta.url));
 
 /**
- * The measured corpus, pinned by number for the same reason `pageFiles` pins
+ * Every committed PDF, pinned by number for the same reason `pageFiles` pins
  * nine: this tree is the migration's output and is not expected to grow. A PDF
  * added by hand fails here until somebody looks at it and says what it is.
+ *
+ * 95 = the 87 `extractDocuments` copied from the dump, plus the eight `.doc`
+ * study files `migration/doc-convert.mjs` converted once and committed (Task 4,
+ * spec §11 as amended). The gate below walks all ninety-five; the eight
+ * converted studies are downloads on `/resurse/studii/` and are not entries in
+ * the `documente` collection, which is why the content-file count is pinned
+ * separately.
  */
-const EXPECTED = 87;
+const EXPECTED = 95;
+
+/**
+ * The documents `extractDocuments` wrote a content file for: one `.md` per
+ * migrated PDF, which is what the `documente` collection and the `/pastorale/`
+ * index are built from. The eight converted study files have none, so this is
+ * the one number in this file that does not equal the PDF count. It is pinned
+ * by hand and held to `DOC_SOURCES` by the assertions below.
+ */
+const MIGRATED = 87;
 
 /** Every `.pdf` in the committed tree, sorted, by file name. */
 function committedPdfs(): string[] {
@@ -71,19 +88,29 @@ function contentFiles(): { name: string; frontmatter: Record<string, unknown> }[
 }
 
 describe('the committed PDF archive', () => {
-  it('exists and holds the measured 87 files', () => {
+  it('exists and holds the measured 95 files', () => {
     expect(existsSync(DOCUMENTS), `${DOCUMENTS} is missing`).toBe(true);
-    expect(committedPdfs().length, 'public/documente/ does not hold 87 PDFs').toBe(EXPECTED);
+    expect(committedPdfs().length, 'public/documente/ does not hold 95 PDFs').toBe(EXPECTED);
   });
 
-  it('has one content file per PDF, and every one names a file that exists', () => {
+  it('has one content file per migrated PDF, and every one names a file that exists', () => {
     const pdfs = committedPdfs();
     const contents = contentFiles();
     // Both halves, so neither an emptied tree nor a content file pointing at a
-    // missing PDF can pass. The equality is what makes "every" true.
-    expect(contents.length, 'no content file - the loop below would prove nothing').toBe(EXPECTED);
-    expect(contents.length).toBe(pdfs.length);
+    // missing PDF can pass.
+    expect(contents.length, 'no content file - the loop below would prove nothing').toBe(MIGRATED);
+    // The other direction, closed on the one difference the tree is allowed to
+    // have: the PDFs with no content file are exactly the converted study
+    // files, by name, so a hand-added PDF cannot hide in the difference and a
+    // converted file dropped from the tree still fails.
+    expect(pdfs.length - contents.length, 'the PDFs without a content file are not the converted studies')
+      .toBe(DOC_SOURCES.length);
+    expect(EXPECTED - MIGRATED, 'the two pinned counts no longer describe DOC_SOURCES')
+      .toBe(DOC_SOURCES.length);
     const names = new Set(pdfs);
+    for (const { slug } of DOC_SOURCES) {
+      expect(names.has(`${slug}.pdf`), `${slug}.pdf is a converted study and must be committed`).toBe(true);
+    }
     for (const { name, frontmatter } of contents) {
       const file = String(frontmatter.file ?? '');
       expect(file, `${name} does not name a /documente/ PDF`).toMatch(/^\/documente\/[a-z0-9-]+\.pdf$/);
@@ -97,13 +124,15 @@ describe('the committed PDF archive', () => {
 
   /*
    * THIRTY SECONDS, BECAUSE THE DEFAULT FIVE IS A CLOCK AND NOT A GUARD. This
-   * test shells `pdfinfo` and `pdfinfo -js` for each of the 87 committed PDFs,
-   * 174 subprocesses; measured on this machine under load (load average 10-36)
-   * it took 6,485-7,518 ms across five runs, against vitest's 5,000 ms default
-   * - so `npm run test:build` and `test:all` went red for no code reason. The
-   * suite is green at `--testTimeout=60000`. 30 s is the ceiling with room for
-   * a loaded CI runner; it is not a weakened check, because the same 87 files
-   * are still gated by the same three arms.
+   * test shells `pdfinfo` and `pdfinfo -js` for each of the 95 committed PDFs,
+   * 190 subprocesses; measured on this machine under load (load average 10-36)
+   * it took 6,485-7,518 ms at 87 files, against vitest's 5,000 ms default - so
+   * `npm run test:build` and `test:all` went red for no code reason. The suite
+   * is green at `--testTimeout=60000`. 30 s is the ceiling with room for a
+   * loaded CI runner; it is not a weakened check, because the same 95 files
+   * are still gated by the same three arms. Re-measured after Task 4's eight
+   * converted studies joined the tree: 2,071-2,358 ms over three runs at 95
+   * files, 0 failures.
    */
   it('gates every committed PDF through pdfinfo, with no failures', () => {
     const pdfs = committedPdfs();

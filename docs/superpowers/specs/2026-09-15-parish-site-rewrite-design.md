@@ -308,7 +308,12 @@ A static build freezes at deploy time, but "următoarea slujbă" and "săptămâ
 - Cancelled days emit `STATUS:CANCELLED` rather than disappearing, so subscribers see the cancellation.
 - `Cache-Control: max-age=3600` — clients refetch hourly.
 
-Plus a per-day "Adaugă în calendar" link for people who want one service rather than a subscription.
+The whole-feed subscription is the only calendar affordance, and a per-day
+"Adaugă în calendar" link was considered and rejected on 2026-09-19: it needs
+either a per-day `.ics` route (a route per service day, for a one-off need the
+feed already covers) or a Google-specific template URL, and the day row already
+links the feed. The rejection is recorded rather than silent because this
+sentence was the requirement.
 
 ---
 
@@ -359,6 +364,16 @@ Scripted and repeatable, not retyped. Rerunning must produce identical output.
 4. **Media** — **measured 2026-09-16: 457 attachments**, not 653: 409 images (266 jpg, 129 png, 13 jpeg, 1 webp), 24 SVG, 10 PDF, 9 `.doc`, 2 MP4, 2 TTF, 1 MP3. Discard every file matching `-WxH.ext`; keep originals; downscale to a 2400px long edge and re-encode. Astro regenerates responsive AVIF/WebP at build.
 
    **Re-encoding is also the sanitisation step, and that is why it is not optional.** This media comes off a server compromised twice. Decoding and re-encoding every raster through `sharp` destroys anything embedded in a file that merely looks like an image, and a file that fails to decode is not an image and is dropped by name. **SVG is not re-encodable and is a script-injection vector: SVGs are dropped unless individually reviewed**, and `.doc` files are not migrated at all.
+
+   **Amended 2026-09-19: the eight `.doc` study files are converted once to PDF and
+   hosted.** They are the only study texts on `/resurse/studii/` that a reader
+   cannot open in a browser, and the cutover snapshot keeps the originals alive
+   regardless. The conversion is a one-time manual step (migration/doc-convert.mjs,
+   LibreOffice) whose output is committed; the migration itself never re-converts,
+   because LibreOffice's PDF bytes are not reproducible run to run and spec §11's
+   determinism rule covers every file the migration writes. See
+   docs/superpowers/plans/2026-09-19-phase-4-cutover-build.md, Task 4.
+
 5. **Rewrite** `wp-content/uploads/...` URLs to `src/assets/...` paths.
 6. **Emit** frontmatter matching the Zod schemas, then run `astro check` and a full build. **A build failure is a migration bug**, not something to fix by loosening the schema.
 7. **URL map** — emit `old path → new path` as CSV, which generates `_redirects` (§12).
@@ -380,6 +395,22 @@ Generated into `_redirects`, all 301:
 
 Plus a deliberate set of **410 Gone** rules for `/wp-admin/*`, `/wp-login.php`, `/xmlrpc.php` and `/wp-content/*`. Bots will keep probing these for years; 410 tells them to stop, and keeps the logs readable.
 
+> **Amendment, 2026-09-20: `_redirects` does not document 410 as supported.** Cloudflare
+> Pages' `_redirects` reference lists 301, 302, 303, 307 and 308 as the supported
+> redirect statuses and marks other status codes unsupported, so the four rules above
+> may not produce a 410 on the deployed site. They stay in `scripts/redirects.mjs`
+> because they encode this section's intent, and handover F5 records what the live site
+> actually returns for `/wp-content/anything`. If the platform ignores them, the block
+> needs another mechanism — a Pages Function or a Cloudflare rule — a deferred item, not
+> part of this build.
+>
+> **Also 2026-09-20: the apex→www redirect is not a `_redirects` rule.** The same
+> reference defines a source as a file path and marks domain-level redirects unsupported —
+> `https://bor-zh.ch/* https://www.bor-zh.ch/:splat` is the reference's own example of
+> what cannot match. The decision lives in `functions/_middleware.ts`: `apexRedirectTarget`
+> in `src/lib/apex.ts` is pure and unit-tested, and the Function 301s the apex host to www
+> with its path and query string. A zone-level Redirect Rule is the alternative.
+
 Well under the 2,000-redirect free-tier limit.
 
 **Canonical host stays `www.bor-zh.ch`** — every existing backlink and the site's own identity use it. The apex redirects to `www`.
@@ -399,6 +430,11 @@ Well under the 2,000-redirect free-tier limit.
 | Lighthouse accessibility | 100 | — |
 
 Budgets are enforced in CI; exceeding them fails the build.
+
+The two Lighthouse rows are **deferred to Phase 5** (ruling of 2026-09-19): the
+byte, request and JS budgets are enforced in CI, and Lighthouse is measured by
+hand at deployment (handover H8) until a Phase 5 decides how to automate it
+against a real network rather than a runner. Deferred, not dropped.
 
 ---
 

@@ -33,9 +33,10 @@ Două lucruri care se uită ușor:
 
 Dacă ceva nu apare pe site după câteva minute, construcția a eșuat. Veți primi un
 e-mail de la GitHub. **E-mailul acela nu numește niciun fișier** — spune doar că a
-eșuat, și dă un link; nimic din acest depozit nu poate scrie în el. Deschideți
-linkul și citiți ce scrie sus, pe pagină: dacă acolo apare un text în românește,
-acela este explicația și vă spune ce s-a întâmplat.
+eșuat, și dă un link; nimic din acest depozit nu poate scrie în el. Deschideți linkul
+și citiți partea de sus a paginii rulării: dacă acolo apare un text în românește,
+acela este explicația; la depășirea limitei de greutate a paginilor, textul numește
+și paginile afectate.
 
 Dacă nu găsiți nimic care să vă privească — și de cele mai multe ori nu vă va
 privi — **anunțați persoana care se ocupă de site și lăsați-o în seama ei.** Nu
@@ -61,6 +62,9 @@ apăsa din nou **`Save`**.
   îl lăsați gol, articolul apare doar cu titlul.
 - **Data** așază articolul în listă, cel mai nou primul, și apare sub titlu. Ea
   nu se schimbă singură: dacă ați greșit-o, corectați-o și salvați.
+
+**Ghidul complet pentru editare** — programul săptămânii, noutățile, pozele și datele de
+contact — este în `docs/ghid-editor.md`.
 
 ## Dezvoltare
 
@@ -92,7 +96,9 @@ construite — la lățimea implicită, la 390px (telefon), la 1100px (peste pra
 de 62rem) și peste o construcție de probă cu mai multe săptămâni, singura în
 care se vede bara selectorului de săptămână; ultima rulează la toate trei
 lățimile, fiindcă rândul de șapte zile al Săptămânii Mari *cu bara vizibilă* nu
-apare în nicio altă construcție.
+apare în nicio altă construcție. La sfârșit, `test:indexable` construiește într-un
+director de probă o copie cu `INDEXABLE` întors și verifică `/sitemap-index.xml` și
+`robots.txt` în ambele stări.
 
 Fiecare trecere servește paginile cu antetele `_headers` **ale construcției pe
 care o auditează** și pică la orice încălcare de Content-Security-Policy

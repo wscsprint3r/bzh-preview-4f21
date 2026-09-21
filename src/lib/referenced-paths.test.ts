@@ -93,6 +93,10 @@ const ABSENT_ON_PURPOSE: Record<string, readonly string[]> = {
     'test.ts',
     'web/.github/workflows/nightly.yml',
   ],
+  'removed by decision: the licence could not be confirmed, and the build publishes every file under src/assets whether a page links it or not (backlog B5)': [
+    'src/assets/content/2024/05/AdobeStock_298003333.jpeg',
+    'src/assets/content/2024/05/istockphoto-1338836802-2048x2048-prelucrata-1.jpg',
+  ],
 };
 
 const EXEMPT = new Set(Object.values(ABSENT_ON_PURPOSE).flat());

@@ -2,6 +2,7 @@
 title: "Istoric"
 path: "parohia/istoric"
 order: 10
+image: "../../assets/content/2024/05/fbac9ffd-709b-4e9c-ab78-8f88862fdbee.jpg"
 ---
 
 ## Parohia Ortodoxa Romana Sfântul Nicolae din Zürich
@@ -26,4 +27,4 @@ Hramul parohiei - Sfântul Ierarh Nicolae-6 decembrie - împreună cu marile Pra
 
 Fie ca Milostivul Dumnezeu să reverse pururea harul și darurile Sale cele bogate peste întreaga comunitate.
 
-![](../../assets/content/2024/05/fbac9ffd-709b-4e9c-ab78-8f88862fdbee.jpg) ![](../../assets/content/2024/05/icoana-Sfantul-Nicolae-scaled-e1717407098424.jpg) ![](../../assets/content/2024/05/d137c008-87ff-423a-a95f-5da44b9f1534.jpg)
+![](../../assets/content/2024/05/icoana-Sfantul-Nicolae-scaled-e1717407098424.jpg) ![](../../assets/content/2024/05/d137c008-87ff-423a-a95f-5da44b9f1534.jpg)

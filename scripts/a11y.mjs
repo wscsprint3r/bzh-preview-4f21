@@ -56,7 +56,10 @@
  *   - text over a gradient or a background-image. axe reports those as
  *     `incomplete` rather than as a pass, so this script fails on any
  *     `incomplete` for color-contrast and prints the selector. "Could not
- *     determine" is a decision someone makes, not a silence.
+ *     determine" is a decision someone makes, not a silence. THE ONE EXCEPTION
+ *     IS THE HOMEPAGE HERO: `heroTextIncompletes` recognises its nodes,
+ *     `measureHeroContrast` below judges the same pixels against WCAG, and
+ *     every other incomplete still fails — see the block above that function.
  *   - text drawn inside an inline `<svg>`, which axe can never resolve a
  *     background for: `elementHasImage` treats every SVG node as a graphic, so
  *     the `color-contrast` rule returns `incomplete` for each `<text>`/`<tspan>`
@@ -98,7 +101,9 @@ import { pathToFileURL } from 'node:url';
 import { Builder } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome.js';
 import chromedriver from 'chromedriver';
+import sharp from 'sharp';
 import { headersForPath, parseHeaders } from './headers.mjs';
+import { heroContrastProblems } from '../src/lib/hero-contrast.ts';
 
 const AXE = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
 
@@ -1460,6 +1465,122 @@ export function svgTextIncompletes(rule) {
 }
 
 /*
+ * The class shapes the hero exemption may name: the `hero` token itself and
+ * the `hero-*` classes the block gives its descendants (`.hero-in`,
+ * `.hero-verse`). A name that merely begins with the letters — `heroic`,
+ * `hero2`, `heros` — is not one of them.
+ */
+const HERO_CLASS = /\.hero(?![\w-])|\.hero-[\w-]+/;
+const isHeroChain = (chain) => typeof chain === 'string' && HERO_CLASS.test(chain);
+
+/*
+ * THE STAMPING COLLECTOR, WRITTEN ONCE AND USED BY BOTH SIDES. The measurement
+ * stamps `data-hero-contrast-text` on every text-bearing element it judges,
+ * and the exemption's coverage check asks which elements carry it. Two copies
+ * of "which elements are hero text" would be a drift with no symptom — the
+ * measurement would judge one set and the exemption would clear another — so
+ * the collector is one source string interpolated into both page scripts.
+ * `heroTextElements` is the collector; `stampHeroTexts` is the collector plus
+ * the attribute. `visibility: hidden` in the probe below hides exactly the
+ * stamped set, which is why the attribute must be on everything measured and
+ * on nothing else.
+ */
+const HERO_TEXT_STAMP_SOURCE = `
+  const heroTextElements = (section) =>
+    [...section.querySelectorAll('*')].filter((el) => {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'script' || tag === 'style') return false;
+      return [...el.childNodes].some(
+        (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '',
+      );
+    });
+  const stampHeroTexts = (section) => {
+    const texts = heroTextElements(section);
+    for (const el of texts) el.setAttribute('data-hero-contrast-text', '');
+    return texts;
+  };
+`;
+
+/*
+ * THE HERO'S DECLARED GAP, RECONCILED THE SAME WAY AS THE SVG TEXT. axe cannot
+ * resolve a background image, so the hero's h1 and verse arrive as
+ * `color-contrast` incompletes whatever their real contrast is. They are
+ * exempted here and judged by `measureHeroContrast` below, on the pixels. The
+ * matcher is fail-closed: every selector chain in a target must name the
+ * `.hero` CLASS TOKEN, or the node stays in scope and fails.
+ *
+ * A CLASS TOKEN, NOT A SUBSTRING, AND THE DIFFERENCE WAS MEASURED. The first
+ * version asked `chain.includes('.hero')`, which exempts `.hero-verse` — the
+ * hero's own verse — and equally `.heroic-banner`, `.hero2` and `.heros`,
+ * none of which `measureHeroContrast` measures. `includes` is a claim about
+ * characters; the claim here is about a class. `isHeroChain` accepts the
+ * `hero` class token (`/\.hero(?![\w-])/`) and the `hero-*` names the block
+ * uses for its descendants (`/\.hero-[\w-]+/`), and refuses a longer name that
+ * merely begins with the same letters. It deliberately does NOT require a
+ * combinator before the dot: `section.hero` and `main > .hero` are the same
+ * class, and a pattern that demanded a space or `>` would exempt neither. The
+ * first draft of this fix proposed exactly that pattern; the unit cases below
+ * pin both directions it got wrong. `.hero-ish` is lexically the same shape as
+ * `.hero-verse` and is the reason the matcher is not the authority — the
+ * stamped-set tie below is.
+ *
+ * THE h1 ARRIVES AS A BARE `h1`, AND THAT IS WHY THE SECOND BRANCH EXISTS.
+ * Measured on the Task 6 build with a probe, not assumed: axe reports the
+ * shortest unique selector, so the verse is `.hero-verse` but the h1 — which
+ * has no class of its own — is just `h1`, and adding a class to it does NOT
+ * change that (measured both ways; axe still prints `h1`). The first branch
+ * therefore catches the verse and misses the h1, and a matcher that stopped
+ * there would leave the pass red for ever.
+ *
+ * The handle is in the check axe itself attaches: the undetermined background
+ * is the scrim, `.hero::after`, and the check says so —
+ * `data.messageKey: 'pseudoContent'` with the pseudo element's owner,
+ * `.hero`, named in `relatedNodes`. A node is exempted on that evidence only
+ * when EVERY related node is the hero and the reason is the scrim's pseudo
+ * content; a bare `h1` with no such check, or with related nodes that name
+ * anything else, stays in scope and keeps failing. The real node shapes are
+ * pinned in `src/lib/a11y-passes.test.ts`.
+ *
+ * AND THE EXEMPTION IS TIED TO THE MEASUREMENT, NOT ONLY TO A SELECTOR. A
+ * matcher alone says "this looks like the hero"; it does not say the pixels
+ * were judged. `coverage` is what the browser reports per node, computed in the
+ * same document axe just audited by `heroCoverage` below:
+ *
+ * - `stamped` — every chain of the node's target resolved to an element
+ *   carrying `data-hero-contrast-text`, the attribute `measureHeroContrast`
+ *   stamps on everything it measures. False for any page but `index.html`,
+ *   for a chain that resolves to nothing, and for the default `[]`, so a
+ *   caller that cannot prove coverage keeps the node in scope and the pass
+ *   fails.
+ * - `evidenceHero` — the check that made this node an incomplete names the
+ *   scrim's pseudo element (`messageKey: 'pseudoContent'`) and every
+ *   `relatedNodes` target RESOLVED to an element inside the hero. Resolved,
+ *   not read: axe prints the shortest unique selector, and that selector is
+ *   not stable across content. Measured 2026-09-21, the first day with no
+ *   upcoming week: the homepage's week `<section>`s are absent, the hero
+ *   becomes the only `<section>`, and axe names the scrim's owner `section`
+ *   where it had named it `.hero`. A string matcher — including this file's
+ *   own first fix, `chain.includes('.hero')` — cannot see that `section` is
+ *   the hero; the DOM can, and `closest('.hero')` is what asks it.
+ *
+ * A node is exempted when it was stamped AND is either named by a chain that
+ * carries the hero class token or evidenced by the scrim's owner resolving
+ * inside the hero. Everything else stays in scope.
+ */
+export function heroTextIncompletes(rule, coverage = []) {
+  if (rule?.id !== 'color-contrast') return [];
+  return (rule.nodes ?? []).filter((node, index) => {
+    const entry = coverage[index];
+    if (entry?.stamped !== true) return false;
+    const chains = node?.target;
+    if (Array.isArray(chains) && chains.length > 0 && chains.every(isHeroChain)) {
+      return true;
+    }
+    return entry.evidenceHero === true;
+  });
+}
+
+/*
  * THE READING COLUMN, CHECKED BY THE ONLY THING THAT CAN SEE IT.
  *
  * The column's property is geometric - one centered axis, a text box that is
@@ -1687,6 +1808,234 @@ async function measureReadingColumn(driver, page, selectors) {
       }),
     };
   `);
+}
+
+/*
+ * WHICH NODES THE MEASUREMENT ACTUALLY COVERS, reported in the document axe
+ * just audited. The exemption in `heroTextIncompletes` is a claim about
+ * selectors; this is the fact underneath it, resolved against the DOM rather
+ * than read off the selector strings. Per node it reports:
+ *
+ * - `stamped` — every chain of the node's `target` resolves to at least one
+ *   element AND every element it resolves to carries
+ *   `data-hero-contrast-text`. A chain that matches nothing, or matches an
+ *   element the measurement never stamped, reports false, and the node stays
+ *   in scope. `querySelectorAll` on an axe chain can throw on a selector this
+ *   engine cannot parse; that is a false, not a crash, because "cannot prove
+ *   coverage" is the fail-closed direction.
+ * - `evidenceHero` — the node is an incomplete because of a pseudo element
+ *   (`messageKey: 'pseudoContent'`), every check with that key has at least
+ *   one `relatedNodes` entry, and every entry's target resolves to an element
+ *   inside the hero (`closest('.hero')`). This is why the selector string is
+ *   not trusted: axe prints the shortest unique selector, and the homepage's
+ *   own content decides which string that is. Measured 2026-09-21, the day
+ *   after the last published Sunday: with no week sections on the page the
+ *   hero is the only `<section>`, and axe named the scrim's owner `section`.
+ *   A string matcher cannot place that inside the hero; `closest` can.
+ *
+ * THE STAMPING RUNS HERE TOO. axe ran in this document, but `stampHeroTexts`
+ * runs in the measurement's own page load, so the attributes would not be here
+ * unless this script stamps first. It stamps the same set, from the same
+ * source string, and then answers.
+ */
+async function heroCoverage(driver, rule) {
+  const nodes = (rule.nodes ?? []).map((node) => ({
+    target: node.target ?? [],
+    checks: (node.any ?? []).map((check) => ({
+      messageKey: check?.data?.messageKey ?? null,
+      related: (check?.relatedNodes ?? []).map((relatedNode) => relatedNode?.target ?? []),
+    })),
+  }));
+  return driver.executeScript(
+    `
+    ${HERO_TEXT_STAMP_SOURCE}
+    for (const section of document.querySelectorAll('.hero')) stampHeroTexts(section);
+    const resolve = (chain) => {
+      if (typeof chain !== 'string') return null;
+      try {
+        return [...document.querySelectorAll(chain)];
+      } catch {
+        return null;
+      }
+    };
+    const stamped = (chain) => {
+      const elements = resolve(chain);
+      return (
+        elements !== null &&
+        elements.length > 0 &&
+        elements.every((el) => el.hasAttribute('data-hero-contrast-text'))
+      );
+    };
+    const insideHero = (chain) => {
+      const elements = resolve(chain);
+      return elements !== null && elements.length > 0 && elements.every((el) => el.closest('.hero') !== null);
+    };
+    return arguments[0].map((node) => {
+      const chains = Array.isArray(node.target) ? node.target : [];
+      const evidence = node.checks.filter((check) => check.messageKey === 'pseudoContent');
+      return {
+        stamped: chains.length > 0 && chains.every(stamped),
+        evidenceHero:
+          evidence.length > 0 &&
+          evidence.every(
+            (check) =>
+              check.related.length > 0 && check.related.every((target) => target.every(insideHero)),
+          ),
+      };
+    });
+  `,
+    nodes,
+  );
+}
+
+/*
+ * The hero, measured the way a reader sees it. One navigation to `/`, every
+ * text's rect and computed colour read from the DOM, the text hidden with an
+ * injected style, ONE full-page screenshot with `captureBeyondViewport`, then
+ * each `.hero`'s region extracted from it and judged by `heroContrastProblems`.
+ * The style and the marks are removed in a `finally`, so a failure cannot leave
+ * the page altered for the axe pass that follows.
+ *
+ * IT MEASURES EVERY TEXT-BEARING DESCENDANT OF EVERY `.hero`, NOT `h1, p`. The
+ * exemption in `heroTextIncompletes` exempts any hero text axe cannot judge, so
+ * the measurement has to cover whatever the exemption can reach. The subject is
+ * therefore every element under a `.hero` with a DIRECT non-whitespace text
+ * node (`script`/`style` excluded) — a `.hero-link`, a span or a button added
+ * later is measured the run it appears, without anyone remembering to widen a
+ * selector list here. And EVERY `.hero` on the page is measured, not only the
+ * first: `querySelector` would have left a second hero exempted and unmeasured.
+ * Each measured element is marked with `data-hero-contrast-text`, which is what
+ * the injected style hides for the screenshot.
+ *
+ * THE FULL-PAGE CAPTURE IS WHY, AND IT WAS MEASURED. A per-hero clipped
+ * screenshot silently captures the WRONG PIXELS when the hero extends past the
+ * viewport: probed with a second hero whose bottom sat ~98px below the 413px
+ * viewport, the clip came back as the parchment page below it (mean
+ * `[188,152,148]`) while one full-page capture with `captureBeyondViewport:
+ * true`, extracted at the hero's page coordinates, returned the scrim for both
+ * heroes (`[120,51,51]`, `[119,51,50]`). The extraction region is rounded once
+ * and the text rects are mapped against THAT rounded origin, so the sampled
+ * pixels and the reported coordinates cannot disagree.
+ *
+ * IT FAILS WHEN IT FINDS NOTHING TO MEASURE. A page with no `.hero` section, or
+ * with no text in any of them, is a guard that measured nothing and must not
+ * report a pass — the same rule every file-reading guard in this project
+ * follows.
+ *
+ * THE SCREENSHOT COMES BACK THROUGH `sendAndGetDevToolsCommand`, NOT
+ * `sendDevToolsCommand`. The latter is what the rest of this file uses for the
+ * emulation commands, and it DISCARDS the CDP result — it resolves to nothing,
+ * so `result.data` on it is a null dereference. Measured on this driver
+ * (selenium-webdriver 4.44): the same call that returns void from
+ * `sendDevToolsCommand` returns `{ data: <base64 png> }` from the
+ * `_and_get_result` variant. This is the only call here that needs the reply.
+ */
+async function measureHeroContrast(driver, url, log) {
+  await driver.get(url('index.html'));
+  const page = await driver.executeScript(`
+    ${HERO_TEXT_STAMP_SOURCE}
+    const sections = [...document.querySelectorAll('.hero')];
+    const heroes = sections.map((section, index) => {
+      const r = section.getBoundingClientRect();
+      const texts = stampHeroTexts(section).map((el) => {
+          const b = el.getBoundingClientRect();
+          const className = typeof el.className === 'string' ? el.className.trim() : '';
+          return {
+            selector:
+              (sections.length > 1 ? '.hero[' + index + '] ' : '') +
+              el.tagName.toLowerCase() +
+              (className === '' ? '' : '.' + className.split(/\\s+/).join('.')),
+            rect: { left: b.left, top: b.top, width: b.width, height: b.height },
+            color: getComputedStyle(el).color,
+          };
+        });
+      return { rect: { left: r.left, top: r.top, width: r.width, height: r.height }, texts };
+    });
+    return {
+      heroes,
+      scrollWidth: document.documentElement.scrollWidth,
+      scrollHeight: document.documentElement.scrollHeight,
+    };
+  `);
+  if (page.heroes.length === 0) {
+    return ['the homepage has no .hero section — the contrast guard measured nothing.'];
+  }
+  if (page.heroes.every((hero) => hero.texts.length === 0)) {
+    return ['the .hero section has no text — the contrast guard measured nothing.'];
+  }
+  const problems = [];
+  const measured = [];
+  try {
+    await driver.executeScript(`
+      const style = document.createElement('style');
+      style.id = 'hero-contrast-probe';
+      style.textContent = '[data-hero-contrast-text] { visibility: hidden !important; }';
+      document.head.append(style);
+    `);
+    const result = await driver.sendAndGetDevToolsCommand('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width: page.scrollWidth, height: page.scrollHeight, scale: 1 },
+    });
+    const full = Buffer.from(result.data, 'base64');
+    const fullShot = await sharp(full).raw().toBuffer({ resolveWithObject: true });
+    for (const [index, hero] of page.heroes.entries()) {
+      const label = page.heroes.length > 1 ? `.hero[${index}]` : '.hero';
+      const region = {
+        left: Math.max(0, Math.round(hero.rect.left)),
+        top: Math.max(0, Math.round(hero.rect.top)),
+        width: Math.round(hero.rect.width),
+        height: Math.round(hero.rect.height),
+      };
+      region.width = Math.min(region.width, fullShot.info.width - region.left);
+      region.height = Math.min(region.height, fullShot.info.height - region.top);
+      if (region.width <= 0 || region.height <= 0) {
+        problems.push(`${label}: the hero box is outside the screenshot — nothing was measured.`);
+        continue;
+      }
+      const heroShot = await sharp(full).extract(region).raw().toBuffer({ resolveWithObject: true });
+      const texts = hero.texts.map((t) => ({
+        ...t,
+        rect: {
+          left: t.rect.left - region.left,
+          top: t.rect.top - region.top,
+          width: t.rect.width,
+          height: t.rect.height,
+        },
+      }));
+      problems.push(
+        ...heroContrastProblems({
+          texts,
+          shot: {
+            width: heroShot.info.width,
+            height: heroShot.info.height,
+            channels: heroShot.info.channels,
+            data: heroShot.data,
+          },
+          /*
+           * The RATIO, not only the verdict: `index.astro`'s scrim percentage
+           * is justified by this number, and a green run is exactly where a
+           * later reader would want to check it. Printed from the measurement
+           * the guard judged rather than recomputed for display.
+           */
+          report: (selector, worst) =>
+            measured.push(
+              `  hero contrast ${selector}: worst ${worst.toFixed(2)}:1 over ` +
+                `${heroShot.info.width}x${heroShot.info.height} px`,
+            ),
+        }),
+      );
+    }
+  } finally {
+    await driver.executeScript(`
+      document.getElementById('hero-contrast-probe')?.remove();
+      for (const el of document.querySelectorAll('[data-hero-contrast-text]')) {
+        el.removeAttribute('data-hero-contrast-text');
+      }
+    `);
+  }
+  for (const line of measured) log(line);
+  return problems;
 }
 
 /**
@@ -1927,14 +2276,29 @@ export async function runAudit({ dist, pass, extraCheck = null, log = console.lo
         for (const undecided of audit.incomplete ?? []) {
           if (undecided.id !== 'color-contrast') continue;
           /*
-           * THE EXEMPTION IS VISIBLE, NOT SILENT. The SVG-text nodes are
-           * printed with a label naming the declared gap; only the in-scope
-           * incompletes fail. `svgTextIncompletes` returns nothing for anything
-           * it cannot clearly place inside an inline SVG, so a node it is
-           * unsure about lands in `inScope` and the pass fails - which is the
+           * THE EXEMPTIONS ARE VISIBLE, NOT SILENT, AND EACH NAMES ITS GAP.
+           * Two declared gaps arrive here: the SVG text axe can never resolve a
+           * background for, and the homepage hero's photographed ground, which
+           * arrives as an incomplete because axe cannot resolve a photograph
+           * either but is judged on the pixels by `measureHeroContrast` above.
+           * Only the in-scope incompletes fail. Both classifiers fail closed:
+           * `svgTextIncompletes` returns nothing for anything it cannot clearly
+           * place inside an inline SVG, and `heroTextIncompletes` returns
+           * nothing for a node it cannot tie to the hero — so a node either is
+           * unsure about lands in `inScope` and the pass fails, which is the
            * direction that must stay.
            */
-          const exempt = svgTextIncompletes(undecided);
+          const svgExempt = svgTextIncompletes(undecided);
+          /*
+           * Coverage is asked of the page axe just audited, and only for the
+           * homepage: `measureHeroContrast` runs there and nowhere else, so
+           * every other page reports no coverage and the hero exemption cannot
+           * reach anything on it. The default `[]` does the same for any rule
+           * whose targets could not be read.
+           */
+          const heroCovered = page === 'index.html' ? await heroCoverage(driver, undecided) : [];
+          const heroExempt = heroTextIncompletes(undecided, heroCovered);
+          const exempt = [...svgExempt, ...heroExempt];
           const inScope = (undecided.nodes ?? []).filter((node) => !exempt.includes(node));
           const printNodes = (nodes) => {
             for (const node of nodes) {
@@ -1947,17 +2311,35 @@ export async function runAudit({ dist, pass, extraCheck = null, log = console.lo
             fail(`  ${page}: contrast undetermined (usually text over a gradient or an image):`);
             printNodes(inScope);
           }
-          if (exempt.length > 0) {
+          if (svgExempt.length > 0) {
             log(
-              `    ${page}: ${exempt.length} contrast incomplete(s) exempted as the declared ` +
+              `    ${page}: ${svgExempt.length} contrast incomplete(s) exempted as the declared ` +
                 'SVG-text gap (HONEST SCOPE at the top of this file), printed rather than failed:',
             );
-            printNodes(exempt);
+            printNodes(svgExempt);
+          }
+          if (heroExempt.length > 0) {
+            log(
+              `    ${page}: ${heroExempt.length} contrast incomplete(s) exempted as the declared hero ` +
+                'gap — text over the photograph, judged in pixels by measureHeroContrast above ' +
+                '(HONEST SCOPE at the top of this file), printed rather than failed:',
+            );
+            printNodes(heroExempt);
           }
         }
 
         // `runAxe` re-enabled script execution to run axe; put the
         // condition back before the next page loads.
+        await prepare(driver, condition);
+      }
+
+      /*
+       * The hero's crop differs by width (16:6 at desk, 3:2 at phone), so this
+       * runs per condition, not once per pass like the reading column.
+       */
+      if (toAudit.includes('index.html')) {
+        const heroProblems = await measureHeroContrast(driver, url, log);
+        for (const problem of heroProblems) fail(`  ${problem}`);
         await prepare(driver, condition);
       }
 

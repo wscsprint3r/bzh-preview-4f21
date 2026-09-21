@@ -70,6 +70,22 @@ export function isOriginal(path) {
   return allowedExtension(path);
 }
 
+/*
+ * FILES REFUSED BY DECISION, NOT BY SHAPE. Backlog B5: two stock photographs
+ * whose licence the parish could not confirm were deleted from
+ * `src/assets/content/` before cutover. This set exists because a migration
+ * re-run would copy them straight back — the dump still references them, and
+ * the hand edits that stopped referencing them revert with every run — and
+ * `src/lib/images.ts` publishes every file under `src/assets/` whether a page
+ * links it or not. The destination paths are full and exact, so a rename at
+ * the source cannot quietly dodge the refusal, and the skip reason says
+ * "licence" rather than a decode failure so the report is honest about why.
+ */
+export const REFUSED_UPLOADS = new Set([
+  'src/assets/content/2024/05/AdobeStock_298003333.jpeg',
+  'src/assets/content/2024/05/istockphoto-1338836802-2048x2048-prelucrata-1.jpg',
+]);
+
 /**
  * The original a WordPress thumbnail was cut from: `photo-300x200.jpg` ->
  * `photo.jpg`. Anything that is not a thumbnail comes back unchanged.
@@ -581,6 +597,12 @@ export async function migrateImages(
     const thumbnailPath = join(uploadsRoot, rawRelative);
     const destinationRelative = destinationName(src);
     const destination = join(repoRoot, destinationRelative);
+    // The licence refusal, before the claims map and before sharp: these files
+    // are not a decode problem and must not be reported as one.
+    if (REFUSED_UPLOADS.has(destinationRelative)) {
+      skipped.push([src, 'refused: the licence could not be confirmed (backlog B5)']);
+      continue;
+    }
     // THE SECOND LOCK, AND IT IS GENUINELY SECOND NOW. It used to sit after
     // `checkThumbnail` and after the de-duplication, so it was made about
     // paths this process had already `existsSync`-ed and handed to sharp to

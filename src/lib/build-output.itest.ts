@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 import { pageScripts } from '../../scripts/page-scripts.mjs';
+import { DOC_SOURCES } from '../../migration/doc-convert.mjs';
 import type { ArticleEntry } from './articles';
 import { articleSlug, publishedArticles } from './articles';
 import { formatIban } from './accounts';
@@ -404,6 +405,20 @@ function builtAssetAnchors(html: string): { name: string; href: string }[] {
 }
 
 /**
+ * The markup inside every `.page-image` wrapper on a built page, in order.
+ *
+ * `[...page].astro` renders `entry.data.image` inside one such wrapper, and
+ * the wrapper is what makes the claim checkable: an `<img>` anywhere else on
+ * the page - a body image, a future generated block's picture - is not this
+ * field. The class match allows Astro's scoping attribute after the name,
+ * which is how the built `<div>` is serialised.
+ */
+function pageImages(html: string): string[] {
+  return [...html.matchAll(/<div\b[^>]*\bclass="page-image(?:\s[^"]*)?"[^>]*>([\s\S]*?)<\/div>/g)]
+    .map((m) => m[1] as string);
+}
+
+/**
  * Every prose page content file, its public route and its parsed frontmatter.
  *
  * THE SIBLING OF `articleFiles`, and the subject rule is the same one: the
@@ -489,6 +504,20 @@ describe("this file's detectors can actually fire", () => {
     expect(builtAssetAnchors('<a class="x" href="/_astro/a.123.jpg">nume</a>')).toEqual([
       { name: 'nume', href: '/_astro/a.123.jpg' },
     ]);
+  });
+
+  /*
+   * The `.page-image` reader, both directions. It must find the wrapper Astro
+   * actually serialises - the scoping attribute follows the class name, as it
+   * does on the built page - and it must stay quiet on markup that has none.
+   * Without the first, a "no wrapper" assertion over a page without an image
+   * would be true of a pattern that matches nothing at all.
+   */
+  it('reads a .page-image wrapper and stays quiet without one', () => {
+    expect(
+      pageImages('<div class="page-image astro-x"><img src="/_astro/a.webp" alt="Istoric"></div>'),
+    ).toEqual(['<img src="/_astro/a.webp" alt="Istoric">']);
+    expect(pageImages('<div class="prose"><p>text</p></div>')).toEqual([]);
   });
 
   it('the collection really does have days and services to compare', () => {
@@ -782,6 +811,54 @@ describe('the prose pages', () => {
   });
 
   /*
+   * THE FRONTMATTER IMAGE, FROM THE FIELD TO THE PAGE. `pageSchema.image` and
+   * `ContentImage` both existed before this route rendered either: the CMS
+   * offered the field, the schema validated it and nothing read it, which
+   * looks exactly like a working feature from the CMS and from the content
+   * files. `/parohia/istoric/` is the chosen page that carries one, and the
+   * assertion is the whole rendering: exactly one wrapper, exactly one `<img>`
+   * inside it, the page title as its alt, and a src that resolves inside
+   * `dist/` - because an `<img>` at a path the host does not serve 404s with
+   * no other symptom.
+   */
+  it('renders the chosen hero image on /parohia/istoric/, exactly one, resolving inside dist/', () => {
+    const wrappers = pageImages(read('parohia/istoric/index.html'));
+    expect(wrappers, '/parohia/istoric/ does not render exactly one .page-image wrapper')
+      .toHaveLength(1);
+    const images = [...(wrappers[0] as string).matchAll(/<img\b[^>]*>/g)].map((m) => m[0] as string);
+    expect(images, 'the .page-image wrapper does not hold exactly one <img>').toHaveLength(1);
+    // The alt is the page title: a CMS image on a prose page is a lead picture,
+    // not an ornament, and an empty field is how a volunteer asks for none.
+    expect(images[0], 'the hero image does not carry the page title as its alt')
+      .toContain('alt="Istoric"');
+    const src = /<img\b[^>]*\bsrc="([^"]+)"/.exec(images[0] as string)?.[1];
+    expect(src, 'the hero image has no src').toBeDefined();
+    expect((src as string).startsWith('/'), `${src} is not root-relative`).toBe(true);
+    const path = (src as string).split(/[?#]/)[0] as string;
+    expect(existsSync(DIST + path.slice(1)), `${src} does not resolve inside dist/`).toBe(true);
+  });
+
+  /*
+   * THE OTHER DIRECTION, AND ITS POSITIVE CONTROL. `/parohia/consiliul/` is
+   * the page the pick left text-only - its photographs are portraits beside
+   * names, not a lead picture - so its built HTML must carry no `.page-image`
+   * wrapper at all. `read()` is the first control: a missing or empty page
+   * fails before the detector is asked. The second is the same detector run
+   * over the istoric page's HTML, a real page that really does carry one
+   * wrapper, so the empty array below is a statement about this page rather
+   * than about a pattern that matches nothing.
+   */
+  it('renders no hero image on a prose page whose frontmatter carries none', () => {
+    const html = read('parohia/consiliul/index.html');
+    expect(
+      pageImages(read('parohia/istoric/index.html')),
+      'the positive control page does not fire the .page-image detector',
+    ).toHaveLength(1);
+    expect(pageImages(html), '/parohia/consiliul/ renders an image its frontmatter does not carry')
+      .toHaveLength(0);
+  });
+
+  /*
    * F5: THE MIGRATED BODY IMAGES OF THE PROSE PAGES, PROVEN TO RENDER. The
    * same joint the article guard checks, over a corpus with many more images:
    * the migration wrote each body `src` as `../../assets/content/<rest>`, and
@@ -843,18 +920,53 @@ describe('the prose pages', () => {
    * and every `href` at `https://www.bor-zh.ch/…` with a file extension is
    * collected; the assertion is that there are none.
    *
-   * THE EXTENSION LIST IS THE FILES WE NOW HOST: the 87 PDFs and the migrated
-   * images. `.doc` is deliberately outside it: `studii.md` links eight of them
-   * and the migration never copies a `.doc` (the spec's ruling), so those links
-   * stay on the old host and are Phase 4's to rule on - naming them here would
-   * make this assertion say something it does not mean.
+   * THE EXTENSION LIST IS THE FILES WE NOW HOST: the 95 committed PDFs and the
+   * migrated images. `.doc` JOINED IT IN TASK 4: the eight study files are
+   * converted, gated and served from `/documente/`, so an old-host `.doc` href
+   * is now the same defect as an old-host `.pdf` one. The migration still never
+   * copies a `.doc`; `migration/doc-convert.mjs` owns the one-time conversion,
+   * and the rows in `docs/url-map.csv` keep the old paths working.
    */
   it('the migrated prose no longer links at the old host for a file we now host', () => {
     const hosted = builtPages().map((page) => readFileSync(DIST + page, 'utf8')).join('\n');
-    const dead = [...hosted.matchAll(/href="https:\/\/www\.bor-zh\.ch\/[^"]+\.(?:pdf|jpg|jpeg|png)"/g)]
+    const dead = [...hosted.matchAll(/href="https:\/\/www\.bor-zh\.ch\/[^"]+\.(?:pdf|jpg|jpeg|png|doc)"/g)]
       .map((m) => m[0]);
     expect(dead, `links to files the old host no longer needs to serve:\n${dead.join('\n')}`)
       .toEqual([]);
+  });
+
+  /*
+   * THE EIGHT CONVERTED STUDY FILES, ON THE PAGE AND IN `dist/`. The site-wide
+   * assertion above collects every old-host file href - and a link at
+   * `/documente/<slug>.pdf` that names a file nobody copied looks exactly like
+   * one that works, so this follows each of the eight to its built file. The
+   * expected set is `DOC_SOURCES`, the table the one-time conversion and the
+   * URL map both come from, with its length asserted so an emptied table
+   * cannot make the loop vacuous.
+   */
+  it('the studii page links the eight converted study PDFs, and every one resolves', () => {
+    const html = read('resurse/studii/index.html');
+    // The positive control: the page rendered its study blocks, so "contains no
+    // old host" is a statement about a real page rather than about an empty one.
+    expect(html, 'the studii page did not render - the assertions below would prove nothing')
+      .toContain('Citeste mai mult');
+    expect(html, 'the studii page still links at the old host').not.toContain('www.bor-zh.ch');
+    expect(
+      DOC_SOURCES,
+      'the converted-studies table changed shape - the loop below would prove nothing',
+    ).toHaveLength(8);
+    const measured: string[] = [];
+    for (const { slug } of DOC_SOURCES) {
+      const href = `/documente/${slug}.pdf`;
+      expect(html, `/resurse/studii/ does not link ${href}`).toContain(`href="${href}"`);
+      expect(existsSync(`${DIST}documente/${slug}.pdf`), `${href} does not resolve inside dist/`)
+        .toBe(true);
+      measured.push(href);
+    }
+    process.stdout.write(
+      `\nConverted study PDFs linked from /resurse/studii/: ${measured.length}.\n` +
+        `${measured.map((m) => `  ${m}`).join('\n')}\n`,
+    );
   });
 
   /*

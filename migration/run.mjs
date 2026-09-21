@@ -1,9 +1,11 @@
 import { start, stop } from './db.mjs';
 import { extractArticles } from './articles.mjs';
+import { docRedirects } from './doc-convert.mjs';
 import { extractDocuments } from './documents.mjs';
 import { extractGalleries } from './galleries.mjs';
 import { extractPages } from './pages.mjs';
 import { writeUrlMap } from './url-map.mjs';
+import { writeShortLinks } from './wp-ids.mjs';
 
 /**
  * The migration's one entry point: `node migration/run.mjs`.
@@ -19,6 +21,13 @@ import { writeUrlMap } from './url-map.mjs';
  * into `extractArticles` and `extractPages` rather than recomputed, so the
  * links and the files cannot disagree. A caller that forgets the map is not
  * silent: every PDF-shaped old-host link then stops the run by name.
+ *
+ * THE CONVERTED `.doc` ROWS ARE STATIC. They come from `docRedirects()` in
+ * `doc-convert.mjs`, which is a one-time manual step this file never runs:
+ * LibreOffice's PDF bytes are not reproducible, so re-converting here would
+ * break the determinism rule for everything else the run writes. The rows are
+ * still carried on every run, because the URL map is the contract of every old
+ * path that keeps working, however the file behind the new one was produced.
  *
  * THE SUMMARY PRINTS WHAT WAS MEASURED, NOT ONLY THE VERDICT, and the process
  * exits non-zero when one of the counts that must be positive is zero - a
@@ -42,7 +51,8 @@ try {
   const posts = await extractArticles(documents.redirects);
   const pages = await extractPages(documents.redirects);
   const galleries = await extractGalleries();
-  const redirects = await writeUrlMap(documents.redirects);
+  const redirects = await writeUrlMap(documents.redirects, docRedirects());
+  const shortLinks = await writeShortLinks();
   summary = {
     postsWritten: posts.written,
     postsPublished: posts.published,
@@ -56,6 +66,7 @@ try {
     skippedDocuments: documents.skipped,
     bytesCopied: documents.bytes,
     redirects,
+    shortLinks,
   };
 } finally {
   await stop();
@@ -73,7 +84,8 @@ process.stdout.write(
     `  documents written: ${summary.documentsWritten}\n` +
     `  PDFs skipped:      ${summary.pdfsSkipped}\n` +
     `  bytes copied:      ${summary.bytesCopied}\n` +
-    `  redirects:         ${summary.redirects}\n`,
+    `  redirects:         ${summary.redirects}\n` +
+    `  short links:        ${summary.shortLinks}\n`,
 );
 
 if (summary.pdfsSkipped > 0) {
@@ -98,6 +110,7 @@ const mustBePositive = [
   ['gallery images', summary.galleryImages],
   ['documents written', summary.documentsWritten],
   ['redirects', summary.redirects],
+  ['short links', summary.shortLinks],
 ];
 const zeros = mustBePositive.filter(([, count]) => count === 0).map(([name]) => name);
 if (zeros.length > 0) {

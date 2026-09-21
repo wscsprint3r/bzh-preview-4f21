@@ -2,13 +2,12 @@
 title: "Școala parohială"
 path: "comunitate/scoala"
 order: 40
+image: "../../assets/content/2024/05/166876765_1270252473370992_732141221062061775_n.jpg"
 ---
 
 ## Scopul școlii noastre
 
 Să clădim o relație puternică și semnificativă între copiii vorbitori de limbă română, să-i ajutăm să pășească fără temeri si frustrări, cu o personalitate și identitate intărită, pe puntea dintre culturile în care trăiesc și le întălnesc in Europa Unită și Terra nețărmurită.
-
-![](../../assets/content/2024/05/166876765_1270252473370992_732141221062061775_n.jpg)
 
 Limba și Literatura Română
 

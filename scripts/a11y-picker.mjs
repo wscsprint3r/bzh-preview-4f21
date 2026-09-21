@@ -241,6 +241,14 @@ async function main() {
     for (const name of ['src', 'public', 'scripts', 'astro.config.mjs', 'tsconfig.json', 'package.json']) {
       cpSync(join(ROOT, name), join(project, name), { recursive: true });
     }
+    /*
+     * The scratch build runs the real `astro.config.mjs`, which includes the
+     * redirects integration — and that reads `docs/url-map.csv` from the
+     * build's working directory. Without this the fixture pass fails with
+     * "ENOENT ... docs/url-map.csv" the first time the integration exists.
+     */
+    mkdirSync(join(project, 'docs'), { recursive: true });
+    cpSync(join(ROOT, 'docs/url-map.csv'), join(project, 'docs/url-map.csv'));
     // Symlinked, not copied: the fixture build must run the same Astro, the
     // same Sveltia bundle and the same fonts as the real one.
     symlinkSync(join(ROOT, 'node_modules'), join(project, 'node_modules'));

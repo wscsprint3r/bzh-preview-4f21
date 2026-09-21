@@ -130,16 +130,22 @@ so these are worth more than their size suggests.
       delivers it to anyone. This is the scenario §16 singles out: a volunteer presses
       Save, the build fails, and they see nothing happen.
 
-- [ ] **C4 · The per-day "add to calendar" link (spec §8).** `/program/` offers the
+- [x] **C4 · The per-day "add to calendar" link (spec §8).** `/program/` offers the
       whole-feed subscription only. The spec asks for both: *"Plus a per-day 'Adaugă în
       calendar' link for people who want one service rather than a subscription."*
 
-- [ ] **C5 · Lighthouse is in the budget table and nothing runs it.** Spec §13 budgets
+      **Superseded 2026-09-19 — see the decisions table at the end of this file: the
+      per-day link is rejected and spec §8 is amended.**
+
+- [x] **C5 · Lighthouse is in the budget table and nothing runs it.** Spec §13 budgets
       performance ≥ 95 and accessibility 100, and LCP on 4G < 1.2s. The byte, request and
       JS budgets are enforced in CI; the Lighthouse rows exist only as manual step **H8**
       on the deployed site. Decide whether Phase 4 automates them or drops them from the
       table — the hero in A1 is the change most likely to move LCP, so measure before and
       after.
+
+      **Superseded 2026-09-19 — see the decisions table at the end of this file: the
+      Lighthouse rows are deferred to Phase 5 and spec §13 is amended.**
 
 - [ ] **C6 · The footer links `/program/` twice** — "Program liturgic" under CONTACT and
       "Program" under SITE.
@@ -161,8 +167,36 @@ than restate them:
 - `/?p=<id>` short links, which `_redirects` cannot match.
 - 53 old-host prose links inventoried for Phase 4, including 8 `.doc` files the spec's
   "Not migrated" list means will never have a home.
+
+  **Superseded 2026-09-19 — see the decisions table at the end of this file: the eight
+  `.doc` files are converted once to PDF and hosted.**
+
 - CMS uploads keeping their EXIF, including GPS, because `public/uploads/` is served as
   uploaded.
 - The privacy statement being one sentence rather than a page.
 - Everything unverifiable from this repository: the Turnstile/Resend round trip, the
   QR-bill test transfer, the Cloudflare rate-limit rule, PDF response headers.
+
+---
+
+## Decisions taken 2026-09-19, at plan time
+
+| Question | Ruling |
+|---|---|
+| `?p=<id>` short links | Extend `migration/` to emit an ID→slug map and add functions/index.ts; see the plan's Task 3. |
+| The 8 `.doc` links | Convert once to PDF, gate through `pdf-gate.mjs`, host under `/documente/`; Task 4. |
+| `/sitemap-index.xml` and `robots.txt` | Custom routes, emitted only when `INDEXABLE = true`; Task 5. |
+| Per-day "Adaugă în calendar" | Rejected; spec §8 amended; no code. |
+| Lighthouse rows | Deferred to Phase 5; spec §13 amended. |
+| The two stock images (B5) | Replaced with parish photographs; Task 9. |
+| Romanian failure notice (C3) | The GitHub annotation is built (Task 13); the Romanian e-mail is deferred until K2's Resend domain exists and is recorded in the handover as a gap. |
+| Privacy statement | Stays the paragraph on `/contact/`; recorded, not a page. |
+| C6 footer duplicate | Fixed in Task 11. |
+| A4 `/noutati` thumbnails | Recorded as a decision, not an omission — the request cap of 12 cannot carry one per card. |
+| C7 open questions | Parish decisions, listed in the handover; names stay published until the parish answers. |
+
+## Deferred to Phase 5
+
+- Lighthouse performance ≥ 95 / accessibility 100: automate or keep manual (spec §13 note).
+- The Romanian build-failure e-mail itself, once K2's `send.bor-zh.ch` is verified.
+- `?p=` short links for post types outside `post`/`page` (attachments, old calendar events).

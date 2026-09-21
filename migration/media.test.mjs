@@ -104,6 +104,41 @@ describe('the names the real corpus actually carries', () => {
   });
 });
 
+describe('files refused by decision, not by shape', () => {
+  it('does not migrate the two stock images whose licence could not be confirmed', async () => {
+    /*
+     * Backlog B5: the parish could not confirm a licence for these two, and
+     * they were removed from `src/assets/content/` before cutover. The refusal
+     * lives here as well as in the repository because a migration re-run reads
+     * the dump, sees the pages that still reference them (the hand edits that
+     * stopped referencing them revert too), and would otherwise copy them
+     * straight back — and `src/lib/images.ts` publishes every file under
+     * `src/assets/`, linked or not. The reason is named, so a run that skips
+     * them cannot look like a decode failure.
+     */
+    const jpeg = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#ffffff' },
+    }).jpeg().toBuffer();
+    const stock = [
+      '/wp-content/uploads/2024/05/AdobeStock_298003333.jpeg',
+      '/wp-content/uploads/2024/05/istockphoto-1338836802-2048x2048-prelucrata-1.jpg',
+    ];
+    for (const src of stock) await put(src.replace('/wp-content/uploads/', ''), jpeg);
+    const printed = [];
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
+      printed.push(String(s));
+      return true;
+    });
+    const mapping = await migrateImages(stock, root, uploads);
+    spy.mockRestore();
+    expect(mapping.size).toBe(0);
+    for (const src of stock) {
+      expect(printed.join('')).toContain(src.split('/').pop());
+    }
+    expect(printed.join('')).toContain('licence');
+  });
+});
+
 describe('the paths cannot escape their places', () => {
   /*
    * The whole task is a boundary: bytes from a twice-compromised server become
