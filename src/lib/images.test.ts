@@ -30,7 +30,7 @@ describe('publicUpload', () => {
 
 describe('resolveImage', () => {
   it('resolves a real migration-shaped file to metadata with dimensions', () => {
-    const image = resolveImage('../../assets/content/2024/05/AdobeStock_298003333.jpeg');
+    const image = resolveImage('../../assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d.jpg');
     expect(image?.width).toBeGreaterThan(0);
     expect(image?.height).toBeGreaterThan(0);
   });

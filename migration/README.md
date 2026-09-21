@@ -157,6 +157,15 @@ A file that fails to decode is not an image and is dropped by name. **SVG is not
 migrated at all** — sharp can rasterise it, but an SVG that stays an SVG carries
 script. Neither are `.doc`, `.js`, `.html`, `.htaccess`, `.json`, `.css`, `.txt`.
 
+**Two files are refused by decision, not by shape.** The parish could not confirm
+a licence for `AdobeStock_298003333.jpeg` and
+`istockphoto-1338836802-2048x2048-prelucrata-1.jpg` (backlog B5), and both were
+deleted from `src/assets/content/` before cutover. `REFUSED_UPLOADS` in
+`media.mjs` names them by destination path so a re-run cannot copy them back —
+the dump still references them, and `src/lib/images.ts` publishes every file
+under `src/assets/` whether a page links it or not. The run reports them as
+`refused: the licence could not be confirmed`, never as a decode failure.
+
 **`UPLOADS_ROOT` points at the 2026-08-22 backup, not the 2026-08-27 one
 `DUMP_PATH` uses.** That is not a typo: the 08-27 capture holds only
 `database.sql.gz` and `htdocs.tar.gz`, and the unpacked file tree lives in
