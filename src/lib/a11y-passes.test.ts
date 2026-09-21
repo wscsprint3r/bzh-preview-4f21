@@ -1139,19 +1139,88 @@ describe('selecting the reading-column pages from a build', () => {
  * matcher was written: the h1's target is a bare `h1` (axe picks the shortest
  * unique selector, and a class added to the h1 does not change it — measured),
  * and the handle that places it inside the hero is the check's own evidence:
- * `messageKey: 'pseudoContent'` with the scrim's owner, `.hero`, named in
- * `relatedNodes`. The fail-closed direction is asserted from the other side: a
- * bare `h1` without that evidence stays in scope, and so does one whose
- * relatedNodes name anything but the hero.
+ * `messageKey: 'pseudoContent'` with the scrim's owner named in `relatedNodes`.
+ *
+ * THE EXEMPTION IS TIED TO THE MEASUREMENT, NOT ONLY TO A SELECTOR. A matcher
+ * alone says "this looks like the hero"; it does not say `measureHeroContrast`
+ * measured it. The second argument is what the browser reports per node —
+ * `{ stamped, evidenceHero }`, computed by `heroCoverage` in the document axe
+ * just audited. It defaults to `[]`, which covers nothing, so a caller that
+ * cannot prove coverage — any page other than `index.html`, a chain that
+ * resolves to nothing — keeps the node in scope and fails.
+ *
+ * THE EVIDENCE IS RESOLVED IN THE DOM, WHICH IS WHY THIS FILE NO LONGER READS
+ * `relatedNodes`. axe prints the shortest unique selector, and the homepage's
+ * own content decides which string that is: measured 2026-09-21, the first day
+ * with no upcoming week, the week `<section>`s are absent, the hero becomes the
+ * only `<section>`, and the scrim's owner arrives as `section` where it had
+ * arrived as `.hero`. Whether `section` is the hero is a fact about the page,
+ * not about the string, so `heroCoverage` resolves each `relatedNodes` target
+ * and asks `closest('.hero')`; this function consumes its verdict. The real
+ * node shapes still pin what the classifier reads, and the browser half is
+ * proven by the pass itself — there is no DOM in this test file.
+ *
+ * The near-miss cases below are the reason the selector test is a token match
+ * and not a substring: `.hero-verse` is the hero, `.heroic-banner` is not, and
+ * `includes('.hero')` cannot tell them apart.
  * ===========================================================================
  */
 describe('the hero contrast exemption', () => {
-  it('exempts a node whose every selector chain names the hero', () => {
+  const STAMPED = { stamped: true, evidenceHero: false };
+  const STAMPED_WITH_EVIDENCE = { stamped: true, evidenceHero: true };
+  const UNMEASURED = { stamped: false, evidenceHero: false };
+
+  it('exempts a node whose every selector chain names the hero, when the measurement covered it', () => {
     const rule = {
       id: 'color-contrast',
       nodes: [{ target: ['section.hero > div.hero-in > h1'] }],
     };
-    expect(heroTextIncompletes(rule)).toHaveLength(1);
+    expect(heroTextIncompletes(rule, [STAMPED])).toHaveLength(1);
+  });
+
+  it('keeps a hero-shaped node in scope when the measurement did not cover it', () => {
+    const rule = {
+      id: 'color-contrast',
+      nodes: [{ target: ['section.hero > div.hero-in > h1'] }],
+    };
+    expect(heroTextIncompletes(rule)).toEqual([]);
+    expect(heroTextIncompletes(rule, [UNMEASURED])).toEqual([]);
+  });
+
+  it('does not exempt a class that merely starts with the same letters', () => {
+    for (const chain of ['.heroic-banner', 'main > .hero2 p', '.heros']) {
+      const rule = { id: 'color-contrast', nodes: [{ target: [chain] }] };
+      expect(heroTextIncompletes(rule, [STAMPED]), chain).toEqual([]);
+    }
+  });
+
+  it('exempts the hero token and its descendants, however the chain spells them', () => {
+    for (const chain of [
+      '.hero',
+      'section.hero',
+      'main > .hero',
+      '.hero p',
+      'body .hero h1',
+      '.hero-verse',
+      'section.hero > div.hero-in > h1',
+    ]) {
+      const rule = { id: 'color-contrast', nodes: [{ target: [chain] }] };
+      expect(heroTextIncompletes(rule, [STAMPED]), chain).toHaveLength(1);
+    }
+  });
+
+  /*
+   * `.hero-ish` is lexically indistinguishable from `.hero-verse` — the
+   * location is the difference, and the location is what `stamped` carries.
+   * The pure matcher cannot tell them apart and does not pretend to: a class
+   * outside the `.hero` section is not stamped, and the node stays in scope.
+   * This is the case the substring matcher got wrong by itself and the
+   * stamped-set tie gets right.
+   */
+  it('keeps a hero-named class elsewhere in scope when coverage says it was not measured', () => {
+    const rule = { id: 'color-contrast', nodes: [{ target: ['footer .hero-ish'] }] };
+    expect(heroTextIncompletes(rule, [UNMEASURED])).toEqual([]);
+    expect(heroTextIncompletes(rule)).toEqual([]);
   });
 
   it('keeps a node that is not clearly the hero in scope', () => {
@@ -1159,7 +1228,10 @@ describe('the hero contrast exemption', () => {
       id: 'color-contrast',
       nodes: [{ target: ['section.hero > h1'] }, { target: ['main p'] }],
     };
-    expect(heroTextIncompletes(rule)).toHaveLength(1);
+    const exempt = heroTextIncompletes(rule, [STAMPED, STAMPED]);
+    expect(exempt).toHaveLength(1);
+    expect(exempt[0]).toBe(rule.nodes[0]);
+    expect(heroTextIncompletes(rule)).toEqual([]);
   });
 
   it('returns nothing for another rule, or a target it cannot read', () => {
@@ -1170,13 +1242,13 @@ describe('the hero contrast exemption', () => {
   /*
    * The node axe reported for the hero's h1 on the Task 6 build, captured with
    * a probe at the 756px default: target `h1`, the scrim's pseudo element named
-   * through `relatedNodes: [{ target: ['.hero'] }]`, and the CHECK DATA IS THE
-   * h1's OWN — `3:1` expected for large text, `28.3pt (37.8px)`. The first
-   * version of this fixture carried the VERSE's check data (`4.5:1`,
-   * `12.7pt`), which is not what axe reports for an h1 at
-   * `clamp(1.875rem, 5vw, 2.75rem)`. The fixture keeps the fields the matcher
-   * reads (`target`, `any[].data.messageKey`, `any[].relatedNodes[].target`)
-   * plus the captured check data, and nothing here is invented.
+   * through `relatedNodes`, and the CHECK DATA IS THE h1's OWN — `3:1` expected
+   * for large text, `28.3pt (37.8px)`. The first version of this fixture
+   * carried the VERSE's check data (`4.5:1`, `12.7pt`), which is not what axe
+   * reports for an h1 at `clamp(1.875rem, 5vw, 2.75rem)`. The fixture keeps
+   * the fields the browser half reads (`target`, `any[].data.messageKey`,
+   * `any[].relatedNodes[].target`) plus the captured check data, and nothing
+   * here is invented.
    */
   const HERO_H1_NODE = {
     target: ['h1'],
@@ -1199,23 +1271,22 @@ describe('the hero contrast exemption', () => {
 
   it('classifies the h1 node axe really reported, which no selector chain places in the hero', () => {
     const rule = incompleteOf(HERO_H1_NODE);
-    expect(heroTextIncompletes(rule)).toEqual(rule.nodes);
+    expect(heroTextIncompletes(rule, [STAMPED_WITH_EVIDENCE])).toEqual(rule.nodes);
   });
 
-  it('keeps a bare h1 in scope when no check names the hero as the obstruction', () => {
-    expect(heroTextIncompletes(incompleteOf({ ...HERO_H1_NODE, any: [] }))).toEqual([]);
+  it('keeps the h1 in scope when the measurement did not cover it, however good its evidence', () => {
+    const rule = incompleteOf(HERO_H1_NODE);
+    expect(heroTextIncompletes(rule)).toEqual([]);
+    expect(heroTextIncompletes(rule, [UNMEASURED])).toEqual([]);
   });
 
-  it('keeps a node in scope when its related nodes are not the hero, or the reason is not the scrim', () => {
-    const elsewhere = {
-      ...HERO_H1_NODE,
-      any: [{ ...HERO_H1_NODE.any[0], relatedNodes: [{ target: ['main'] }] }],
-    };
-    expect(heroTextIncompletes(incompleteOf(elsewhere))).toEqual([]);
-    const otherReason = {
-      ...HERO_H1_NODE,
-      any: [{ ...HERO_H1_NODE.any[0], data: { messageKey: 'imgNode' } }],
-    };
-    expect(heroTextIncompletes(incompleteOf(otherReason))).toEqual([]);
+  it('keeps the h1 in scope when the page could not place the obstruction inside the hero', () => {
+    // The browser reported `stamped` but not `evidenceHero`: the check does not
+    // name the scrim's pseudo element, or the nodes it names resolved outside
+    // the hero. Both arrive here as one verdict, and the node stays in scope.
+    const rule = incompleteOf(HERO_H1_NODE);
+    expect(heroTextIncompletes(rule, [STAMPED])).toEqual([]);
+    const bare = incompleteOf({ ...HERO_H1_NODE, any: [] });
+    expect(heroTextIncompletes(bare, [STAMPED])).toEqual([]);
   });
 });

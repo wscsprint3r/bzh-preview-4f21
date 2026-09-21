@@ -1465,12 +1465,64 @@ export function svgTextIncompletes(rule) {
 }
 
 /*
+ * The class shapes the hero exemption may name: the `hero` token itself and
+ * the `hero-*` classes the block gives its descendants (`.hero-in`,
+ * `.hero-verse`). A name that merely begins with the letters — `heroic`,
+ * `hero2`, `heros` — is not one of them.
+ */
+const HERO_CLASS = /\.hero(?![\w-])|\.hero-[\w-]+/;
+const isHeroChain = (chain) => typeof chain === 'string' && HERO_CLASS.test(chain);
+
+/*
+ * THE STAMPING COLLECTOR, WRITTEN ONCE AND USED BY BOTH SIDES. The measurement
+ * stamps `data-hero-contrast-text` on every text-bearing element it judges,
+ * and the exemption's coverage check asks which elements carry it. Two copies
+ * of "which elements are hero text" would be a drift with no symptom — the
+ * measurement would judge one set and the exemption would clear another — so
+ * the collector is one source string interpolated into both page scripts.
+ * `heroTextElements` is the collector; `stampHeroTexts` is the collector plus
+ * the attribute. `visibility: hidden` in the probe below hides exactly the
+ * stamped set, which is why the attribute must be on everything measured and
+ * on nothing else.
+ */
+const HERO_TEXT_STAMP_SOURCE = `
+  const heroTextElements = (section) =>
+    [...section.querySelectorAll('*')].filter((el) => {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'script' || tag === 'style') return false;
+      return [...el.childNodes].some(
+        (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '',
+      );
+    });
+  const stampHeroTexts = (section) => {
+    const texts = heroTextElements(section);
+    for (const el of texts) el.setAttribute('data-hero-contrast-text', '');
+    return texts;
+  };
+`;
+
+/*
  * THE HERO'S DECLARED GAP, RECONCILED THE SAME WAY AS THE SVG TEXT. axe cannot
  * resolve a background image, so the hero's h1 and verse arrive as
  * `color-contrast` incompletes whatever their real contrast is. They are
  * exempted here and judged by `measureHeroContrast` below, on the pixels. The
- * matcher is fail-closed: every selector chain in a target must contain
- * `.hero`, or the node stays in scope and fails.
+ * matcher is fail-closed: every selector chain in a target must name the
+ * `.hero` CLASS TOKEN, or the node stays in scope and fails.
+ *
+ * A CLASS TOKEN, NOT A SUBSTRING, AND THE DIFFERENCE WAS MEASURED. The first
+ * version asked `chain.includes('.hero')`, which exempts `.hero-verse` — the
+ * hero's own verse — and equally `.heroic-banner`, `.hero2` and `.heros`,
+ * none of which `measureHeroContrast` measures. `includes` is a claim about
+ * characters; the claim here is about a class. `isHeroChain` accepts the
+ * `hero` class token (`/\.hero(?![\w-])/`) and the `hero-*` names the block
+ * uses for its descendants (`/\.hero-[\w-]+/`), and refuses a longer name that
+ * merely begins with the same letters. It deliberately does NOT require a
+ * combinator before the dot: `section.hero` and `main > .hero` are the same
+ * class, and a pattern that demanded a space or `>` would exempt neither. The
+ * first draft of this fix proposed exactly that pattern; the unit cases below
+ * pin both directions it got wrong. `.hero-ish` is lexically the same shape as
+ * `.hero-verse` and is the reason the matcher is not the authority — the
+ * stamped-set tie below is.
  *
  * THE h1 ARRIVES AS A BARE `h1`, AND THAT IS WHY THE SECOND BRANCH EXISTS.
  * Measured on the Task 6 build with a probe, not assumed: axe reports the
@@ -1488,36 +1540,43 @@ export function svgTextIncompletes(rule) {
  * content; a bare `h1` with no such check, or with related nodes that name
  * anything else, stays in scope and keeps failing. The real node shapes are
  * pinned in `src/lib/a11y-passes.test.ts`.
+ *
+ * AND THE EXEMPTION IS TIED TO THE MEASUREMENT, NOT ONLY TO A SELECTOR. A
+ * matcher alone says "this looks like the hero"; it does not say the pixels
+ * were judged. `coverage` is what the browser reports per node, computed in the
+ * same document axe just audited by `heroCoverage` below:
+ *
+ * - `stamped` — every chain of the node's target resolved to an element
+ *   carrying `data-hero-contrast-text`, the attribute `measureHeroContrast`
+ *   stamps on everything it measures. False for any page but `index.html`,
+ *   for a chain that resolves to nothing, and for the default `[]`, so a
+ *   caller that cannot prove coverage keeps the node in scope and the pass
+ *   fails.
+ * - `evidenceHero` — the check that made this node an incomplete names the
+ *   scrim's pseudo element (`messageKey: 'pseudoContent'`) and every
+ *   `relatedNodes` target RESOLVED to an element inside the hero. Resolved,
+ *   not read: axe prints the shortest unique selector, and that selector is
+ *   not stable across content. Measured 2026-09-21, the first day with no
+ *   upcoming week: the homepage's week `<section>`s are absent, the hero
+ *   becomes the only `<section>`, and axe names the scrim's owner `section`
+ *   where it had named it `.hero`. A string matcher — including this file's
+ *   own first fix, `chain.includes('.hero')` — cannot see that `section` is
+ *   the hero; the DOM can, and `closest('.hero')` is what asks it.
+ *
+ * A node is exempted when it was stamped AND is either named by a chain that
+ * carries the hero class token or evidenced by the scrim's owner resolving
+ * inside the hero. Everything else stays in scope.
  */
-export function heroTextIncompletes(rule) {
+export function heroTextIncompletes(rule, coverage = []) {
   if (rule?.id !== 'color-contrast') return [];
-  return (rule.nodes ?? []).filter((node) => {
+  return (rule.nodes ?? []).filter((node, index) => {
+    const entry = coverage[index];
+    if (entry?.stamped !== true) return false;
     const chains = node?.target;
-    if (
-      Array.isArray(chains) &&
-      chains.length > 0 &&
-      chains.every((chain) => typeof chain === 'string' && chain.includes('.hero'))
-    ) {
+    if (Array.isArray(chains) && chains.length > 0 && chains.every(isHeroChain)) {
       return true;
     }
-    const checks = node?.any;
-    if (!Array.isArray(checks)) return false;
-    return checks.some((check) => {
-      if (check?.data?.messageKey !== 'pseudoContent') return false;
-      const related = check?.relatedNodes;
-      return (
-        Array.isArray(related) &&
-        related.length > 0 &&
-        related.every((relatedNode) => {
-          const targets = relatedNode?.target;
-          return (
-            Array.isArray(targets) &&
-            targets.length > 0 &&
-            targets.every((chain) => typeof chain === 'string' && chain.includes('.hero'))
-          );
-        })
-      );
-    });
+    return entry.evidenceHero === true;
   });
 }
 
@@ -1752,6 +1811,84 @@ async function measureReadingColumn(driver, page, selectors) {
 }
 
 /*
+ * WHICH NODES THE MEASUREMENT ACTUALLY COVERS, reported in the document axe
+ * just audited. The exemption in `heroTextIncompletes` is a claim about
+ * selectors; this is the fact underneath it, resolved against the DOM rather
+ * than read off the selector strings. Per node it reports:
+ *
+ * - `stamped` — every chain of the node's `target` resolves to at least one
+ *   element AND every element it resolves to carries
+ *   `data-hero-contrast-text`. A chain that matches nothing, or matches an
+ *   element the measurement never stamped, reports false, and the node stays
+ *   in scope. `querySelectorAll` on an axe chain can throw on a selector this
+ *   engine cannot parse; that is a false, not a crash, because "cannot prove
+ *   coverage" is the fail-closed direction.
+ * - `evidenceHero` — the node is an incomplete because of a pseudo element
+ *   (`messageKey: 'pseudoContent'`), every check with that key has at least
+ *   one `relatedNodes` entry, and every entry's target resolves to an element
+ *   inside the hero (`closest('.hero')`). This is why the selector string is
+ *   not trusted: axe prints the shortest unique selector, and the homepage's
+ *   own content decides which string that is. Measured 2026-09-21, the day
+ *   after the last published Sunday: with no week sections on the page the
+ *   hero is the only `<section>`, and axe named the scrim's owner `section`.
+ *   A string matcher cannot place that inside the hero; `closest` can.
+ *
+ * THE STAMPING RUNS HERE TOO. axe ran in this document, but `stampHeroTexts`
+ * runs in the measurement's own page load, so the attributes would not be here
+ * unless this script stamps first. It stamps the same set, from the same
+ * source string, and then answers.
+ */
+async function heroCoverage(driver, rule) {
+  const nodes = (rule.nodes ?? []).map((node) => ({
+    target: node.target ?? [],
+    checks: (node.any ?? []).map((check) => ({
+      messageKey: check?.data?.messageKey ?? null,
+      related: (check?.relatedNodes ?? []).map((relatedNode) => relatedNode?.target ?? []),
+    })),
+  }));
+  return driver.executeScript(
+    `
+    ${HERO_TEXT_STAMP_SOURCE}
+    for (const section of document.querySelectorAll('.hero')) stampHeroTexts(section);
+    const resolve = (chain) => {
+      if (typeof chain !== 'string') return null;
+      try {
+        return [...document.querySelectorAll(chain)];
+      } catch {
+        return null;
+      }
+    };
+    const stamped = (chain) => {
+      const elements = resolve(chain);
+      return (
+        elements !== null &&
+        elements.length > 0 &&
+        elements.every((el) => el.hasAttribute('data-hero-contrast-text'))
+      );
+    };
+    const insideHero = (chain) => {
+      const elements = resolve(chain);
+      return elements !== null && elements.length > 0 && elements.every((el) => el.closest('.hero') !== null);
+    };
+    return arguments[0].map((node) => {
+      const chains = Array.isArray(node.target) ? node.target : [];
+      const evidence = node.checks.filter((check) => check.messageKey === 'pseudoContent');
+      return {
+        stamped: chains.length > 0 && chains.every(stamped),
+        evidenceHero:
+          evidence.length > 0 &&
+          evidence.every(
+            (check) =>
+              check.related.length > 0 && check.related.every((target) => target.every(insideHero)),
+          ),
+      };
+    });
+  `,
+    nodes,
+  );
+}
+
+/*
  * The hero, measured the way a reader sees it. One navigation to `/`, every
  * text's rect and computed colour read from the DOM, the text hidden with an
  * injected style, ONE full-page screenshot with `captureBeyondViewport`, then
@@ -1796,19 +1933,11 @@ async function measureReadingColumn(driver, page, selectors) {
 async function measureHeroContrast(driver, url, log) {
   await driver.get(url('index.html'));
   const page = await driver.executeScript(`
+    ${HERO_TEXT_STAMP_SOURCE}
     const sections = [...document.querySelectorAll('.hero')];
     const heroes = sections.map((section, index) => {
       const r = section.getBoundingClientRect();
-      const texts = [...section.querySelectorAll('*')]
-        .filter((el) => {
-          const tag = el.tagName.toLowerCase();
-          if (tag === 'script' || tag === 'style') return false;
-          return [...el.childNodes].some(
-            (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '',
-          );
-        })
-        .map((el) => {
-          el.setAttribute('data-hero-contrast-text', '');
+      const texts = stampHeroTexts(section).map((el) => {
           const b = el.getBoundingClientRect();
           const className = typeof el.className === 'string' ? el.className.trim() : '';
           return {
@@ -2160,7 +2289,15 @@ export async function runAudit({ dist, pass, extraCheck = null, log = console.lo
            * direction that must stay.
            */
           const svgExempt = svgTextIncompletes(undecided);
-          const heroExempt = heroTextIncompletes(undecided);
+          /*
+           * Coverage is asked of the page axe just audited, and only for the
+           * homepage: `measureHeroContrast` runs there and nowhere else, so
+           * every other page reports no coverage and the hero exemption cannot
+           * reach anything on it. The default `[]` does the same for any rule
+           * whose targets could not be read.
+           */
+          const heroCovered = page === 'index.html' ? await heroCoverage(driver, undecided) : [];
+          const heroExempt = heroTextIncompletes(undecided, heroCovered);
           const exempt = [...svgExempt, ...heroExempt];
           const inScope = (undecided.nodes ?? []).filter((node) => !exempt.includes(node));
           const printNodes = (nodes) => {
