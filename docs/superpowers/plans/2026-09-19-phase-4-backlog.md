@@ -21,7 +21,7 @@ Recorded as rulings so the plan does not re-open them:
 
 | Question | Decision |
 |---|---|
-| Which photograph for the homepage hero | **The chapel during a service** — `src/assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d.jpg`, 1600×1200, from the `sfintele-pasti-2024` album. The parish's own photograph, already migrated and re-encoded through sharp, so no licence question. |
+| Which photograph for the homepage hero | **The chapel during a service** — `src/assets/content/2024/05/5d400e5d-4326-4ffb-ad1a-5635ca9a388d.jpg`, 1600×1200, from the `sfintele-pasti-2024` album. The parish's own photograph, already migrated and re-encoded through sharp, so no licence question. **Superseded 2026-09-21** — the parish chose the cross procession (`src/assets/content/2025/12/7-hero.jpg`, from the Sfântul Nicolae 2025 album); see the Phase 5 plan. The licence reasoning is unchanged: the parish's own photograph. |
 | Its resolution | **Accept the softness.** 1600px native means a 1440px-wide hero is 1× only and will be slightly soft on a high-density display. The parish will not be asked for camera originals. |
 | A CMS-editable hero (`settings.hero_image`) | **Deferred.** The first version adds no new schema field. Revisit only if the parish asks to change the picture themselves. |
 
