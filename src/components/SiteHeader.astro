@@ -1,19 +1,25 @@
 ---
 const path = Astro.url.pathname;
 /*
- * SEVEN LINKS: the five measured in Phase 1 plus `Evenimente`, `Contact` and
- * `Donează`, settled by the parish in Task 13, minus `Parohia` - removed from
- * the top bar at the parish's request (2026-09-19) and carried by the footer's
- * `Pagini` menu, which reaches `Istoric` and `Consiliul Parohial` on every
- * page. This is the primary navigation; the footer carries the rest of the
- * sitemap - the eleven prose pages plus a fixed `Site` list - and that is what
- * makes every prose page reachable from every visitor page.
+ * SEVEN LINKS, AND THE SET CHANGED ON 2026-09-21: `Evenimente` left the top
+ * bar at the parish's request and `Școala parohială` took its place. Nothing
+ * was orphaned by the swap - the event pages are still built and `Evenimente`
+ * remains in the footer's `Site` menu, which is now its only inbound link on
+ * every page, while `Școala parohială` is already in the footer's `Pagini`
+ * menu through the `pages` collection. The rest of the list's history: the
+ * five measured in Phase 1 plus `Contact` and `Donează`, settled by the parish
+ * in Task 13, minus `Parohia` - removed from the top bar at the parish's
+ * request (2026-09-19) and carried by the footer's `Pagini` menu, which
+ * reaches `Istoric` and `Consiliul Parohial` on every page. This is the
+ * primary navigation; the footer carries the rest of the sitemap - the eleven
+ * prose pages plus a fixed `Site` list - and that is what makes every prose
+ * page reachable from every visitor page.
  */
 const links = [
   { href: '/', text: 'Acasă' },
   { href: '/program/', text: 'Program' },
   { href: '/noutati/', text: 'Noutăți' },
-  { href: '/evenimente/', text: 'Evenimente' },
+  { href: '/comunitate/scoala/', text: 'Școala parohială' },
   { href: '/servicii-liturgice/', text: 'Servicii liturgice' },
   { href: '/contact/', text: 'Contact' },
   { href: '/doneaza/', text: 'Donează' },
@@ -53,7 +59,7 @@ const links = [
   .sh-wm b { display: block; font-family: var(--display); font-size: 1.125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--oxblood); line-height: 1.1; }
   .sh-wm > span { display: block; font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); margin-top: 0.15rem; }
   /*
-   * WRAPS, and at 390px it has to: eight links are wider than the phone's
+   * WRAPS, and at 390px it has to: seven links are wider than the phone's
    * content column. The header row already wraps between brand and nav; this
    * is the nav's own wrap, so the links fold onto a second line instead of
    * overflowing the viewport. The row gap is smaller than the column gap so a
@@ -61,18 +67,21 @@ const links = [
    */
   .sh-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; list-style: none; margin: 0; padding: 0; font-size: 0.875rem; }
   /*
-   * MEASURED AT 390px AFTER THE SEVEN LINKS LANDED (Task 13's eight, minus
-   * `Parohia` on 2026-09-19), in headless Chrome with the audits' own
-   * chromedriver and `Emulation.setDeviceMetricsOverride`, because a window
-   * width under about 500px is clamped silently. The links measure 419px
-   * together against the phone's 358px content column, so the row wraps to two
-   * lines whatever the gap: measured 4+3 at both this 12px gap and the 20px
-   * desktop one, and two lines is the wrap Task 13 accepts. What this rule
-   * still decides is how tight the wrapped row reads - 12px between links on a
-   * phone - not the one-line trick it was written as when the header carried
-   * five. The numbers above replace that claim rather than extending it. 34rem
-   * is not a new breakpoint: it is the one `DayRow` and `WeekBand` already cut
-   * at, so the audit's derived breakpoint set is unchanged.
+   * MEASURED AT 390px AFTER `Școala parohială` REPLACED `Evenimente`
+   * (2026-09-21), in headless Chrome with the audits' own chromedriver and
+   * `Emulation.setDeviceMetricsOverride`, because a window width under about
+   * 500px is clamped silently. innerWidth 390, and a 15px scrollbar leaves the
+   * document 375, so the phone's content column is 343px. The seven links
+   * measure 37, 54, 48, 101, 103, 49 and 54px - 445px together - so the row
+   * wraps to two lines whatever the gap: measured 4+3 at both this 12px gap
+   * and the 20px desktop one, and two lines is the wrap Task 13 accepts. The
+   * nav is 54px tall: two rows of about 23px plus the 8px row gap, where one
+   * row would be about 23px. What this rule still decides is how tight the
+   * wrapped row reads - 12px between links on a phone - not the one-line trick
+   * it was written as when the header carried five. The numbers above replace
+   * that claim rather than extending it. 34rem is not a new breakpoint: it is
+   * the one `DayRow` and `WeekBand` already cut at, so the audit's derived
+   * breakpoint set is unchanged.
    */
   @media (max-width: 34rem) {
     .sh-nav { gap: 0.5rem 0.75rem; }

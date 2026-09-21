@@ -1696,6 +1696,48 @@ describe('the built pages', () => {
     }
   });
 
+  /*
+   * THE PRIMARY NAVIGATION, AS AN EXACT SET, AND THE PAGE IT MUST NOT ORPHAN.
+   * The header list is the one place a link can be swapped with no other
+   * symptom: the page stays built, the sitemap lists it and every other guard
+   * stays green - the shape that made seven prose pages unreachable before the
+   * footer menu. So the expected set is WRITTEN OUT BY HAND, in order, rather
+   * than derived from the component that renders it, and each href is followed
+   * into dist/ so a link to nothing fails. The footer's `Site` menu is
+   * asserted beside it: `Evenimente` left the header on 2026-09-21 and that
+   * menu is now its only inbound link on every page.
+   */
+  it('the header carries exactly the seven primary links, and the footer still reaches the events', () => {
+    const html = read('index.html');
+    const header =
+      html.match(/<nav[^>]*aria-label="Navigare principală"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? '';
+    expect(
+      header.length,
+      'the header nav is missing from index.html - the guard would prove nothing',
+    ).toBeGreaterThan(0);
+    const hrefs = [...header.matchAll(/href="([^"]+)"/g)].map((m) => m[1] as string);
+    expect(hrefs).toEqual([
+      '/',
+      '/program/',
+      '/noutati/',
+      '/comunitate/scoala/',
+      '/servicii-liturgice/',
+      '/contact/',
+      '/doneaza/',
+    ]);
+    for (const href of hrefs) {
+      const path = href === '/' ? 'index.html' : `${href.slice(1)}index.html`;
+      expect(existsSync(DIST + path), `${href} in the header does not resolve inside dist/`)
+        .toBe(true);
+    }
+    const footer =
+      html.match(/<nav[^>]*aria-label="Site"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? '';
+    expect(
+      footer,
+      'the footer Site menu is missing - the Evenimente link below would prove nothing',
+    ).toContain('href="/evenimente/"');
+  });
+
   it('declares the Romanian language and correct diacritics', () => {
     for (const p of ['index.html', 'program/index.html']) {
       const html = read(p);
