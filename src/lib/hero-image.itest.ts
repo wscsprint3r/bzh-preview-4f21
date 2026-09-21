@@ -27,19 +27,23 @@ const HTML = readFileSync(join(DIST, 'index.html'), 'utf8');
 
 /*
  * MEASURED 2026-09-21 through Astro at its default quality, against the
- * Phase 5.1 3:1 derivative (`src/assets/content/2025/12/7-hero.jpg`,
- * `sharp(src).resize({ width: 1600
- * }).extract({ left: 0, top: 300, width: 1600, height: 533 }).jpeg({ quality:
- * 90 })`): 480w = 21,856 B, 800w = 51,936 B, 1200w = 98,838 B. The ceiling
- * of 180,000 is headroom for a re-encode of this crop, not enough to hide a
- * return to the uncropped album file: put through the same pipeline, that
- * file's 1200w candidate measures 207,858 B — over the ceiling, which is why
- * the homepage gets a derivative. The first draft of this ceiling was 160,000,
- * guessed from a sharp estimate before a build existed; the built number is
- * the one that counts.
+ * Phase 5.2 3:1 derivative (`src/assets/content/2025/12/7-hero.jpg`,
+ * `sharp(src).resize({ width: 2400
+ * }).extract({ left: 0, top: 450, width: 2400, height: 800 }).jpeg({ quality:
+ * 90 })`): 480w = 21,538 B, 800w = 52,206 B, 1200w = 99,878 B, 1600w =
+ * 156,080 B, 2400w = 292,280 B. The ceiling of 300,000 is headroom for a re-encode of this
+ * crop, and it was RAISED FROM 180,000 on 2026-09-21 for one measured reason:
+ * the hero was pixelated on a 2x display, so the source was re-cut at 2400 and
+ * the width set extended to 2400 — and that candidate, measured through the
+ * build, does not fit under 180,000. The ceiling still refuses a return to the
+ * uncropped album file: through the same pipeline its own 2400w candidate
+ * measures 616,902 B, over the ceiling, which is why the homepage gets a
+ * derivative. The first draft of this ceiling was 160,000, guessed from a
+ * sharp estimate before a build existed; the built number is the one that
+ * counts.
  */
-const HERO_BYTES_CEILING = 180_000;
-const HERO_WIDTHS = [480, 800, 1200];
+const HERO_BYTES_CEILING = 300_000;
+const HERO_WIDTHS = [480, 800, 1200, 1600, 2400];
 
 type Candidate = { url: string; width: number };
 
@@ -66,7 +70,7 @@ describe('the hero image the browser fetches', () => {
     expect(tags, 'no img.hero-img in dist/index.html — the guard would measure nothing').toHaveLength(1);
   });
 
-  it('offers the three measured candidates, ascending, and no fourth', () => {
+  it('offers the five measured candidates, ascending, and no sixth', () => {
     const [tag] = heroTags(HTML);
     const list = candidates(tag);
     expect(list.map((c) => c.width)).toEqual(HERO_WIDTHS);
@@ -82,11 +86,11 @@ describe('the hero image the browser fetches', () => {
       return { ...candidate, bytes };
     });
     /*
-     * The `src` is Astro's 1600w variant, emitted as the fallback for a browser
-     * with no `srcset` support and fetched by none of the browsers this site
-     * targets; it is printed so the number is not hidden, and deliberately not
-     * capped — the cap is on what the LCP fetch can be, and that is a srcset
-     * candidate.
+     * The `src` is Astro's full-width variant — the 2400w cut itself — emitted
+     * as the fallback for a browser with no `srcset` support and fetched by
+     * none of the browsers this site targets; it is printed so the number is
+     * not hidden, and deliberately not capped — the cap is on what the LCP
+     * fetch can be, and that is a srcset candidate.
      */
     const src = tag.match(/ src="([^"]*)"/)?.[1] ?? '';
     const srcBytes = src === '' ? 0 : statSync(join(DIST, src.replace(/^\//, ''))).size;

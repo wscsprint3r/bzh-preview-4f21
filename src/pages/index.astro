@@ -84,29 +84,34 @@ const articles = publishedArticles(await getCollection('articles'));
       glyphs.
 
       THE SOURCE IS A DERIVATIVE, `src/assets/content/2025/12/7-hero.jpg`,
-      1600×533, NOT THE ALBUM FILE. The photograph is one of the four in the
+      2400×800, NOT THE ALBUM FILE. The photograph is one of the four in the
       album `sfantul-nicolae-2025`, and cropping that file in place would
       re-frame the gallery too. This one was cut from
       `src/assets/content/2025/12/7.jpg` once, with `sharp(src).resize({ width:
-      1600 }).extract({ left: 0, top: 300, width: 1600, height: 533 }).jpeg({
+      2400 }).extract({ left: 0, top: 450, width: 2400, height: 800 }).jpeg({
       quality: 90 })` — 3:1, the desktop box's own ratio, so the box shows the
-      cut whole. Top 300 came from a contact sheet (260/300/340/387) compared
-      by eye against the Phase 5.1 mock's window (387): it moves the frame up
-      so the mitre and the cross have air above them and the balcony enters the
-      frame, while the bottom edge leaves the altar table at its front panel
-      rather than below it — the user's "a bit less Altar and a bit more space
-      above heads". `src/lib/hero-image.itest.ts` holds those bytes to a
-      ceiling: MEASURED 2026-09-21 through Astro at its default quality, this
-      cut's candidates are 480w 21,856 B, 800w 51,936 B, 1200w 98,838 B, and
-      the 1600w `src` fallback — fetched by no browser this site targets —
-      157,508 B, against the 180,000 B ceiling. Re-cut the derivative rather
-      than adding a wider candidate back.
+      cut whole. Top 450 of the 1800-row space is the same framing the Phase
+      5.1 contact sheet chose at 1600 wide (top 300 of 1200), re-cut larger on
+      2026-09-21 because the hero was pixelated on a 2x display: with the old
+      1600-wide source and `widths` topping out at 1200, a 1280 CSS px window
+      at `devicePixelRatio` 2 needs 2560 device pixels and the browser fetched
+      the 1200w candidate — a 2.13x upscale, measured with `currentSrc` and
+      `naturalWidth` through `Emulation.setDeviceMetricsOverride`. The widths
+      now run to the source's own 2400. `src/lib/hero-image.itest.ts` holds
+      every candidate to a ceiling: MEASURED 2026-09-21 through Astro at its
+      default quality, this cut's candidates are 480w 21,538 B, 800w 52,206 B,
+      1200w 99,878 B, 1600w 156,080 B and 2400w 292,280 B — the last equal to
+      the full-width `src` fallback, which no browser this site targets
+      fetches — against the 300,000 B ceiling (raised from 180,000 for the
+      2400w candidate, and still below the uncropped album file's own 2400w
+      candidate at 616,902 B). Re-cut the derivative rather than adding a wider
+      candidate back.
     */}
     <Image
       class="hero-img"
       src={heroImage}
       alt=""
-      widths={[480, 800, 1200]}
+      widths={[480, 800, 1200, 1600, 2400]}
       sizes="100vw"
       loading="eager"
       fetchpriority="high"
@@ -239,7 +244,7 @@ const articles = publishedArticles(await getCollection('articles'));
      390 CSS px showed 67% of the frame's width. Against the 3:1 cut the same
      box shows 44% — the left-centre priest cut mid-torso at the edge and the
      right priest gone. 2:1 reproduces the approved mock's 67% exactly (cover
-     scale = 195/533, the overflow is horizontal, so the 45% in
+     scale = 195/800, the overflow is horizontal, so the 45% in
      `object-position` is inert and 50% centres the window on the cross). 4:3
      was compared beside 16:9 and 3:2 at 390 CSS px through
      `Emulation.setDeviceMetricsOverride` — Chrome clamps a plain window under
