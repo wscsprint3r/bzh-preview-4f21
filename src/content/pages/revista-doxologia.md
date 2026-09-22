@@ -148,9 +148,9 @@ Nr. 8 (Decembrie, 2014)
 
 Nr. 7 (Aprilie, 2014)
 
-[Citeste mai mult](/documente/doxologia-7-2014-pt-site-1.pdf)
+[Citeste mai mult](/documente/doxologia-7-2014-pt-site-1.pdf) ![](../../assets/content/2026/09/doxologia-7-2014.jpg)
 
-## Revista Doxologia ![](../../assets/content/2026/09/doxologia-7-2014.jpg)
+## Revista Doxologia
 
 Nr. 8 (Decembrie, 2014)
 
