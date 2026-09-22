@@ -42,16 +42,31 @@ function fullSize(file: string): string | undefined {
 function linkName(description: string | undefined): string {
   return description ? `Mărește fotografia: ${description}` : 'Mărește fotografia';
 }
+
+/*
+ * AN ALBUM OF SMALL PLATES GETS A DENSER GRID. The founding album's nine
+ * committed photographs are 160px and the nine imported ones 300px; three
+ * columns of a 1016px container put each in a 328px cell. Every asset at most
+ * 400px on its long edge means the album is an archive of small plates, and
+ * `auto-fill` fits six of them per row at 1280 and two at 390. A CMS upload
+ * (`publicUpload`, no asset) is not measured and keeps the photograph layout.
+ */
+const dense =
+  gallery.data.images.length > 0 &&
+  gallery.data.images.every((image) => {
+    const asset = resolveImage(image.file);
+    return asset !== null && Math.max(asset.width, asset.height) <= 400;
+  });
 ---
 
-<ul class="gg">
+<ul class:list={['gg', { 'gg-dense': dense }]}>
   {gallery.data.images.map((image) => (
     <li class="gg-item">
       <a href={fullSize(image.file)} aria-label={linkName(image.description)}>
         <ContentImage
           image={image.file}
           alt=""
-          sizes="(max-width: 34rem) 45vw, 15rem"
+          sizes={dense ? '(max-width: 34rem) 45vw, 9rem' : '(max-width: 34rem) 45vw, 15rem'}
         />
       </a>
       {image.description && <p class="gg-caption">{image.description}</p>}
@@ -68,10 +83,18 @@ function linkName(description: string | undefined): string {
     margin: 2rem 0 0;
     padding: 0;
   }
+  /*
+   * DENSE: as many ~9rem plates as fit. The rule is repeated inside the media
+   * query on purpose - the query's `.gg` rule has equal specificity and comes
+   * later, so a dense album would otherwise fall back to two fixed columns.
+   */
+  .gg-dense { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
+  .gg-dense :global(img) { width: 100%; height: auto; }
   /* The same `34rem` boundary `SiteHeader` and `DayRow` use, so the grid adds
      no width band the browser passes do not already audit. */
   @media (max-width: 34rem) {
     .gg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gg-dense { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
   }
   .gg-item { margin: 0; }
   /* `:global(img)`: the `<img>` comes from `ContentImage.astro` and carries no

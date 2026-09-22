@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
+import sharp from 'sharp';
 import { pageScripts } from '../../scripts/page-scripts.mjs';
 import { DOC_SOURCES } from '../../migration/doc-convert.mjs';
 import type { ArticleEntry } from './articles';
@@ -1447,6 +1448,39 @@ describe('the gallery pages', () => {
     process.stdout.write(
       `\nGallery captions: ${captioned} captioned, ${decorative} uncaptioned.\n`,
     );
+  });
+
+  /*
+   * SMALL PLATES GET A DENSE GRID. The founding album's photographs are
+   * 160-300px; at three columns of a 1016px container each sits in a 328px
+   * cell, which reads as broken rather than as an archive. `GalleryGrid`
+   * derives the dense class from the images themselves - every asset at most
+   * 400px on its long edge - so a future album of small scans gets it too, and
+   * a photograph album never does. The threshold is duplicated here on
+   * purpose: a component that changes its rule without changing this test is
+   * the defect the assertion exists to catch.
+   */
+  it('lays an album of small plates out densely and a photograph album three-up', async () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guard would prove nothing')
+      .toBeGreaterThan(1);
+    for (const f of albums) {
+      const images = (f.frontmatter.images ?? []) as { file?: string }[];
+      expect(images.length, `${f.file} lists no image`).toBeGreaterThan(0);
+      let small = true;
+      for (const image of images) {
+        const rel = (image.file ?? '').replace('../../assets/', 'src/assets/');
+        if (!existsSync(rel)) {
+          small = false;
+          continue;
+        }
+        const meta = await sharp(rel).metadata();
+        if (Math.max(meta.width ?? 0, meta.height ?? 0) > 400) small = false;
+      }
+      const html = read(`galerie/${f.slug}/index.html`);
+      const dense = /<ul\b[^>]*\bclass="[^"]*\bgg-dense\b/.test(html);
+      expect(dense, `${f.slug}: dense=${dense} but small=${small}`).toBe(small);
+    }
   });
 });
 
