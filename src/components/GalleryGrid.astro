@@ -1,6 +1,7 @@
 ---
 import type { Gallery } from '../lib/content-schema';
 import ContentImage from './ContentImage.astro';
+import { publicUpload, resolveImage } from '../lib/images';
 
 /**
  * One album's images, two columns on a phone and three above `34rem`.
@@ -16,22 +17,59 @@ import ContentImage from './ContentImage.astro';
  * older reason: declaring a photograph decorative is honest, inventing a
  * sentence for it is not, and `gallerySchema` leaves `description` optional
  * precisely because the CMS field invites the parish to write one.
+ *
+ * EVERY IMAGE IS A LINK TO ITS LARGEST DERIVATIVE. `ContentImage` renders
+ * `.webp` variants sized for the grid; the href is the file the build emitted
+ * for the asset itself - the 2400px ceiling the migration's `reencode`
+ * guarantees - or the CMS upload's own URL, served as one file (the build
+ * re-encodes it). A click
+ * opens it in the tab: no script, no extra request on the album page, and it
+ * works with scripts off, which is how `scripts/a11y.mjs` audits the site.
+ * The link carries the accessible name because the image's alt is empty by
+ * the policy above; without one an `<a>` around `<img alt="">` has no name.
  */
 interface Props {
   gallery: { id: string; data: Gallery };
 }
 
 const { gallery } = Astro.props;
+
+/** The URL a click opens, or undefined when ContentImage will fail the build. */
+function fullSize(file: string): string | undefined {
+  return resolveImage(file)?.src ?? publicUpload(file) ?? undefined;
+}
+
+/** The link's accessible name; the description, when there is one. */
+function linkName(description: string | undefined): string {
+  return description ? `Mărește fotografia: ${description}` : 'Mărește fotografia';
+}
+
+/*
+ * AN ALBUM OF SMALL PLATES GETS A DENSER GRID. The founding album's nine
+ * committed photographs are 160px and the nine imported ones 300px; three
+ * columns of a 1016px container put each in a 328px cell. Every asset at most
+ * 400px on its long edge means the album is an archive of small plates, and
+ * `auto-fill` fits six of them per row at 1280 and two at 390. A CMS upload
+ * (`publicUpload`, no asset) is not measured and keeps the photograph layout.
+ */
+const dense =
+  gallery.data.images.length > 0 &&
+  gallery.data.images.every((image) => {
+    const asset = resolveImage(image.file);
+    return asset !== null && Math.max(asset.width, asset.height) <= 400;
+  });
 ---
 
-<ul class="gg">
+<ul class:list={['gg', { 'gg-dense': dense }]}>
   {gallery.data.images.map((image) => (
     <li class="gg-item">
-      <ContentImage
-        image={image.file}
-        alt=""
-        sizes="(max-width: 34rem) 45vw, 15rem"
-      />
+      <a href={fullSize(image.file)} aria-label={linkName(image.description)}>
+        <ContentImage
+          image={image.file}
+          alt=""
+          sizes={dense ? '(max-width: 34rem) 45vw, 9rem' : '(max-width: 34rem) 45vw, 15rem'}
+        />
+      </a>
       {image.description && <p class="gg-caption">{image.description}</p>}
     </li>
   ))}
@@ -46,10 +84,18 @@ const { gallery } = Astro.props;
     margin: 2rem 0 0;
     padding: 0;
   }
+  /*
+   * DENSE: as many ~9rem plates as fit. The rule is repeated inside the media
+   * query on purpose - the query's `.gg` rule has equal specificity and comes
+   * later, so a dense album would otherwise fall back to two fixed columns.
+   */
+  .gg-dense { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
+  .gg-dense :global(img) { width: 100%; height: auto; }
   /* The same `34rem` boundary `SiteHeader` and `DayRow` use, so the grid adds
      no width band the browser passes do not already audit. */
   @media (max-width: 34rem) {
     .gg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gg-dense { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
   }
   .gg-item { margin: 0; }
   /* `:global(img)`: the `<img>` comes from `ContentImage.astro` and carries no

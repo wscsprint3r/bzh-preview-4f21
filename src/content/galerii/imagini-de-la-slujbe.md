@@ -1,5 +1,5 @@
 ---
-title: "Imagini de la slujbe"
+title: "Fondarea parohiei"
 date: "2001-12-20"
 cover: "../../assets/content/galleries/legacy/8.jpg"
 images:
@@ -21,4 +21,13 @@ images:
     description: "06.12.2003 — Zürich"
   - file: "../../assets/content/galleries/legacy/16.jpg"
     description: "06.12.2003 — Zürich"
+  - file: "../../assets/content/galleries/legacy/17.jpg"
+  - file: "../../assets/content/galleries/legacy/18.jpg"
+  - file: "../../assets/content/galleries/legacy/19.jpg"
+  - file: "../../assets/content/galleries/legacy/20.jpg"
+  - file: "../../assets/content/galleries/legacy/21.jpg"
+  - file: "../../assets/content/galleries/legacy/22.jpg"
+  - file: "../../assets/content/galleries/legacy/23.jpg"
+  - file: "../../assets/content/galleries/legacy/24.jpg"
+  - file: "../../assets/content/galleries/legacy/25.jpg"
 ---
