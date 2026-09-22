@@ -610,11 +610,18 @@ and what Phase 4 changed.
   the parish creates its first event, and its layout is audited through the picker
   fixture rather than through a page in `dist/`), `/pastorale/` (the PDF list), and
   `/contact/` and `/doneaza/` as dedicated routes over their migrated prose plus
-  generated blocks. The header carries **seven** links (`Parohia` left the top bar on
-  2026-09-19 and is reached through the footer's `Pagini` menu); the footer carries the
+  generated blocks. The header carries **eight** links (`Parohia` left the top bar on
+  2026-09-19 and is reached through the footer's `Pagini` menu; `Galerie` joined on
+  2026-09-22, and is also in the footer's `Site` menu); the footer carries the
   full sitemap — a fixed **Site** list (Program, Noutăți, Evenimente, Galerie, Pastorale)
   beside the **Pagini** menu, which now has eleven entries. `build-output.itest.ts`
   fails if any prose page loses its inbound link from any visitor page.
+- **The founding album is as large as this repository can make it.** `/galerie/imagini-de-la-slujbe/`
+  (titled **Fondarea parohiei**) is eighteen photographs, the captioned ones from
+  2001–2003, the largest
+  300px. The old server's own `galerie/` folder holds nothing wider, so ask the parish
+  for prints or negatives before anyone promises a sharper version — a scan would beat
+  anything in the backup.
 - **CMS collections** in `/admin/`: **Evenimente**, **Galerii foto** and **Documente**,
   beside Phase 2's three. A gallery's images and an event's image go through the same
   resolver as an article's, so both shapes render: the migration's
