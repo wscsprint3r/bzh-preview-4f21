@@ -420,6 +420,30 @@ function pageImages(html: string): string[] {
 }
 
 /**
+ * Every album item's link: the href and accessible name it declares, and how
+ * many images it wraps.
+ *
+ * THE SUBJECT IS THE ITEM, not the anchor: an album image with no anchor is
+ * the defect this reader exists to catch, and a pattern for `<a href=…>` alone
+ * would report only the links that are already there.
+ */
+function galleryLinks(html: string): { href: string | null; label: string | null; images: number }[] {
+  return [...html.matchAll(/<li\b[^>]*\bclass="gg-item(?:\s[^"]*)?"[^>]*>([\s\S]*?)<\/li>/g)].map(
+    (m) => {
+      const item = m[1] as string;
+      const anchor = /<a\b[^>]*>/.exec(item);
+      expect(anchor, `a .gg-item with no anchor: ${item}`).not.toBeNull();
+      const tag = anchor?.[0] as string;
+      return {
+        href: /\bhref="([^"]+)"/.exec(tag)?.[1] ?? null,
+        label: /\baria-label="([^"]*)"/.exec(tag)?.[1] ?? null,
+        images: [...item.matchAll(/<img\b/g)].length,
+      };
+    },
+  );
+}
+
+/**
  * Every prose page content file, its public route and its parsed frontmatter.
  *
  * THE SIBLING OF `articleFiles`, and the subject rule is the same one: the
@@ -519,6 +543,15 @@ describe("this file's detectors can actually fire", () => {
       pageImages('<div class="page-image astro-x"><img src="/_astro/a.webp" alt="Istoric"></div>'),
     ).toEqual(['<img src="/_astro/a.webp" alt="Istoric">']);
     expect(pageImages('<div class="prose"><p>text</p></div>')).toEqual([]);
+  });
+
+  it('reads a gallery item link, and a missing anchor is an error', () => {
+    expect(
+      galleryLinks(
+        '<li class="gg-item astro-x"><a href="/_astro/8.jpg" aria-label="Mărește fotografia"><img src="/_astro/8.webp" alt></a></li>',
+      ),
+    ).toEqual([{ href: '/_astro/8.jpg', label: 'Mărește fotografia', images: 1 }]);
+    expect(() => galleryLinks('<li class="gg-item"><img src="/_astro/8.webp" alt></li>')).toThrow();
   });
 
   it('the collection really does have days and services to compare', () => {
@@ -1334,6 +1367,44 @@ describe('the gallery pages', () => {
     process.stdout.write(
       `\nGallery images: ${imagesChecked} over ${albums.length} album page(s).\n`,
     );
+  });
+
+  /*
+   * THE LINK IS THE ONLY WAY TO THE LARGEST DERIVATIVE. The grid renders
+   * `ContentImage`, which emits responsive `.webp` variants; the original file
+   * the build emitted for the asset is what a click must open, and a link to a
+   * file that is not in dist/ is a 404 nobody sees in a screenshot. The
+   * accessible name is asserted here and judged by axe in the browser passes:
+   * an `<a>` whose only content is an `<img alt="">` has no name, which is a
+   * `link-name` violation - the shape `stripEmptyAnchors` exists for.
+   */
+  it('links every album image to its largest derivative, with a name of its own', () => {
+    const albums = galleryFiles();
+    expect(albums.length, 'no gallery content file - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    let linksChecked = 0;
+    for (const f of albums) {
+      const html = read(`galerie/${f.slug}/index.html`);
+      const images = (f.frontmatter.images ?? []) as { file?: string }[];
+      expect(images.length, `${f.file} lists no image - the count below would prove nothing`)
+        .toBeGreaterThan(0);
+      const links = galleryLinks(html);
+      expect(links.length, `${f.slug} renders ${links.length} linked items, not ${images.length}`)
+        .toBe(images.length);
+      for (const link of links) {
+        linksChecked += 1;
+        expect(link.images, `${f.slug}: an item wraps ${link.images} images`).toBe(1);
+        expect(link.href, `${f.slug}: an item has no href`).not.toBeNull();
+        const href = link.href as string;
+        expect(href.startsWith('/'), `${href} on /galerie/${f.slug}/ is not root-relative`).toBe(true);
+        expect(existsSync(DIST + href.slice(1)), `${href} on /galerie/${f.slug}/ does not resolve inside dist/`)
+          .toBe(true);
+        expect((link.label ?? '').trim().length, `${f.slug}: a link has no accessible name`)
+          .toBeGreaterThan(0);
+      }
+    }
+    expect(linksChecked, 'no album image link in any built album').toBeGreaterThan(0);
+    process.stdout.write(`\nGallery image links: ${linksChecked} over ${albums.length} album page(s).\n`);
   });
 
   it('writes each description as the caption and leaves every alt empty', () => {

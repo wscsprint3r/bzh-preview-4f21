@@ -1,6 +1,7 @@
 ---
 import type { Gallery } from '../lib/content-schema';
 import ContentImage from './ContentImage.astro';
+import { publicUpload, resolveImage } from '../lib/images';
 
 /**
  * One album's images, two columns on a phone and three above `34rem`.
@@ -16,22 +17,43 @@ import ContentImage from './ContentImage.astro';
  * older reason: declaring a photograph decorative is honest, inventing a
  * sentence for it is not, and `gallerySchema` leaves `description` optional
  * precisely because the CMS field invites the parish to write one.
+ *
+ * EVERY IMAGE IS A LINK TO ITS LARGEST DERIVATIVE. `ContentImage` renders
+ * `.webp` variants sized for the grid; the href is the file the build emitted
+ * for the asset itself - the 2400px ceiling the migration's `reencode`
+ * guarantees - or the CMS upload's own URL, served byte-for-byte. A click
+ * opens it in the tab: no script, no extra request on the album page, and it
+ * works with scripts off, which is how `scripts/a11y.mjs` audits the site.
+ * The link carries the accessible name because the image's alt is empty by
+ * the policy above; without one an `<a>` around `<img alt="">` has no name.
  */
 interface Props {
   gallery: { id: string; data: Gallery };
 }
 
 const { gallery } = Astro.props;
+
+/** The URL a click opens, or undefined when ContentImage will fail the build. */
+function fullSize(file: string): string | undefined {
+  return resolveImage(file)?.src ?? publicUpload(file) ?? undefined;
+}
+
+/** The link's accessible name; the description, when there is one. */
+function linkName(description: string | undefined): string {
+  return description ? `Mărește fotografia: ${description}` : 'Mărește fotografia';
+}
 ---
 
 <ul class="gg">
   {gallery.data.images.map((image) => (
     <li class="gg-item">
-      <ContentImage
-        image={image.file}
-        alt=""
-        sizes="(max-width: 34rem) 45vw, 15rem"
-      />
+      <a href={fullSize(image.file)} aria-label={linkName(image.description)}>
+        <ContentImage
+          image={image.file}
+          alt=""
+          sizes="(max-width: 34rem) 45vw, 15rem"
+        />
+      </a>
       {image.description && <p class="gg-caption">{image.description}</p>}
     </li>
   ))}
