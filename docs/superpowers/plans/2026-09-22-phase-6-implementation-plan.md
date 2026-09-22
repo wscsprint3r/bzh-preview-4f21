@@ -878,9 +878,12 @@ const IMAGE = /!\[\]\((\.\.\/\.\.\/assets\/content\/[^)]+)\)/;
 /**
  * The page's entries in document order, with the lines each occupies.
  *
- * `last` is the entry's last non-empty line, which is where an entry with no
- * image gets one appended. A heading starts an entry; nothing before the first
- * heading (the banner image) belongs to one.
+ * `last` is the entry's last non-empty line before the next section heading
+ * (`## Revista Doxologia` opens the following entry), which is where an entry
+ * with no image gets one appended. A `Nr.` heading starts an entry; nothing
+ * before the first heading (the banner image) belongs to one. A `##` line is
+ * a boundary and never content: counting it let Nr.7's appended cover land on
+ * the NEXT entry's `## Revista Doxologia` line, inside its `<h2>`.
  */
 export function parseEntries(markdown) {
   const lines = markdown.split('\n');
@@ -901,6 +904,7 @@ export function parseEntries(markdown) {
       return;
     }
     if (current === null) return;
+    if (line.startsWith('## ')) return;
     if (line.trim() !== '') current.last = index;
     const link = PDF_LINK.exec(line);
     if (link) current.link = link[1];
