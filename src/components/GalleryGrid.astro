@@ -21,7 +21,8 @@ import { publicUpload, resolveImage } from '../lib/images';
  * EVERY IMAGE IS A LINK TO ITS LARGEST DERIVATIVE. `ContentImage` renders
  * `.webp` variants sized for the grid; the href is the file the build emitted
  * for the asset itself - the 2400px ceiling the migration's `reencode`
- * guarantees - or the CMS upload's own URL, served byte-for-byte. A click
+ * guarantees - or the CMS upload's own URL, served as one file (the build
+ * re-encodes it). A click
  * opens it in the tab: no script, no extra request on the album page, and it
  * works with scripts off, which is how `scripts/a11y.mjs` audits the site.
  * The link carries the accessible name because the image's alt is empty by

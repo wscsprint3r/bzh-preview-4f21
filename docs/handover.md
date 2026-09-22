@@ -617,7 +617,8 @@ and what Phase 4 changed.
   beside the **Pagini** menu, which now has eleven entries. `build-output.itest.ts`
   fails if any prose page loses its inbound link from any visitor page.
 - **The founding album is as large as this repository can make it.** `/galerie/imagini-de-la-slujbe/`
-  (titled **Fondarea parohiei**) is eighteen photographs from 2001–2003, the largest
+  (titled **Fondarea parohiei**) is eighteen photographs, the captioned ones from
+  2001–2003, the largest
   300px. The old server's own `galerie/` folder holds nothing wider, so ask the parish
   for prints or negatives before anyone promises a sharper version — a scan would beat
   anything in the backup.

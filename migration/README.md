@@ -300,11 +300,13 @@ ninth has no row in `docs/url-map.csv`.
 
 ## The Doxologia covers, rendered once
 
-`revista-doxologia.md` is a shelf of 31 magazine covers, and every one of them is
-rendered from page 1 of the PDF the entry links, by the one-time tool below. It is a
-one-time manual step like the `.doc` conversion, not part of `run.mjs`, and unlike the
-rest of this directory it reads only files inside the repository, so a fresh clone can
-re-run it:
+`revista-doxologia.md` is a shelf of 31 magazine covers — 31 entries over 30 files,
+because the duplicate "Nr. 8" entry pairs twice to one PDF — and each is rendered from
+page 1 of its issue's PDF, by the one-time tool below. The pairing is the link when the
+entry has one, and the heading's issue and year when it does not (Nr.12 is the one such
+entry today). It is a one-time manual step like the `.doc` conversion, not part of
+`run.mjs`, and unlike the rest of this directory it reads only files inside the
+repository, so a fresh clone can re-run it:
 
 ```
 node migration/doxologia-covers.mjs
@@ -314,5 +316,8 @@ It needs `pdftoppm` and `pdfinfo` from poppler (the same package the PDF gate ne
 renders at 1200px through the migration's own `reencode`, rewrites the page's image
 paths, and prints every pairing. The three US-Letter spread issues (1-2011, 2-2011,
 3-2012) are detected by page shape and cropped to their right half, which is the
-cover. **After a migration re-run, run this again**: the migration would restore the
-old cover paths, and the unit test on the pairing fails until this runs.
+cover. **After a migration re-run, run this again**: the migration restores the old cover paths
+and re-migrates the 29 old cover files, so run this to rewrite the page, then delete the
+restored old covers again before committing — they are listed in `ABSENT_ON_PURPOSE` in
+`src/lib/referenced-paths.test.ts`, whose "no exemption has quietly become real" check
+fails on a file that is back.

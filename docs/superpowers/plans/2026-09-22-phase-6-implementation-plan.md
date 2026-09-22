@@ -24,7 +24,7 @@ the plan argues from both; read all three.
   **no lightbox**, no JavaScript.
 - **Item 3:** regenerate all covers from page 1 of the PDFs in `public/documente/`.
 - **Item 4:** rename the **title** to "Fondarea parohiei" and keep the slug
-  `/galerie/imagini-de-la-slujbe/`; migrate `17.jpg`–`25.jpg` from the 2008-22 backup.
+  `/galerie/imagini-de-la-slujbe/`; migrate `17.jpg`–`25.jpg` from the 2026-08-22 backup.
 - **Item 5:** `Galerie` goes into the top bar **after `Noutăți`**.
 
 ## Global Constraints

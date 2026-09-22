@@ -107,7 +107,7 @@ estimated; where a thing cannot be done, this says so rather than planning it.
 
       **Corrected while executing (2026-09-22):** the page carries 31 entry covers but
       only 30 distinct files, because the duplicate "Nr. 8" entry pairs twice to
-      `doxologia-8-2014.jpg`. Every cover is now page 1 of the PDF its entry links,
+      `doxologia-8-2014.jpg`. Every cover is now page 1 of its issue's PDF (the link when the entry has one, the heading otherwise),
       rendered at 1200px and re-encoded through the migration's `reencode`; the three
       US-Letter spread issues (1-2011, 2-2011, 3-2012) are cropped to their right half,
       which is the cover.

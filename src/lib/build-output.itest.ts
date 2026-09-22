@@ -1386,22 +1386,28 @@ describe('the gallery pages', () => {
     let linksChecked = 0;
     for (const f of albums) {
       const html = read(`galerie/${f.slug}/index.html`);
-      const images = (f.frontmatter.images ?? []) as { file?: string }[];
+      const images = (f.frontmatter.images ?? []) as { file?: string; description?: string }[];
       expect(images.length, `${f.file} lists no image - the count below would prove nothing`)
         .toBeGreaterThan(0);
       const links = galleryLinks(html);
       expect(links.length, `${f.slug} renders ${links.length} linked items, not ${images.length}`)
         .toBe(images.length);
-      for (const link of links) {
+      for (const [index, link] of links.entries()) {
         linksChecked += 1;
         expect(link.images, `${f.slug}: an item wraps ${link.images} images`).toBe(1);
         expect(link.href, `${f.slug}: an item has no href`).not.toBeNull();
         const href = link.href as string;
         expect(href.startsWith('/'), `${href} on /galerie/${f.slug}/ is not root-relative`).toBe(true);
-        expect(existsSync(DIST + href.slice(1)), `${href} on /galerie/${f.slug}/ does not resolve inside dist/`)
+        const path = (href.split(/[?#]/)[0] as string).slice(1);
+        expect(existsSync(DIST + path), `${href} on /galerie/${f.slug}/ does not resolve inside dist/`)
           .toBe(true);
         expect((link.label ?? '').trim().length, `${f.slug}: a link has no accessible name`)
           .toBeGreaterThan(0);
+        const description = images[index]?.description;
+        expect(
+          link.label,
+          `${f.slug}: link ${index} names ${JSON.stringify(link.label)} instead of its description`,
+        ).toBe(description ? `Mărește fotografia: ${description}` : 'Mărește fotografia');
       }
     }
     expect(linksChecked, 'no album image link in any built album').toBeGreaterThan(0);
