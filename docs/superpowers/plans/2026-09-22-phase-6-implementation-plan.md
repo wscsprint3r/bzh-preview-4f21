@@ -1063,8 +1063,6 @@ The trailing `dummy` argument is not decoration: the generator's main guard comp
 `import.meta.url` against `pathToFileURL(process.argv[1])`, and under `node -e` that
 argument is undefined, so the import would throw before printing anything.
 
-```bash
-
 Expected: 31 lines, Nr.16 → `doxologia-16-2018.pdf`, Nr.12 → `doxologia-12-2016.pdf`,
 and two lines for Nr.8 mapping to `doxologia-8-2014.pdf`. If any line says `(none)`,
 stop: a PDF the page needs is not in `public/documente/`.
