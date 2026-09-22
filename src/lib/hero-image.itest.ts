@@ -7,8 +7,8 @@ import { describe, expect, it } from 'vitest';
  * THE HOMEPAGE HERO IS THE LCP FETCH, AND NOTHING ELSE MEASURES AN ASSET'S
  * BYTES. `check-budget.mjs` measures HTML bytes per page, visitor JavaScript
  * and request count; the hero's one request is argued for in the note beside
- * `'index.html': 12`, but the 343,872 bytes that request used to cost was
- * measured by nothing — and the Lighthouse rows that would have caught it are
+ * `'index.html': 12`, but the bytes it hands the browser were measured by
+ * nothing — and the Lighthouse rows that would have caught them are
  * deferred to Phase 5, so neither half of spec §13 was watching.
  *
  * The guard is scoped to this one image on purpose: a general asset-byte
@@ -26,15 +26,24 @@ const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 const HTML = readFileSync(join(DIST, 'index.html'), 'utf8');
 
 /*
- * MEASURED 2026-09-21 through Astro at its default quality: the 2:1 crop gives
- * 480w = 33,212 B, 800w = 86,794 B, 1200w = 163,602 B. The ceiling is 180,000
- * — headroom for a re-encode, not enough to hide a return to the 4:3 source,
- * whose 1600w candidate measured 343,872 B and whose 1200w measured 237,602 B.
- * The first draft of this ceiling was 160,000, guessed from a sharp estimate
- * before a build existed; the built number is the one that counts.
+ * MEASURED 2026-09-21 through Astro at its default quality, against the
+ * Phase 5.2 3:1 derivative (`src/assets/content/2025/12/7-hero.jpg`,
+ * `sharp(src).resize({ width: 2400
+ * }).extract({ left: 0, top: 450, width: 2400, height: 800 }).jpeg({ quality:
+ * 90 })`): 480w = 21,538 B, 800w = 52,206 B, 1200w = 99,878 B, 1600w =
+ * 156,080 B, 2400w = 292,280 B. The ceiling of 300,000 is headroom for a re-encode of this
+ * crop, and it was RAISED FROM 180,000 on 2026-09-21 for one measured reason:
+ * the hero was pixelated on a 2x display, so the source was re-cut at 2400 and
+ * the width set extended to 2400 — and that candidate, measured through the
+ * build, does not fit under 180,000. The ceiling still refuses a return to the
+ * uncropped album file: through the same pipeline its own 2400w candidate
+ * measures 616,902 B, over the ceiling, which is why the homepage gets a
+ * derivative. The first draft of this ceiling was 160,000, guessed from a
+ * sharp estimate before a build existed; the built number is the one that
+ * counts.
  */
-const HERO_BYTES_CEILING = 180_000;
-const HERO_WIDTHS = [480, 800, 1200];
+const HERO_BYTES_CEILING = 300_000;
+const HERO_WIDTHS = [480, 800, 1200, 1600, 2400];
 
 type Candidate = { url: string; width: number };
 
@@ -61,7 +70,7 @@ describe('the hero image the browser fetches', () => {
     expect(tags, 'no img.hero-img in dist/index.html — the guard would measure nothing').toHaveLength(1);
   });
 
-  it('offers the three measured candidates, ascending, and no fourth', () => {
+  it('offers the five measured candidates, ascending, and no sixth', () => {
     const [tag] = heroTags(HTML);
     const list = candidates(tag);
     expect(list.map((c) => c.width)).toEqual(HERO_WIDTHS);
@@ -77,11 +86,11 @@ describe('the hero image the browser fetches', () => {
       return { ...candidate, bytes };
     });
     /*
-     * The `src` is Astro's 1600w variant, emitted as the fallback for a browser
-     * with no `srcset` support and fetched by none of the browsers this site
-     * targets; it is printed so the number is not hidden, and deliberately not
-     * capped — the cap is on what the LCP fetch can be, and that is a srcset
-     * candidate.
+     * The `src` is Astro's full-width variant — the 2400w cut itself — emitted
+     * as the fallback for a browser with no `srcset` support and fetched by
+     * none of the browsers this site targets; it is printed so the number is
+     * not hidden, and deliberately not capped — the cap is on what the LCP
+     * fetch can be, and that is a srcset candidate.
      */
     const src = tag.match(/ src="([^"]*)"/)?.[1] ?? '';
     const srcBytes = src === '' ? 0 : statSync(join(DIST, src.replace(/^\//, ''))).size;

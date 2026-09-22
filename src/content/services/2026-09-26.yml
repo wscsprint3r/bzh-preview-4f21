@@ -1,0 +1,5 @@
+services:
+  - time: "15:00"
+    service: Spovedanie
+  - time: "17:00"
+    service: Vecernie

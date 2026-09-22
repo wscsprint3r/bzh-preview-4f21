@@ -2,7 +2,7 @@
 title: "Școala parohială"
 path: "comunitate/scoala"
 order: 40
-image: "../../assets/content/2024/05/166876765_1270252473370992_732141221062061775_n.jpg"
+image: "../../assets/content/2025/12/5.jpg"
 ---
 
 ## Scopul școlii noastre
@@ -23,7 +23,7 @@ Activități artistice cu prilejul sărbătorilor religioase
 
 Desen, meșterit
 
-![](../../assets/content/2024/05/299423305_1614472635615639_144441808512976432_n-1.jpg)
+![](../../assets/content/2025/12/6.jpg)
 
 ## Programul școlii este orientat să ajute copiii:
 

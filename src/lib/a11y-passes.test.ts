@@ -1126,20 +1126,23 @@ describe('selecting the reading-column pages from a build', () => {
 
 /*
  * ===========================================================================
- * THE HERO'S PHOTOGRAPHED GROUND, EXEMPTED FROM axe AND MEASURED IN PIXELS.
+ * THE HERO'S UNRESOLVABLE GROUND, EXEMPTED FROM axe AND MEASURED IN PIXELS.
  *
- * The homepage hero is text over a photograph under an oxblood scrim. axe
- * cannot determine that background and returns a `color-contrast` incomplete,
- * which this project fails on; `heroTextIncompletes` recognises exactly the
- * hero's nodes and `measureHeroContrast` in `scripts/a11y.mjs` is the judgement
- * that replaces axe's, on the pixels the browser really paints.
+ * The homepage hero's text stands on the oxblood strip below the photograph
+ * since Phase 5.1, but axe still returns a `color-contrast` incomplete for the
+ * h1 and the verse: what it cannot resolve is the wash's `::after` pseudo
+ * element on `.hero`, whatever that pseudo covers. This project fails on
+ * in-scope incompletes; `heroTextIncompletes` recognises exactly the hero's
+ * nodes and `measureHeroContrast` in `scripts/a11y.mjs` is the judgement that
+ * replaces axe's, on the pixels the browser really paints — now the strip's
+ * solid oxblood.
  *
  * THE FIRST THREE CASES ARE THE BRIEFED CONTRACT. The last three are the nodes
  * axe REALLY reported on the Task 6 build, captured with a probe before the
  * matcher was written: the h1's target is a bare `h1` (axe picks the shortest
  * unique selector, and a class added to the h1 does not change it — measured),
  * and the handle that places it inside the hero is the check's own evidence:
- * `messageKey: 'pseudoContent'` with the scrim's owner named in `relatedNodes`.
+ * `messageKey: 'pseudoContent'` with the wash's owner named in `relatedNodes`.
  *
  * THE EXEMPTION IS TIED TO THE MEASUREMENT, NOT ONLY TO A SELECTOR. A matcher
  * alone says "this looks like the hero"; it does not say `measureHeroContrast`
@@ -1153,7 +1156,7 @@ describe('selecting the reading-column pages from a build', () => {
  * `relatedNodes`. axe prints the shortest unique selector, and the homepage's
  * own content decides which string that is: measured 2026-09-21, the first day
  * with no upcoming week, the week `<section>`s are absent, the hero becomes the
- * only `<section>`, and the scrim's owner arrives as `section` where it had
+ * only `<section>`, and the wash's owner arrives as `section` where it had
  * arrived as `.hero`. Whether `section` is the hero is a fact about the page,
  * not about the string, so `heroCoverage` resolves each `relatedNodes` target
  * and asks `closest('.hero')`; this function consumes its verdict. The real

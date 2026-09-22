@@ -9,6 +9,7 @@ import { articleSlug, publishedArticles } from './articles';
 import { formatIban } from './accounts';
 import { CEDILLAS, COMMA_BELOW } from './cedilla';
 import { eventSlug } from './events';
+import { RESERVED_PATHS } from './routes';
 import { INDEXABLE } from './site';
 
 /*
@@ -811,31 +812,84 @@ describe('the prose pages', () => {
   });
 
   /*
-   * THE FRONTMATTER IMAGE, FROM THE FIELD TO THE PAGE. `pageSchema.image` and
-   * `ContentImage` both existed before this route rendered either: the CMS
-   * offered the field, the schema validated it and nothing read it, which
-   * looks exactly like a working feature from the CMS and from the content
-   * files. `/parohia/istoric/` is the chosen page that carries one, and the
-   * assertion is the whole rendering: exactly one wrapper, exactly one `<img>`
-   * inside it, the page title as its alt, and a src that resolves inside
-   * `dist/` - because an `<img>` at a path the host does not serve 404s with
-   * no other symptom.
+   * THE FRONTMATTER IMAGE, FROM THE FIELD TO THE PAGE - FOR EVERY PAGE THAT
+   * CARRIES ONE. `pageSchema.image` and `ContentImage` both existed before this
+   * route rendered either: the CMS offered the field, the schema validated it
+   * and nothing read it, which looks exactly like a working feature from the
+   * CMS and from the content files. The subject is now the CONTENT FILES - the
+   * pages whose frontmatter carries an `image:` - rather than the one page the
+   * first version happened to name, so a page that gains or loses the field is
+   * followed automatically. The derived set is the pages whose field is
+   * NON-EMPTY AFTER TRIMMING, matching the route: `pageSchema.image` is
+   * `z.string().trim().optional()`, so the route's truthiness check
+   * (`[...page].astro`) sees the trimmed value - `image: ""` and a
+   * whitespace-only `image: " "` are both valid content states meaning "no
+   * image", and counting either would demand a wrapper the route rightly does
+   * not render. Each rendering is the whole claim: exactly one wrapper, exactly
+   * one `<img>`, the page title as its alt, and a src that resolves inside
+   * `dist/` - because an `<img>` at a path the host does not serve 404s with no
+   * other symptom.
+   *
+   * THE TWO `RESERVED_PATHS` PAGES ARE EXCLUDED, AND THE GAP IS RECORDED HERE
+   * RATHER THAN SILENTLY SKIPPED. `contact` and `doneaza` have dedicated routes
+   * (`contact.astro`, `doneaza.astro`) that render no `.page-image`, while the
+   * CMS still offers the `image:` field on them - so an `image:` set through
+   * the CMS is ignored today. The place to close that is those two routes, not
+   * this guard; until then, filtering them out keeps a volunteer's edit from
+   * reddening CI for a field nothing promised to render. The positive-control
+   * assertion below still covers the three remaining pages.
    */
-  it('renders the chosen hero image on /parohia/istoric/, exactly one, resolving inside dist/', () => {
-    const wrappers = pageImages(read('parohia/istoric/index.html'));
-    expect(wrappers, '/parohia/istoric/ does not render exactly one .page-image wrapper')
-      .toHaveLength(1);
-    const images = [...(wrappers[0] as string).matchAll(/<img\b[^>]*>/g)].map((m) => m[0] as string);
-    expect(images, 'the .page-image wrapper does not hold exactly one <img>').toHaveLength(1);
-    // The alt is the page title: a CMS image on a prose page is a lead picture,
-    // not an ornament, and an empty field is how a volunteer asks for none.
-    expect(images[0], 'the hero image does not carry the page title as its alt')
-      .toContain('alt="Istoric"');
-    const src = /<img\b[^>]*\bsrc="([^"]+)"/.exec(images[0] as string)?.[1];
-    expect(src, 'the hero image has no src').toBeDefined();
-    expect((src as string).startsWith('/'), `${src} is not root-relative`).toBe(true);
-    const path = (src as string).split(/[?#]/)[0] as string;
-    expect(existsSync(DIST + path.slice(1)), `${src} does not resolve inside dist/`).toBe(true);
+  it('renders the frontmatter image of every page that carries one, exactly once, resolving inside dist/', () => {
+    const pages = pageFiles().filter(
+      (f) =>
+        !RESERVED_PATHS.has(f.slug) &&
+        typeof f.frontmatter.image === 'string' &&
+        f.frontmatter.image.trim() !== '',
+    );
+    expect(pages.length, 'no prose page carries an image: field - the guard would prove nothing')
+      .toBeGreaterThan(0);
+    for (const page of pages) {
+      const html = read(`${page.slug}/index.html`);
+      const wrappers = pageImages(html);
+      expect(wrappers, `/${page.slug}/ does not render exactly one .page-image wrapper`)
+        .toHaveLength(1);
+      const images = [...(wrappers[0] as string).matchAll(/<img\b[^>]*>/g)].map((m) => m[0] as string);
+      expect(images, `/${page.slug}/'s .page-image wrapper does not hold exactly one <img>`)
+        .toHaveLength(1);
+      expect(images[0], `/${page.slug}/'s image does not carry the page title as its alt`)
+        .toContain(`alt="${String(page.frontmatter.title)}"`);
+      const src = /<img\b[^>]*\bsrc="([^"]+)"/.exec(images[0] as string)?.[1];
+      expect(src, `/${page.slug}/'s image has no src`).toBeDefined();
+      expect((src as string).startsWith('/'), `${src} is not root-relative`).toBe(true);
+      const path = (src as string).split(/[?#]/)[0] as string;
+      expect(existsSync(DIST + path.slice(1)), `${src} does not resolve inside dist/`).toBe(true);
+    }
+    process.stdout.write(`\nFrontmatter images: ${pages.length} page(s) with a lead image.\n`);
+  });
+
+  /*
+   * THE SCHOOL PAGE'S TWO REPLACED PHOTOGRAPHS. The lead image and the body
+   * image both changed on 2026-09-21. The durable half of this is the guard
+   * above plus the body-image guard; this one is the red-first driver,
+   * asserting the page no longer names either file it used to show. The
+   * presence arm is the positive control: a page that rendered no image at all
+   * would satisfy two `not.toContain` checks vacuously. That control counts
+   * every `<img>` on the page (today exactly the two content photographs), so
+   * it proves images render but does not pin the 5/6 mapping - the durable half
+   * is the generalised guard.
+   */
+  it('the school page shows the two chosen photographs, not the ones they replaced', () => {
+    const html = read('comunitate/scoala/index.html');
+    for (const old of ['166876765_1270252473370992', '299423305_1614472635615639']) {
+      expect(html, `the school page still renders ${old}`).not.toContain(old);
+    }
+    const srcs = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1] as string);
+    expect(srcs.length, 'the school page renders no image - the absence above proves nothing')
+      .toBeGreaterThanOrEqual(2);
+    for (const src of srcs) {
+      const path = src.split(/[?#]/)[0] as string;
+      expect(existsSync(DIST + path.slice(1)), `${src} does not resolve inside dist/`).toBe(true);
+    }
   });
 
   /*
@@ -1693,6 +1747,58 @@ describe('the built pages', () => {
       .toBeGreaterThan(0);
     for (const slug of unpublished) {
       expect(html, `${slug} must not be on the homepage`).not.toContain(`/noutati/${slug}/`);
+    }
+  });
+
+  /*
+   * THE PRIMARY NAVIGATION, AS AN EXACT SET, AND THE PAGE IT MUST NOT ORPHAN.
+   * The header list is the one place a link can be swapped with no other
+   * symptom: the page stays built, the sitemap lists it and every other guard
+   * stays green - the shape that made seven prose pages unreachable before the
+   * footer menu. So the expected set is WRITTEN OUT BY HAND, in order, rather
+   * than derived from the component that renders it, and each href is followed
+   * into dist/ so a link to nothing fails. The footer's `Site` menu is
+   * asserted beside it: `Evenimente` left the header on 2026-09-21 and that
+   * menu is now its only inbound link on every visitor page.
+   */
+  it('the header carries exactly the seven primary links, and the footer still reaches the events', () => {
+    const html = read('index.html');
+    const header =
+      html.match(/<nav[^>]*aria-label="Navigare principală"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? '';
+    expect(
+      header.length,
+      'the header nav is missing from index.html - the guard would prove nothing',
+    ).toBeGreaterThan(0);
+    const hrefs = [...header.matchAll(/href="([^"]+)"/g)].map((m) => m[1] as string);
+    expect(hrefs).toEqual([
+      '/',
+      '/program/',
+      '/noutati/',
+      '/comunitate/scoala/',
+      '/servicii-liturgice/',
+      '/contact/',
+      '/doneaza/',
+    ]);
+    for (const href of hrefs) {
+      const path = href === '/' ? 'index.html' : `${href.slice(1)}index.html`;
+      expect(existsSync(DIST + path), `${href} in the header does not resolve inside dist/`)
+        .toBe(true);
+    }
+    const footer =
+      html.match(/<nav[^>]*aria-label="Site"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? '';
+    expect(
+      footer,
+      'the footer Site menu is missing - the Evenimente link below would prove nothing',
+    ).toContain('href="/evenimente/"');
+    const footerHrefs = [...footer.matchAll(/href="([^"]+)"/g)].map((m) => m[1] as string);
+    expect(
+      footerHrefs.length,
+      'the footer Site menu carries no href - the loop below would prove nothing',
+    ).toBeGreaterThan(0);
+    for (const href of footerHrefs) {
+      const path = href === '/' ? 'index.html' : `${href.slice(1)}index.html`;
+      expect(existsSync(DIST + path), `${href} in the footer does not resolve inside dist/`)
+        .toBe(true);
     }
   });
 

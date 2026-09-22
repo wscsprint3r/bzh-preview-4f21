@@ -60,6 +60,10 @@
  *     IS THE HOMEPAGE HERO: `heroTextIncompletes` recognises its nodes,
  *     `measureHeroContrast` below judges the same pixels against WCAG, and
  *     every other incomplete still fails — see the block above that function.
+ *     Phase 5.1 moved the hero's text onto solid oxblood and axe STILL reports
+ *     the incomplete: what it cannot resolve is the wash's pseudo element on
+ *     `.hero`, not the photograph, so the exemption and the measurement remain
+ *     the hero's judges (measured 2026-09-21).
  *   - text drawn inside an inline `<svg>`, which axe can never resolve a
  *     background for: `elementHasImage` treats every SVG node as a graphic, so
  *     the `color-contrast` rule returns `incomplete` for each `<text>`/`<tspan>`
@@ -1503,11 +1507,21 @@ const HERO_TEXT_STAMP_SOURCE = `
 
 /*
  * THE HERO'S DECLARED GAP, RECONCILED THE SAME WAY AS THE SVG TEXT. axe cannot
- * resolve a background image, so the hero's h1 and verse arrive as
+ * resolve the hero text's background, so the h1 and verse arrive as
  * `color-contrast` incompletes whatever their real contrast is. They are
  * exempted here and judged by `measureHeroContrast` below, on the pixels. The
  * matcher is fail-closed: every selector chain in a target must name the
  * `.hero` CLASS TOKEN, or the node stays in scope and fails.
+ *
+ * PHASE 5.1 DID NOT RETIRE THIS, AND THE MEASUREMENT IS WHY. The split band put
+ * the text on the oxblood strip BELOW the photograph, so no glyph stands on the
+ * picture — but axe still reports "background color could not be determined due
+ * to a pseudo element" for both nodes, because the wash's `::after` sits on
+ * `.hero` and axe treats a pseudo element as an obstruction whatever it covers
+ * (measured on the 2026-09-21 build, the same two incompletes as before). The
+ * exemption still fires, `measureHeroContrast` now samples the strip's solid
+ * oxblood, and the backlog's "the exemption can go" would first need the tint
+ * moved off `.hero` and a build proving axe judges the strip.
  *
  * A CLASS TOKEN, NOT A SUBSTRING, AND THE DIFFERENCE WAS MEASURED. The first
  * version asked `chain.includes('.hero')`, which exempts `.hero-verse` — the
@@ -1533,10 +1547,10 @@ const HERO_TEXT_STAMP_SOURCE = `
  * there would leave the pass red for ever.
  *
  * The handle is in the check axe itself attaches: the undetermined background
- * is the scrim, `.hero::after`, and the check says so —
+ * is the wash, `.hero::after`, and the check says so —
  * `data.messageKey: 'pseudoContent'` with the pseudo element's owner,
  * `.hero`, named in `relatedNodes`. A node is exempted on that evidence only
- * when EVERY related node is the hero and the reason is the scrim's pseudo
+ * when EVERY related node is the hero and the reason is the wash's pseudo
  * content; a bare `h1` with no such check, or with related nodes that name
  * anything else, stays in scope and keeps failing. The real node shapes are
  * pinned in `src/lib/a11y-passes.test.ts`.
@@ -1553,7 +1567,7 @@ const HERO_TEXT_STAMP_SOURCE = `
  *   caller that cannot prove coverage keeps the node in scope and the pass
  *   fails.
  * - `evidenceHero` — the check that made this node an incomplete names the
- *   scrim's pseudo element (`messageKey: 'pseudoContent'`) and every
+ *   wash's pseudo element (`messageKey: 'pseudoContent'`) and every
  *   `relatedNodes` target RESOLVED to an element inside the hero. Resolved,
  *   not read: axe prints the shortest unique selector, and that selector is
  *   not stable across content. Measured 2026-09-21, the first day with no
@@ -1895,6 +1909,14 @@ async function heroCoverage(driver, rule) {
  * each `.hero`'s region extracted from it and judged by `heroContrastProblems`.
  * The style and the marks are removed in a `finally`, so a failure cannot leave
  * the page altered for the axe pass that follows.
+ *
+ * WHAT THE SAMPLED PIXELS ARE HAS CHANGED ONCE, IN PHASE 5.1. Before the split
+ * they were the scrim composited over the photograph, and the crop had to be
+ * dark enough to carry the glyphs; now the text stands on the oxblood strip and
+ * the pixels are that strip's solid colour (h1 10.54:1, verse 8.12:1, measured
+ * 2026-09-21 on all three passes). The measurement is kept because axe still
+ * cannot make it — see the block above `heroTextIncompletes` — not because the
+ * photograph is judged here any more.
  *
  * IT MEASURES EVERY TEXT-BEARING DESCENDANT OF EVERY `.hero`, NOT `h1, p`. The
  * exemption in `heroTextIncompletes` exempts any hero text axe cannot judge, so

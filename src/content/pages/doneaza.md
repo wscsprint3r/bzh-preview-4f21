@@ -21,4 +21,4 @@ _**Cu recunoștință,**_
 
 Consiliul Parohial al Bisericii Ortodoxe Române „Sfântul Nicolae" Zürich
 
-![](../../assets/content/2024/05/d137c008-87ff-423a-a95f-5da44b9f1534.jpg)
+![](../../assets/content/2026/04/IMG_4656.jpg)

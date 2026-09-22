@@ -45,7 +45,7 @@ const LEGACY_GALLERY_SUBDIR = 'src/assets/content/galleries/legacy';
 export const ALLOWED_EXTENSIONS = ['jpeg', 'jpg', 'png', 'webp'];
 
 /** The long edge everything is downscaled to. Spec 11. */
-const MAX_EDGE = 2400;
+export const MAX_EDGE = 2400;
 
 /**
  * WordPress writes `name-WIDTHxHEIGHT.ext` for every generated thumbnail.
@@ -429,7 +429,7 @@ const EXTENSIONS_FOR_FORMAT = { jpeg: ['jpg', 'jpeg'], png: ['png'], webp: ['web
  * question only; the bytes come from `source`, which the caller has already
  * proved is inside the tree it belongs to.
  */
-async function reencode(source, relative) {
+export async function reencode(source, relative) {
   const raw = await readFile(source);
   // Decode -> resize -> re-encode. Whatever was appended to, or hidden in, the
   // original does not survive being turned back into pixels and written out

@@ -457,6 +457,12 @@ const REQUEST_BUDGET = {
    * crops are CSS `object-position` on one source. A second image on this page
    * is a red build; that is the budget asking whether it belongs, not a limit
    * to raise.
+   *
+   * PHASE 5.1 GREW THE BANNER WITHOUT COSTING A REQUEST: the photograph left
+   * the absolute-positioned layer behind the text and got a 3:1 band of its
+   * own (574 px tall at 1280, against 235 px before), while the words moved
+   * onto the oxblood strip beneath it. Still one <img>, still one fetch, still
+   * 12 of 12 — the band is a ratio on the same element, not a second request.
    */
   'index.html': 12,
   'program/index.html': 12,
