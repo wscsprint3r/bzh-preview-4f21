@@ -1,0 +1,95 @@
+# A THROWAWAY PREVIEW, AND EVERY LINE OF THIS FILE IS TEMPORARY.
+#
+# The parish site's real target is Cloudflare Pages (spec §15). This workflow
+# exists only so the built site can be looked at on a URL nobody has to be
+# given a password for, before the DNS cutover. It lives on the
+# `github-pages-preview` branch and is deleted with it.
+#
+# WHAT GITHUB PAGES CANNOT DO, said here because the site looks fine without
+# any of it:
+#   - `_headers` is ignored. No Content-Security-Policy, no HSTS, no
+#     X-Content-Type-Options, no Referrer-Policy, no Permissions-Policy. The
+#     hash `scripts/csp-hash.mjs` substitutes is inert. Handover F1-F4 will fail
+#     against this host, correctly.
+#   - `_redirects` is ignored. All 156 rules are dead, so every old URL 404s.
+#   - `functions/` does not exist on this platform. `POST /api/contact` returns
+#     404 - the form will appear to submit and silently fail - the `?p=<id>`
+#     short links do nothing, and the apex redirect is not applicable.
+# None of that is a defect in the build; it is what a static file host is.
+#
+# THE PATH PREFIX IS THE ONE INTERESTING PART. A GitHub project site is served
+# at https://<user>.github.io/<repo>/, and Astro's `base` only rewrites the
+# links Astro itself generates. This site's links are hand-written, in
+# components and in migrated markdown: 1,047 href, 108 src, 42 srcset and 544
+# url() in the built HTML, every one of them root-absolute. So the build runs
+# unchanged and `scripts/pages-prefix.mjs` moves them afterwards, with its own
+# both-directions check - nothing left at the root, and everything that moved
+# resolves - so a broken preview fails the job instead of being published.
+name: Preview on GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and a superseded run is cancelled rather than
+# queued: the artifact is ~270 MB and two of them racing is pointless.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # TZ, because the schedule pages are built against a Zürich date and a
+      # runner is UTC. The same variable the local commands use.
+      - name: Build
+        run: TZ=Europe/Zurich npm run build
+
+      # `/admin/` takes its `x-robots-tag: noindex` from `_headers`, which this
+      # host ignores - and it is the page where an editor's GitHub credential
+      # would live. It has no place on a preview, so it does not ship. Every
+      # other page carries `<meta name="robots" content="noindex">` from
+      # INDEXABLE=false in `src/lib/site.ts`, which does work here.
+      - name: Drop the CMS from the preview
+        run: rm -rf dist/admin
+
+      # Cloudflare's two files mean nothing here and would only mislead anyone
+      # who found them.
+      - name: Drop the Cloudflare-only files
+        run: rm -f dist/_headers dist/_redirects
+
+      - name: Move every reference under the repository path
+        run: |
+          node scripts/pages-prefix.mjs dist "${GITHUB_REPOSITORY#*/}"
+          node scripts/pages-prefix.mjs --verify dist "${GITHUB_REPOSITORY#*/}"
+
+      - uses: actions/configure-pages@v5
+
+      # The artifact route runs no Jekyll, which is what keeps `dist/_astro/`
+      # alive: Jekyll drops every path beginning with an underscore, and that is
+      # every hashed asset on the site.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - uses: actions/deploy-pages@v4
+        id: deployment
