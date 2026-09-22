@@ -695,8 +695,9 @@ git commit -m "feat(galerie): every album image links to its largest derivative"
 **Files:**
 - Create: migration/doxologia-covers.mjs (the generator and its pure functions)
 - Create: migration/doxologia-covers.test.mjs
-- Create: the 31 generated covers under src/assets/content/2026/09/ (not named here in
-  backticks: the directory exists after Step 6, the files after Step 7)
+- Create: the 30 generated covers under src/assets/content/2026/09/ (31 entries; the
+  duplicate Nr.8 pairs twice to one file. Not named here in backticks: they exist only
+  after Step 6 runs)
 - Modify: `src/content/pages/revista-doxologia.md` (30 replaced paths, one added)
 - Modify: `src/lib/referenced-paths.test.ts` (29 old covers into `ABSENT_ON_PURPOSE`)
 - Delete: the 29 old cover assets (listed in Step 8; the page's banner and the shared
@@ -950,7 +951,7 @@ export function coverPath(name) {
 
 /** The path a content file uses to name the generated cover. */
 export function markdownPath(name) {
-  return `../../assets/content/${OUT_DIR.replace('src/assets/', '')}/${name}`;
+  return `../../assets/${OUT_DIR.replace('src/assets/', '')}/${name}`;
 }
 
 /**
@@ -1051,8 +1052,14 @@ starts from — do not "fix" the test.
 - [ ] **Step 5: Confirm the module's pairing report before rendering anything**
 
 ```bash
-node -e "import('./migration/doxologia-covers.mjs').then(async (m) => { const { readFileSync, readdirSync } = await import('node:fs'); const { join } = await import('node:path'); const md = readFileSync(join(m.ROOT, m.PAGE_PATH), 'utf8'); const pdfs = readdirSync(join(m.ROOT, m.DOCS_DIR)).filter((n) => n.startsWith('doxologia-')).sort(); for (const e of m.parseEntries(md)) { const pdf = m.pairPdf(e, pdfs); console.log('Nr.' + e.issue, e.year, '->', pdf, '->', pdf ? m.coverName(pdf) : '(none)'); } })"
+node -e "import('./migration/doxologia-covers.mjs').then(async (m) => { const { readFileSync, readdirSync } = await import('node:fs'); const { join } = await import('node:path'); const md = readFileSync(join(m.ROOT, m.PAGE_PATH), 'utf8'); const pdfs = readdirSync(join(m.ROOT, m.DOCS_DIR)).filter((n) => n.startsWith('doxologia-')).sort(); for (const e of m.parseEntries(md)) { const pdf = m.pairPdf(e, pdfs); console.log('Nr.' + e.issue, e.year, '->', pdf, '->', pdf ? m.coverName(pdf) : '(none)'); } })" dummy
 ```
+
+The trailing `dummy` argument is not decoration: the generator's main guard compares
+`import.meta.url` against `pathToFileURL(process.argv[1])`, and under `node -e` that
+argument is undefined, so the import would throw before printing anything.
+
+```bash
 
 Expected: 31 lines, Nr.16 → `doxologia-16-2018.pdf`, Nr.12 → `doxologia-12-2016.pdf`,
 and two lines for Nr.8 mapping to `doxologia-8-2014.pdf`. If any line says `(none)`,
@@ -1066,6 +1073,9 @@ node migration/doxologia-covers.mjs
 
 Expected: 31 report lines, three of them marked "(spread: right half)", each around
 264,000 bytes, then "31 covers written to src/assets/content/2026/09/, page rewritten."
+The generator's summary counts entries, not files: 30 files exist, because the
+duplicate Nr.8 entry pairs twice to doxologia-8-2014.jpg and the second write replaces
+the first.
 Confirm idempotence by running it a second time and checking the page did not change:
 
 ```bash
@@ -1116,7 +1126,8 @@ process.stdout.write(`${names.length} covers, ${COLS} per row -> /tmp/p6-covers-
 node .superpowers/p6-contact-sheet.mjs
 ```
 
-Then read `/tmp/p6-covers-sheet.png`. Expected: 31 tiles, each a magazine cover with
+Then read `/tmp/p6-covers-sheet.png`. Expected: 30 tiles (the sheet dedupes the
+repeated Nr.8 file name), each a magazine cover with
 its masthead and issue number, in page order (Nr.30 first). **If any tile is a text
 page, a table of contents or a two-page spread, stop and report which** — the pairing
 or the crop is wrong for that issue, and shipping it would put a non-cover on the page.
@@ -1206,8 +1217,8 @@ git rm src/assets/content/2025/04/Screenshot-2025-04-06-at-23.19.24.png \
 npm test
 ```
 
-Expected: PASS, and printed: the content-asset sweep covering 103 files (101 existing
-plus 31 new minus 29 deleted), none with EXIF/ICC/XMP/IPTC, longest edge 2400. `referenced-paths.test.ts` now reports
+Expected: PASS, and printed: the content-asset sweep covering 102 files (101 existing
+plus 30 unique new minus 29 deleted), none with EXIF/ICC/XMP/IPTC, longest edge 2400. `referenced-paths.test.ts` now reports
 the new exemption group and finds no stale one.
 
 - [ ] **Step 10: Document the tool in the migration README**
