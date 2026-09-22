@@ -1759,9 +1759,13 @@ describe('the built pages', () => {
    * than derived from the component that renders it, and each href is followed
    * into dist/ so a link to nothing fails. The footer's `Site` menu is
    * asserted beside it: `Evenimente` left the header on 2026-09-21 and that
-   * menu is now its only inbound link on every visitor page.
+   * menu is now its only inbound link on every visitor page. The set changed
+   * again on 2026-09-22: `Galerie` joined after `Noutăți` at the parish's
+   * request. The footer's `Site` menu already carried it, so nothing was
+   * orphaned - the top bar is its second inbound link, and the one the parish
+   * asked for.
    */
-  it('the header carries exactly the seven primary links, and the footer still reaches the events', () => {
+  it('the header carries exactly the eight primary links, and the footer still reaches the events', () => {
     const html = read('index.html');
     const header =
       html.match(/<nav[^>]*aria-label="Navigare principală"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? '';
@@ -1774,6 +1778,7 @@ describe('the built pages', () => {
       '/',
       '/program/',
       '/noutati/',
+      '/galerie/',
       '/comunitate/scoala/',
       '/servicii-liturgice/',
       '/contact/',
