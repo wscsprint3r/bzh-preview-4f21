@@ -19,7 +19,7 @@ estimated; where a thing cannot be done, this says so rather than planning it.
 
 ## 1. The gallery: full resolution, and a click that enlarges
 
-- [ ] **Give an album image somewhere to go.** `src/pages/galerie/[slug].astro` renders
+- [x] **Give an album image somewhere to go.** `src/pages/galerie/[slug].astro` renders
       derivatives and links to nothing, so a visitor who wants to see a photograph properly
       has no way to. Two levels, and they are not alternatives — the first is worth doing
       whether or not the second ever is:
@@ -46,7 +46,7 @@ estimated; where a thing cannot be done, this says so rather than planning it.
 
 **Decision taken 2026-09-22: drop the border.**
 
-- [ ] **Remove the frame from `.page-image`.** Measured on `/comunitate/scoala/` at 1280px:
+- [x] **Remove the frame from `.page-image`.** Measured on `/comunitate/scoala/` at 1280px:
 
       | | |
       |---|---|
@@ -69,11 +69,15 @@ estimated; where a thing cannot be done, this says so rather than planning it.
       wrapper exists and holds exactly one `<img>` whose `src` resolves, which stays true.
       Nothing needs relaxing; confirm that before changing the CSS rather than after.
 
+      **Corrected while executing (2026-09-22):** three pages carry a lead image, not
+      two — `cursuri-de-pictura` (served at `/comunitate/pictura/`) also does, and was
+      checked by screenshot with the other two. The frame is gone from all three.
+
 ---
 
 ## 3. `/resurse/doxologia/`: the covers are three different sizes
 
-- [ ] **Give the magazine covers one size.** The page body carries one `![]()` per issue and
+- [x] **Give the magazine covers one size.** The page body carries one `![]()` per issue and
       nothing constrains their width beyond `img { max-width: 100% }` in
       `src/styles/global.css`, so each renders at its natural width. Measured across the 31
       covers in `src/content/pages/revista-doxologia.md`:
@@ -101,11 +105,18 @@ estimated; where a thing cannot be done, this says so rather than planning it.
       — is a screenshot of something else and is the one to look at by eye before deciding what
       replaces it.
 
+      **Corrected while executing (2026-09-22):** the page carries 31 entry covers but
+      only 30 distinct files, because the duplicate "Nr. 8" entry pairs twice to
+      `doxologia-8-2014.jpg`. Every cover is now page 1 of the PDF its entry links,
+      rendered at 1200px and re-encoded through the migration's `reencode`; the three
+      US-Letter spread issues (1-2011, 2-2011, 3-2012) are cropped to their right half,
+      which is the cover.
+
 ---
 
 ## 4. The legacy album
 
-- [ ] **Rename it, and stop calling the images small a bug.**
+- [x] **Rename it, and stop calling the images small a bug.**
 
       **The rename.** `src/content/galerii/imagini-de-la-slujbe.md` is titled "Imagini de la
       slujbe", and its own captions are the parish's founding: *20.12.2001 — Deschiderea
@@ -143,11 +154,20 @@ estimated; where a thing cannot be done, this says so rather than planning it.
       the question and nothing from it may be committed; any image that ends up in the site
       goes through `reencode` like every other photograph.
 
+      **Corrected while executing (2026-09-22):** the premise above that the old path
+      "is already in the 152" is wrong — no `/galerie/*` path exists in
+      `docs/url-map.csv`. The old album was one WordPress page at `/evenimente/`, and
+      `/galerie.html` → `/galerie/` is a hand-written rule in `scripts/redirects.mjs`'s
+      `EXTRA_RULES`. The title-only rename needed no redirect work, and a slug rename
+      would not have needed a CSV row either. Item 4 also gained the nine 300px images
+      from the backup (17–25) and the dense grid, and the page's 2001 photographs are
+      now as large as anything this repository can reach.
+
 ---
 
 ## 5. `Galerie` in the top bar
 
-- [ ] **Add `/galerie/` to the primary navigation, after `Noutăți`.** The eight links become
+- [x] **Add `/galerie/` to the primary navigation, after `Noutăți`.** The eight links become
       Acasă, Program, Noutăți, Galerie, Școala parohială, Servicii liturgice, Contact,
       Donează. The footer's `Site` menu already carries `Galerie`
       (`src/components/SiteFooter.astro:48`), so nothing is orphaned by the move — today
@@ -170,6 +190,10 @@ estimated; where a thing cannot be done, this says so rather than planning it.
 
       **The budget is checked rather than assumed**: the link adds bytes to the header of
       every page, and `npm run budget` is what says whether any page crosses its limit.
+
+      **Corrected while executing (2026-09-22):** nothing else moved — the footer's
+      `Site` menu already carried `Galerie`, so the bar is its second inbound link.
+      Measured after the change at 390px: the eight links total 490.3px and wrap 5+3.
 
 ---
 
