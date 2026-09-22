@@ -260,9 +260,13 @@ node .superpowers/p6-nav-width.mjs
 ```
 
 Measured 2026-09-22, with `Galerie` in place: eight links measuring 36.7, 54.0, 47.8,
-45.1, 101.2, 102.5, 49.3 and 53.7px — **490.3px together** — wrapping **4+4** at 390
-(first line ends with `Galerie`; `Școala parohială` opens the second), nav still 358×54.
-At 1280 the bar is one row, 630×23.
+45.1, 101.2, 102.5, 49.3 and 53.7px — **490.3px together** — wrapping **5+3** at 390
+(`Școala parohială` ends the first line, `Servicii liturgice` opens the second), nav
+still 358×54. `clientWidth` reads 390 in the headless runs — this Chrome draws no
+layout-consuming scrollbar — so the phone's content column is **358**, not 343. At 1280
+the bar is one row, 630×23. **Corrected from the run (2026-09-22): the plan's first
+draft claimed 4+4 and a 375/343 column, which the measurement did not reproduce; the
+numbers above are what the run printed, and the comment below is the shipped text.**
 
 Replace the header comment's first paragraph (`src/components/SiteHeader.astro`, the
 block that begins "SEVEN LINKS, AND THE SET CHANGED ON 2026-09-21") with:
@@ -292,18 +296,18 @@ And replace the measurement paragraph (the block beginning "MEASURED AT 390px AF
    * MEASURED AT 390px AFTER `Galerie` JOINED THE BAR (2026-09-22), in headless
    * Chrome with the audits' own chromedriver and
    * `Emulation.setDeviceMetricsOverride`, because a window width under about
-   * 500px is clamped silently. innerWidth 390, and a 15px scrollbar leaves the
-   * document 375, so the phone's content column is 343px. The eight links
-   * measure 36.7, 54.0, 47.8, 45.1, 101.2, 102.5, 49.3 and 53.7px - 490.3px
-   * together - so the row wraps to two lines whatever the gap: measured 4+4 at
-   * this 12px gap, where the seven-link row wrapped 4+3, and one 630px row at
-   * 1280. Two lines is the wrap Task 13 accepts, and the nav stays 54px tall:
-   * two rows of about 23px plus the 8px row gap, where one row would be about
-   * 23px. What this rule still decides is how tight the wrapped row reads -
-   * 12px between links on a phone - not the one-line trick it was written as
-   * when the header carried five. 34rem is not a new breakpoint: it is the one
-   * `DayRow` and `WeekBand` already cut at, so the audit's derived breakpoint
-   * set is unchanged.
+   * 500px is clamped silently. innerWidth 390, and this Chrome draws no
+   * scrollbar at that width - the document stays 390 and the phone's content
+   * column is 358px. The eight links measure 36.7, 54.0, 47.8, 45.1, 101.2,
+   * 102.5, 49.3 and 53.7px - 490.3px together - so the row wraps to two lines
+   * whatever the gap: measured 5+3 at this 12px gap, where the seven-link row
+   * wrapped 4+3, and one 630px row at 1280. Two lines is the wrap Task 13
+   * accepts, and the nav stays 54px tall: two rows of about 23px plus the 8px
+   * row gap, where one row would be about 23px. What this rule still decides
+   * is how tight the wrapped row reads - 12px between links on a phone - not
+   * the one-line trick it was written as when the header carried five. 34rem
+   * is not a new breakpoint: it is the one `DayRow` and `WeekBand` already cut
+   * at, so the audit's derived breakpoint set is unchanged.
 ```
 
 - [ ] **Step 6: Update the handover's count**
@@ -324,9 +328,10 @@ also in the footer's `Site` menu);
 npm test && npm run check && npm run test:build
 ```
 
-Expected: exit 0 for each. `test:build` runs the four browser passes, which audit the
-new link on every page at 390/500/1100px with scripts on and off; a `link-name` or
-contrast failure names the page and rule. The budget pass prints the per-page HTML
+Expected: exit 0 for each. `test:build` runs **one** browser pass at the default width
+(the phone, wide and picker passes belong to `test:all`); because this change is a
+phone-width wrap, `npm run a11y:mobile` is run beside it — a `link-name` or contrast
+failure names the page and rule. The budget pass prints the per-page HTML
 numbers; the header grows by roughly 50 bytes on every page and the check says whether
 any page crossed its limit.
 
@@ -1238,7 +1243,9 @@ npm run test:build
 node .superpowers/p6-shot.mjs /resurse/doxologia/ dox
 ```
 
-Expected: exit 0 — the four browser passes audit the page with all 31 covers, and the
+Expected: exit 0 — the default-width browser pass audits the page with all 31 covers
+(`test:build` runs that one pass; add `npm run a11y:mobile`, because the cover column's
+phone rendering changes with the images), and the
 integration test "a body image on a prose page resolves to a real file in dist/"
 proves each new cover is emitted. Then read `/tmp/dox-full.png`: the covers form one
 uniform column, all the same width, no thumbnail-sized stragglers and no landscape
